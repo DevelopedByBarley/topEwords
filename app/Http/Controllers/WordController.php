@@ -10,7 +10,9 @@ use Inertia\Response;
 
 class WordController extends Controller
 {
-    private const PER_PAGE = 100;
+    private const ALLOWED_PER_PAGE = [20, 50, 100, 200, 300, 400, 500, 1000];
+
+    private const DEFAULT_PER_PAGE = 50;
 
     public function index(Request $request): Response
     {
@@ -18,6 +20,9 @@ class WordController extends Controller
         $letter = $request->string('letter')->trim()->upper()->value();
         $difficulty = $request->string('difficulty')->trim()->lower()->value();
         $statusFilter = $request->string('status')->trim()->lower()->value();
+        $perPage = in_array((int) $request->input('per_page'), self::ALLOWED_PER_PAGE)
+            ? (int) $request->input('per_page')
+            : self::DEFAULT_PER_PAGE;
 
         $wordStatuses = $request->user()
             ->knownWords()
@@ -42,7 +47,7 @@ class WordController extends Controller
 
         $words = (clone $baseQuery)
             ->orderBy('rank')
-            ->paginate(self::PER_PAGE)
+            ->paginate($perPage)
             ->withQueryString()
             ->through(fn (Word $word) => [
                 'id' => $word->id,
@@ -56,7 +61,7 @@ class WordController extends Controller
             ->orderBy('rank')
             ->pluck('id')
             ->values()
-            ->map(fn ($id, $index) => isset($wordStatuses[$id]) ? (int) ceil(($index + 1) / self::PER_PAGE) : null)
+            ->map(fn ($id, $index) => isset($wordStatuses[$id]) ? (int) ceil(($index + 1) / $perPage) : null)
             ->filter()
             ->unique()
             ->values()
@@ -73,7 +78,7 @@ class WordController extends Controller
 
         return Inertia::render('words/index', [
             'words' => $words,
-            'filters' => ['search' => $search, 'letter' => $letter, 'difficulty' => $difficulty, 'status' => $statusFilter],
+            'filters' => ['search' => $search, 'letter' => $letter, 'difficulty' => $difficulty, 'status' => $statusFilter, 'per_page' => $perPage],
             'stats' => [
                 'total' => Word::count(),
                 'known' => $statusCounts['known'] ?? 0,
