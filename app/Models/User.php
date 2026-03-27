@@ -10,9 +10,10 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Carbon;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 
-#[Fillable(['name', 'email', 'password'])]
+#[Fillable(['name', 'email', 'password', 'streak', 'last_activity_date'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -21,7 +22,23 @@ class User extends Authenticatable
 
     public function knownWords(): BelongsToMany
     {
-        return $this->belongsToMany(Word::class, 'user_word');
+        return $this->belongsToMany(Word::class, 'user_word')->withPivot('status')->withTimestamps();
+    }
+
+    public function updateStreak(): bool
+    {
+        $today = Carbon::today();
+        $lastActivity = $this->last_activity_date;
+
+        if ($lastActivity?->isToday()) {
+            return false;
+        }
+
+        $this->streak = $lastActivity?->isYesterday() ? $this->streak + 1 : 1;
+        $this->last_activity_date = $today;
+        $this->save();
+
+        return true;
     }
 
     /**
@@ -35,6 +52,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',
+            'last_activity_date' => 'date',
         ];
     }
 }

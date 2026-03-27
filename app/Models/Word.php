@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
-#[Fillable(['word', 'rank'])]
+#[Fillable(['word', 'rank', 'meaning'])]
 class Word extends Model
 {
     public function knownByUsers(): BelongsToMany

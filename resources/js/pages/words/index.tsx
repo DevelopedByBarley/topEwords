@@ -1,15 +1,19 @@
 import { Head, router } from '@inertiajs/react';
-import { CheckCheck, Search, X } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { BookMarked, CheckCheck, Clock, Info, Mic, Search, Volume2, X } from 'lucide-react';
+import { useCallback, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { index, toggle } from '@/routes/words';
+import { index, status } from '@/routes/words';
+
+type WordStatus = 'known' | 'learning' | 'saved' | 'pronunciation' | null;
 
 interface Word {
     id: number;
     word: string;
     rank: number;
-    is_known: boolean;
+    meaning: string | null;
+    status: WordStatus;
 }
 
 interface PaginationLink {
@@ -29,31 +33,40 @@ interface PaginatedWords {
 
 interface Props {
     words: PaginatedWords;
-    filters: { search: string; letter: string };
-    stats: { total: number; known: number };
+    filters: { search: string; letter: string; difficulty: string; status: string };
+    stats: { total: number; known: number; learning: number; saved: number; pronunciation: number };
+    markedPages: number[];
+    markedLetters: string[];
 }
+
+const DIFFICULTIES = [
+    { value: 'beginner', label: 'Kezdő', description: '1–2 000' },
+    { value: 'intermediate', label: 'Középhaladó', description: '2 001–6 000' },
+    { value: 'advanced', label: 'Haladó', description: '6 001–10 000' },
+] as const;
 
 const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 
-export default function WordsIndex({ words, filters, stats }: Props) {
+export default function WordsIndex({ words, filters, stats, markedPages, markedLetters }: Props) {
     const [search, setSearch] = useState(filters.search);
+    const [selectedWordId, setSelectedWordId] = useState<number | null>(null);
+    const selectedWord = selectedWordId !== null ? (words.data.find((w) => w.id === selectedWordId) ?? null) : null;
     const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
     const progressPercent = stats.total > 0 ? Math.round((stats.known / stats.total) * 100) : 0;
 
-    useEffect(() => {
-        setSearch(filters.search);
-    }, [filters.search]);
 
     const navigate = useCallback(
-        (params: { search?: string; letter?: string; page?: number }) => {
+        (params: { search?: string; letter?: string; difficulty?: string; status?: string; page?: number }) => {
             router.get(
                 index(),
                 {
                     search: params.search ?? filters.search,
                     letter: params.letter !== undefined ? params.letter : filters.letter,
+                    difficulty: params.difficulty !== undefined ? params.difficulty : filters.difficulty,
+                    status: params.status !== undefined ? params.status : filters.status,
                     page: params.page ?? 1,
                 },
-                { preserveScroll: false, replace: true },
+                { preserveScroll: false, preserveState: true, replace: true },
             );
         },
         [filters],
@@ -72,19 +85,53 @@ export default function WordsIndex({ words, filters, stats }: Props) {
         navigate({ search: '', letter, page: 1 });
     }
 
-    function handleToggle(word: Word) {
-        router
-            .optimistic((props: { words: PaginatedWords; stats: { total: number; known: number } }) => ({
-                words: {
-                    ...props.words,
-                    data: props.words.data.map((w) => (w.id === word.id ? { ...w, is_known: !w.is_known } : w)),
+    function handleDifficultyClick(difficulty: string) {
+        setSearch('');
+        navigate({ search: '', difficulty, letter: 'ALL', page: 1 });
+    }
+
+    function handleStatusFilter(statusValue: string) {
+        navigate({ status: statusValue, page: 1 });
+    }
+
+    function speak(word: string) {
+        if (!window.speechSynthesis) return;
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(word);
+        utterance.lang = 'en-US';
+        utterance.rate = 0.9;
+        window.speechSynthesis.speak(utterance);
+    }
+
+    function handleStatus(word: Word, newStatus: WordStatus) {
+        const nextStatus = word.status === newStatus ? null : newStatus;
+
+        router.post(
+            status(word.id),
+            { status: newStatus },
+            {
+                preserveScroll: true,
+                preserveState: true,
+                only: ['words', 'stats'],
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                optimistic: (props: any) => {
+                    const prev = word.status;
+                    return {
+                        words: {
+                            ...props.words,
+                            data: props.words.data.map((w: Word) => (w.id === word.id ? { ...w, status: nextStatus } : w)),
+                        },
+                        stats: {
+                            ...props.stats,
+                            known: props.stats.known + (nextStatus === 'known' ? 1 : prev === 'known' ? -1 : 0),
+                            learning: props.stats.learning + (nextStatus === 'learning' ? 1 : prev === 'learning' ? -1 : 0),
+                            saved: props.stats.saved + (nextStatus === 'saved' ? 1 : prev === 'saved' ? -1 : 0),
+                            pronunciation: props.stats.pronunciation + (nextStatus === 'pronunciation' ? 1 : prev === 'pronunciation' ? -1 : 0),
+                        },
+                    };
                 },
-                stats: {
-                    ...props.stats,
-                    known: props.stats.known + (word.is_known ? -1 : 1),
-                },
-            }))
-            .post(toggle(word.id), { preserveScroll: true, only: ['words', 'stats'] });
+            },
+        );
     }
 
     return (
@@ -101,7 +148,7 @@ export default function WordsIndex({ words, filters, stats }: Props) {
                 {/* Progress */}
                 <div className="rounded-xl border bg-card p-4">
                     <div className="mb-2 flex items-center justify-between text-sm">
-                        <span className="font-medium">Ismert szavak</span>
+                        <span className="font-medium">Haladás</span>
                         <span className="text-muted-foreground">
                             {stats.known.toLocaleString()} / {stats.total.toLocaleString()} ({progressPercent}%)
                         </span>
@@ -111,6 +158,12 @@ export default function WordsIndex({ words, filters, stats }: Props) {
                             className="bg-primary h-2.5 rounded-full transition-all duration-300"
                             style={{ width: `${progressPercent}%` }}
                         />
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-4 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1"><CheckCheck className="size-3 text-green-500" /> Tudom: {stats.known.toLocaleString()}</span>
+                        <span className="flex items-center gap-1"><Clock className="size-3 text-blue-500" /> Folyamatban: {stats.learning.toLocaleString()}</span>
+                        <span className="flex items-center gap-1"><BookMarked className="size-3 text-orange-500" /> Később: {stats.saved.toLocaleString()}</span>
+                        <span className="flex items-center gap-1"><Mic className="size-3 text-violet-500" /> Kiejtés: {stats.pronunciation.toLocaleString()}</span>
                     </div>
                 </div>
 
@@ -135,6 +188,84 @@ export default function WordsIndex({ words, filters, stats }: Props) {
                     )}
                 </div>
 
+                {/* Difficulty filter */}
+                {!search && (
+                    <div className="flex flex-wrap gap-2">
+                        <Button
+                            size="sm"
+                            variant={!filters.difficulty ? 'default' : 'outline'}
+                            onClick={() => handleDifficultyClick('')}
+                        >
+                            Minden szint
+                        </Button>
+                        {DIFFICULTIES.map((d) => (
+                            <Button
+                                key={d.value}
+                                size="sm"
+                                variant={filters.difficulty === d.value ? 'default' : 'outline'}
+                                onClick={() => handleDifficultyClick(d.value)}
+                                title={`Rank ${d.description}`}
+                            >
+                                {d.label}
+                                <span className="text-muted-foreground ml-1.5 text-xs font-normal">
+                                    {d.description}
+                                </span>
+                            </Button>
+                        ))}
+                    </div>
+                )}
+
+                {/* Status filter */}
+                <div className="flex flex-wrap gap-2">
+                    <Button
+                        size="sm"
+                        variant={!filters.status ? 'default' : 'outline'}
+                        onClick={() => handleStatusFilter('')}
+                    >
+                        Minden státusz
+                    </Button>
+                    <Button
+                        size="sm"
+                        variant={filters.status === 'known' ? 'default' : 'outline'}
+                        className={filters.status === 'known' ? 'bg-green-600 hover:bg-green-700' : 'hover:border-green-500 hover:text-green-700'}
+                        onClick={() => handleStatusFilter('known')}
+                    >
+                        <CheckCheck className="size-3.5" />
+                        Tudom
+                        <span className="text-xs font-normal opacity-75">{stats.known.toLocaleString()}</span>
+                    </Button>
+                    <Button
+                        size="sm"
+                        variant={filters.status === 'learning' ? 'default' : 'outline'}
+                        className={filters.status === 'learning' ? 'bg-blue-600 hover:bg-blue-700' : 'hover:border-blue-500 hover:text-blue-700'}
+                        onClick={() => handleStatusFilter('learning')}
+                    >
+                        <Clock className="size-3.5" />
+                        Tanulom
+                        <span className="text-xs font-normal opacity-75">{stats.learning.toLocaleString()}</span>
+                    </Button>
+                    <Button
+                        size="sm"
+                        variant={filters.status === 'saved' ? 'default' : 'outline'}
+                        className={filters.status === 'saved' ? 'bg-orange-500 hover:bg-orange-600' : 'hover:border-orange-500 hover:text-orange-700'}
+                        onClick={() => handleStatusFilter('saved')}
+                    >
+                        <BookMarked className="size-3.5" />
+                        Később
+                        <span className="text-xs font-normal opacity-75">{stats.saved.toLocaleString()}</span>
+                    </Button>
+                    <Button
+                        size="sm"
+                        variant={filters.status === 'pronunciation' ? 'default' : 'outline'}
+                        className={filters.status === 'pronunciation' ? 'bg-violet-600 hover:bg-violet-700' : 'hover:border-violet-500 hover:text-violet-700'}
+                        onClick={() => handleStatusFilter('pronunciation')}
+                    >
+                        <Mic className="size-3.5" />
+                        Kiejtés
+                        <span className="text-xs font-normal opacity-75">{stats.pronunciation.toLocaleString()}</span>
+                    </Button>
+                </div>
+
                 {/* Letter navigation */}
                 {!search && (
                     <div className="flex flex-wrap gap-1">
@@ -145,16 +276,26 @@ export default function WordsIndex({ words, filters, stats }: Props) {
                         >
                             Összes
                         </Button>
-                        {LETTERS.map((letter) => (
-                            <Button
-                                key={letter}
-                                size="sm"
-                                variant={filters.letter === letter ? 'default' : 'outline'}
-                                onClick={() => handleLetterClick(letter)}
-                            >
-                                {letter}
-                            </Button>
-                        ))}
+                        {LETTERS.map((letter) => {
+                            const hasMarks = markedLetters.includes(letter);
+                            const isActive = filters.letter === letter;
+                            return (
+                                <Button
+                                    key={letter}
+                                    size="sm"
+                                    variant={isActive ? 'default' : 'outline'}
+                                    onClick={() => handleLetterClick(letter)}
+                                    className="relative"
+                                >
+                                    {letter}
+                                    {hasMarks && !isActive && (
+                                        <span className="absolute -top-1 -right-1 flex h-2 w-2 items-center justify-center">
+                                            <span className="bg-primary size-1.5 rounded-full opacity-70" />
+                                        </span>
+                                    )}
+                                </Button>
+                            );
+                        })}
                     </div>
                 )}
 
@@ -169,6 +310,12 @@ export default function WordsIndex({ words, filters, stats }: Props) {
                     )}
                 </p>
 
+                {/* Hint banner */}
+                <div className="flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-blue-700 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-400">
+                    <Info className="size-5 shrink-0" />
+                    <p className="text-sm font-medium">Kattints bármelyik szóra a magyar jelentés megtekintéséhez!</p>
+                </div>
+
                 {/* Word list */}
                 {words.data.length === 0 ? (
                     <div className="text-muted-foreground flex flex-col items-center justify-center py-16 text-center">
@@ -182,28 +329,86 @@ export default function WordsIndex({ words, filters, stats }: Props) {
                             {words.data.map((word) => (
                                 <li
                                     key={word.id}
-                                    className={`flex items-center gap-3 px-4 py-2.5 transition-colors ${word.is_known ? 'bg-green-50 dark:bg-green-950/20' : ''}`}
+                                    className={`flex items-center gap-3 px-4 py-2.5 transition-colors ${
+                                        word.status === 'known' ? 'bg-green-50 dark:bg-green-950/20' :
+                                        word.status === 'learning' ? 'bg-blue-50 dark:bg-blue-950/20' :
+                                        word.status === 'saved' ? 'bg-orange-50 dark:bg-orange-950/20' :
+                                        word.status === 'pronunciation' ? 'bg-violet-50 dark:bg-violet-950/20' : ''
+                                    }`}
                                 >
-                                    <span className="text-muted-foreground w-12 shrink-0 text-right text-xs tabular-nums">
-                                        #{word.rank}
-                                    </span>
-                                    <span
-                                        className={`flex-1 font-medium ${word.is_known ? 'text-green-700 dark:text-green-400' : ''}`}
-                                    >
-                                        {word.word}
+                                    <span className="text-muted-foreground/60 w-8 shrink-0 text-right text-[10px] tabular-nums">
+                                        {word.rank}
                                     </span>
                                     <button
-                                        onClick={() => handleToggle(word)}
-                                        className={`flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-all ${
-                                            word.is_known
-                                                ? 'bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/40 dark:text-green-400 dark:hover:bg-green-900/60'
-                                                : 'bg-secondary text-muted-foreground hover:bg-secondary/80'
+                                        onClick={() => setSelectedWordId(word.id)}
+                                        className={`flex-1 text-left font-medium underline decoration-dotted underline-offset-2 transition-opacity hover:opacity-70 ${
+                                            word.status === 'known' ? 'text-green-700 decoration-green-400 dark:text-green-400' :
+                                            word.status === 'learning' ? 'text-blue-700 decoration-blue-400 dark:text-blue-400' :
+                                            word.status === 'saved' ? 'text-orange-700 decoration-orange-400 dark:text-orange-400' :
+                                            word.status === 'pronunciation' ? 'text-violet-700 decoration-violet-400 dark:text-violet-400' :
+                                            'decoration-muted-foreground/40'
                                         }`}
-                                        aria-label={word.is_known ? 'Ismertem törlése' : 'Megjelölés ismertként'}
                                     >
-                                        {word.is_known && <CheckCheck className="size-3" />}
-                                        {word.is_known ? 'Ismerem' : 'Jelölés'}
+                                        {word.word}
+                                        <Info className="mb-0.5 ml-1 inline size-3 opacity-40" />
                                     </button>
+                                    <button
+                                        onClick={() => speak(word.word)}
+                                        title="Felolvasás"
+                                        className="text-muted-foreground hover:text-foreground shrink-0 cursor-pointer rounded p-1 transition-colors hover:bg-accent"
+                                    >
+                                        <Volume2 className="size-3.5" />
+                                    </button>
+                                    <div className="flex shrink-0 gap-1">
+                                        <button
+                                            onClick={() => handleStatus(word, 'known')}
+                                            title="Tudom"
+                                            className={`flex cursor-pointer items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-all ${
+                                                word.status === 'known'
+                                                    ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400'
+                                                    : 'bg-secondary text-muted-foreground hover:bg-green-100 hover:text-green-700'
+                                            }`}
+                                        >
+                                            <CheckCheck className="size-3" />
+                                            <span className="hidden sm:inline">Tudom</span>
+                                        </button>
+                                        <button
+                                            onClick={() => handleStatus(word, 'learning')}
+                                            title="Folyamatban"
+                                            className={`flex cursor-pointer items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-all ${
+                                                word.status === 'learning'
+                                                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400'
+                                                    : 'bg-secondary text-muted-foreground hover:bg-blue-100 hover:text-blue-700'
+                                            }`}
+                                        >
+                                            <Clock className="size-3" />
+                                            <span className="hidden sm:inline">Tanulom</span>
+                                        </button>
+                                        <button
+                                            onClick={() => handleStatus(word, 'saved')}
+                                            title="Mentés későbbre"
+                                            className={`flex cursor-pointer items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-all ${
+                                                word.status === 'saved'
+                                                    ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400'
+                                                    : 'bg-secondary text-muted-foreground hover:bg-orange-100 hover:text-orange-700'
+                                            }`}
+                                        >
+                                            <BookMarked className="size-3" />
+                                            <span className="hidden sm:inline">Később</span>
+                                        </button>
+                                        <button
+                                            onClick={() => handleStatus(word, 'pronunciation')}
+                                            title="Kiejtési nehézség"
+                                            className={`flex cursor-pointer items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-all ${
+                                                word.status === 'pronunciation'
+                                                    ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-400'
+                                                    : 'bg-secondary text-muted-foreground hover:bg-violet-100 hover:text-violet-700'
+                                            }`}
+                                        >
+                                            <Mic className="size-3" />
+                                            <span className="hidden sm:inline">Kiejtés</span>
+                                        </button>
+                                    </div>
                                 </li>
                             ))}
                         </ul>
@@ -213,25 +418,105 @@ export default function WordsIndex({ words, filters, stats }: Props) {
                 {/* Pagination */}
                 {words.last_page > 1 && (
                     <div className="flex flex-wrap justify-center gap-1">
-                        {words.links.map((link, i) => (
-                            <button
-                                key={i}
-                                disabled={!link.url}
-                                onClick={() => {
-                                    if (link.url) {
-                                        const url = new URL(link.url);
-                                        navigate({ page: Number(url.searchParams.get('page') ?? 1) });
-                                    }
-                                }}
-                                className={`rounded-md px-3 py-1.5 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
-                                    link.active ? 'bg-primary text-primary-foreground font-medium' : 'hover:bg-accent border'
-                                }`}
-                                dangerouslySetInnerHTML={{ __html: link.label }}
-                            />
-                        ))}
+                        {words.links.map((link, i) => {
+                            const pageNum = link.url ? Number(new URL(link.url).searchParams.get('page') ?? 1) : null;
+                            const hasMarks = pageNum !== null && !link.active && markedPages.includes(pageNum);
+
+                            return (
+                                <button
+                                    key={i}
+                                    disabled={!link.url}
+                                    onClick={() => {
+                                        if (link.url && pageNum) navigate({ page: pageNum });
+                                    }}
+                                    className={`relative rounded-md px-3 py-1.5 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                                        link.active
+                                            ? 'bg-primary text-primary-foreground font-medium'
+                                            : hasMarks
+                                              ? 'border border-green-400 bg-green-50 text-green-800 hover:bg-green-100 dark:border-green-700 dark:bg-green-950/30 dark:text-green-300'
+                                              : 'hover:bg-accent border'
+                                    }`}
+                                    dangerouslySetInnerHTML={{ __html: link.label }}
+                                />
+                            );
+                        })}
                     </div>
                 )}
             </div>
+
+            {/* Word detail modal */}
+            <Dialog open={selectedWord !== null} onOpenChange={(open) => { if (!open) setSelectedWordId(null); }}>
+                <DialogContent className="sm:max-w-sm">
+                    {selectedWord && (
+                        <>
+                            <DialogHeader>
+                                <DialogTitle className="flex items-center gap-2 text-2xl">
+                                    {selectedWord.word}
+                                    <button
+                                        onClick={() => speak(selectedWord.word)}
+                                        title="Felolvasás"
+                                        className="text-muted-foreground hover:text-foreground rounded p-1 transition-colors hover:bg-accent"
+                                    >
+                                        <Volume2 className="size-4" />
+                                    </button>
+                                </DialogTitle>
+                                <p className="text-muted-foreground text-xs">#{selectedWord.rank}</p>
+                            </DialogHeader>
+
+                            <div className="rounded-lg border px-4 py-3">
+                                {selectedWord.meaning ? (
+                                    <p className="text-base">{selectedWord.meaning}</p>
+                                ) : (
+                                    <p className="text-muted-foreground text-sm italic">Nincs fordítás megadva</p>
+                                )}
+                            </div>
+
+                            <div className="flex flex-wrap gap-2">
+                                <button
+                                    onClick={() => handleStatus(selectedWord, 'known')}
+                                    className={`flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium transition-all ${
+                                        selectedWord.status === 'known'
+                                            ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400'
+                                            : 'bg-secondary text-muted-foreground hover:bg-green-100 hover:text-green-700'
+                                    }`}
+                                >
+                                    <CheckCheck className="size-4" /> Tudom
+                                </button>
+                                <button
+                                    onClick={() => handleStatus(selectedWord, 'learning')}
+                                    className={`flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium transition-all ${
+                                        selectedWord.status === 'learning'
+                                            ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400'
+                                            : 'bg-secondary text-muted-foreground hover:bg-blue-100 hover:text-blue-700'
+                                    }`}
+                                >
+                                    <Clock className="size-4" /> Tanulom
+                                </button>
+                                <button
+                                    onClick={() => handleStatus(selectedWord, 'saved')}
+                                    className={`flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium transition-all ${
+                                        selectedWord.status === 'saved'
+                                            ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400'
+                                            : 'bg-secondary text-muted-foreground hover:bg-orange-100 hover:text-orange-700'
+                                    }`}
+                                >
+                                    <BookMarked className="size-4" /> Később
+                                </button>
+                                <button
+                                    onClick={() => handleStatus(selectedWord, 'pronunciation')}
+                                    className={`flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium transition-all ${
+                                        selectedWord.status === 'pronunciation'
+                                            ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-400'
+                                            : 'bg-secondary text-muted-foreground hover:bg-violet-100 hover:text-violet-700'
+                                    }`}
+                                >
+                                    <Mic className="size-4" /> Kiejtés
+                                </button>
+                            </div>
+                        </>
+                    )}
+                </DialogContent>
+            </Dialog>
         </>
     );
 }

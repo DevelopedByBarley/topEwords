@@ -6,6 +6,7 @@ declare module '@inertiajs/core' {
             name: string;
             auth: Auth;
             sidebarOpen: boolean;
+            flash: { streakTriggered: number | null };
             [key: string]: unknown;
         };
     }

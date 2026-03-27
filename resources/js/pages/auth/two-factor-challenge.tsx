@@ -23,18 +23,18 @@ export default function TwoFactorChallenge() {
     }>(() => {
         if (showRecoveryInput) {
             return {
-                title: 'Recovery code',
+                title: 'Helyreállítási kód',
                 description:
-                    'Please confirm access to your account by entering one of your emergency recovery codes.',
-                toggleText: 'login using an authentication code',
+                    'Erősítsd meg a hozzáférést a fiókodhoz a vészhelyzeti helyreállítási kódok egyikével.',
+                toggleText: 'bejelentkezés hitelesítési kóddal',
             };
         }
 
         return {
-            title: 'Authentication code',
+            title: 'Hitelesítési kód',
             description:
-                'Enter the authentication code provided by your authenticator application.',
-            toggleText: 'login using a recovery code',
+                'Add meg a hitelesítő alkalmazásod által generált kódot.',
+            toggleText: 'bejelentkezés helyreállítási kóddal',
         };
     }, [showRecoveryInput]);
 
@@ -51,11 +51,12 @@ export default function TwoFactorChallenge() {
 
     return (
         <>
-            <Head title="Two-factor authentication" />
+            <Head title="Kétlépéses azonosítás" />
 
             <div className="space-y-6">
                 <Form
-                    {...store.form()}
+                    action={store.url()}
+                    method="post"
                     className="space-y-4"
                     resetOnError
                     resetOnSuccess={!showRecoveryInput}
@@ -67,7 +68,7 @@ export default function TwoFactorChallenge() {
                                     <Input
                                         name="recovery_code"
                                         type="text"
-                                        placeholder="Enter recovery code"
+                                        placeholder="Helyreállítási kód"
                                         autoFocus={showRecoveryInput}
                                         required
                                     />
@@ -108,11 +109,11 @@ export default function TwoFactorChallenge() {
                                 className="w-full"
                                 disabled={processing}
                             >
-                                Continue
+                                Tovább
                             </Button>
 
                             <div className="text-center text-sm text-muted-foreground">
-                                <span>or you can </span>
+                                <span>vagy </span>
                                 <button
                                     type="button"
                                     className="cursor-pointer text-foreground underline decoration-neutral-300 underline-offset-4 transition-colors duration-300 ease-out hover:decoration-current! dark:decoration-neutral-500"
