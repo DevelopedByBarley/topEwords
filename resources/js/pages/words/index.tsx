@@ -10,7 +10,7 @@ import {
     Volume2,
     X,
 } from 'lucide-react';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -92,6 +92,22 @@ export default function WordsIndex({
     const progressPercent =
         stats.total > 0 ? Math.round((stats.known / stats.total) * 100) : 0;
 
+    const STORAGE_KEY = 'words_filters';
+
+    useEffect(() => {
+        const search = new URLSearchParams(window.location.search);
+        const hasParams = search.has('page') || search.has('per_page') || search.has('letter') || search.has('difficulty') || search.has('status') || search.has('search');
+
+        if (!hasParams) {
+            const saved = localStorage.getItem(STORAGE_KEY);
+
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                router.get(index(), parsed, { preserveScroll: false, preserveState: false, replace: true });
+            }
+        }
+    }, []);
+
     const navigate = useCallback(
         (params: {
             search?: string;
@@ -101,28 +117,18 @@ export default function WordsIndex({
             page?: number;
             per_page?: number;
         }) => {
+            const resolved = {
+                search: params.search ?? filters.search,
+                letter: params.letter !== undefined ? params.letter : filters.letter,
+                difficulty: params.difficulty !== undefined ? params.difficulty : filters.difficulty,
+                status: params.status !== undefined ? params.status : filters.status,
+                per_page: params.per_page !== undefined ? params.per_page : filters.per_page,
+                page: params.page ?? 1,
+            };
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(resolved));
             router.get(
                 index(),
-                {
-                    search: params.search ?? filters.search,
-                    letter:
-                        params.letter !== undefined
-                            ? params.letter
-                            : filters.letter,
-                    difficulty:
-                        params.difficulty !== undefined
-                            ? params.difficulty
-                            : filters.difficulty,
-                    status:
-                        params.status !== undefined
-                            ? params.status
-                            : filters.status,
-                    per_page:
-                        params.per_page !== undefined
-                            ? params.per_page
-                            : filters.per_page,
-                    page: params.page ?? 1,
-                },
+                resolved,
                 { preserveScroll: false, preserveState: true, replace: true },
             );
         },
@@ -503,7 +509,7 @@ export default function WordsIndex({
                             {words.data.map((word) => (
                                 <li
                                     key={word.id}
-                                    className={`flex items-center gap-3 px-4 py-2.5 transition-colors ${
+                                    className={`flex items-center gap-3 py-2.5 transition-colors ${
                                         word.status === 'known'
                                             ? 'bg-green-50 dark:bg-green-950/20'
                                             : word.status === 'learning'
@@ -516,7 +522,7 @@ export default function WordsIndex({
                                                   : ''
                                     }`}
                                 >
-                                    <span className="w-8 shrink-0 text-right text-[10px] text-muted-foreground/60 tabular-nums">
+                                    <span className="w-4 shrink-0 text-right text-[10px] text-muted-foreground/60 tabular-nums">
                                         {word.rank}
                                     </span>
                                     <button
@@ -562,13 +568,13 @@ export default function WordsIndex({
                                                 handleStatus(word, 'known')
                                             }
                                             title="Tudom"
-                                            className={`flex cursor-pointer items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-all ${
+                                            className={`flex cursor-pointer items-center gap-1.5 rounded-full px-3.5 py-2.5 text-xs font-medium transition-all ${
                                                 word.status === 'known'
                                                     ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400'
                                                     : 'bg-secondary text-muted-foreground hover:bg-green-100 hover:text-green-700'
                                             }`}
                                         >
-                                            <CheckCheck className="size-3" />
+                                            <CheckCheck className="size-4" />
                                             <span className="hidden sm:inline">
                                                 Tudom
                                             </span>
@@ -578,13 +584,13 @@ export default function WordsIndex({
                                                 handleStatus(word, 'learning')
                                             }
                                             title="Folyamatban"
-                                            className={`flex cursor-pointer items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-all ${
+                                            className={`flex cursor-pointer items-center gap-1.5 rounded-full px-3.5 py-2.5 text-xs font-medium transition-all ${
                                                 word.status === 'learning'
                                                     ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400'
                                                     : 'bg-secondary text-muted-foreground hover:bg-blue-100 hover:text-blue-700'
                                             }`}
                                         >
-                                            <Clock className="size-3" />
+                                            <Clock className="size-4" />
                                             <span className="hidden sm:inline">
                                                 Tanulom
                                             </span>
@@ -594,13 +600,13 @@ export default function WordsIndex({
                                                 handleStatus(word, 'saved')
                                             }
                                             title="Mentés későbbre"
-                                            className={`flex cursor-pointer items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-all ${
+                                            className={`flex cursor-pointer items-center gap-1.5 rounded-full px-3.5 py-2.5 text-xs font-medium transition-all ${
                                                 word.status === 'saved'
                                                     ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400'
                                                     : 'bg-secondary text-muted-foreground hover:bg-orange-100 hover:text-orange-700'
                                             }`}
                                         >
-                                            <BookMarked className="size-3" />
+                                            <BookMarked className="size-4" />
                                             <span className="hidden sm:inline">
                                                 Később
                                             </span>
@@ -613,13 +619,13 @@ export default function WordsIndex({
                                                 )
                                             }
                                             title="Kiejtési nehézség"
-                                            className={`flex cursor-pointer items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-all ${
+                                            className={`flex cursor-pointer items-center gap-1.5 rounded-full px-3.5 py-2.5 text-xs font-medium transition-all ${
                                                 word.status === 'pronunciation'
                                                     ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-400'
                                                     : 'bg-secondary text-muted-foreground hover:bg-violet-100 hover:text-violet-700'
                                             }`}
                                         >
-                                            <Mic className="size-3" />
+                                            <Mic className="size-4" />
                                             <span className="hidden sm:inline">
                                                 Kiejtés
                                             </span>

@@ -65,6 +65,12 @@ export default function Register() {
                                     name="password"
                                     placeholder="Jelszó"
                                 />
+                                <ul className="grid gap-1 text-xs text-muted-foreground">
+                                    <li>Legalább 12 karakter</li>
+                                    <li>Nagy- és kisbetű egyaránt</li>
+                                    <li>Legalább egy szám</li>
+                                    <li>Legalább egy speciális karakter (pl. !@#$%)</li>
+                                </ul>
                                 <InputError message={errors.password} />
                             </div>
 

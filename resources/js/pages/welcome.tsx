@@ -1,5 +1,5 @@
 import { Head, Link, usePage } from '@inertiajs/react';
-import { BookMarked, CheckCheck, Clock, Code2, ExternalLink, Star, TrendingUp, Zap } from 'lucide-react';
+import { BookMarked, CheckCheck, Clock, Code2, ExternalLink, FlaskConical, Star, TrendingUp, Zap } from 'lucide-react';
 import AppLogoIcon from '@/components/app-logo-icon';
 import { Button } from '@/components/ui/button';
 import { dashboard, login, register } from '@/routes';
@@ -20,7 +20,17 @@ export default function Welcome({ canRegister = true }: { canRegister?: boolean 
                             <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary">
                                 <AppLogoIcon className="size-4.5 text-primary-foreground" />
                             </div>
-                            <span className="font-semibold tracking-tight">TopWords</span>
+                            <div className="grid text-sm">
+                                <span className="font-semibold tracking-tight leading-tight">TopWords</span>
+                                <a
+                                    href="https://codebarley.hu"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                                >
+                                    by CodeBarley
+                                </a>
+                            </div>
                         </div>
 
                         <nav className="flex items-center gap-2">
@@ -184,6 +194,60 @@ export default function Welcome({ canRegister = true }: { canRegister?: boolean 
                                     </div>
                                 ))}
                             </div>
+                        </div>
+                    </div>
+                </section>
+
+                {/* Scientific basis */}
+                <section className="mx-auto max-w-5xl px-6 py-20">
+                    <div className="mb-10 text-center">
+                        <div className="mb-3 inline-flex items-center gap-1.5 rounded-full border bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
+                            <FlaskConical className="size-3" />
+                            Tudományosan megalapozott
+                        </div>
+                        <h2 className="mb-3 text-2xl font-bold tracking-tight">Honnan származik a szólista?</h2>
+                        <p className="mx-auto max-w-2xl text-muted-foreground">
+                            A 10 000 leggyakoribb angol szó nem véletlenszerűen összeválogatott lista — korpusznyelvészeti
+                            kutatások eredménye, amelyet évtizedek óta használnak nyelvoktatásban és kutatásban egyaránt.
+                        </p>
+                    </div>
+
+                    <div className="grid gap-6 md:grid-cols-2">
+                        <div className="rounded-xl border bg-card p-6">
+                            <h3 className="mb-2 font-semibold">BNC & COCA korpuszok</h3>
+                            <p className="text-sm text-muted-foreground">
+                                A lista a <strong className="text-foreground">British National Corpus (BNC)</strong> és a{' '}
+                                <strong className="text-foreground">Corpus of Contemporary American English (COCA)</strong> adatain
+                                alapul — több száz millió szót tartalmazó, gondosan összeállított szöveggyűjteményeken.
+                            </p>
+                        </div>
+
+                        <div className="rounded-xl border bg-card p-6">
+                            <h3 className="mb-2 font-semibold">Paul Nation kutatása</h3>
+                            <p className="text-sm text-muted-foreground">
+                                A frekvencialisták összeállításában meghatározó szerepet játszott{' '}
+                                <strong className="text-foreground">Paul Nation</strong>, a Victoria University of Wellington
+                                professzora, akinek munkája a szókincs-fejlesztés tudományos alapjává vált.
+                            </p>
+                        </div>
+
+                        <div className="rounded-xl border bg-card p-6">
+                            <h3 className="mb-2 font-semibold">1 000-es egységek</h3>
+                            <p className="text-sm text-muted-foreground">
+                                A szavak 10 darab, egyenként 1 000 szavas csoportba vannak rendezve, frekvencia szerint. Az első
+                                2 000 szó a mindennapi kommunikáció alapját adja, a 10 000. szóig eljutva professzionális és
+                                akadémiai szövegek is érthetővé válnak.
+                            </p>
+                        </div>
+
+                        <div className="rounded-xl border bg-card p-6">
+                            <h3 className="mb-2 font-semibold">Szófaji kategóriák</h3>
+                            <p className="text-sm text-muted-foreground">
+                                A lista főneveket, igéket, mellékneveket és határozószókat is tartalmaz —{' '}
+                                <strong className="text-foreground">headword</strong> (alapalak) formában tárolva, ami azt jelenti,
+                                hogy például a <em>run</em> egyetlen bejegyzés, nem pedig külön a <em>runs</em>, <em>ran</em>,{' '}
+                                <em>running</em>.
+                            </p>
                         </div>
                     </div>
                 </section>

@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(vendor/bin/pint resources/js/pages/words/index.tsx --format agent)"
+    ]
+  }
+}

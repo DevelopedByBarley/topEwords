@@ -49,6 +49,14 @@ export function AppSidebar() {
                                 <AppLogo />
                             </Link>
                         </SidebarMenuButton>
+                        <a
+                            href="https://codebarley.hu"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-2 truncate text-xs text-sidebar-foreground/50 hover:text-sidebar-foreground/80 group-data-[collapsible=icon]:hidden"
+                        >
+                            by CodeBarley
+                        </a>
                     </SidebarMenuItem>
                 </SidebarMenu>
             </SidebarHeader>
