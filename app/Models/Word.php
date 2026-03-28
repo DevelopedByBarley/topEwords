@@ -13,4 +13,9 @@ class Word extends Model
     {
         return $this->belongsToMany(User::class, 'user_word');
     }
+
+    public function folders(): BelongsToMany
+    {
+        return $this->belongsToMany(Folder::class, 'folder_word');
+    }
 }

@@ -1,8 +1,8 @@
 import { Head, Link, usePage } from '@inertiajs/react';
-import { BookMarked, CheckCheck, Clock, Code2, ExternalLink, FlaskConical, Star, TrendingUp, Zap } from 'lucide-react';
+import { BookMarked, CheckCheck, Clock, Code2, ExternalLink, Filter, FlaskConical, FolderOpen, FolderPlus, Lightbulb, Mail, Star, TrendingUp, Zap } from 'lucide-react';
 import AppLogoIcon from '@/components/app-logo-icon';
 import { Button } from '@/components/ui/button';
-import { dashboard, login, register } from '@/routes';
+import { dashboard, login, register, terms, privacy } from '@/routes';
 import { index as wordsIndex } from '@/routes/words';
 
 export default function Welcome({ canRegister = true }: { canRegister?: boolean }) {
@@ -10,7 +10,14 @@ export default function Welcome({ canRegister = true }: { canRegister?: boolean 
 
     return (
         <>
-            <Head title="Top 10 000 angol szó – Tanuld meg a legfontosabb szavakat" />
+            <Head title="Top 10 000 angol szó – Tanuld meg a legfontosabb szavakat">
+                <meta head-key="description" name="description" content="Tanuld meg a 10 000 leggyakoribb angol szót ingyen. Jelöld meg amit tudsz, amit tanulsz, és kövesd a haladásodat nehézségi szintenként. Tudományosan megalapozott, BNC és COCA korpuszadatokon alapuló szólista." />
+                <meta head-key="og:title" property="og:title" content="TopWords – Top 10 000 angol szó ingyen" />
+                <meta head-key="og:description" property="og:description" content="Tanuld meg a 10 000 leggyakoribb angol szót ingyen. Jelöld meg amit tudsz, amit tanulsz, és kövesd a haladásodat." />
+                <meta head-key="og:url" property="og:url" content="https://topwords.eu/" />
+                <meta head-key="twitter:title" name="twitter:title" content="TopWords – Top 10 000 angol szó ingyen" />
+                <meta head-key="twitter:description" name="twitter:description" content="Tanuld meg a 10 000 leggyakoribb angol szót ingyen. Jelöld meg amit tudsz, amit tanulsz, és kövesd a haladásodat." />
+            </Head>
 
             <div className="min-h-screen bg-background text-foreground">
                 {/* Nav */}
@@ -147,6 +154,58 @@ export default function Welcome({ canRegister = true }: { canRegister?: boolean 
                     </div>
                 </section>
 
+                {/* Folders section */}
+                <section className="border-t">
+                    <div className="mx-auto max-w-5xl px-6 py-20">
+                        <div className="grid items-center gap-12 md:grid-cols-2">
+                            <div>
+                                <div className="mb-3 inline-flex items-center gap-1.5 rounded-full border bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
+                                    <FolderOpen className="size-3" />
+                                    Mappák
+                                </div>
+                                <h2 className="mb-4 text-2xl font-bold tracking-tight">
+                                    Szervezd a szavakat saját mappákba
+                                </h2>
+                                <p className="mb-6 text-muted-foreground">
+                                    Hozz létre egyéni mappákat és csoportosítsd a szavakat témák, projektek vagy bármi más szerint —
+                                    teljesen a saját tanulási stílusodhoz igazítva.
+                                </p>
+                                <ul className="flex flex-col gap-3 text-sm">
+                                    {[
+                                        { icon: FolderPlus, text: 'Hozz létre tetszőleges számú mappát (pl. "Utazás", "Munka", "Vizsgára")' },
+                                        { icon: FolderOpen, text: 'Adj hozzá szavakat egy vagy több mappához is egyszerre' },
+                                        { icon: Filter, text: 'Szűrj rá bármelyik mappára és csak azokat a szavakat lásd' },
+                                    ].map(({ icon: Icon, text }) => (
+                                        <li key={text} className="flex items-start gap-3">
+                                            <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                                                <Icon className="size-3 text-primary" />
+                                            </div>
+                                            <span className="text-muted-foreground">{text}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+
+                            <div className="flex flex-col gap-3">
+                                {[
+                                    { name: 'Utazás', count: 42, color: 'text-blue-500 bg-blue-500/10' },
+                                    { name: 'Munkahelyi szavak', count: 78, color: 'text-violet-500 bg-violet-500/10' },
+                                    { name: 'Vizsgára készülök', count: 115, color: 'text-orange-500 bg-orange-500/10' },
+                                    { name: 'Kiejtés gyakorlás', count: 31, color: 'text-[#00ADB5] bg-[#00ADB5]/10' },
+                                ].map((folder) => (
+                                    <div key={folder.name} className="flex items-center gap-4 rounded-xl border bg-card p-4">
+                                        <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${folder.color}`}>
+                                            <FolderOpen className="size-4.5" />
+                                        </div>
+                                        <div className="flex-1 font-medium">{folder.name}</div>
+                                        <div className="text-sm text-muted-foreground">{folder.count} szó</div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
                 {/* Why section */}
                 <section className="border-t bg-muted/40">
                     <div className="mx-auto max-w-5xl px-6 py-20">
@@ -272,6 +331,46 @@ export default function Welcome({ canRegister = true }: { canRegister?: boolean 
                     </section>
                 )}
 
+                {/* Feedback / contact */}
+                <section className="border-t">
+                    <div className="mx-auto max-w-5xl px-6 py-16">
+                        <div className="rounded-2xl border bg-muted/40 px-8 py-10">
+                            <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+                                <div className="flex items-start gap-4">
+                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                                        <Lightbulb className="size-5 text-primary" />
+                                    </div>
+                                    <div>
+                                        <h3 className="mb-1 font-semibold">Fejlesztési ötleted van, vagy hibát találtál?</h3>
+                                        <p className="text-sm text-muted-foreground">
+                                            Szívesen fogadom a visszajelzéseket — legyen az új funkció ötlete, apró hiba vagy bármi más.
+                                            Vedd fel velem a kapcsolatot a weboldalamon vagy írj emailben.
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+                                    <a
+                                        href="https://codebarley.hu"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center justify-center gap-2 rounded-lg border bg-background px-4 py-2.5 text-sm font-medium transition-colors hover:bg-muted"
+                                    >
+                                        <ExternalLink className="size-4" />
+                                        codebarley.hu
+                                    </a>
+                                    <a
+                                        href="mailto:info@codebarley.hu"
+                                        className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
+                                    >
+                                        <Mail className="size-4" />
+                                        info@codebarley.hu
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
                 {/* Made by codebarley */}
                 <section className="border-t">
                     <div className="mx-auto max-w-5xl px-6 py-16">
@@ -319,7 +418,13 @@ export default function Welcome({ canRegister = true }: { canRegister?: boolean 
                             <span>TopWords</span>
                         </div>
                         <div className="flex items-center gap-4">
-                            <span>Top 10 000 angol szó</span>
+                            <Link href={terms()} className="hover:text-foreground transition-colors">
+                                ÁSZF
+                            </Link>
+                            <span>·</span>
+                            <Link href={privacy()} className="hover:text-foreground transition-colors">
+                                Adatkezelés
+                            </Link>
                             <span>·</span>
                             <a
                                 href="https://codebarley.hu"

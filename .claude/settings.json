@@ -1,7 +1,12 @@
 {
   "permissions": {
     "allow": [
-      "Bash(vendor/bin/pint resources/js/pages/words/index.tsx --format agent)"
+      "Bash(vendor/bin/pint resources/js/pages/words/index.tsx --format agent)",
+      "Bash(vendor/bin/pint app/Http/Controllers/FolderController.php --format agent)",
+      "Bash(vendor/bin/pint app/Http/Controllers/FolderWordController.php --format agent)",
+      "Bash(du -sh /Applications/XAMPP/xamppfiles/htdocs/topEwords/storage/logs/*)",
+      "Bash(vendor/bin/pint routes/web.php --format agent)",
+      "Bash(vendor/bin/pint app/Http/Controllers/AdminController.php app/Providers/AppServiceProvider.php routes/web.php --format agent)"
     ]
   }
 }

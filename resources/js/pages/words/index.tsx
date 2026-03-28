@@ -4,9 +4,14 @@ import {
     BookMarked,
     CheckCheck,
     Clock,
+    FolderOpen,
+    FolderPlus,
     Info,
     Mic,
+    Pencil,
+    Plus,
     Search,
+    Trash2,
     Volume2,
     X,
 } from 'lucide-react';
@@ -19,6 +24,8 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { destroy, store, update } from '@/routes/folders';
+import { update as folderWordUpdate } from '@/routes/folders/words';
 import { index, status } from '@/routes/words';
 
 type WordStatus = 'known' | 'learning' | 'saved' | 'pronunciation' | null;
@@ -46,6 +53,12 @@ interface PaginatedWords {
     links: PaginationLink[];
 }
 
+interface Folder {
+    id: number;
+    name: string;
+    words_count: number;
+}
+
 interface Props {
     words: PaginatedWords;
     filters: {
@@ -53,6 +66,7 @@ interface Props {
         letter: string;
         difficulty: string;
         status: string;
+        folder: number | null;
         per_page: number;
     };
     stats: {
@@ -64,6 +78,8 @@ interface Props {
     };
     markedPages: number[];
     markedLetters: string[];
+    folders: Folder[];
+    wordFolderIds: Record<number, number[]>;
 }
 
 const DIFFICULTIES = [
@@ -80,10 +96,17 @@ export default function WordsIndex({
     stats,
     markedPages,
     markedLetters,
+    folders,
+    wordFolderIds,
 }: Props) {
     const [search, setSearch] = useState(filters.search);
     const [selectedWordId, setSelectedWordId] = useState<number | null>(null);
     const [flipMode, setFlipMode] = useState(false);
+    const [newFolderName, setNewFolderName] = useState('');
+    const [showNewFolderInput, setShowNewFolderInput] = useState(false);
+    const [editFolderId, setEditFolderId] = useState<number | null>(null);
+    const [editFolderName, setEditFolderName] = useState('');
+    const [showFolderSheet, setShowFolderSheet] = useState(false);
     const selectedWord =
         selectedWordId !== null
             ? (words.data.find((w) => w.id === selectedWordId) ?? null)
@@ -93,6 +116,15 @@ export default function WordsIndex({
         stats.total > 0 ? Math.round((stats.known / stats.total) * 100) : 0;
 
     const STORAGE_KEY = 'words_filters';
+
+    useEffect(() => {
+        const handler = () => setShowFolderSheet(true);
+        window.addEventListener('open-folder-sheet', handler);
+
+        return () => {
+            window.removeEventListener('open-folder-sheet', handler);
+        };
+    }, []);
 
     useEffect(() => {
         const search = new URLSearchParams(window.location.search);
@@ -114,6 +146,7 @@ export default function WordsIndex({
             letter?: string;
             difficulty?: string;
             status?: string;
+            folder?: number | null;
             page?: number;
             per_page?: number;
         }) => {
@@ -122,18 +155,95 @@ export default function WordsIndex({
                 letter: params.letter !== undefined ? params.letter : filters.letter,
                 difficulty: params.difficulty !== undefined ? params.difficulty : filters.difficulty,
                 status: params.status !== undefined ? params.status : filters.status,
+                folder: params.folder !== undefined ? params.folder : filters.folder,
                 per_page: params.per_page !== undefined ? params.per_page : filters.per_page,
                 page: params.page ?? 1,
             };
             localStorage.setItem(STORAGE_KEY, JSON.stringify(resolved));
-            router.get(
-                index(),
-                resolved,
-                { preserveScroll: false, preserveState: true, replace: true },
-            );
+            router.get(index(), resolved, { preserveScroll: false, preserveState: true, replace: true });
         },
         [filters],
     );
+
+    function handleFolderFilter(folderId: number | null) {
+        navigate({ folder: folderId, page: 1 });
+    }
+
+    function handleCreateFolder() {
+        const name = newFolderName.trim();
+
+        if (!name) {
+            return;
+        }
+        router.post(store(), { name }, {
+            preserveScroll: true,
+            preserveState: true,
+            only: ['folders'],
+            onSuccess: () => {
+                setNewFolderName('');
+                setShowNewFolderInput(false);
+            },
+        });
+    }
+
+    function handleDeleteFolder(folderId: number) {
+        router.delete(destroy(folderId), {
+            preserveScroll: true,
+            preserveState: true,
+            only: ['folders', 'wordFolderIds'],
+            onSuccess: () => {
+                if (filters.folder === folderId) {
+                    navigate({ folder: null, page: 1 });
+                }
+            },
+        });
+    }
+
+    function handleToggleWordFolder(wordId: number, folderId: number, inFolder: boolean) {
+        const refreshWords = filters.folder !== null;
+
+        router.patch(folderWordUpdate({ folder: folderId, word: wordId }), { in_folder: inFolder }, {
+            preserveScroll: true,
+            preserveState: true,
+            only: refreshWords ? ['folders', 'wordFolderIds', 'words'] : ['folders', 'wordFolderIds'],
+            onSuccess: () => {
+                if (refreshWords && !inFolder) {
+                    setSelectedWordId(null);
+                }
+            },
+        });
+    }
+
+    function handleRenameFolder(folderId: number, name: string) {
+        if (!name.trim()) {
+            return;
+        }
+        router.patch(update(folderId), { name: name.trim() }, {
+            preserveScroll: true,
+            preserveState: true,
+            only: ['folders'],
+            onSuccess: () => {
+                setEditFolderId(null);
+                setEditFolderName('');
+            },
+        });
+    }
+
+    function handleCancelNewFolder() {
+        setShowNewFolderInput(false);
+        setNewFolderName('');
+    }
+
+    function handleNewFolderSubmit(e: React.FormEvent) {
+        e.preventDefault();
+        handleCreateFolder();
+    }
+
+    function handleNewFolderKeyDown(e: React.KeyboardEvent) {
+        if (e.key === 'Escape') {
+            handleCancelNewFolder();
+        }
+    }
 
     function handleSearchChange(value: string) {
         setSearch(value);
@@ -435,6 +545,140 @@ export default function WordsIndex({
                     </Button>
                 </div>
 
+                {/* Active folder chip */}
+                {filters.folder && (
+                    <div className="flex items-center gap-2">
+                        <span className="text-sm text-muted-foreground">Mappa:</span>
+                        <span className="flex items-center gap-1.5 rounded-full bg-primary px-3 py-1 text-sm font-medium text-primary-foreground">
+                            <FolderOpen className="size-3.5" />
+                            {folders.find((f) => f.id === filters.folder)?.name ?? 'Mappa'}
+                            <button
+                                onClick={() => handleFolderFilter(null)}
+                                className="ml-0.5 rounded-full hover:opacity-70"
+                                title="Szűrő törlése"
+                            >
+                                <X className="size-3.5" />
+                            </button>
+                        </span>
+                    </div>
+                )}
+
+                {/* Folder dialog */}
+                <Dialog open={showFolderSheet} onOpenChange={setShowFolderSheet}>
+                    <DialogContent className="flex max-h-[80vh] flex-col gap-0 p-0 sm:max-w-sm">
+                        <DialogHeader className="border-b px-4 py-3">
+                            <DialogTitle>Mappák</DialogTitle>
+                        </DialogHeader>
+                        <div className="flex flex-1 flex-col overflow-y-auto py-1">
+                            <button
+                                onClick={() => {
+                                    handleFolderFilter(null);
+                                    setShowFolderSheet(false);
+                                }}
+                                className={`flex w-full items-center gap-2 px-4 py-3 text-sm transition-colors ${!filters.folder ? 'bg-primary/10 font-medium text-primary' : 'text-muted-foreground hover:bg-accent hover:text-foreground'}`}
+                            >
+                                <FolderOpen className="size-4 shrink-0" />
+                                Minden szó
+                            </button>
+                            {folders.map((f) => (
+                                <div key={f.id} className="group flex items-center border-t px-4">
+                                    {editFolderId === f.id ? (
+                                        <form
+                                            onSubmit={(e) => {
+                                                e.preventDefault();
+                                                handleRenameFolder(f.id, editFolderName);
+                                            }}
+                                            className="flex flex-1 items-center gap-2 py-2"
+                                        >
+                                            <Input
+                                                autoFocus
+                                                value={editFolderName}
+                                                onChange={(e) => setEditFolderName(e.target.value)}
+                                                className="h-8 flex-1"
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Escape') {
+                                                        setEditFolderId(null);
+                                                    }
+                                                }}
+                                            />
+                                            <Button size="sm" type="submit" disabled={!editFolderName.trim()}>
+                                                Mentés
+                                            </Button>
+                                            <Button size="sm" variant="ghost" type="button" onClick={() => setEditFolderId(null)}>
+                                                <X className="size-4" />
+                                            </Button>
+                                        </form>
+                                    ) : (
+                                        <>
+                                            <button
+                                                onClick={() => {
+                                                    handleFolderFilter(f.id);
+                                                    setShowFolderSheet(false);
+                                                }}
+                                                className={`flex flex-1 items-center gap-2 py-3 text-sm transition-colors ${filters.folder === f.id ? 'font-medium text-primary' : 'text-foreground'}`}
+                                            >
+                                                <FolderOpen className="size-4 shrink-0" />
+                                                <span className="flex-1 truncate text-left">{f.name}</span>
+                                                <span className="text-xs text-muted-foreground">{f.words_count} szó</span>
+                                            </button>
+                                            <div className="flex shrink-0 gap-1 pl-2 opacity-0 transition-opacity group-hover:opacity-100">
+                                                <button
+                                                    onClick={() => {
+                                                        setEditFolderId(f.id);
+                                                        setEditFolderName(f.name);
+                                                    }}
+                                                    className="rounded p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+                                                    title="Átnevezés"
+                                                >
+                                                    <Pencil className="size-4" />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDeleteFolder(f.id)}
+                                                    className="rounded p-1.5 text-muted-foreground hover:bg-accent hover:text-destructive"
+                                                    title="Törlés"
+                                                >
+                                                    <Trash2 className="size-4" />
+                                                </button>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                        <div className="border-t p-4">
+                            {showNewFolderInput ? (
+                                <form onSubmit={handleNewFolderSubmit} className="flex flex-col gap-2">
+                                    <Input
+                                        autoFocus
+                                        value={newFolderName}
+                                        onChange={(e) => setNewFolderName(e.target.value)}
+                                        placeholder="Mappa neve..."
+                                        onKeyDown={handleNewFolderKeyDown}
+                                    />
+                                    <div className="flex gap-2">
+                                        <Button type="submit" className="flex-1" disabled={!newFolderName.trim()}>
+                                            <Plus className="size-4" />
+                                            Létrehozás
+                                        </Button>
+                                        <Button variant="outline" type="button" onClick={handleCancelNewFolder}>
+                                            Mégse
+                                        </Button>
+                                    </div>
+                                </form>
+                            ) : (
+                                <Button
+                                    variant="outline"
+                                    className="w-full"
+                                    onClick={() => setShowNewFolderInput(true)}
+                                >
+                                    <FolderPlus className="size-4" />
+                                    Új mappa létrehozása
+                                </Button>
+                            )}
+                        </div>
+                    </DialogContent>
+                </Dialog>
+
                 {/* Letter navigation */}
                 {!search && (
                     <div className="flex flex-wrap gap-1">
@@ -489,8 +733,8 @@ export default function WordsIndex({
                     <Info className="size-5 shrink-0" />
                     <p className="text-sm font-medium">
                         {flipMode
-                            ? 'Fordított mód: a magyar jelentés látszik — kattints a szóra az angol megjelenítéséhez!'
-                            : 'Kattints bármelyik szóra a magyar jelentés megtekintéséhez!'}
+                            ? 'Fordított mód: a magyar jelentés látszik — kattints a szóra az angol megjelenítéséhez vagy mappa hozzáadásához!'
+                            : 'Kattints bármelyik szóra a magyar jelentés megtekintéséhez vagy mappa hozzáadásához!'}
                     </p>
                 </div>
 
@@ -509,7 +753,7 @@ export default function WordsIndex({
                             {words.data.map((word) => (
                                 <li
                                     key={word.id}
-                                    className={`flex items-center gap-3 py-2.5 transition-colors ${
+                                    className={`flex items-center gap-3 px-3 py-2.5 transition-colors ${
                                         word.status === 'known'
                                             ? 'bg-green-50 dark:bg-green-950/20'
                                             : word.status === 'learning'
@@ -522,9 +766,6 @@ export default function WordsIndex({
                                                   : ''
                                     }`}
                                 >
-                                    <span className="w-4 shrink-0 text-right text-[10px] text-muted-foreground/60 tabular-nums">
-                                        {word.rank}
-                                    </span>
                                     <button
                                         onClick={() =>
                                             setSelectedWordId(word.id)
@@ -814,6 +1055,32 @@ export default function WordsIndex({
                                     <Mic className="size-4" /> Kiejtés
                                 </button>
                             </div>
+
+                            {folders.length > 0 && (
+                                <div>
+                                    <p className="mb-2 text-xs font-medium text-muted-foreground">Mappák</p>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {folders.map((f) => {
+                                            const inFolder = (wordFolderIds[selectedWord.id] ?? []).includes(f.id);
+
+                                            return (
+                                                <button
+                                                    key={f.id}
+                                                    onClick={() => handleToggleWordFolder(selectedWord.id, f.id, !inFolder)}
+                                                    className={`flex cursor-pointer items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all ${
+                                                        inFolder
+                                                            ? 'bg-primary text-primary-foreground'
+                                                            : 'bg-secondary text-muted-foreground hover:bg-primary/10 hover:text-primary'
+                                                    }`}
+                                                >
+                                                    <FolderOpen className="size-3.5" />
+                                                    {f.name}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
                         </>
                     )}
                 </DialogContent>

@@ -1,5 +1,5 @@
-import { Link } from '@inertiajs/react';
-import { Globe, LayoutGrid, Languages } from 'lucide-react';
+import { Link, usePage } from '@inertiajs/react';
+import { FolderOpen, Globe, LayoutGrid, Languages } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
@@ -8,6 +8,8 @@ import {
     Sidebar,
     SidebarContent,
     SidebarFooter,
+    SidebarGroup,
+    SidebarGroupLabel,
     SidebarHeader,
     SidebarMenu,
     SidebarMenuButton,
@@ -39,6 +41,9 @@ const footerNavItems: NavItem[] = [
 ];
 
 export function AppSidebar() {
+    const { url } = usePage();
+    const isOnWordsPage = url.startsWith(wordsIndex.url());
+
     return (
         <Sidebar collapsible="icon" variant="inset">
             <SidebarHeader>
@@ -63,6 +68,20 @@ export function AppSidebar() {
 
             <SidebarContent>
                 <NavMain items={mainNavItems} />
+                {isOnWordsPage && <SidebarGroup className="px-2 py-0">
+                    <SidebarGroupLabel>Szótár</SidebarGroupLabel>
+                    <SidebarMenu>
+                        <SidebarMenuItem>
+                            <SidebarMenuButton
+                                tooltip={{ children: 'Mappák' }}
+                                onClick={() => window.dispatchEvent(new CustomEvent('open-folder-sheet'))}
+                            >
+                                <FolderOpen />
+                                <span>Mappák</span>
+                            </SidebarMenuButton>
+                        </SidebarMenuItem>
+                    </SidebarMenu>
+                </SidebarGroup>}
             </SidebarContent>
 
             <SidebarFooter>
