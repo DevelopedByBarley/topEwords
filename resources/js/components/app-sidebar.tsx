@@ -1,5 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
-import { FolderOpen, Globe, LayoutGrid, Languages } from 'lucide-react';
+import { FolderOpen, Globe, LayoutGrid, Languages, Swords } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
@@ -16,7 +16,7 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
-import { index as wordsIndex } from '@/routes/words';
+import { index as wordsIndex, quiz as wordsQuiz } from '@/routes/words';
 import type { NavItem } from '@/types';
 
 const mainNavItems: NavItem[] = [
@@ -30,6 +30,11 @@ const mainNavItems: NavItem[] = [
         href: wordsIndex.url(),
         icon: Languages,
     },
+    {
+        title: 'Kvíz',
+        href: wordsQuiz(),
+        icon: Swords,
+    },
 ];
 
 const footerNavItems: NavItem[] = [
@@ -42,7 +47,7 @@ const footerNavItems: NavItem[] = [
 
 export function AppSidebar() {
     const { url } = usePage();
-    const isOnWordsPage = url.startsWith(wordsIndex.url());
+    const isOnWordsPage = url.startsWith(wordsIndex.url()) && !url.startsWith(wordsQuiz.url());
 
     return (
         <Sidebar collapsible="icon" variant="inset">

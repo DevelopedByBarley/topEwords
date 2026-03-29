@@ -1,5 +1,5 @@
 import { Head, Link, usePage } from '@inertiajs/react';
-import { BookMarked, CheckCheck, Clock, Code2, ExternalLink, Filter, FlaskConical, FolderOpen, FolderPlus, Lightbulb, Mail, Star, TrendingUp, Zap } from 'lucide-react';
+import { BookMarked, CheckCheck, Clock, Code2, ExternalLink, Filter, FlaskConical, FolderOpen, FolderPlus, Lightbulb, Mail, Star, Swords, TrendingUp, Zap } from 'lucide-react';
 import AppLogoIcon from '@/components/app-logo-icon';
 import { Button } from '@/components/ui/button';
 import { dashboard, login, register, terms, privacy } from '@/routes';
@@ -201,6 +201,69 @@ export default function Welcome({ canRegister = true }: { canRegister?: boolean 
                                         <div className="text-sm text-muted-foreground">{folder.count} szó</div>
                                     </div>
                                 ))}
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                {/* Quiz section */}
+                <section className="border-t bg-muted/40">
+                    <div className="mx-auto max-w-5xl px-6 py-20">
+                        <div className="grid items-center gap-12 md:grid-cols-2">
+                            {/* Visual */}
+                            <div className="flex flex-col gap-3">
+                                <div className="rounded-xl border bg-card p-6 text-center shadow-sm">
+                                    <p className="mb-1 text-xs text-muted-foreground">#42</p>
+                                    <p className="text-3xl font-bold tracking-tight">between</p>
+                                    <p className="mt-2 text-sm text-muted-foreground">Mi a magyar jelentése?</p>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {[
+                                        { label: 'között', correct: true },
+                                        { label: 'felett', correct: false },
+                                        { label: 'mellett', correct: false },
+                                        { label: 'mögött', correct: false },
+                                    ].map((opt) => (
+                                        <div
+                                            key={opt.label}
+                                            className={`rounded-lg border px-4 py-2.5 text-center text-sm font-medium ${
+                                                opt.correct
+                                                    ? 'border-green-500 bg-green-50 text-green-800 dark:bg-green-950/30 dark:text-green-300'
+                                                    : 'bg-background text-muted-foreground opacity-50'
+                                            }`}
+                                        >
+                                            {opt.label}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div>
+                                <div className="mb-3 inline-flex items-center gap-1.5 rounded-full border bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
+                                    <Swords className="size-3" />
+                                    Kvíz mód
+                                </div>
+                                <h2 className="mb-4 text-2xl font-bold tracking-tight">
+                                    Teszteld magad kvíz módban
+                                </h2>
+                                <p className="mb-6 text-muted-foreground">
+                                    Válaszd ki melyik szavakból és hányból kvízzeljünk — a rendszer
+                                    automatikusan generálja a kérdéseket és a válaszlehetőségeket.
+                                </p>
+                                <ul className="flex flex-col gap-3 text-sm">
+                                    {[
+                                        { icon: CheckCheck, text: 'Szűrj státusz szerint – tanulom, elmentettem, tudom' },
+                                        { icon: TrendingUp, text: 'Válassz nehézségi szintet – kezdőtől haladóig' },
+                                        { icon: Zap, text: '10, 20, 50 kérdés – vagy az összes elérhető szó egyszerre' },
+                                    ].map(({ icon: Icon, text }) => (
+                                        <li key={text} className="flex items-start gap-3">
+                                            <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                                                <Icon className="size-3 text-primary" />
+                                            </div>
+                                            <span className="text-muted-foreground">{text}</span>
+                                        </li>
+                                    ))}
+                                </ul>
                             </div>
                         </div>
                     </div>

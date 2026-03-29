@@ -123,6 +123,99 @@ class WordController extends Controller
         ]);
     }
 
+    public function quiz(Request $request): Response
+    {
+        $status = $request->string('status')->trim()->lower()->value();
+        $difficulty = $request->string('difficulty')->trim()->lower()->value();
+        $folderId = $request->integer('folder') ?: null;
+        $count = min(max((int) $request->input('count', 0), 0), 500);
+
+        $user = $request->user();
+
+        $wordStatuses = $user->knownWords()
+            ->pluck('user_word.status', 'words.id')
+            ->all();
+
+        $folders = $user->folders()->withCount('words')->get()
+            ->map(fn (Folder $folder) => [
+                'id' => $folder->id,
+                'name' => $folder->name,
+                'words_count' => $folder->words_count,
+            ]);
+
+        $folderWordIds = $folderId !== null
+            ? Folder::where('id', $folderId)->where('user_id', $user->id)
+                ->first()
+                ?->words()
+                ->pluck('words.id')
+                ->all() ?? []
+            : null;
+
+        $query = Word::whereNotNull('meaning');
+
+        if (in_array($status, ['known', 'learning', 'saved', 'pronunciation'])) {
+            $ids = array_keys(array_filter($wordStatuses, fn ($s) => $s === $status));
+            $query->whereIn('id', $ids);
+        } elseif ($status === 'marked') {
+            $query->whereIn('id', array_keys($wordStatuses));
+        }
+
+        if ($difficulty === 'beginner') {
+            $query->whereBetween('rank', [1, 2000]);
+        } elseif ($difficulty === 'intermediate') {
+            $query->whereBetween('rank', [2001, 6000]);
+        } elseif ($difficulty === 'advanced') {
+            $query->whereBetween('rank', [6001, 10000]);
+        }
+
+        if ($folderWordIds !== null) {
+            $query->whereIn('id', $folderWordIds);
+        }
+
+        $available = $query->count();
+
+        $words = [];
+
+        if ($count > 0 && $available > 0) {
+            $quizWords = (clone $query)->inRandomOrder()->limit($count)->get(['id', 'word', 'meaning', 'rank']);
+
+            $decoyPool = Word::whereNotNull('meaning')
+                ->whereNotIn('id', $quizWords->pluck('id'))
+                ->inRandomOrder()
+                ->limit($count * 4)
+                ->pluck('meaning')
+                ->shuffle()
+                ->values()
+                ->all();
+
+            $words = $quizWords->map(function (Word $word, int $i) use ($decoyPool, $wordStatuses) {
+                $decoys = array_slice($decoyPool, $i * 3, 3);
+                $options = collect([$word->meaning, ...$decoys])->shuffle()->values()->all();
+
+                return [
+                    'id' => $word->id,
+                    'word' => $word->word,
+                    'meaning' => $word->meaning,
+                    'rank' => $word->rank,
+                    'status' => $wordStatuses[$word->id] ?? null,
+                    'options' => $options,
+                ];
+            })->all();
+        }
+
+        return Inertia::render('words/quiz', [
+            'words' => $words,
+            'available' => $available,
+            'folders' => $folders,
+            'filters' => [
+                'status' => $status,
+                'difficulty' => $difficulty,
+                'folder' => $folderId,
+                'count' => $count,
+            ],
+        ]);
+    }
+
     public function status(Request $request, Word $word): RedirectResponse
     {
         $status = $request->validate(['status' => 'required|in:known,learning,saved,pronunciation'])['status'];
