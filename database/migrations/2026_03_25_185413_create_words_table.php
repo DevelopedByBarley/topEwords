@@ -14,7 +14,12 @@ return new class extends Migration
         Schema::create('words', function (Blueprint $table) {
             $table->id();
             $table->string('word')->unique();
-            $table->string('meaning')->nullable();
+            $table->string('meaning_hu')->nullable();
+            $table->text('extra_meanings')->nullable();
+            $table->string('synonyms')->nullable();
+            $table->string('part_of_speech', 10)->nullable();
+            $table->string('example_en')->nullable();
+            $table->string('example_hu')->nullable();
             $table->unsignedInteger('rank')->index();
             $table->timestamps();
         });

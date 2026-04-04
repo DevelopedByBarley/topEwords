@@ -65,7 +65,21 @@ class WordController extends Controller
                 'id' => $word->id,
                 'word' => $word->word,
                 'rank' => $word->rank,
-                'meaning' => $word->meaning,
+                'meaning_hu' => $word->meaning_hu,
+                'extra_meanings' => $word->extra_meanings,
+                'synonyms' => $word->synonyms,
+                'part_of_speech' => $word->part_of_speech,
+                'form_base' => $word->form_base,
+                'verb_past' => $word->verb_past,
+                'verb_past_participle' => $word->verb_past_participle,
+                'verb_present_participle' => $word->verb_present_participle,
+                'verb_third_person' => $word->verb_third_person,
+                'is_irregular' => $word->is_irregular,
+                'noun_plural' => $word->noun_plural,
+                'adj_comparative' => $word->adj_comparative,
+                'adj_superlative' => $word->adj_superlative,
+                'example_en' => $word->example_en,
+                'example_hu' => $word->example_hu,
                 'status' => $wordStatuses[$word->id] ?? null,
             ]);
 
@@ -151,7 +165,7 @@ class WordController extends Controller
                 ->all() ?? []
             : null;
 
-        $query = Word::whereNotNull('meaning');
+        $query = Word::whereNotNull('meaning_hu');
 
         if (in_array($status, ['known', 'learning', 'saved', 'pronunciation'])) {
             $ids = array_keys(array_filter($wordStatuses, fn ($s) => $s === $status));
@@ -177,25 +191,38 @@ class WordController extends Controller
         $words = [];
 
         if ($count > 0 && $available > 0) {
-            $quizWords = (clone $query)->inRandomOrder()->limit($count)->get(['id', 'word', 'meaning', 'rank']);
+            $quizWords = (clone $query)->inRandomOrder()->limit($count)->get(['id', 'word', 'meaning_hu', 'part_of_speech', 'form_base', 'verb_past', 'verb_past_participle', 'verb_present_participle', 'verb_third_person', 'is_irregular', 'noun_plural', 'adj_comparative', 'adj_superlative', 'example_en', 'example_hu', 'synonyms', 'rank']);
 
-            $decoyPool = Word::whereNotNull('meaning')
+            $decoyPool = Word::whereNotNull('meaning_hu')
                 ->whereNotIn('id', $quizWords->pluck('id'))
                 ->inRandomOrder()
                 ->limit($count * 4)
-                ->pluck('meaning')
+                ->pluck('meaning_hu')
                 ->shuffle()
                 ->values()
                 ->all();
 
             $words = $quizWords->map(function (Word $word, int $i) use ($decoyPool, $wordStatuses) {
                 $decoys = array_slice($decoyPool, $i * 3, 3);
-                $options = collect([$word->meaning, ...$decoys])->shuffle()->values()->all();
+                $options = collect([$word->meaning_hu, ...$decoys])->shuffle()->values()->all();
 
                 return [
                     'id' => $word->id,
                     'word' => $word->word,
-                    'meaning' => $word->meaning,
+                    'meaning_hu' => $word->meaning_hu,
+                    'part_of_speech' => $word->part_of_speech,
+                    'form_base' => $word->form_base,
+                    'verb_past' => $word->verb_past,
+                    'verb_past_participle' => $word->verb_past_participle,
+                    'verb_present_participle' => $word->verb_present_participle,
+                    'verb_third_person' => $word->verb_third_person,
+                    'is_irregular' => $word->is_irregular,
+                    'noun_plural' => $word->noun_plural,
+                    'adj_comparative' => $word->adj_comparative,
+                    'adj_superlative' => $word->adj_superlative,
+                    'example_en' => $word->example_en,
+                    'example_hu' => $word->example_hu,
+                    'synonyms' => $word->synonyms,
                     'rank' => $word->rank,
                     'status' => $wordStatuses[$word->id] ?? null,
                     'options' => $options,

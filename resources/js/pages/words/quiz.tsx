@@ -7,7 +7,20 @@ import { quiz as quizRoute, index as wordsIndex } from '@/routes/words';
 interface QuizWord {
     id: number;
     word: string;
-    meaning: string;
+    meaning_hu: string;
+    part_of_speech: string | null;
+    form_base: string | null;
+    verb_past: string | null;
+    verb_past_participle: string | null;
+    verb_present_participle: string | null;
+    verb_third_person: string | null;
+    is_irregular: number | null;
+    noun_plural: string | null;
+    adj_comparative: string | null;
+    adj_superlative: string | null;
+    example_en: string | null;
+    example_hu: string | null;
+    synonyms: string | null;
     rank: number;
     status: string | null;
     options: string[];
@@ -72,7 +85,7 @@ export default function Quiz({ words, available, folders, filters }: Props) {
     function handleAnswer(option: string) {
         if (answerState !== 'unanswered') return;
         setSelected(option);
-        const correct = option === card!.meaning;
+        const correct = option === card!.meaning_hu;
         setAnswerState(correct ? 'correct' : 'wrong');
         if (correct) {
             setScore((s) => s + 1);
@@ -124,7 +137,7 @@ export default function Quiz({ words, available, folders, filters }: Props) {
 
     // ── Setup screen ─────────────────────────────────────────────────────────
     if (isSetup) {
-        return <QuizSetup available={available} folders={folders} onStart={startQuiz} />;
+        return <QuizSetup available={available} folders={folders} filters={filters} onStart={startQuiz} />;
     }
 
     // ── Finished screen ───────────────────────────────────────────────────────
@@ -151,7 +164,7 @@ export default function Quiz({ words, available, folders, filters }: Props) {
                                 {wrongAnswers.map((w) => (
                                     <div key={w.id} className="rounded-lg border bg-card px-4 py-3">
                                         <span className="font-medium">{w.word}</span>
-                                        <span className="ml-2 text-sm text-muted-foreground">— {w.meaning}</span>
+                                        <span className="ml-2 text-sm text-muted-foreground">— {w.meaning_hu}</span>
                                     </div>
                                 ))}
                             </div>
@@ -217,8 +230,8 @@ export default function Quiz({ words, available, folders, filters }: Props) {
 
                 {/* Options */}
                 <div className="grid grid-cols-1 gap-3">
-                    {card.options.map((option) => {
-                        const isCorrect = option === card.meaning;
+                    {card.options.map((option, i) => {
+                        const isCorrect = option === card.meaning_hu;
                         const isSelected = option === selected;
 
                         let variant: 'outline' | 'default' | 'ghost' = 'outline';
@@ -236,7 +249,7 @@ export default function Quiz({ words, available, folders, filters }: Props) {
 
                         return (
                             <button
-                                key={option}
+                                key={i}
                                 onClick={() => handleAnswer(option)}
                                 disabled={answerState !== 'unanswered'}
                                 className={`flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-left text-sm font-medium transition-all ${
@@ -268,6 +281,66 @@ export default function Quiz({ words, available, folders, filters }: Props) {
                     })}
                 </div>
 
+                {/* Extra info after answer */}
+                {answerState !== 'unanswered' && (
+                    <div className="rounded-xl border bg-muted/40 px-4 py-3 text-sm space-y-3">
+                        {/* Igealakok */}
+                        {card.part_of_speech === 'verb' && card.verb_past && (
+                            <div>
+                                <div className="mb-1.5 flex items-center gap-2">
+                                    <span className="font-medium">Igealakok</span>
+                                    {card.is_irregular === 1 && (
+                                        <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">rendhagyó</span>
+                                    )}
+                                </div>
+                                <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                                    <span className="text-muted-foreground">Alap</span>
+                                    <span className="font-medium">{card.form_base}</span>
+                                    <span className="text-muted-foreground">Múlt idő</span>
+                                    <span className="font-medium">{card.verb_past}</span>
+                                    <span className="text-muted-foreground">Befejezett igenév</span>
+                                    <span className="font-medium">{card.verb_past_participle}</span>
+                                    <span className="text-muted-foreground">Folyamatos (-ing)</span>
+                                    <span className="font-medium">{card.verb_present_participle}</span>
+                                    <span className="text-muted-foreground">E/3 jelen</span>
+                                    <span className="font-medium">{card.verb_third_person}</span>
+                                </div>
+                            </div>
+                        )}
+                        {/* Többes szám */}
+                        {card.part_of_speech === 'noun' && card.noun_plural && (
+                            <div className="flex items-center gap-2">
+                                <span className="text-muted-foreground">Többes szám:</span>
+                                <span className="font-medium">{card.noun_plural}</span>
+                            </div>
+                        )}
+                        {/* Fokozás */}
+                        {card.part_of_speech === 'adj' && card.adj_comparative && (
+                            <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                                <span className="text-muted-foreground">Középfok</span>
+                                <span className="font-medium">{card.adj_comparative}</span>
+                                <span className="text-muted-foreground">Felsőfok</span>
+                                <span className="font-medium">{card.adj_superlative}</span>
+                            </div>
+                        )}
+                        {/* Szinonimák */}
+                        {card.synonyms && (
+                            <p className="text-muted-foreground">
+                                <span className="font-medium text-foreground">Szinonimák:</span> {card.synonyms}
+                            </p>
+                        )}
+                        {/* Példamondat */}
+                        {card.example_en && (
+                            <div>
+                                <p className="italic">"{card.example_en}"</p>
+                                {card.example_hu && (
+                                    <p className="text-muted-foreground">"{card.example_hu}"</p>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 {/* Next button */}
                 {answerState !== 'unanswered' && (
                     <Button onClick={handleNext} className="w-full">
@@ -281,15 +354,26 @@ export default function Quiz({ words, available, folders, filters }: Props) {
 }
 
 // ── Setup component ───────────────────────────────────────────────────────────
-function QuizSetup({ available, folders, onStart }: {
+function QuizSetup({ available, folders, filters, onStart }: {
     available: number;
     folders: Folder[];
+    filters: Filters;
     onStart: (status: string, difficulty: string, folder: number | null, count: number) => void;
 }) {
-    const [status, setStatus] = useState('');
-    const [difficulty, setDifficulty] = useState('');
-    const [folder, setFolder] = useState<number | null>(null);
-    const [count, setCount] = useState(500);
+    const [count, setCount] = useState(10);
+
+    function updateFilter(params: Partial<Omit<Filters, 'count'>>) {
+        const next = { ...filters, ...params };
+        router.get(
+            quizRoute(),
+            { status: next.status, difficulty: next.difficulty, ...(next.folder ? { folder: next.folder } : {}), count: 0 },
+            { only: ['available', 'filters'], preserveState: true, preserveScroll: true, replace: true },
+        );
+    }
+
+    const status = filters.status;
+    const difficulty = filters.difficulty;
+    const folder = filters.folder;
 
     return (
         <>
@@ -316,7 +400,7 @@ function QuizSetup({ available, folders, onStart }: {
                             <p className="mb-3 text-sm font-semibold">Mappa</p>
                             <div className="flex flex-col gap-2">
                                 <button
-                                    onClick={() => setFolder(null)}
+                                    onClick={() => updateFilter({ folder: null })}
                                     className={`rounded-lg border px-4 py-2.5 text-left text-sm font-medium transition-colors ${
                                         folder === null
                                             ? 'border-primary bg-primary/5 text-primary'
@@ -328,7 +412,7 @@ function QuizSetup({ available, folders, onStart }: {
                                 {folders.map((f) => (
                                     <button
                                         key={f.id}
-                                        onClick={() => setFolder(f.id)}
+                                        onClick={() => updateFilter({ folder: f.id })}
                                         className={`flex items-center justify-between rounded-lg border px-4 py-2.5 text-left text-sm font-medium transition-colors ${
                                             folder === f.id
                                                 ? 'border-primary bg-primary/5 text-primary'
@@ -350,7 +434,7 @@ function QuizSetup({ available, folders, onStart }: {
                             {Object.entries(STATUS_LABELS).map(([value, label]) => (
                                 <button
                                     key={value}
-                                    onClick={() => setStatus(value)}
+                                    onClick={() => updateFilter({ status: value })}
                                     className={`rounded-lg border px-4 py-2.5 text-left text-sm font-medium transition-colors ${
                                         status === value
                                             ? 'border-primary bg-primary/5 text-primary'
@@ -370,7 +454,7 @@ function QuizSetup({ available, folders, onStart }: {
                             {Object.entries(DIFFICULTY_LABELS).map(([value, label]) => (
                                 <button
                                     key={value}
-                                    onClick={() => setDifficulty(value)}
+                                    onClick={() => updateFilter({ difficulty: value })}
                                     className={`rounded-lg border px-4 py-2.5 text-left text-sm font-medium transition-colors ${
                                         difficulty === value
                                             ? 'border-primary bg-primary/5 text-primary'
@@ -385,13 +469,16 @@ function QuizSetup({ available, folders, onStart }: {
 
                     {/* Count + Start */}
                     <div className="rounded-xl border bg-card p-5">
-                        <p className="mb-3 text-sm font-semibold">Hány szó?</p>
+                        <p className="mb-3 text-sm font-semibold">
+                            Hány szó? <span className="font-normal text-muted-foreground">({available} elérhető)</span>
+                        </p>
                         <div className="grid grid-cols-2 gap-2">
                             {[10, 20, 50].map((n) => (
                                 <button
                                     key={n}
                                     onClick={() => setCount(n)}
-                                    className={`rounded-lg border px-4 py-2.5 text-center text-sm font-medium transition-colors ${
+                                    disabled={available < n}
+                                    className={`rounded-lg border px-4 py-2.5 text-center text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
                                         count === n
                                             ? 'border-primary bg-primary/5 text-primary'
                                             : 'bg-background hover:bg-muted'
@@ -400,16 +487,18 @@ function QuizSetup({ available, folders, onStart }: {
                                     {n}
                                 </button>
                             ))}
-                            <button
-                                onClick={() => setCount(500)}
-                                className={`col-span-2 rounded-lg border px-4 py-2.5 text-center text-sm font-medium transition-colors ${
-                                    count === 500
-                                        ? 'border-primary bg-primary/5 text-primary'
-                                        : 'bg-background hover:bg-muted'
-                                }`}
-                            >
-                                Összes
-                            </button>
+                            {available <= 100 && (
+                                <button
+                                    onClick={() => setCount(500)}
+                                    className={`col-span-2 rounded-lg border px-4 py-2.5 text-center text-sm font-medium transition-colors ${
+                                        count === 500
+                                            ? 'border-primary bg-primary/5 text-primary'
+                                            : 'bg-background hover:bg-muted'
+                                    }`}
+                                >
+                                    Összes ({available})
+                                </button>
+                            )}
                         </div>
 
                         <Button

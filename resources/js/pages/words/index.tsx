@@ -34,7 +34,21 @@ interface Word {
     id: number;
     word: string;
     rank: number;
-    meaning: string | null;
+    meaning_hu: string | null;
+    extra_meanings: string | null;
+    synonyms: string | null;
+    part_of_speech: string | null;
+    form_base: string | null;
+    verb_past: string | null;
+    verb_past_participle: string | null;
+    verb_present_participle: string | null;
+    verb_third_person: string | null;
+    is_irregular: number | null;
+    noun_plural: string | null;
+    adj_comparative: string | null;
+    adj_superlative: string | null;
+    example_en: string | null;
+    example_hu: string | null;
     status: WordStatus;
 }
 
@@ -81,6 +95,19 @@ interface Props {
     folders: Folder[];
     wordFolderIds: Record<number, number[]>;
 }
+
+const POS_LABELS: Record<string, string> = {
+    verb: 'ige',
+    noun: 'főnév',
+    adj: 'melléknév',
+    adv: 'határozószó',
+    prep: 'elöljáró',
+    conj: 'kötőszó',
+    det: 'névelő',
+    pron: 'névmás',
+    num: 'számnév',
+    interj: 'indulatszó',
+};
 
 const DIFFICULTIES = [
     { value: 'beginner', label: 'Kezdő', description: '1–2 000' },
@@ -788,7 +815,7 @@ export default function WordsIndex({
                                         }`}
                                     >
                                         {flipMode
-                                            ? (word.meaning ?? (
+                                            ? (word.meaning_hu ?? (
                                                   <span className="text-muted-foreground italic">
                                                       (nincs fordítás)
                                                   </span>
@@ -946,141 +973,215 @@ export default function WordsIndex({
                     if (!open) setSelectedWordId(null);
                 }}
             >
-                <DialogContent className="sm:max-w-sm">
+                <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-lg">
                     {selectedWord && (
                         <>
-                            <DialogHeader>
-                                <DialogTitle className="flex items-center gap-2 text-2xl">
-                                    {flipMode ? (
-                                        (selectedWord.meaning ?? (
-                                            <span className="text-lg text-muted-foreground italic">
-                                                nincs fordítás
+                            {/* Hero */}
+                            <div className="border-b bg-gradient-to-br from-primary/8 to-primary/3 px-6 pb-4 pt-5">
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0 flex-1">
+                                        <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                                            <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                                                #{selectedWord.rank}
                                             </span>
-                                        ))
-                                    ) : (
-                                        <>
+                                            {selectedWord.part_of_speech && (
+                                                <span className="rounded-full bg-primary/15 px-2 py-0.5 text-xs font-semibold text-primary">
+                                                    {POS_LABELS[selectedWord.part_of_speech] ?? selectedWord.part_of_speech}
+                                                </span>
+                                            )}
+                                            {selectedWord.is_irregular === 1 && (
+                                                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                                                    rendhagyó
+                                                </span>
+                                            )}
+                                        </div>
+                                        <DialogTitle asChild>
+                                            <h2 className="text-3xl font-bold tracking-tight">
+                                                {flipMode
+                                                    ? (selectedWord.meaning_hu ?? <span className="italic text-muted-foreground">nincs fordítás</span>)
+                                                    : selectedWord.word}
+                                            </h2>
+                                        </DialogTitle>
+                                    </div>
+                                    <button
+                                        onClick={() => speak(selectedWord.word)}
+                                        title="Felolvasás"
+                                        className="mt-1 shrink-0 rounded-full bg-background/80 p-2 text-muted-foreground shadow-sm transition-colors hover:bg-background hover:text-foreground"
+                                    >
+                                        <Volume2 className="size-4" />
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Scrollable body */}
+                            <div className="max-h-[65vh] space-y-4 overflow-y-auto px-6 py-5">
+
+                                {/* Jelentés */}
+                                <div className="rounded-xl border bg-card px-4 py-3.5">
+                                    <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                        {flipMode ? 'Angol' : 'Magyar jelentés'}
+                                    </p>
+                                    {flipMode ? (
+                                        <p className="flex items-center gap-2 text-lg font-semibold">
                                             {selectedWord.word}
                                             <button
-                                                onClick={() =>
-                                                    speak(selectedWord.word)
-                                                }
-                                                title="Felolvasás"
-                                                className="rounded p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                                                onClick={() => speak(selectedWord.word)}
+                                                className="rounded p-0.5 text-muted-foreground hover:text-foreground"
                                             >
-                                                <Volume2 className="size-4" />
+                                                <Volume2 className="size-3.5" />
                                             </button>
+                                        </p>
+                                    ) : selectedWord.meaning_hu ? (
+                                        <>
+                                            <p className="text-lg font-semibold leading-snug">{selectedWord.meaning_hu}</p>
+                                            {selectedWord.extra_meanings && (
+                                                <p className="mt-1 text-sm text-muted-foreground">{selectedWord.extra_meanings}</p>
+                                            )}
                                         </>
+                                    ) : (
+                                        <p className="italic text-muted-foreground">Nincs fordítás megadva</p>
                                     )}
-                                </DialogTitle>
-                                <p className="text-xs text-muted-foreground">
-                                    #{selectedWord.rank}
-                                </p>
-                            </DialogHeader>
+                                </div>
 
-                            <div className="rounded-lg border px-4 py-3">
-                                {flipMode ? (
-                                    <p className="flex items-center gap-2 text-base font-medium">
-                                        {selectedWord.word}
+                                {/* Igealakok */}
+                                {selectedWord.part_of_speech === 'verb' && selectedWord.verb_past && (
+                                    <div className="rounded-xl border bg-card px-4 py-3.5">
+                                        <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Igealakok</p>
+                                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                                            {([
+                                                { label: 'Alap', value: selectedWord.form_base },
+                                                { label: 'Múlt idő', value: selectedWord.verb_past },
+                                                { label: 'Befejezett igenév', value: selectedWord.verb_past_participle },
+                                                { label: 'Folyamatos (-ing)', value: selectedWord.verb_present_participle },
+                                                { label: 'E/3 jelen', value: selectedWord.verb_third_person },
+                                            ] as const).map(({ label, value }) => (
+                                                <div key={label} className="rounded-lg bg-muted/50 px-3 py-2">
+                                                    <p className="text-[10px] text-muted-foreground">{label}</p>
+                                                    <p className="font-semibold">{value}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Többes szám */}
+                                {selectedWord.part_of_speech === 'noun' && selectedWord.noun_plural && (
+                                    <div className="rounded-xl border bg-card px-4 py-3.5">
+                                        <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Többes szám</p>
+                                        <div className="flex items-center gap-3">
+                                            <div className="rounded-lg bg-muted/50 px-3 py-2">
+                                                <p className="text-[10px] text-muted-foreground">Egyes szám</p>
+                                                <p className="font-semibold">{selectedWord.form_base}</p>
+                                            </div>
+                                            <span className="text-muted-foreground">→</span>
+                                            <div className="rounded-lg bg-muted/50 px-3 py-2">
+                                                <p className="text-[10px] text-muted-foreground">Többes szám</p>
+                                                <p className="font-semibold">{selectedWord.noun_plural}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Fokozás */}
+                                {selectedWord.part_of_speech === 'adj' && selectedWord.adj_comparative && (
+                                    <div className="rounded-xl border bg-card px-4 py-3.5">
+                                        <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Fokozás</p>
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <div className="rounded-lg bg-muted/50 px-3 py-2">
+                                                <p className="text-[10px] text-muted-foreground">Alapfok</p>
+                                                <p className="font-semibold">{selectedWord.form_base}</p>
+                                            </div>
+                                            <span className="text-muted-foreground">→</span>
+                                            <div className="rounded-lg bg-muted/50 px-3 py-2">
+                                                <p className="text-[10px] text-muted-foreground">Középfok</p>
+                                                <p className="font-semibold">{selectedWord.adj_comparative}</p>
+                                            </div>
+                                            <span className="text-muted-foreground">→</span>
+                                            <div className="rounded-lg bg-muted/50 px-3 py-2">
+                                                <p className="text-[10px] text-muted-foreground">Felsőfok</p>
+                                                <p className="font-semibold">{selectedWord.adj_superlative}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Szinonimák */}
+                                {selectedWord.synonyms && (
+                                    <div>
+                                        <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Szinonimák</p>
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {selectedWord.synonyms.split(',').map((s) => (
+                                                <span
+                                                    key={s.trim()}
+                                                    className="rounded-full border bg-muted/40 px-2.5 py-1 text-xs font-medium"
+                                                >
+                                                    {s.trim()}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Példamondat */}
+                                {selectedWord.example_en && (
+                                    <div className="rounded-xl border-l-4 border-primary/40 bg-muted/30 px-4 py-3.5">
+                                        <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Példamondat</p>
+                                        <p className="text-sm font-medium italic">"{selectedWord.example_en}"</p>
+                                        {selectedWord.example_hu && (
+                                            <p className="mt-1 text-sm text-muted-foreground">"{selectedWord.example_hu}"</p>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Státusz */}
+                                <div className="grid grid-cols-2 gap-2">
+                                    {([
+                                        { s: 'known' as WordStatus, label: 'Tudom', icon: CheckCheck, active: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400', hover: 'hover:bg-green-50 hover:text-green-700' },
+                                        { s: 'learning' as WordStatus, label: 'Tanulom', icon: Clock, active: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400', hover: 'hover:bg-blue-50 hover:text-blue-700' },
+                                        { s: 'saved' as WordStatus, label: 'Később', icon: BookMarked, active: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400', hover: 'hover:bg-orange-50 hover:text-orange-700' },
+                                        { s: 'pronunciation' as WordStatus, label: 'Kiejtés', icon: Mic, active: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-400', hover: 'hover:bg-violet-50 hover:text-violet-700' },
+                                    ] as const).map(({ s, label, icon: Icon, active, hover }) => (
                                         <button
-                                            onClick={() =>
-                                                speak(selectedWord.word)
-                                            }
-                                            title="Felolvasás"
-                                            className="rounded p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                                            key={s}
+                                            onClick={() => handleStatus(selectedWord, s)}
+                                            className={`flex cursor-pointer items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${
+                                                selectedWord.status === s
+                                                    ? active
+                                                    : `bg-secondary text-muted-foreground ${hover}`
+                                            }`}
                                         >
-                                            <Volume2 className="size-4" />
+                                            <Icon className="size-4" /> {label}
                                         </button>
-                                    </p>
-                                ) : selectedWord.meaning ? (
-                                    <p className="text-base">
-                                        {selectedWord.meaning}
-                                    </p>
-                                ) : (
-                                    <p className="text-sm text-muted-foreground italic">
-                                        Nincs fordítás megadva
-                                    </p>
+                                    ))}
+                                </div>
+
+                                {/* Mappák */}
+                                {folders.length > 0 && (
+                                    <div>
+                                        <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Mappák</p>
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {folders.map((f) => {
+                                                const inFolder = (wordFolderIds[selectedWord.id] ?? []).includes(f.id);
+
+                                                return (
+                                                    <button
+                                                        key={f.id}
+                                                        onClick={() => handleToggleWordFolder(selectedWord.id, f.id, !inFolder)}
+                                                        className={`flex cursor-pointer items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all ${
+                                                            inFolder
+                                                                ? 'bg-primary text-primary-foreground'
+                                                                : 'bg-secondary text-muted-foreground hover:bg-primary/10 hover:text-primary'
+                                                        }`}
+                                                    >
+                                                        <FolderOpen className="size-3.5" />
+                                                        {f.name}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
                                 )}
                             </div>
-
-                            <div className="flex flex-wrap gap-2">
-                                <button
-                                    onClick={() =>
-                                        handleStatus(selectedWord, 'known')
-                                    }
-                                    className={`flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium transition-all ${
-                                        selectedWord.status === 'known'
-                                            ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400'
-                                            : 'bg-secondary text-muted-foreground hover:bg-green-100 hover:text-green-700'
-                                    }`}
-                                >
-                                    <CheckCheck className="size-4" /> Tudom
-                                </button>
-                                <button
-                                    onClick={() =>
-                                        handleStatus(selectedWord, 'learning')
-                                    }
-                                    className={`flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium transition-all ${
-                                        selectedWord.status === 'learning'
-                                            ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400'
-                                            : 'bg-secondary text-muted-foreground hover:bg-blue-100 hover:text-blue-700'
-                                    }`}
-                                >
-                                    <Clock className="size-4" /> Tanulom
-                                </button>
-                                <button
-                                    onClick={() =>
-                                        handleStatus(selectedWord, 'saved')
-                                    }
-                                    className={`flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium transition-all ${
-                                        selectedWord.status === 'saved'
-                                            ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400'
-                                            : 'bg-secondary text-muted-foreground hover:bg-orange-100 hover:text-orange-700'
-                                    }`}
-                                >
-                                    <BookMarked className="size-4" /> Később
-                                </button>
-                                <button
-                                    onClick={() =>
-                                        handleStatus(
-                                            selectedWord,
-                                            'pronunciation',
-                                        )
-                                    }
-                                    className={`flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium transition-all ${
-                                        selectedWord.status === 'pronunciation'
-                                            ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-400'
-                                            : 'bg-secondary text-muted-foreground hover:bg-violet-100 hover:text-violet-700'
-                                    }`}
-                                >
-                                    <Mic className="size-4" /> Kiejtés
-                                </button>
-                            </div>
-
-                            {folders.length > 0 && (
-                                <div>
-                                    <p className="mb-2 text-xs font-medium text-muted-foreground">Mappák</p>
-                                    <div className="flex flex-wrap gap-1.5">
-                                        {folders.map((f) => {
-                                            const inFolder = (wordFolderIds[selectedWord.id] ?? []).includes(f.id);
-
-                                            return (
-                                                <button
-                                                    key={f.id}
-                                                    onClick={() => handleToggleWordFolder(selectedWord.id, f.id, !inFolder)}
-                                                    className={`flex cursor-pointer items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all ${
-                                                        inFolder
-                                                            ? 'bg-primary text-primary-foreground'
-                                                            : 'bg-secondary text-muted-foreground hover:bg-primary/10 hover:text-primary'
-                                                    }`}
-                                                >
-                                                    <FolderOpen className="size-3.5" />
-                                                    {f.name}
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            )}
                         </>
                     )}
                 </DialogContent>
