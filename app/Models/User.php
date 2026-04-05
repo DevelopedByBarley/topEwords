@@ -32,6 +32,16 @@ class User extends Authenticatable
         return $this->hasOne(FlashcardSetting::class);
     }
 
+    public function flashcardDecks(): HasMany
+    {
+        return $this->hasMany(FlashcardDeck::class);
+    }
+
+    public function flashcardFolders(): HasMany
+    {
+        return $this->hasMany(FlashcardFolder::class)->orderBy('name');
+    }
+
     public function knownWords(): BelongsToMany
     {
         return $this->belongsToMany(Word::class, 'user_word')->withPivot('status')->withTimestamps();

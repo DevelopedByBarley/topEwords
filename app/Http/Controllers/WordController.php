@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Folder;
 use App\Models\Word;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -134,7 +135,26 @@ class WordController extends Controller
             'markedLetters' => $markedLetters,
             'folders' => $folders,
             'wordFolderIds' => $wordFolderIds,
+            'flashcardDecks' => $user->flashcardDecks()->orderBy('name')->get(['id', 'name']),
         ]);
+    }
+
+    public function search(Request $request): JsonResponse
+    {
+        $query = $request->string('q')->trim()->value();
+
+        if (strlen($query) < 2) {
+            return response()->json([]);
+        }
+
+        $results = Word::where('word', 'like', $query.'%')
+            ->orWhere('word', 'like', '%'.$query.'%')
+            ->orderByRaw('CASE WHEN word LIKE ? THEN 0 ELSE 1 END', [$query.'%'])
+            ->orderBy('rank')
+            ->limit(10)
+            ->get(['id', 'word', 'meaning_hu']);
+
+        return response()->json($results);
     }
 
     public function quiz(Request $request): Response

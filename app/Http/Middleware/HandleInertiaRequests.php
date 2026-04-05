@@ -44,6 +44,7 @@ class HandleInertiaRequests extends Middleware
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'flash' => [
                 'streakTriggered' => session('streak_triggered'),
+                'success' => session('success'),
             ],
         ];
     }

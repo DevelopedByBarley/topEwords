@@ -10,7 +10,9 @@
       "Bash(vendor/bin/pint app/Http/Controllers/WordController.php routes/web.php --format agent)",
       "Bash(vendor/bin/pint database/migrations/2026_03_25_185413_create_words_table.php app/Models/Word.php --format agent)",
       "Bash(vendor/bin/pint app/Http/Controllers/WordController.php app/Models/Word.php --format agent)",
-      "Bash(vendor/bin/pint --dirty --format agent app/Models/Word.php app/Http/Controllers/WordController.php)"
+      "Bash(vendor/bin/pint --dirty --format agent app/Models/Word.php app/Http/Controllers/WordController.php)",
+      "Bash(npm list:*)",
+      "Bash(node -e \"const p = require\\('/Applications/XAMPP/xamppfiles/htdocs/topEwords/node_modules/@tiptap/extension-placeholder'\\); console.log\\(typeof p.default || typeof p.Placeholder\\)\")"
     ]
   }
 }

@@ -7,6 +7,7 @@ import {
     FolderOpen,
     FolderPlus,
     Info,
+    Layers,
     Mic,
     Pencil,
     Plus,
@@ -24,8 +25,16 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import { destroy, store, update } from '@/routes/folders';
 import { update as folderWordUpdate } from '@/routes/folders/words';
+import { importMethod as importFromWord } from '@/routes/flashcards/cards';
 import { index, status } from '@/routes/words';
 
 type WordStatus = 'known' | 'learning' | 'saved' | 'pronunciation' | null;
@@ -73,6 +82,11 @@ interface Folder {
     words_count: number;
 }
 
+interface FlashcardDeck {
+    id: number;
+    name: string;
+}
+
 interface Props {
     words: PaginatedWords;
     filters: {
@@ -94,6 +108,7 @@ interface Props {
     markedLetters: string[];
     folders: Folder[];
     wordFolderIds: Record<number, number[]>;
+    flashcardDecks: FlashcardDeck[];
 }
 
 const POS_LABELS: Record<string, string> = {
@@ -125,6 +140,7 @@ export default function WordsIndex({
     markedLetters,
     folders,
     wordFolderIds,
+    flashcardDecks,
 }: Props) {
     const [search, setSearch] = useState(filters.search);
     const [selectedWordId, setSelectedWordId] = useState<number | null>(null);
@@ -134,6 +150,8 @@ export default function WordsIndex({
     const [editFolderId, setEditFolderId] = useState<number | null>(null);
     const [editFolderName, setEditFolderName] = useState('');
     const [showFolderSheet, setShowFolderSheet] = useState(false);
+    const [selectedDeckId, setSelectedDeckId] = useState<string>('');
+    const [importingFlashcard, setImportingFlashcard] = useState(false);
     const selectedWord =
         selectedWordId !== null
             ? (words.data.find((w) => w.id === selectedWordId) ?? null)
@@ -239,6 +257,19 @@ export default function WordsIndex({
                 }
             },
         });
+    }
+
+    function handleImportToFlashcard(wordId: number) {
+        if (!selectedDeckId) return;
+        setImportingFlashcard(true);
+        router.post(
+            importFromWord(Number(selectedDeckId)).url,
+            { word_id: wordId },
+            {
+                preserveScroll: true,
+                onFinish: () => setImportingFlashcard(false),
+            },
+        );
     }
 
     function handleRenameFolder(folderId: number, name: string) {
@@ -1178,6 +1209,36 @@ export default function WordsIndex({
                                                     </button>
                                                 );
                                             })}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Flashcard deckhez adás */}
+                                {flashcardDecks.length > 0 && (
+                                    <div>
+                                        <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Flashcard deckhez adás</p>
+                                        <div className="flex gap-2">
+                                            <Select value={selectedDeckId} onValueChange={setSelectedDeckId}>
+                                                <SelectTrigger className="h-9 flex-1 text-sm">
+                                                    <SelectValue placeholder="Válassz decket..." />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {flashcardDecks.map((deck) => (
+                                                        <SelectItem key={deck.id} value={String(deck.id)}>
+                                                            {deck.name}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                disabled={!selectedDeckId || importingFlashcard}
+                                                onClick={() => handleImportToFlashcard(selectedWord.id)}
+                                            >
+                                                <Layers className="size-4 mr-1.5" />
+                                                Hozzáadás
+                                            </Button>
                                         </div>
                                     </div>
                                 )}
