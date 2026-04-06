@@ -13,6 +13,13 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import { destroy, index, show, store } from '@/routes/flashcards';
 import { destroy as destroyFolder, store as storeFolder, update as updateFolder } from '@/routes/flashcards/folders';
 import { update as updateFolderDeck } from '@/routes/flashcards/folders/decks';
@@ -138,6 +145,24 @@ export default function FlashcardsIndex({
                                         className="min-h-20 resize-y"
                                     />
                                 </div>
+                                {folders.length > 0 && (
+                                    <div className="grid gap-1.5">
+                                        <Label>Mappa (opcionális)</Label>
+                                        <Select name="folder_id">
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Nincs mappában" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {folders.map((f) => (
+                                                    <SelectItem key={f.id} value={String(f.id)}>
+                                                        <FolderOpen className="size-3.5 mr-1.5 inline-block" />
+                                                        {f.name}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                )}
                                 <Button type="submit" disabled={processing} size="sm">
                                     <Plus className="size-4 mr-1" />
                                     Deck létrehozása

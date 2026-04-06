@@ -26,6 +26,12 @@ import {
 } from '@/components/ui/select';
 import { RichTextContent, RichTextEditor } from '@/components/ui/rich-text-editor';
 import { Separator } from '@/components/ui/separator';
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import { bulkDelete as bulkDeleteCards, bulkMove as bulkMoveCards, bulkReset as bulkResetCards, destroy as destroyCard, duplicate as duplicateCard, importMethod as importFromWord, move as moveCard, reset as resetProgress, store as storeCard, update as updateCard } from '@/routes/flashcards/cards';
 import { exportMethod as csvExport, importMethod as csvImport } from '@/routes/flashcards/csv';
 import { index, show, study } from '@/routes/flashcards';
@@ -279,7 +285,7 @@ function CardForm({
             method={isEdit ? 'patch' : 'post'}
             options={{ preserveScroll: true }}
             onSuccess={onCancel}
-            className="rounded-lg border bg-card p-4 space-y-3"
+            className="space-y-4"
         >
             {({ processing, errors }) => (
                 <>
@@ -302,7 +308,7 @@ function CardForm({
                                 name="front"
                                 defaultValue={card?.front ?? ''}
                                 placeholder="Angol szó, kérdés..."
-                                minHeight="8rem"
+                                minHeight="20rem"
                                 speakName="front_speak"
                                 defaultSpeakValue={card?.front_speak ?? ''}
                                 onTextChange={setFrontText}
@@ -316,7 +322,7 @@ function CardForm({
                                 name="back"
                                 defaultValue={card?.back ?? ''}
                                 placeholder="Magyar jelentés, válasz..."
-                                minHeight="8rem"
+                                minHeight="20rem"
                                 speakName="back_speak"
                                 defaultSpeakValue={card?.back_speak ?? ''}
                             />
@@ -461,7 +467,7 @@ function CsvImport({ deck }: { deck: Deck }) {
 
 type WordResult = { id: number; word: string; meaning_hu: string | null };
 
-function WordSearchImport({ deck }: { deck: Deck }) {
+function WordSearchImport({ deck, onImport }: { deck: Deck; onImport: (wordId: number) => void }) {
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<WordResult[]>([]);
     const [selected, setSelected] = useState<WordResult | null>(null);
@@ -501,11 +507,10 @@ function WordSearchImport({ deck }: { deck: Deck }) {
 
     const handleImport = () => {
         if (!selected) return;
-        router.post(
-            importFromWord(deck.id).url,
-            { word_id: selected.id },
-            { preserveScroll: true, onSuccess: () => { setSelected(null); setQuery(''); setResults([]); } },
-        );
+        onImport(selected.id);
+        setSelected(null);
+        setQuery('');
+        setResults([]);
     };
 
     return (
@@ -517,11 +522,14 @@ function WordSearchImport({ deck }: { deck: Deck }) {
                     onChange={(e) => handleSearch(e.target.value)}
                     onFocus={() => results.length > 0 && setOpen(true)}
                     onBlur={() => setTimeout(() => setOpen(false), 150)}
-                    placeholder="Szó keresése importáláshoz..."
+                    placeholder="Szó a Top 10 000 listából..."
                     className="h-9 w-56 pl-8 text-sm"
                 />
                 {open && (
                     <div className="absolute z-50 top-full mt-1 left-0 w-72 rounded-md border bg-popover shadow-md overflow-hidden">
+                        <div className="px-3 py-1.5 border-b bg-muted/50">
+                            <span className="text-xs text-muted-foreground">Top 10 000 leggyakoribb angol szó</span>
+                        </div>
                         {searching && (
                             <div className="px-3 py-2 text-xs text-muted-foreground">Keresés...</div>
                         )}
@@ -621,6 +629,26 @@ export default function FlashcardShow({
         });
     };
 
+    const handleWordImport = (wordId: number) => {
+        router.post(
+            importFromWord(deck.id).url,
+            { word_id: wordId },
+            {
+                preserveScroll: true,
+                onSuccess: (page) => {
+                    const updatedCards = (page.props as unknown as { flashcards: Flashcard[] }).flashcards;
+                    const imported = [...updatedCards]
+                        .reverse()
+                        .find((c) => c.word_id === wordId);
+                    if (imported) {
+                        setShowNewForm(false);
+                        setEditingCard(imported);
+                    }
+                },
+            },
+        );
+    };
+
     return (
         <>
             <Head title={deck.name} />
@@ -684,7 +712,7 @@ export default function FlashcardShow({
                         <Plus className="size-4 mr-1" />
                         Új kártya
                     </Button>
-                    <WordSearchImport deck={deck} />
+                    <WordSearchImport deck={deck} onImport={handleWordImport} />
                     <CsvImport deck={deck} />
                     {flashcards.length > 0 && (
                         <a href={csvExport(deck.id).url}>
@@ -695,11 +723,6 @@ export default function FlashcardShow({
                         </a>
                     )}
                 </div>
-
-                {/* New card form */}
-                {showNewForm && !editingCard && (
-                    <CardForm deck={deck} onCancel={() => setShowNewForm(false)} />
-                )}
 
                 <Separator />
 
@@ -837,14 +860,7 @@ export default function FlashcardShow({
 
                         {filtered.map((card) => (
                             <div key={card.id}>
-                                {editingCard?.id === card.id ? (
-                                    <CardForm
-                                        deck={deck}
-                                        card={card}
-                                        onCancel={() => setEditingCard(null)}
-                                    />
-                                ) : (
-                                    <CardRow
+                                <CardRow
                                         card={card}
                                         deck={deck}
                                         otherDecks={otherDecks}
@@ -852,12 +868,29 @@ export default function FlashcardShow({
                                         selected={selectedIds.has(card.id)}
                                         onSelect={handleSelect}
                                     />
-                                )}
                             </div>
                         ))}
                     </div>
                 )}
             </div>
+
+            {/* Card edit / new dialog */}
+            <Dialog
+                open={showNewForm || editingCard !== null}
+                onOpenChange={(open) => { if (!open) { setShowNewForm(false); setEditingCard(null); } }}
+            >
+                <DialogContent className="sm:max-w-7xl w-[calc(100vw-2rem)] max-h-[92vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle>{editingCard ? 'Kártya szerkesztése' : 'Új kártya'}</DialogTitle>
+                    </DialogHeader>
+                    <CardForm
+                        key={editingCard?.id ?? 'new'}
+                        deck={deck}
+                        card={editingCard ?? undefined}
+                        onCancel={() => { setShowNewForm(false); setEditingCard(null); }}
+                    />
+                </DialogContent>
+            </Dialog>
         </>
     );
 }

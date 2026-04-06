@@ -49,7 +49,19 @@ class FlashcardDeckController extends Controller
 
     public function store(StoreFlashcardDeckRequest $request): RedirectResponse
     {
-        $deck = $request->user()->flashcardDecks()->create($request->validated());
+        $validated = $request->validated();
+        $folderId = $validated['folder_id'] ?? null;
+
+        $deck = $request->user()->flashcardDecks()->create(
+            collect($validated)->except('folder_id')->all()
+        );
+
+        if ($folderId) {
+            $folder = $request->user()->flashcardFolders()->find($folderId);
+            if ($folder) {
+                $deck->folders()->attach($folder->id);
+            }
+        }
 
         return to_route('flashcards.show', $deck);
     }
