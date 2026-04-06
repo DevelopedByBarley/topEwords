@@ -27,6 +27,7 @@ type Card = {
     color: string | null;
     review: Review;
     previews: Previews;
+    other_side_due_at: string | null;
 };
 
 type Deck = { id: number; name: string };
@@ -37,6 +38,15 @@ const RATING_BUTTONS = [
     { rating: 3, label: 'Jó',         previewKey: 'good'  as const, shortcut: '3', className: 'border-blue-500/50 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950' },
     { rating: 4, label: 'Könnyű',     previewKey: 'easy'  as const, shortcut: '4', className: 'border-green-500/50 text-green-600 hover:bg-green-50 dark:hover:bg-green-950' },
 ];
+
+function formatRelativeTime(isoString: string): string {
+    const diff = Math.round((new Date(isoString).getTime() - Date.now()) / 60000);
+    if (diff <= 0) return 'most esedékes';
+    if (diff < 60) return `${diff} perc múlva`;
+    const hours = Math.round(diff / 60);
+    if (hours < 24) return `${hours} óra múlva`;
+    return `${Math.round(hours / 24)} nap múlva`;
+}
 
 function resolveCardSides(card: Card): { question: string; questionNotes: string | null; questionSpeak: string | null; answer: string; answerNotes: string | null; answerSpeak: string | null } {
     return card.study_direction === 'back_to_front'
@@ -76,17 +86,19 @@ export default function FlashcardStudy({ deck, cards }: { deck: Deck; cards: Car
             setSubmitting(true);
 
             try {
+                const xsrfCookie = document.cookie
+                    .split('; ')
+                    .find((r) => r.startsWith('XSRF-TOKEN='));
+                const xsrfToken = xsrfCookie
+                    ? decodeURIComponent(xsrfCookie.substring('XSRF-TOKEN='.length))
+                    : '';
+
                 await fetch(submitReview(deck.id).url, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'X-Requested-With': 'XMLHttpRequest',
-                        'X-XSRF-TOKEN': decodeURIComponent(
-                            document.cookie
-                                .split('; ')
-                                .find((r) => r.startsWith('XSRF-TOKEN='))
-                                ?.split('=')[1] ?? '',
-                        ),
+                        'X-XSRF-TOKEN': xsrfToken,
                     },
                     body: JSON.stringify({ flashcard_id: current.id, direction: current.study_direction, rating }),
                 });
@@ -188,9 +200,16 @@ export default function FlashcardStudy({ deck, cards }: { deck: Deck; cards: Car
                         style={current.color ? { borderColor: current.color, borderWidth: 2 } : {}}
                         onClick={handleReveal}
                     >
-                        {current.review.is_leech && (
-                            <span className="absolute top-3 right-3 text-xs text-destructive font-medium">⚠ leech</span>
-                        )}
+                        <div className="absolute top-3 right-3 flex flex-col items-end gap-1">
+                            {current.review.is_leech && (
+                                <span className="text-xs text-destructive font-medium">⚠ leech</span>
+                            )}
+                            {current.other_side_due_at && (
+                                <span className="text-xs text-muted-foreground/60" title="A másik irány esedékessége">
+                                    ↔ {formatRelativeTime(current.other_side_due_at)}
+                                </span>
+                            )}
+                        </div>
                         <button
                             onClick={(e) => { e.stopPropagation(); speak(sides!.question, sides!.questionSpeak); }}
                             className="absolute top-3 left-3 rounded-full p-1.5 text-muted-foreground/50 hover:bg-muted hover:text-foreground transition-colors"

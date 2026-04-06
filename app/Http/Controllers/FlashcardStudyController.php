@@ -20,35 +20,46 @@ class FlashcardStudyController extends Controller
         abort_unless($deck->user_id === $request->user()->id, 403);
 
         $settings = $request->user()->flashcardSettings ?? $this->srs->defaultSettings();
-        $items = $this->srs->getDueCards($deck->id, $settings);
+
+        $dueItems = $this->srs->getDueCards($deck->id, $settings);
+
+        $cards = $dueItems->map(function (array $item) use ($settings): array {
+            /** @var Flashcard $card */
+            $card = $item['card'];
+            $direction = $item['direction'];
+
+            $review = $this->srs->getOrCreateReview($card, $direction);
+            $previews = $this->srs->getButtonPreviews($review, $settings);
+
+            $otherDirection = $direction === 'front_to_back' ? 'back_to_front' : 'front_to_back';
+            $otherReview = $card->direction === 'both'
+                ? $card->reviews->firstWhere('direction', $otherDirection)
+                : null;
+
+            return [
+                'id' => $card->id,
+                'front' => $card->front,
+                'front_notes' => $card->front_notes,
+                'front_speak' => $card->front_speak,
+                'back' => $card->back,
+                'back_notes' => $card->back_notes,
+                'back_speak' => $card->back_speak,
+                'study_direction' => $direction,
+                'color' => $card->color,
+                'review' => [
+                    'state' => $review->state,
+                    'interval' => $review->interval,
+                    'lapses' => $review->lapses,
+                    'is_leech' => $review->is_leech,
+                ],
+                'previews' => $previews,
+                'other_side_due_at' => $otherReview?->due_at?->toIso8601String(),
+            ];
+        })->values()->all();
 
         return Inertia::render('flashcards/study', [
-            'deck' => $deck,
-            'cards' => $items->map(function (array $item) use ($settings) {
-                /** @var Flashcard $card */
-                $card = $item['card'];
-                $direction = $item['direction'];
-                $review = $item['review'] ?? $this->srs->getOrCreateReview($card, $direction);
-
-                return [
-                    'id' => $card->id,
-                    'front' => $card->front,
-                    'front_notes' => $card->front_notes,
-                    'front_speak' => $card->front_speak,
-                    'back' => $card->back,
-                    'back_notes' => $card->back_notes,
-                    'back_speak' => $card->back_speak,
-                    'study_direction' => $direction,
-                    'color' => $card->color,
-                    'review' => [
-                        'state' => $review->state ?? 'new',
-                        'interval' => $review->interval ?? 0,
-                        'lapses' => $review->lapses ?? 0,
-                        'is_leech' => $review->is_leech ?? false,
-                    ],
-                    'previews' => $this->srs->getButtonPreviews($review, $settings),
-                ];
-            }),
+            'deck' => ['id' => $deck->id, 'name' => $deck->name],
+            'cards' => $cards,
         ]);
     }
 
@@ -56,13 +67,15 @@ class FlashcardStudyController extends Controller
     {
         abort_unless($deck->user_id === $request->user()->id, 403);
 
-        $flashcard = Flashcard::where('id', $request->flashcard_id)
+        $flashcard = Flashcard::where('id', $request->integer('flashcard_id'))
             ->where('deck_id', $deck->id)
             ->firstOrFail();
 
         $settings = $request->user()->flashcardSettings ?? $this->srs->defaultSettings();
-        $review = $this->srs->getOrCreateReview($flashcard, $request->direction);
-        $this->srs->processReview($review, $request->rating, $settings);
+
+        $review = $this->srs->getOrCreateReview($flashcard, $request->string('direction'));
+
+        $this->srs->processReview($review, $request->integer('rating'), $settings);
 
         return response()->json(['ok' => true]);
     }

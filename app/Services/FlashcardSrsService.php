@@ -44,7 +44,7 @@ class FlashcardSrsService
      */
     public function getButtonPreviews(FlashcardReview $review, FlashcardSetting $settings): array
     {
-        $steps = $settings->learning_steps;
+        $steps = array_map('intval', $settings->learning_steps);
         $isLearning = in_array($review->state, ['new', 'learning', 'relearning']);
 
         if ($isLearning) {
@@ -187,7 +187,7 @@ class FlashcardSrsService
 
     private function processLearning(FlashcardReview $review, int $rating, FlashcardSetting $settings): void
     {
-        $steps = $settings->learning_steps; // array of minutes
+        $steps = array_map('intval', $settings->learning_steps); // array of minutes
 
         match ($rating) {
             self::AGAIN => $this->learningAgain($review, $steps),
@@ -207,8 +207,7 @@ class FlashcardSrsService
     private function learningHard(FlashcardReview $review, array $steps): void
     {
         $review->state = 'learning';
-        // Stay at the same step but add 50% extra time
-        $minutes = (int) ($steps[$review->learning_step] * 1.5);
+        $minutes = max($steps[0] + 1, (int) round($steps[$review->learning_step] * 1.5));
         $review->due_at = Carbon::now()->addMinutes($minutes);
     }
 
@@ -259,7 +258,7 @@ class FlashcardSrsService
         $review->learning_step = 0;
         $review->interval = max(1, (int) round($review->interval * $settings->lapse_new_interval / 100));
 
-        $steps = $settings->learning_steps;
+        $steps = array_map('intval', $settings->learning_steps);
         $review->due_at = Carbon::now()->addMinutes($steps[0]);
         $review->is_leech = $review->lapses >= $settings->leech_threshold;
     }
