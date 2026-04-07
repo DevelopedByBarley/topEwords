@@ -1,5 +1,5 @@
 import { Form, Head, Link, router, usePage } from '@inertiajs/react';
-import { BookOpen, Copy, Download, Edit2, FileUp, Import, Loader2, MoveRight, Plus, RotateCcw, Search, SlidersHorizontal, Trash2, X, MoreHorizontal } from 'lucide-react';
+import { BookOpen, Copy, Download, Edit2, FileUp, Import, Loader2, MoreHorizontal, MoveRight, Plus, RotateCcw, Search, Settings2, SlidersHorizontal, Trash2, X } from 'lucide-react';
 import { useCallback, useRef, useState } from 'react';
 import { type RichTextEditorHandle } from '@/components/ui/rich-text-editor';
 import Heading from '@/components/heading';
@@ -35,7 +35,9 @@ import {
 import { bulkDelete as bulkDeleteCards, bulkMove as bulkMoveCards, bulkReset as bulkResetCards, destroy as destroyCard, duplicate as duplicateCard, importMethod as importFromWord, move as moveCard, reset as resetProgress, store as storeCard, update as updateCard } from '@/routes/flashcards/cards';
 import { exportMethod as csvExport, importMethod as csvImport } from '@/routes/flashcards/csv';
 import { index, show, study } from '@/routes/flashcards';
+import { destroy as destroyDeckSettings, update as updateDeckSettings } from '@/routes/flashcards/settings';
 import { search as searchWords } from '@/routes/words';
+import InputError from '@/components/input-error';
 
 type Review = {
     state: 'new' | 'learning' | 'review' | 'relearning';
@@ -66,6 +68,239 @@ type Deck = {
 };
 
 type OtherDeck = { id: number; name: string };
+
+type DeckSettings = {
+    new_cards_per_day: number;
+    max_reviews_per_day: number;
+    learning_steps: number[];
+    graduating_interval: number;
+    easy_interval: number;
+    starting_ease: number;
+    easy_bonus: number;
+    hard_interval_modifier: number;
+    interval_modifier: number;
+    max_interval: number;
+    lapse_new_interval: number;
+    leech_threshold: number;
+    shuffle_cards: boolean;
+} | null;
+
+const DEFAULT_SETTINGS: NonNullable<DeckSettings> = {
+    new_cards_per_day: 20,
+    max_reviews_per_day: 200,
+    learning_steps: [1, 10],
+    graduating_interval: 1,
+    easy_interval: 4,
+    starting_ease: 250,
+    easy_bonus: 130,
+    hard_interval_modifier: 120,
+    interval_modifier: 100,
+    max_interval: 365,
+    lapse_new_interval: 0,
+    leech_threshold: 8,
+    shuffle_cards: false,
+};
+
+function SettingField({
+    id, label, description, name, defaultValue, min, max, error, suffix,
+}: {
+    id: string; label: string; description?: string; name: string;
+    defaultValue: number; min?: number; max?: number; error?: string; suffix?: string;
+}) {
+    return (
+        <div className="grid gap-1.5">
+            <Label htmlFor={id}>{label}</Label>
+            {description && <p className="text-xs text-muted-foreground">{description}</p>}
+            <div className="flex items-center gap-2">
+                <Input id={id} type="number" name={name} defaultValue={defaultValue} min={min} max={max} className="w-28" />
+                {suffix && <span className="text-sm text-muted-foreground">{suffix}</span>}
+            </div>
+            <InputError message={error} />
+        </div>
+    );
+}
+
+function DeckSettingsDialog({ deck, deckSettings, open, onClose }: {
+    deck: Deck;
+    deckSettings: DeckSettings;
+    open: boolean;
+    onClose: () => void;
+}) {
+    const hasCustom = deckSettings !== null;
+    const s = deckSettings ?? DEFAULT_SETTINGS;
+    const [steps, setSteps] = useState<number[]>(s.learning_steps);
+
+    const addStep = () => setSteps((prev) => [...prev, 10]);
+    const removeStep = (i: number) => setSteps((prev) => prev.filter((_, idx) => idx !== i));
+    const updateStep = (i: number, val: number) =>
+        setSteps((prev) => prev.map((step, idx) => (idx === i ? val : step)));
+
+    return (
+        <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+            <DialogContent className="sm:max-w-2xl w-[calc(100vw-2rem)] max-h-[92vh] overflow-y-auto">
+                <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                        <Settings2 className="size-4" />
+                        Deck beállítások
+                        {hasCustom && (
+                            <span className="ml-1 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-medium text-primary">egyéni</span>
+                        )}
+                    </DialogTitle>
+                </DialogHeader>
+
+                <Form
+                    action={updateDeckSettings(deck.id)}
+                    options={{ preserveScroll: true, onSuccess: onClose }}
+                    className="space-y-6 pt-2"
+                >
+                    {({ processing, errors }) => (
+                        <>
+                            <div className="space-y-4">
+                                <h4 className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">Napi korlátok</h4>
+                                <div className="grid gap-4 sm:grid-cols-2">
+                                    <SettingField
+                                        id="ds_new" label="Új kártyák / nap"
+                                        description="Hány új kártyát mutasson ebből a deckből naponta (pl. 20)"
+                                        name="new_cards_per_day" defaultValue={s.new_cards_per_day} min={1} max={9999} error={errors.new_cards_per_day} suffix="db"
+                                    />
+                                    <SettingField
+                                        id="ds_rev" label="Max ismétlések / nap"
+                                        description="Esedékes (már tanult) kártyák maximuma naponta (pl. 200)"
+                                        name="max_reviews_per_day" defaultValue={s.max_reviews_per_day} min={1} max={9999} error={errors.max_reviews_per_day} suffix="db"
+                                    />
+                                </div>
+                            </div>
+
+                            <Separator />
+
+                            <div className="space-y-3">
+                                <h4 className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">Tanulási lépések</h4>
+                                <p className="text-xs text-muted-foreground">
+                                    Percek sorozata, amelyen az új kártya végigmegy, mielőtt „végez" és ismétlési fázisba kerül.
+                                    Pl. <span className="font-medium">1 → 10</span> perc: először 1 perccel, ha jó, 10 perccel kerül visszatesztelésre.
+                                </p>
+                                <div className="flex flex-wrap gap-2 items-center">
+                                    {steps.map((step, i) => (
+                                        <div key={i} className="flex items-center gap-1">
+                                            <Input type="number" name="learning_steps[]" value={step} onChange={(e) => updateStep(i, Number(e.target.value))} min={1} max={1440} className="w-20" />
+                                            <span className="text-xs text-muted-foreground">perc</span>
+                                            {steps.length > 1 && (
+                                                <button type="button" onClick={() => removeStep(i)} className="text-muted-foreground hover:text-destructive transition-colors">
+                                                    <X className="size-3.5" />
+                                                </button>
+                                            )}
+                                        </div>
+                                    ))}
+                                    <Button type="button" variant="outline" size="sm" onClick={addStep}>
+                                        <Plus className="size-3.5 mr-1" />
+                                        Lépés
+                                    </Button>
+                                </div>
+                                <InputError message={errors['learning_steps']} />
+                            </div>
+
+                            <Separator />
+
+                            <div className="space-y-4">
+                                <h4 className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">Végzés & intervallumok</h4>
+                                <div className="grid gap-4 sm:grid-cols-2">
+                                    <SettingField
+                                        id="ds_grad" label="Végzési intervallum"
+                                        description='Hány napra kerül a kártya ismétlésre, ha „Jó"-t kap az utolsó tanulási lépésnél (pl. 1 nap)'
+                                        name="graduating_interval" defaultValue={s.graduating_interval} min={1} max={365} error={errors.graduating_interval} suffix="nap"
+                                    />
+                                    <SettingField
+                                        id="ds_easy" label="Könnyű intervallum"
+                                        description='Ha tanulás közben „Könnyű"-t kapsz, azonnal ennyi napra ugrik (pl. 4 nap)'
+                                        name="easy_interval" defaultValue={s.easy_interval} min={1} max={365} error={errors.easy_interval} suffix="nap"
+                                    />
+                                    <SettingField
+                                        id="ds_max" label="Max intervallum"
+                                        description="Két ismétlés közt maximálisan ennyi nap telhet el, még ha az algoritmus többet is számolna (pl. 365 nap)"
+                                        name="max_interval" defaultValue={s.max_interval} min={1} max={36500} error={errors.max_interval} suffix="nap"
+                                    />
+                                    <SettingField
+                                        id="ds_ease" label="Kezdő ease"
+                                        description="Milyen szorzóval indul a kártya végzéskor (250 = 2,5×). Befolyásolja, mennyire nő az intervallum ismétlésenként."
+                                        name="starting_ease" defaultValue={s.starting_ease} min={130} max={999} error={errors.starting_ease} suffix="%"
+                                    />
+                                    <SettingField
+                                        id="ds_bonus" label="Könnyű bónusz"
+                                        description='„Könnyű" értékeléskor az intervallum extra szorzója az ease-en felül (130 = 1,3×, tehát 30%-kal hosszabb)'
+                                        name="easy_bonus" defaultValue={s.easy_bonus} min={100} max={999} error={errors.easy_bonus} suffix="%"
+                                    />
+                                    <SettingField
+                                        id="ds_hard" label="Nehéz szorzó"
+                                        description='„Nehéz" értékeléskor az intervallum szorzója (120 = 1,2×). Az ease csökken, az intervallum kicsit nő.'
+                                        name="hard_interval_modifier" defaultValue={s.hard_interval_modifier} min={100} max={999} error={errors.hard_interval_modifier} suffix="%"
+                                    />
+                                    <SettingField
+                                        id="ds_mod" label="Intervallum módosító"
+                                        description="Globális szorzó minden kiszámolt intervallumra (100 = nincs változás, 80 = 20%-kal rövidebb intervallumok)"
+                                        name="interval_modifier" defaultValue={s.interval_modifier} min={10} max={999} error={errors.interval_modifier} suffix="%"
+                                    />
+                                    <SettingField
+                                        id="ds_lapse" label="Tévesztés utáni intervallum"
+                                        description="Tévesztés után az előző intervallum hány %-ából indul újra (0 = elölről, 50 = felére csökken)"
+                                        name="lapse_new_interval" defaultValue={s.lapse_new_interval} min={0} max={100} error={errors.lapse_new_interval} suffix="%"
+                                    />
+                                    <SettingField
+                                        id="ds_leech" label="Leech küszöb"
+                                        description={'Ennyi tévesztés után a kártya „leech"-nek minősül (jelzi, hogy nehezen megy – érdemes átgondolni)'}
+                                        name="leech_threshold" defaultValue={s.leech_threshold} min={1} max={99} error={errors.leech_threshold} suffix="tévesztés"
+                                    />
+                                </div>
+                            </div>
+
+                            <Separator />
+
+                            {/* Shuffle */}
+                            <div className="space-y-3">
+                                <h4 className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">Sorrend</h4>
+                                <label className="flex cursor-pointer items-start gap-3">
+                                    <input
+                                        type="checkbox"
+                                        name="shuffle_cards"
+                                        defaultChecked={s.shuffle_cards}
+                                        value="1"
+                                        className="mt-0.5 size-4 rounded border-input accent-primary cursor-pointer"
+                                    />
+                                    <div className="grid gap-0.5">
+                                        <span className="text-sm font-medium">Kártyák keverése</span>
+                                        <span className="text-xs text-muted-foreground">
+                                            Véletlenszerű sorrendben mutatja a kártyákat — kétoldalú kártyáknál az előlap és hátlap nem kerül egymás mellé.
+                                        </span>
+                                    </div>
+                                </label>
+                            </div>
+
+                            <div className="flex items-center justify-between gap-4 pt-1">
+                                <Button type="submit" disabled={processing}>Mentés</Button>
+                                {hasCustom && (
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        className="text-muted-foreground text-xs"
+                                        onClick={() => {
+                                            if (!confirm('Visszaállítod a globális / alapértelmezett beállításokra?')) return;
+                                            router.delete(destroyDeckSettings(deck.id).url, {
+                                                preserveScroll: true,
+                                                onSuccess: onClose,
+                                            });
+                                        }}
+                                    >
+                                        Egyéni beállítások törlése
+                                    </Button>
+                                )}
+                            </div>
+                        </>
+                    )}
+                </Form>
+            </DialogContent>
+        </Dialog>
+    );
+}
 
 const DIRECTION_LABELS = {
     front_to_back: 'Előlap → Hátlap',
@@ -568,16 +803,19 @@ export default function FlashcardShow({
     deck,
     flashcards,
     dueCount,
+    deckSettings,
     otherDecks,
 }: {
     deck: Deck;
     flashcards: Flashcard[];
     dueCount: number;
+    deckSettings: DeckSettings;
     otherDecks: OtherDeck[];
 }) {
     const { flash } = usePage<{ flash: { success?: string | null } }>().props;
     const [showNewForm, setShowNewForm] = useState(false);
     const [editingCard, setEditingCard] = useState<Flashcard | null>(null);
+    const [showSettings, setShowSettings] = useState(false);
     const [search, setSearch] = useState('');
     const [stateFilter, setStateFilter] = useState('');
     const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -722,6 +960,13 @@ export default function FlashcardShow({
                             </Button>
                         </a>
                     )}
+                    <Button size="sm" variant="outline" onClick={() => setShowSettings(true)} className="relative">
+                        <Settings2 className="size-4 mr-1" />
+                        Beállítások
+                        {deckSettings !== null && (
+                            <span className="absolute -top-1 -right-1 size-2 rounded-full bg-primary" title="Egyéni beállítások aktívak" />
+                        )}
+                    </Button>
                 </div>
 
                 <Separator />
@@ -873,6 +1118,14 @@ export default function FlashcardShow({
                     </div>
                 )}
             </div>
+
+            {/* Deck settings dialog */}
+            <DeckSettingsDialog
+                deck={deck}
+                deckSettings={deckSettings}
+                open={showSettings}
+                onClose={() => setShowSettings(false)}
+            />
 
             {/* Card edit / new dialog */}
             <Dialog

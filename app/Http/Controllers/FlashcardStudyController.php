@@ -19,7 +19,7 @@ class FlashcardStudyController extends Controller
     {
         abort_unless($deck->user_id === $request->user()->id, 403);
 
-        $settings = $request->user()->flashcardSettings ?? $this->srs->defaultSettings();
+        $settings = $deck->deckSettings ?? $request->user()->flashcardSettings ?? $this->srs->defaultSettings();
 
         $dueItems = $this->srs->getDueCards($deck->id, $settings);
 
@@ -71,7 +71,7 @@ class FlashcardStudyController extends Controller
             ->where('deck_id', $deck->id)
             ->firstOrFail();
 
-        $settings = $request->user()->flashcardSettings ?? $this->srs->defaultSettings();
+        $settings = $deck->deckSettings ?? $request->user()->flashcardSettings ?? $this->srs->defaultSettings();
 
         $review = $this->srs->getOrCreateReview($flashcard, $request->string('direction'));
 

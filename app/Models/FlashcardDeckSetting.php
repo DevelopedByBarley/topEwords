@@ -2,14 +2,12 @@
 
 namespace App\Models;
 
-use Database\Factories\FlashcardSettingFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 #[Fillable([
-    'user_id',
+    'flashcard_deck_id',
     'new_cards_per_day',
     'max_reviews_per_day',
     'learning_steps',
@@ -24,14 +22,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'leech_threshold',
     'shuffle_cards',
 ])]
-class FlashcardSetting extends Model
+class FlashcardDeckSetting extends Model
 {
-    /** @use HasFactory<FlashcardSettingFactory> */
-    use HasFactory;
-
-    public function user(): BelongsTo
+    public function deck(): BelongsTo
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(FlashcardDeck::class, 'flashcard_deck_id');
     }
 
     protected function casts(): array

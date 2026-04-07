@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Flashcard;
+use App\Models\FlashcardDeckSetting;
 use App\Models\FlashcardReview;
 use App\Models\FlashcardSetting;
 use Illuminate\Support\Carbon;
@@ -34,6 +35,7 @@ class FlashcardSrsService
             'max_interval' => 365,
             'lapse_new_interval' => 0,
             'leech_threshold' => 8,
+            'shuffle_cards' => false,
         ]);
     }
 
@@ -42,7 +44,7 @@ class FlashcardSrsService
      *
      * @return array{again: string, hard: string, good: string, easy: string}
      */
-    public function getButtonPreviews(FlashcardReview $review, FlashcardSetting $settings): array
+    public function getButtonPreviews(FlashcardReview $review, FlashcardSetting|FlashcardDeckSetting $settings): array
     {
         $steps = array_map('intval', $settings->learning_steps);
         $isLearning = in_array($review->state, ['new', 'learning', 'relearning']);
@@ -104,7 +106,7 @@ class FlashcardSrsService
         return $days.' nap';
     }
 
-    public function processReview(FlashcardReview $review, int $rating, FlashcardSetting $settings): void
+    public function processReview(FlashcardReview $review, int $rating, FlashcardSetting|FlashcardDeckSetting $settings): void
     {
         match ($review->state) {
             'new', 'learning', 'relearning' => $this->processLearning($review, $rating, $settings),
@@ -152,7 +154,7 @@ class FlashcardSrsService
      *
      * @return Collection<int, array{card: Flashcard, direction: string, review: FlashcardReview|null}>
      */
-    public function getDueCards(int $deckId, FlashcardSetting $settings): Collection
+    public function getDueCards(int $deckId, FlashcardSetting|FlashcardDeckSetting $settings): Collection
     {
         $now = Carbon::now();
         $cards = Flashcard::where('deck_id', $deckId)
@@ -179,13 +181,18 @@ class FlashcardSrsService
             }
         }
 
+        if ($settings->shuffle_cards) {
+            $newItems = $newItems->shuffle();
+            $reviewItems = $reviewItems->shuffle();
+        }
+
         return $newItems->take($settings->new_cards_per_day)
             ->merge($learningItems)
             ->merge($reviewItems->take($settings->max_reviews_per_day))
             ->values();
     }
 
-    private function processLearning(FlashcardReview $review, int $rating, FlashcardSetting $settings): void
+    private function processLearning(FlashcardReview $review, int $rating, FlashcardSetting|FlashcardDeckSetting $settings): void
     {
         $steps = array_map('intval', $settings->learning_steps); // array of minutes
 
@@ -211,7 +218,7 @@ class FlashcardSrsService
         $review->due_at = Carbon::now()->addMinutes($minutes);
     }
 
-    private function learningGood(FlashcardReview $review, array $steps, FlashcardSetting $settings): void
+    private function learningGood(FlashcardReview $review, array $steps, FlashcardSetting|FlashcardDeckSetting $settings): void
     {
         $nextStep = $review->learning_step + 1;
 
@@ -230,7 +237,7 @@ class FlashcardSrsService
         }
     }
 
-    private function learningEasy(FlashcardReview $review, FlashcardSetting $settings): void
+    private function learningEasy(FlashcardReview $review, FlashcardSetting|FlashcardDeckSetting $settings): void
     {
         $review->state = 'review';
         $review->interval = $settings->easy_interval;
@@ -240,7 +247,7 @@ class FlashcardSrsService
         $review->due_at = Carbon::now()->addDays($settings->easy_interval);
     }
 
-    private function processReview_(FlashcardReview $review, int $rating, FlashcardSetting $settings): void
+    private function processReview_(FlashcardReview $review, int $rating, FlashcardSetting|FlashcardDeckSetting $settings): void
     {
         match ($rating) {
             self::AGAIN => $this->reviewAgain($review, $settings),
@@ -250,7 +257,7 @@ class FlashcardSrsService
         };
     }
 
-    private function reviewAgain(FlashcardReview $review, FlashcardSetting $settings): void
+    private function reviewAgain(FlashcardReview $review, FlashcardSetting|FlashcardDeckSetting $settings): void
     {
         $review->lapses++;
         $review->ease_factor = max(130, $review->ease_factor - 20);
@@ -263,7 +270,7 @@ class FlashcardSrsService
         $review->is_leech = $review->lapses >= $settings->leech_threshold;
     }
 
-    private function reviewHard(FlashcardReview $review, FlashcardSetting $settings): void
+    private function reviewHard(FlashcardReview $review, FlashcardSetting|FlashcardDeckSetting $settings): void
     {
         $newInterval = max(
             $review->interval + 1,
@@ -274,7 +281,7 @@ class FlashcardSrsService
         $review->due_at = Carbon::now()->addDays($review->interval);
     }
 
-    private function reviewGood(FlashcardReview $review, FlashcardSetting $settings): void
+    private function reviewGood(FlashcardReview $review, FlashcardSetting|FlashcardDeckSetting $settings): void
     {
         $newInterval = (int) round(
             $review->interval * $review->ease_factor / 100 * $settings->interval_modifier / 100
@@ -284,7 +291,7 @@ class FlashcardSrsService
         $review->due_at = Carbon::now()->addDays($review->interval);
     }
 
-    private function reviewEasy(FlashcardReview $review, FlashcardSetting $settings): void
+    private function reviewEasy(FlashcardReview $review, FlashcardSetting|FlashcardDeckSetting $settings): void
     {
         $newInterval = (int) round(
             $review->interval * $review->ease_factor / 100

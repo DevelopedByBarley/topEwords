@@ -41,6 +41,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('flashcards/{deck}', [FlashcardDeckController::class, 'show'])->name('flashcards.show');
     Route::patch('flashcards/{deck}', [FlashcardDeckController::class, 'update'])->name('flashcards.update');
     Route::delete('flashcards/{deck}', [FlashcardDeckController::class, 'destroy'])->name('flashcards.destroy');
+    Route::put('flashcards/{deck}/settings', [FlashcardDeckController::class, 'updateSettings'])->name('flashcards.settings.update');
+    Route::delete('flashcards/{deck}/settings', [FlashcardDeckController::class, 'destroySettings'])->name('flashcards.settings.destroy');
 
     // Flashcard cards
     Route::post('flashcards/{deck}/cards', [FlashcardCardController::class, 'store'])->name('flashcards.cards.store');

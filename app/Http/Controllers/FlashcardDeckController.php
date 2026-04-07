@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreFlashcardDeckRequest;
 use App\Http\Requests\UpdateFlashcardDeckRequest;
+use App\Http\Requests\UpdateFlashcardDeckSettingsRequest;
 use App\Models\FlashcardDeck;
 use App\Services\FlashcardSrsService;
 use Illuminate\Http\RedirectResponse;
@@ -72,8 +73,8 @@ class FlashcardDeckController extends Controller
 
         $flashcards = $deck->flashcards()->with('reviews', 'word')->get();
 
-        $settings = $request->user()->flashcardSettings ?? $srs->defaultSettings();
-        $dueCount = $srs->getDueCards($deck->id, $settings)->count();
+        $effectiveSettings = $deck->deckSettings ?? $request->user()->flashcardSettings ?? $srs->defaultSettings();
+        $dueCount = $srs->getDueCards($deck->id, $effectiveSettings)->count();
 
         return Inertia::render('flashcards/show', [
             'deck' => $deck,
@@ -98,6 +99,7 @@ class FlashcardDeckController extends Controller
                 ] : null,
             ]),
             'dueCount' => $dueCount,
+            'deckSettings' => $deck->deckSettings,
             'otherDecks' => $request->user()->flashcardDecks()
                 ->where('id', '!=', $deck->id)
                 ->orderBy('name')
@@ -110,6 +112,27 @@ class FlashcardDeckController extends Controller
         abort_unless($deck->user_id === $request->user()->id, 403);
 
         $deck->update($request->validated());
+
+        return to_route('flashcards.show', $deck);
+    }
+
+    public function updateSettings(UpdateFlashcardDeckSettingsRequest $request, FlashcardDeck $deck): RedirectResponse
+    {
+        abort_unless($deck->user_id === $request->user()->id, 403);
+
+        $deck->deckSettings()->updateOrCreate(
+            ['flashcard_deck_id' => $deck->id],
+            $request->validated(),
+        );
+
+        return to_route('flashcards.show', $deck);
+    }
+
+    public function destroySettings(Request $request, FlashcardDeck $deck): RedirectResponse
+    {
+        abort_unless($deck->user_id === $request->user()->id, 403);
+
+        $deck->deckSettings()->delete();
 
         return to_route('flashcards.show', $deck);
     }

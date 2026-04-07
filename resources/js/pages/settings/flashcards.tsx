@@ -23,6 +23,7 @@ type Settings = {
     max_interval: number;
     lapse_new_interval: number;
     leech_threshold: number;
+    shuffle_cards: boolean;
 };
 
 function SettingField({
@@ -290,6 +291,28 @@ export default function FlashcardSettings({ settings }: { settings: Settings }) 
                                         suffix="tévesztés"
                                     />
                                 </div>
+                            </div>
+
+                            <Separator />
+
+                            {/* Shuffle */}
+                            <div className="space-y-4">
+                                <h3 className="text-sm font-semibold">Sorrendbeállítás</h3>
+                                <label className="flex cursor-pointer items-start gap-3">
+                                    <input
+                                        type="checkbox"
+                                        name="shuffle_cards"
+                                        defaultChecked={settings.shuffle_cards}
+                                        value="1"
+                                        className="mt-0.5 size-4 rounded border-input accent-primary cursor-pointer"
+                                    />
+                                    <div className="grid gap-0.5">
+                                        <span className="text-sm font-medium">Kártyák keverése</span>
+                                        <span className="text-xs text-muted-foreground">
+                                            Bekapcsolva a rendszer véletlenszerű sorrendben mutatja a kártyákat — az új és az esedékes kártyákat egyaránt keverve. Kétoldalú kártyáknál az előlap és hátlap nem kerül egymás mellé.
+                                        </span>
+                                    </div>
+                                </label>
                             </div>
 
                             <div className="flex items-center gap-4">

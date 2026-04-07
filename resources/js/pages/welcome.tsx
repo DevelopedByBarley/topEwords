@@ -1,5 +1,31 @@
 import { Head, Link, usePage } from '@inertiajs/react';
-import { BookMarked, CheckCheck, Clock, Code2, ExternalLink, Filter, FlaskConical, FolderOpen, FolderPlus, Lightbulb, Mail, Star, Swords, TrendingUp, Zap } from 'lucide-react';
+import {
+    ArrowRight,
+    BookMarked,
+    Brain,
+    CheckCheck,
+    Clock,
+    Code2,
+    Download,
+    ExternalLink,
+    Filter,
+    FlaskConical,
+    FolderOpen,
+    FolderPlus,
+    Layers,
+    Lightbulb,
+    Mail,
+    RefreshCw,
+    Repeat2,
+    Settings2,
+    Shuffle,
+    Star,
+    Swords,
+    TrendingUp,
+    Upload,
+    Volume2,
+    Zap,
+} from 'lucide-react';
 import AppLogoIcon from '@/components/app-logo-icon';
 import { Button } from '@/components/ui/button';
 import { dashboard, login, register, terms, privacy } from '@/routes';
@@ -11,7 +37,7 @@ export default function Welcome({ canRegister = true }: { canRegister?: boolean 
     return (
         <>
             <Head title="Top 10 000 angol szó – Tanuld meg a legfontosabb szavakat">
-                <meta head-key="description" name="description" content="Tanuld meg a 10 000 leggyakoribb angol szót ingyen. Jelöld meg amit tudsz, amit tanulsz, és kövesd a haladásodat nehézségi szintenként. Tudományosan megalapozott, BNC és COCA korpuszadatokon alapuló szólista." />
+                <meta head-key="description" name="description" content="Tanuld meg a 10 000 leggyakoribb angol szót ingyen. Szólista, flashcard SRS rendszer és kvíz mód – egy helyen." />
                 <meta head-key="og:title" property="og:title" content="TopWords – Top 10 000 angol szó ingyen" />
                 <meta head-key="og:description" property="og:description" content="Tanuld meg a 10 000 leggyakoribb angol szót ingyen. Jelöld meg amit tudsz, amit tanulsz, és kövesd a haladásodat." />
                 <meta head-key="og:url" property="og:url" content="https://topwords.eu/" />
@@ -20,8 +46,9 @@ export default function Welcome({ canRegister = true }: { canRegister?: boolean 
             </Head>
 
             <div className="min-h-screen bg-background text-foreground">
+
                 {/* Nav */}
-                <header className="border-b">
+                <header className="border-b sticky top-0 z-50 bg-background/95 backdrop-blur">
                     <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
                         <div className="flex items-center gap-2.5">
                             <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary">
@@ -29,17 +56,11 @@ export default function Welcome({ canRegister = true }: { canRegister?: boolean 
                             </div>
                             <div className="grid text-sm">
                                 <span className="font-semibold tracking-tight leading-tight">TopWords</span>
-                                <a
-                                    href="https://codebarley.hu"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                                >
+                                <a href="https://codebarley.hu" target="_blank" rel="noopener noreferrer" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
                                     by CodeBarley
                                 </a>
                             </div>
                         </div>
-
                         <nav className="flex items-center gap-2">
                             {auth.user ? (
                                 <Button asChild>
@@ -67,17 +88,13 @@ export default function Welcome({ canRegister = true }: { canRegister?: boolean 
                         <Star className="size-3 text-[#00ADB5]" />
                         A 10 000 leggyakoribb angol szó egy helyen
                     </div>
-
                     <h1 className="mb-6 text-4xl font-bold tracking-tight md:text-5xl lg:text-6xl">
-                        Tanuld meg az angol szavakat{' '}
-                        <span className="text-primary">rendszeresen</span>
+                        Tanuld az angolt{' '}
+                        <span className="text-primary">okosan és rendszeresen</span>
                     </h1>
-
                     <p className="mx-auto mb-10 max-w-2xl text-lg text-muted-foreground">
-                        A leggyakoribb 10 000 angol szó listája, amellyel hatékonyan bővítheted szókincsedet.
-                        Jelöld meg amit tudsz, amit tanulsz, és amit még meg kell tanulnod — és kövesd a haladásodat.
+                        Szólista nyomon követéssel, flashcard SRS rendszerrel és kvíz móddal — minden, ami kell a hatékony szókincsfejlesztéshez. Ingyenes.
                     </p>
-
                     <div className="flex flex-wrap justify-center gap-3">
                         {auth.user ? (
                             <Button size="lg" asChild>
@@ -100,85 +117,84 @@ export default function Welcome({ canRegister = true }: { canRegister?: boolean 
 
                 {/* Stats */}
                 <section className="border-y bg-muted/40">
-                    <div className="mx-auto grid max-w-5xl grid-cols-3 divide-x px-6 py-8">
+                    <div className="mx-auto grid max-w-5xl grid-cols-2 divide-x md:grid-cols-4 px-6 py-8">
                         {[
                             { value: '10 000', label: 'Angol szó' },
-                            { value: '3', label: 'Nehézségi szint' },
+                            { value: 'SRS', label: 'Flashcard rendszer' },
+                            { value: 'Kvíz', label: 'Tesztelési mód' },
                             { value: '100%', label: 'Ingyenes' },
                         ].map((stat) => (
-                            <div key={stat.label} className="px-6 text-center first:pl-0 last:pr-0">
-                                <div className="text-3xl font-bold tracking-tight">{stat.value}</div>
+                            <div key={stat.label} className="px-6 py-2 text-center first:pl-0 last:pr-0">
+                                <div className="text-2xl font-bold tracking-tight md:text-3xl">{stat.value}</div>
                                 <div className="mt-1 text-sm text-muted-foreground">{stat.label}</div>
                             </div>
                         ))}
                     </div>
                 </section>
 
-                {/* Features */}
+                {/* Three pillars */}
                 <section className="mx-auto max-w-5xl px-6 py-20">
-                    <h2 className="mb-3 text-center text-2xl font-bold tracking-tight">Hogyan működik?</h2>
-                    <p className="mb-12 text-center text-muted-foreground">
-                        Egyszerű, de hatékony rendszer a szókincsed fejlesztéséhez
-                    </p>
-
+                    <h2 className="mb-3 text-center text-2xl font-bold tracking-tight">Háromféle tanulási mód egy helyen</h2>
+                    <p className="mb-12 text-center text-muted-foreground">Válassz a számodra legjobb módszer szerint — vagy használd mindegyiket egyszerre</p>
                     <div className="grid gap-6 md:grid-cols-3">
-                        <div className="rounded-xl border bg-card p-6">
-                            <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-[#00ADB5]/15 dark:bg-[#00ADB5]/20">
-                                <CheckCheck className="size-5 text-[#00ADB5]" />
+                        {[
+                            {
+                                icon: CheckCheck,
+                                color: 'bg-[#00ADB5]/15 dark:bg-[#00ADB5]/20',
+                                iconColor: 'text-[#00ADB5]',
+                                title: 'Szólista & nyomon követés',
+                                desc: 'Böngészd a 10 000 leggyakoribb angol szót, jelöld meg a tudásodat és szervezd mappákba.',
+                            },
+                            {
+                                icon: Brain,
+                                color: 'bg-violet-100 dark:bg-violet-950/40',
+                                iconColor: 'text-violet-600 dark:text-violet-400',
+                                title: 'Flashcard SRS',
+                                desc: 'Saját kártyacsomag, intelligens ismétlési algoritmussal — pontosan akkor mutatja a kártyát, amikor el akarnád felejteni.',
+                            },
+                            {
+                                icon: Swords,
+                                color: 'bg-orange-100 dark:bg-orange-950/40',
+                                iconColor: 'text-orange-600 dark:text-orange-400',
+                                title: 'Kvíz mód',
+                                desc: 'Teszteld magad 4 válaszlehetőséges kvízzel — szűrhető nehézségi szint és státusz szerint.',
+                            },
+                        ].map(({ icon: Icon, color, iconColor, title, desc }) => (
+                            <div key={title} className="rounded-xl border bg-card p-6">
+                                <div className={`mb-4 flex h-10 w-10 items-center justify-center rounded-lg ${color}`}>
+                                    <Icon className={`size-5 ${iconColor}`} />
+                                </div>
+                                <h3 className="mb-2 font-semibold">{title}</h3>
+                                <p className="text-sm text-muted-foreground">{desc}</p>
                             </div>
-                            <h3 className="mb-2 font-semibold">Tudom</h3>
-                            <p className="text-sm text-muted-foreground">
-                                Jelöld meg azokat a szavakat, amelyeket már biztosan ismersz. Ezek számítanak a haladásodba.
-                            </p>
-                        </div>
-
-                        <div className="rounded-xl border bg-card p-6">
-                            <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-950/40">
-                                <Clock className="size-5 text-blue-600 dark:text-blue-400" />
-                            </div>
-                            <h3 className="mb-2 font-semibold">Tanulom</h3>
-                            <p className="text-sm text-muted-foreground">
-                                Tedd ide a szavakat, amelyekkel aktívan foglalkozol, hogy könnyen visszatalálj hozzájuk.
-                            </p>
-                        </div>
-
-                        <div className="rounded-xl border bg-card p-6">
-                            <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-orange-100 dark:bg-orange-950/40">
-                                <BookMarked className="size-5 text-orange-600 dark:text-orange-400" />
-                            </div>
-                            <h3 className="mb-2 font-semibold">Később</h3>
-                            <p className="text-sm text-muted-foreground">
-                                Mentsd el a szavakat, amelyekre még visszatérsz — ne vesszenek el a listában.
-                            </p>
-                        </div>
+                        ))}
                     </div>
                 </section>
 
-                {/* Folders section */}
-                <section className="border-t">
+                {/* Word list section */}
+                <section className="border-t bg-muted/40">
                     <div className="mx-auto max-w-5xl px-6 py-20">
                         <div className="grid items-center gap-12 md:grid-cols-2">
                             <div>
                                 <div className="mb-3 inline-flex items-center gap-1.5 rounded-full border bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
-                                    <FolderOpen className="size-3" />
-                                    Mappák
+                                    <CheckCheck className="size-3" />
+                                    Szólista
                                 </div>
-                                <h2 className="mb-4 text-2xl font-bold tracking-tight">
-                                    Szervezd a szavakat saját mappákba
-                                </h2>
+                                <h2 className="mb-4 text-2xl font-bold tracking-tight">Kövesd nyomon a szókincsed fejlődését</h2>
                                 <p className="mb-6 text-muted-foreground">
-                                    Hozz létre egyéni mappákat és csoportosítsd a szavakat témák, projektek vagy bármi más szerint —
-                                    teljesen a saját tanulási stílusodhoz igazítva.
+                                    Minden szóhoz jelölheted, hol tartasz — a rendszer összeszámolja, és látod a valódi haladásodat.
                                 </p>
                                 <ul className="flex flex-col gap-3 text-sm">
                                     {[
-                                        { icon: FolderPlus, text: 'Hozz létre tetszőleges számú mappát (pl. "Utazás", "Munka", "Vizsgára")' },
-                                        { icon: FolderOpen, text: 'Adj hozzá szavakat egy vagy több mappához is egyszerre' },
-                                        { icon: Filter, text: 'Szűrj rá bármelyik mappára és csak azokat a szavakat lásd' },
-                                    ].map(({ icon: Icon, text }) => (
+                                        { icon: CheckCheck, color: 'text-[#00ADB5]', text: 'Tudom — jelöld meg a biztosan ismert szavakat' },
+                                        { icon: Clock, color: 'text-blue-500', text: 'Tanulom — aktívan tanult szavak gyors elérése' },
+                                        { icon: BookMarked, color: 'text-orange-500', text: 'Később — szavak elmentése visszatéréshez' },
+                                        { icon: FolderPlus, color: 'text-primary', text: 'Mappák — rendezd témák szerint (pl. Utazás, Munka)' },
+                                        { icon: Filter, color: 'text-primary', text: 'Szűrők — nehézség, státusz és mappa szerint' },
+                                    ].map(({ icon: Icon, color, text }) => (
                                         <li key={text} className="flex items-start gap-3">
                                             <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                                                <Icon className="size-3 text-primary" />
+                                                <Icon className={`size-3 ${color}`} />
                                             </div>
                                             <span className="text-muted-foreground">{text}</span>
                                         </li>
@@ -186,19 +202,173 @@ export default function Welcome({ canRegister = true }: { canRegister?: boolean 
                                 </ul>
                             </div>
 
-                            <div className="flex flex-col gap-3">
-                                {[
-                                    { name: 'Utazás', count: 42, color: 'text-blue-500 bg-blue-500/10' },
-                                    { name: 'Munkahelyi szavak', count: 78, color: 'text-violet-500 bg-violet-500/10' },
-                                    { name: 'Vizsgára készülök', count: 115, color: 'text-orange-500 bg-orange-500/10' },
-                                    { name: 'Kiejtés gyakorlás', count: 31, color: 'text-[#00ADB5] bg-[#00ADB5]/10' },
-                                ].map((folder) => (
-                                    <div key={folder.name} className="flex items-center gap-4 rounded-xl border bg-card p-4">
-                                        <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${folder.color}`}>
-                                            <FolderOpen className="size-4.5" />
+                            <div className="flex flex-col gap-2">
+                                {/* Word list mockup */}
+                                <div className="rounded-xl border bg-card overflow-hidden">
+                                    <div className="border-b px-4 py-3 flex items-center justify-between">
+                                        <span className="text-sm font-medium">Szólista</span>
+                                        <div className="flex gap-1.5">
+                                            {['Összes', 'Tanulom', 'Tudom'].map((f) => (
+                                                <span key={f} className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${f === 'Összes' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground border'}`}>{f}</span>
+                                            ))}
                                         </div>
-                                        <div className="flex-1 font-medium">{folder.name}</div>
-                                        <div className="text-sm text-muted-foreground">{folder.count} szó</div>
+                                    </div>
+                                    {[
+                                        { word: 'between', rank: 42, status: 'tudom' },
+                                        { word: 'important', rank: 187, status: 'tanulom' },
+                                        { word: 'different', rank: 234, status: null },
+                                        { word: 'government', rank: 312, status: 'tudom' },
+                                        { word: 'experience', rank: 418, status: 'később' },
+                                    ].map(({ word, rank, status }) => (
+                                        <div key={word} className="flex items-center justify-between border-b last:border-0 px-4 py-3">
+                                            <div className="flex items-center gap-3">
+                                                <span className="text-xs text-muted-foreground w-8">#{rank}</span>
+                                                <span className="font-medium text-sm">{word}</span>
+                                            </div>
+                                            {status === 'tudom' && <span className="text-xs font-medium text-[#00ADB5] bg-[#00ADB5]/10 px-2 py-0.5 rounded-full">Tudom</span>}
+                                            {status === 'tanulom' && <span className="text-xs font-medium text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-950/40 px-2 py-0.5 rounded-full">Tanulom</span>}
+                                            {status === 'később' && <span className="text-xs font-medium text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-950/40 px-2 py-0.5 rounded-full">Később</span>}
+                                            {!status && <span className="text-xs text-muted-foreground/50">—</span>}
+                                        </div>
+                                    ))}
+                                </div>
+                                <div className="flex gap-2">
+                                    {[
+                                        { name: 'Utazás', count: 42 },
+                                        { name: 'Munka', count: 78 },
+                                        { name: 'Vizsga', count: 115 },
+                                    ].map((folder) => (
+                                        <div key={folder.name} className="flex flex-1 items-center gap-2 rounded-lg border bg-card p-3">
+                                            <FolderOpen className="size-4 text-primary shrink-0" />
+                                            <span className="text-xs font-medium truncate">{folder.name}</span>
+                                            <span className="ml-auto text-xs text-muted-foreground">{folder.count}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                {/* Flashcard SRS section */}
+                <section className="border-t">
+                    <div className="mx-auto max-w-5xl px-6 py-20">
+                        <div className="mb-3 flex justify-center">
+                            <div className="inline-flex items-center gap-1.5 rounded-full border bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
+                                <Brain className="size-3" />
+                                Flashcard SRS
+                            </div>
+                        </div>
+                        <h2 className="mb-3 text-center text-2xl font-bold tracking-tight">Intelligens ismétlési rendszer — mint az Anki</h2>
+                        <p className="mb-12 text-center text-muted-foreground max-w-2xl mx-auto">
+                            Az SRS (Spaced Repetition System) algoritmus pontosan kiszámolja, mikor kell ismételned egy kártyát — így nem pazarolsz időt arra, amit már tudsz.
+                        </p>
+
+                        {/* Study card mockup */}
+                        <div className="mb-16 mx-auto max-w-sm">
+                            <div className="rounded-2xl border bg-card shadow-lg overflow-hidden">
+                                <div className="px-6 pt-6 pb-4 text-center border-b">
+                                    <p className="text-xs text-muted-foreground mb-1">Deck: Angol alapszavak · 12/40</p>
+                                    <p className="text-3xl font-bold tracking-tight mt-4 mb-2">between</p>
+                                    <p className="text-sm text-muted-foreground">/bɪˈtwiːn/</p>
+                                    <div className="mt-4 pt-4 border-t">
+                                        <p className="text-lg font-medium">között, -ek között</p>
+                                        <p className="text-xs text-muted-foreground mt-1 italic">"between you and me"</p>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-4 divide-x">
+                                    {[
+                                        { label: 'Újra', sub: '1 perc', color: 'text-red-600 dark:text-red-400' },
+                                        { label: 'Nehéz', sub: '6 nap', color: 'text-orange-600 dark:text-orange-400' },
+                                        { label: 'Jó', sub: '10 nap', color: 'text-blue-600 dark:text-blue-400' },
+                                        { label: 'Könnyű', sub: '15 nap', color: 'text-green-600 dark:text-green-400' },
+                                    ].map(({ label, sub, color }) => (
+                                        <div key={label} className={`py-3 text-center cursor-pointer hover:bg-muted/50 transition-colors ${color}`}>
+                                            <div className="text-xs font-semibold">{label}</div>
+                                            <div className="text-[10px] text-muted-foreground mt-0.5">{sub}</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Feature grid */}
+                        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                            {[
+                                {
+                                    icon: Layers,
+                                    title: 'Saját deck-ek',
+                                    desc: 'Hozz létre tetszőleges számú kártyacsomagot különböző témákhoz. Mappákkal is szervezheted őket.',
+                                },
+                                {
+                                    icon: Repeat2,
+                                    title: 'Kétirányú kártyák',
+                                    desc: 'Minden kártya mehet előlap→hátlap, hátlap→előlap irányban, vagy mindkét irányban — külön-külön értékeli az algoritmus.',
+                                },
+                                {
+                                    icon: Volume2,
+                                    title: 'Hangos felolvasás',
+                                    desc: 'Az előlap és hátlap szövege felolvasható — tanuld a helyes kiejtést is egyszerre.',
+                                },
+                                {
+                                    icon: Shuffle,
+                                    title: 'Kártyák keverése',
+                                    desc: 'Bekapcsolható keverés — így kétoldalú kártyáknál az előlap és hátlap nem kerül egymás mellé.',
+                                },
+                                {
+                                    icon: Upload,
+                                    title: 'Import a szólistáról',
+                                    desc: 'A TopWords szólistájából egy kattintással importálhatsz kártyát a meglévő definíciókkal és példamondatokkal.',
+                                },
+                                {
+                                    icon: Download,
+                                    title: 'CSV import / export',
+                                    desc: 'Importálj kártyákat CSV fájlból, vagy exportáld a deckjed — kompatibilis más alkalmazásokkal is.',
+                                },
+                                {
+                                    icon: Settings2,
+                                    title: 'Deckenként testreszabható',
+                                    desc: 'Minden decknek saját beállítása lehet — napi korlát, tanulási lépések, ease faktorok, keverés.',
+                                },
+                                {
+                                    icon: TrendingUp,
+                                    title: 'Haladás nyomon követése',
+                                    desc: 'Minden kártya státusza látható: Új · Tanulás · Ismétlés · Újratanulás — és mikor esedékes.',
+                                },
+                                {
+                                    icon: RefreshCw,
+                                    title: 'Leech detektálás',
+                                    desc: 'A sokat tévesztett kártyákat a rendszer automatikusan jelöli, hogy tudd, hol érdemes más módszert alkalmazni.',
+                                },
+                            ].map(({ icon: Icon, title, desc }) => (
+                                <div key={title} className="flex gap-4 rounded-xl border bg-card p-5">
+                                    <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-950/40">
+                                        <Icon className="size-4 text-violet-600 dark:text-violet-400" />
+                                    </div>
+                                    <div>
+                                        <h3 className="mb-1 text-sm font-semibold">{title}</h3>
+                                        <p className="text-xs text-muted-foreground leading-relaxed">{desc}</p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* SRS explanation */}
+                        <div className="mt-12 rounded-2xl border bg-muted/40 p-8">
+                            <h3 className="mb-2 font-semibold text-center">Hogyan működik az SRS algoritmus?</h3>
+                            <p className="text-sm text-muted-foreground text-center max-w-2xl mx-auto mb-8">
+                                Az algoritmus minden értékelés után kiszámolja, mikor kellene visszamutatnia a kártyát — ha könnyen ment, tovább vár; ha nehéz volt, hamarabb visszahozza.
+                            </p>
+                            <div className="grid gap-4 sm:grid-cols-4 text-center">
+                                {[
+                                    { label: 'Újra', color: 'border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/30', textColor: 'text-red-700 dark:text-red-400', sub: 'Visszakerül a tanulási lépések elejére' },
+                                    { label: 'Nehéz', color: 'border-orange-200 dark:border-orange-900 bg-orange-50 dark:bg-orange-950/30', textColor: 'text-orange-700 dark:text-orange-400', sub: 'Kisebb intervallum, csökkenő ease' },
+                                    { label: 'Jó', color: 'border-blue-200 dark:border-blue-900 bg-blue-50 dark:bg-blue-950/30', textColor: 'text-blue-700 dark:text-blue-400', sub: 'Intervallum nő az ease faktor alapján' },
+                                    { label: 'Könnyű', color: 'border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-950/30', textColor: 'text-green-700 dark:text-green-400', sub: 'Tovább vár, ease faktor nő' },
+                                ].map(({ label, color, textColor, sub }) => (
+                                    <div key={label} className={`rounded-xl border p-4 ${color}`}>
+                                        <div className={`text-base font-bold mb-1 ${textColor}`}>{label}</div>
+                                        <p className="text-xs text-muted-foreground">{sub}</p>
                                     </div>
                                 ))}
                             </div>
@@ -213,7 +383,7 @@ export default function Welcome({ canRegister = true }: { canRegister?: boolean 
                             {/* Visual */}
                             <div className="flex flex-col gap-3">
                                 <div className="rounded-xl border bg-card p-6 text-center shadow-sm">
-                                    <p className="mb-1 text-xs text-muted-foreground">#42</p>
+                                    <p className="mb-1 text-xs text-muted-foreground">#42 · Kezdő szint</p>
                                     <p className="text-3xl font-bold tracking-tight">between</p>
                                     <p className="mt-2 text-sm text-muted-foreground">Mi a magyar jelentése?</p>
                                 </div>
@@ -237,18 +407,14 @@ export default function Welcome({ canRegister = true }: { canRegister?: boolean 
                                     ))}
                                 </div>
                             </div>
-
                             <div>
                                 <div className="mb-3 inline-flex items-center gap-1.5 rounded-full border bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
                                     <Swords className="size-3" />
                                     Kvíz mód
                                 </div>
-                                <h2 className="mb-4 text-2xl font-bold tracking-tight">
-                                    Teszteld magad kvíz módban
-                                </h2>
+                                <h2 className="mb-4 text-2xl font-bold tracking-tight">Teszteld magad kvíz módban</h2>
                                 <p className="mb-6 text-muted-foreground">
-                                    Válaszd ki melyik szavakból és hányból kvízzeljünk — a rendszer
-                                    automatikusan generálja a kérdéseket és a válaszlehetőségeket.
+                                    Válaszd ki melyik szavakból és hányból kvízzeljünk — a rendszer automatikusan generálja a kérdéseket és a válaszlehetőségeket.
                                 </p>
                                 <ul className="flex flex-col gap-3 text-sm">
                                     {[
@@ -269,8 +435,8 @@ export default function Welcome({ canRegister = true }: { canRegister?: boolean 
                     </div>
                 </section>
 
-                {/* Why section */}
-                <section className="border-t bg-muted/40">
+                {/* Why frequency */}
+                <section className="border-t">
                     <div className="mx-auto max-w-5xl px-6 py-20">
                         <div className="grid items-center gap-12 md:grid-cols-2">
                             <div>
@@ -296,8 +462,6 @@ export default function Welcome({ canRegister = true }: { canRegister?: boolean 
                                     ))}
                                 </ul>
                             </div>
-
-                            {/* Difficulty levels visual */}
                             <div className="flex flex-col gap-3">
                                 {[
                                     { label: 'Kezdő', range: '1–2 000', color: 'bg-[#00ADB5]/40', width: '20%', desc: 'Alapvető szavak, amelyek nélkül nem boldogulsz' },
@@ -321,80 +485,83 @@ export default function Welcome({ canRegister = true }: { canRegister?: boolean 
                 </section>
 
                 {/* Scientific basis */}
-                <section className="mx-auto max-w-5xl px-6 py-20">
-                    <div className="mb-10 text-center">
-                        <div className="mb-3 inline-flex items-center gap-1.5 rounded-full border bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
-                            <FlaskConical className="size-3" />
-                            Tudományosan megalapozott
-                        </div>
-                        <h2 className="mb-3 text-2xl font-bold tracking-tight">Honnan származik a szólista?</h2>
-                        <p className="mx-auto max-w-2xl text-muted-foreground">
-                            A 10 000 leggyakoribb angol szó nem véletlenszerűen összeválogatott lista — korpusznyelvészeti
-                            kutatások eredménye, amelyet évtizedek óta használnak nyelvoktatásban és kutatásban egyaránt.
-                        </p>
-                    </div>
-
-                    <div className="grid gap-6 md:grid-cols-2">
-                        <div className="rounded-xl border bg-card p-6">
-                            <h3 className="mb-2 font-semibold">BNC & COCA korpuszok</h3>
-                            <p className="text-sm text-muted-foreground">
-                                A lista a <strong className="text-foreground">British National Corpus (BNC)</strong> és a{' '}
-                                <strong className="text-foreground">Corpus of Contemporary American English (COCA)</strong> adatain
-                                alapul — több száz millió szót tartalmazó, gondosan összeállított szöveggyűjteményeken.
+                <section className="border-t bg-muted/40">
+                    <div className="mx-auto max-w-5xl px-6 py-20">
+                        <div className="mb-10 text-center">
+                            <div className="mb-3 inline-flex items-center gap-1.5 rounded-full border bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
+                                <FlaskConical className="size-3" />
+                                Tudományosan megalapozott
+                            </div>
+                            <h2 className="mb-3 text-2xl font-bold tracking-tight">Honnan származik a szólista?</h2>
+                            <p className="mx-auto max-w-2xl text-muted-foreground">
+                                A 10 000 leggyakoribb angol szó nem véletlenszerűen összeválogatott lista — korpusznyelvészeti
+                                kutatások eredménye, amelyet évtizedek óta használnak nyelvoktatásban és kutatásban egyaránt.
                             </p>
                         </div>
-
-                        <div className="rounded-xl border bg-card p-6">
-                            <h3 className="mb-2 font-semibold">Paul Nation kutatása</h3>
-                            <p className="text-sm text-muted-foreground">
-                                A frekvencialisták összeállításában meghatározó szerepet játszott{' '}
-                                <strong className="text-foreground">Paul Nation</strong>, a Victoria University of Wellington
-                                professzora, akinek munkája a szókincs-fejlesztés tudományos alapjává vált.
-                            </p>
-                        </div>
-
-                        <div className="rounded-xl border bg-card p-6">
-                            <h3 className="mb-2 font-semibold">1 000-es egységek</h3>
-                            <p className="text-sm text-muted-foreground">
-                                A szavak 10 darab, egyenként 1 000 szavas csoportba vannak rendezve, frekvencia szerint. Az első
-                                2 000 szó a mindennapi kommunikáció alapját adja, a 10 000. szóig eljutva professzionális és
-                                akadémiai szövegek is érthetővé válnak.
-                            </p>
-                        </div>
-
-                        <div className="rounded-xl border bg-card p-6">
-                            <h3 className="mb-2 font-semibold">Szófaji kategóriák</h3>
-                            <p className="text-sm text-muted-foreground">
-                                A lista főneveket, igéket, mellékneveket és határozószókat is tartalmaz —{' '}
-                                <strong className="text-foreground">headword</strong> (alapalak) formában tárolva, ami azt jelenti,
-                                hogy például a <em>run</em> egyetlen bejegyzés, nem pedig külön a <em>runs</em>, <em>ran</em>,{' '}
-                                <em>running</em>.
-                            </p>
+                        <div className="grid gap-6 md:grid-cols-2">
+                            <div className="rounded-xl border bg-card p-6">
+                                <h3 className="mb-2 font-semibold">BNC & COCA korpuszok</h3>
+                                <p className="text-sm text-muted-foreground">
+                                    A lista a <strong className="text-foreground">British National Corpus (BNC)</strong> és a{' '}
+                                    <strong className="text-foreground">Corpus of Contemporary American English (COCA)</strong> adatain
+                                    alapul — több száz millió szót tartalmazó, gondosan összeállított szöveggyűjteményeken.
+                                </p>
+                            </div>
+                            <div className="rounded-xl border bg-card p-6">
+                                <h3 className="mb-2 font-semibold">Paul Nation kutatása</h3>
+                                <p className="text-sm text-muted-foreground">
+                                    A frekvencialisták összeállításában meghatározó szerepet játszott{' '}
+                                    <strong className="text-foreground">Paul Nation</strong>, a Victoria University of Wellington
+                                    professzora, akinek munkája a szókincs-fejlesztés tudományos alapjává vált.
+                                </p>
+                            </div>
+                            <div className="rounded-xl border bg-card p-6">
+                                <h3 className="mb-2 font-semibold">1 000-es egységek</h3>
+                                <p className="text-sm text-muted-foreground">
+                                    A szavak 10 darab, egyenként 1 000 szavas csoportba vannak rendezve, frekvencia szerint. Az első
+                                    2 000 szó a mindennapi kommunikáció alapját adja, a 10 000. szóig eljutva professzionális és
+                                    akadémiai szövegek is érthetővé válnak.
+                                </p>
+                            </div>
+                            <div className="rounded-xl border bg-card p-6">
+                                <h3 className="mb-2 font-semibold">Szófaji kategóriák</h3>
+                                <p className="text-sm text-muted-foreground">
+                                    A lista főneveket, igéket, mellékneveket és határozószókat is tartalmaz —{' '}
+                                    <strong className="text-foreground">headword</strong> (alapalak) formában tárolva, ami azt jelenti,
+                                    hogy például a <em>run</em> egyetlen bejegyzés, nem pedig külön a <em>runs</em>, <em>ran</em>,{' '}
+                                    <em>running</em>.
+                                </p>
+                            </div>
                         </div>
                     </div>
                 </section>
 
                 {/* CTA */}
                 {!auth.user && (
-                    <section className="mx-auto max-w-5xl px-6 py-20 text-center">
-                        <h2 className="mb-4 text-2xl font-bold tracking-tight">Készen állsz elkezdeni?</h2>
-                        <p className="mb-8 text-muted-foreground">
-                            Regisztrálj ingyen és kezdd el nyomon követni a szókincsed fejlődését.
-                        </p>
-                        <div className="flex flex-wrap justify-center gap-3">
-                            {canRegister && (
-                                <Button size="lg" asChild>
-                                    <Link href={register()}>Ingyenes regisztráció</Link>
+                    <section className="border-t">
+                        <div className="mx-auto max-w-5xl px-6 py-20 text-center">
+                            <h2 className="mb-4 text-2xl font-bold tracking-tight">Készen állsz elkezdeni?</h2>
+                            <p className="mb-8 text-muted-foreground max-w-xl mx-auto">
+                                Regisztrálj ingyen — szólista, flashcard SRS és kvíz mód azonnal elérhető, fizetős funkció nincs.
+                            </p>
+                            <div className="flex flex-wrap justify-center gap-3">
+                                {canRegister && (
+                                    <Button size="lg" asChild>
+                                        <Link href={register()} className="gap-2">
+                                            Ingyenes regisztráció
+                                            <ArrowRight className="size-4" />
+                                        </Link>
+                                    </Button>
+                                )}
+                                <Button size="lg" variant="outline" asChild>
+                                    <Link href={login()}>Már van fiókom</Link>
                                 </Button>
-                            )}
-                            <Button size="lg" variant="outline" asChild>
-                                <Link href={login()}>Már van fiókom</Link>
-                            </Button>
+                            </div>
                         </div>
                     </section>
                 )}
 
-                {/* Feedback / contact */}
+                {/* Feedback */}
                 <section className="border-t">
                     <div className="mx-auto max-w-5xl px-6 py-16">
                         <div className="rounded-2xl border bg-muted/40 px-8 py-10">
@@ -412,19 +579,11 @@ export default function Welcome({ canRegister = true }: { canRegister?: boolean 
                                     </div>
                                 </div>
                                 <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
-                                    <a
-                                        href="https://codebarley.hu"
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="inline-flex items-center justify-center gap-2 rounded-lg border bg-background px-4 py-2.5 text-sm font-medium transition-colors hover:bg-muted"
-                                    >
+                                    <a href="https://codebarley.hu" target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center gap-2 rounded-lg border bg-background px-4 py-2.5 text-sm font-medium transition-colors hover:bg-muted">
                                         <ExternalLink className="size-4" />
                                         codebarley.hu
                                     </a>
-                                    <a
-                                        href="mailto:info@codebarley.hu"
-                                        className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
-                                    >
+                                    <a href="mailto:info@codebarley.hu" className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90">
                                         <Mail className="size-4" />
                                         info@codebarley.hu
                                     </a>
@@ -434,7 +593,7 @@ export default function Welcome({ canRegister = true }: { canRegister?: boolean 
                     </div>
                 </section>
 
-                {/* Made by codebarley */}
+                {/* Made by */}
                 <section className="border-t">
                     <div className="mx-auto max-w-5xl px-6 py-16">
                         <div className="relative overflow-hidden rounded-2xl bg-zinc-900 px-8 py-12 text-white dark:bg-zinc-800">
@@ -446,23 +605,12 @@ export default function Welcome({ canRegister = true }: { canRegister?: boolean 
                                         <Code2 className="size-6 text-white" />
                                     </div>
                                     <div>
-                                        <div className="text-xs font-medium uppercase tracking-widest text-white/50">
-                                            Fejlesztő
-                                        </div>
-                                        <div className="text-xl font-bold tracking-tight">
-                                            codebarley.hu
-                                        </div>
-                                        <div className="mt-0.5 text-sm text-white/60">
-                                            Webes megoldások, modern technológiákkal
-                                        </div>
+                                        <div className="text-xs font-medium uppercase tracking-widest text-white/50">Fejlesztő</div>
+                                        <div className="text-xl font-bold tracking-tight">codebarley.hu</div>
+                                        <div className="mt-0.5 text-sm text-white/60">Webes megoldások, modern technológiákkal</div>
                                     </div>
                                 </div>
-                                <a
-                                    href="https://codebarley.hu"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="group flex items-center gap-2 rounded-xl bg-white px-5 py-2.5 text-sm font-semibold text-zinc-900 transition-opacity hover:opacity-90"
-                                >
+                                <a href="https://codebarley.hu" target="_blank" rel="noopener noreferrer" className="group flex items-center gap-2 rounded-xl bg-white px-5 py-2.5 text-sm font-semibold text-zinc-900 transition-opacity hover:opacity-90">
                                     Megnézem
                                     <ExternalLink className="size-4 transition-transform group-hover:translate-x-0.5" />
                                 </a>
@@ -481,25 +629,17 @@ export default function Welcome({ canRegister = true }: { canRegister?: boolean 
                             <span>TopWords</span>
                         </div>
                         <div className="flex items-center gap-4">
-                            <Link href={terms()} className="hover:text-foreground transition-colors">
-                                ÁSZF
-                            </Link>
+                            <Link href={terms()} className="hover:text-foreground transition-colors">ÁSZF</Link>
                             <span>·</span>
-                            <Link href={privacy()} className="hover:text-foreground transition-colors">
-                                Adatkezelés
-                            </Link>
+                            <Link href={privacy()} className="hover:text-foreground transition-colors">Adatkezelés</Link>
                             <span>·</span>
-                            <a
-                                href="https://codebarley.hu"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="hover:text-foreground transition-colors"
-                            >
+                            <a href="https://codebarley.hu" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">
                                 Készítette: codebarley.hu
                             </a>
                         </div>
                     </div>
                 </footer>
+
             </div>
         </>
     );
