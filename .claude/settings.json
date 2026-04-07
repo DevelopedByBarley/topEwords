@@ -12,7 +12,16 @@
       "Bash(vendor/bin/pint app/Http/Controllers/WordController.php app/Models/Word.php --format agent)",
       "Bash(vendor/bin/pint --dirty --format agent app/Models/Word.php app/Http/Controllers/WordController.php)",
       "Bash(npm list:*)",
-      "Bash(node -e \"const p = require\\('/Applications/XAMPP/xamppfiles/htdocs/topEwords/node_modules/@tiptap/extension-placeholder'\\); console.log\\(typeof p.default || typeof p.Placeholder\\)\")"
+      "Bash(node -e \"const p = require\\('/Applications/XAMPP/xamppfiles/htdocs/topEwords/node_modules/@tiptap/extension-placeholder'\\); console.log\\(typeof p.default || typeof p.Placeholder\\)\")",
+      "Bash(pip3 install:*)",
+      "Bash(yt-dlp --write-auto-subs --skip-download --sub-langs en --sub-format json3 --print-to-file subtitle:json3 /tmp/test_captions \"https://www.youtube.com/watch?v=VHsuo86XFfY\")",
+      "Read(//private/tmp/**)",
+      "Bash(yt-dlp --js-runtimes nodejs --write-auto-subs --skip-download --sub-langs en --sub-format json3 -o \"/tmp/yt_%\\(id\\)s\" \"https://www.youtube.com/watch?v=VHsuo86XFfY\")",
+      "Bash(ls /tmp/yt_*)",
+      "Bash(yt-dlp --js-runtimes node --write-auto-subs --skip-download --sub-langs en --sub-format json3 -o \"/tmp/yt_%\\(id\\)s\" \"https://www.youtube.com/watch?v=dQw4w9WgXcQ\")"
+    ],
+    "additionalDirectories": [
+      "/private/tmp"
     ]
   }
 }

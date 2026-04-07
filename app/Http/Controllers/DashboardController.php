@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\UserCustomWord;
 use App\Models\Word;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -60,12 +61,26 @@ class DashboardController extends Controller
         $totalKnown = $levelStats->sum('known');
         $totalWords = Word::count();
 
+        $customWords = UserCustomWord::where('user_id', $request->user()->id)
+            ->selectRaw('status, COUNT(*) as count')
+            ->groupBy('status')
+            ->pluck('count', 'status');
+
+        $customStats = [
+            'total' => $customWords->sum(),
+            'known' => (int) ($customWords['known'] ?? 0),
+            'learning' => (int) ($customWords['learning'] ?? 0),
+            'saved' => (int) ($customWords['saved'] ?? 0),
+            'pronunciation' => (int) ($customWords['pronunciation'] ?? 0),
+        ];
+
         return Inertia::render('dashboard', [
             'levelStats' => $levelStats,
             'totalKnown' => $totalKnown,
             'totalWords' => $totalWords,
             'totalPercent' => $totalWords > 0 ? round(($totalKnown / $totalWords) * 100) : 0,
             'streak' => $request->user()->streak,
+            'customStats' => $customStats,
         ]);
     }
 }

@@ -700,9 +700,9 @@ function CsvImport({ deck }: { deck: Deck }) {
     );
 }
 
-type WordResult = { id: number; word: string; meaning_hu: string | null };
+type WordResult = { id: number; word: string; meaning_hu: string | null; is_custom: boolean };
 
-function WordSearchImport({ deck, onImport }: { deck: Deck; onImport: (wordId: number) => void }) {
+function WordSearchImport({ deck, onImport }: { deck: Deck; onImport: (word: WordResult) => void }) {
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<WordResult[]>([]);
     const [selected, setSelected] = useState<WordResult | null>(null);
@@ -742,7 +742,7 @@ function WordSearchImport({ deck, onImport }: { deck: Deck; onImport: (wordId: n
 
     const handleImport = () => {
         if (!selected) return;
-        onImport(selected.id);
+        onImport(selected);
         setSelected(null);
         setQuery('');
         setResults([]);
@@ -757,24 +757,24 @@ function WordSearchImport({ deck, onImport }: { deck: Deck; onImport: (wordId: n
                     onChange={(e) => handleSearch(e.target.value)}
                     onFocus={() => results.length > 0 && setOpen(true)}
                     onBlur={() => setTimeout(() => setOpen(false), 150)}
-                    placeholder="Szó a Top 10 000 listából..."
+                    placeholder="Szó keresése..."
                     className="h-9 w-56 pl-8 text-sm"
                 />
                 {open && (
                     <div className="absolute z-50 top-full mt-1 left-0 w-72 rounded-md border bg-popover shadow-md overflow-hidden">
-                        <div className="px-3 py-1.5 border-b bg-muted/50">
-                            <span className="text-xs text-muted-foreground">Top 10 000 leggyakoribb angol szó</span>
-                        </div>
                         {searching && (
                             <div className="px-3 py-2 text-xs text-muted-foreground">Keresés...</div>
                         )}
                         {results.map((word) => (
                             <button
-                                key={word.id}
+                                key={`${word.is_custom ? 'c' : 'w'}-${word.id}`}
                                 onMouseDown={() => handleSelect(word)}
                                 className="w-full text-left flex items-center gap-3 px-3 py-2 text-sm hover:bg-accent transition-colors"
                             >
                                 <span className="font-medium">{word.word}</span>
+                                {word.is_custom && (
+                                    <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-primary">saját</span>
+                                )}
                                 {word.meaning_hu && (
                                     <span className="text-muted-foreground text-xs truncate">{word.meaning_hu}</span>
                                 )}
@@ -867,17 +867,25 @@ export default function FlashcardShow({
         });
     };
 
-    const handleWordImport = (wordId: number) => {
+    const handleWordImport = (word: WordResult) => {
+        const body = word.is_custom
+            ? { custom_word_id: word.id }
+            : { word_id: word.id };
+
         router.post(
             importFromWord(deck.id).url,
-            { word_id: wordId },
+            body,
             {
                 preserveScroll: true,
                 onSuccess: (page) => {
+                    if (word.is_custom) {
+                        setShowNewForm(false);
+                        return;
+                    }
                     const updatedCards = (page.props as unknown as { flashcards: Flashcard[] }).flashcards;
                     const imported = [...updatedCards]
                         .reverse()
-                        .find((c) => c.word_id === wordId);
+                        .find((c) => c.word_id === word.id);
                     if (imported) {
                         setShowNewForm(false);
                         setEditingCard(imported);

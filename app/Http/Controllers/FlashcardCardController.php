@@ -6,6 +6,7 @@ use App\Http\Requests\StoreFlashcardRequest;
 use App\Http\Requests\UpdateFlashcardRequest;
 use App\Models\Flashcard;
 use App\Models\FlashcardDeck;
+use App\Models\UserCustomWord;
 use App\Models\Word;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -25,11 +26,28 @@ class FlashcardCardController extends Controller
     {
         abort_unless($deck->user_id === $request->user()->id, 403);
 
-        $request->validate([
-            'word_id' => ['required', 'integer', 'exists:words,id'],
+        $data = $request->validate([
+            'word_id' => ['nullable', 'integer', 'exists:words,id'],
+            'custom_word_id' => ['nullable', 'integer', 'exists:user_custom_words,id'],
         ]);
 
-        $word = Word::findOrFail($request->word_id);
+        if (! empty($data['custom_word_id'])) {
+            $customWord = UserCustomWord::where('id', $data['custom_word_id'])
+                ->where('user_id', $request->user()->id)
+                ->firstOrFail();
+
+            $deck->flashcards()->create([
+                'front' => $customWord->word,
+                'back' => $customWord->meaning_hu ?? '',
+                'direction' => 'both',
+            ]);
+
+            session()->flash('flash', ['type' => 'success', 'message' => '"'.$customWord->word.'" hozzáadva a "'.$deck->name.'" deckhez.']);
+
+            return back();
+        }
+
+        $word = Word::findOrFail($data['word_id']);
 
         $deck->flashcards()->create([
             'word_id' => $word->id,

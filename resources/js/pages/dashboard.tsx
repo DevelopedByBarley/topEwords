@@ -1,5 +1,5 @@
 import { Head, Link } from '@inertiajs/react';
-import { BookMarked, CheckCheck, Clock, ExternalLink, Flame, Mic, Trophy } from 'lucide-react';
+import { BookMarked, CheckCheck, Clock, ExternalLink, Flame, Mic, NotebookPen, Trophy } from 'lucide-react';
 import { dashboard } from '@/routes';
 import { index as wordsIndex } from '@/routes/words';
 
@@ -15,12 +15,21 @@ interface LevelStat {
     percent: number;
 }
 
+interface CustomStats {
+    total: number;
+    known: number;
+    learning: number;
+    saved: number;
+    pronunciation: number;
+}
+
 interface Props {
     levelStats: LevelStat[];
     totalKnown: number;
     totalWords: number;
     totalPercent: number;
     streak: number;
+    customStats: CustomStats;
 }
 
 const LEVEL_COLORS: Record<string, { bar: string; bg: string; text: string }> = {
@@ -29,7 +38,7 @@ const LEVEL_COLORS: Record<string, { bar: string; bg: string; text: string }> = 
     advanced: { bar: 'bg-purple-500', bg: 'bg-purple-50 dark:bg-purple-950/20', text: 'text-purple-700 dark:text-purple-400' },
 };
 
-export default function Dashboard({ levelStats, totalKnown, totalWords, totalPercent, streak }: Props) {
+export default function Dashboard({ levelStats, totalKnown, totalWords, totalPercent, streak, customStats }: Props) {
     return (
         <>
             <Head title="Haladás" />
@@ -171,6 +180,58 @@ export default function Dashboard({ levelStats, totalKnown, totalWords, totalPer
                             </div>
                         );
                     })}
+                </div>
+
+                {/* Saját szavak */}
+                <div className="rounded-xl border bg-card p-5">
+                    <div className="mb-3 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <NotebookPen className="size-4 text-muted-foreground" />
+                            <span className="font-semibold">Saját szavak</span>
+                        </div>
+                        <Link
+                            href={`${wordsIndex()}#custom-words`}
+                            className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                        >
+                            Kezelés →
+                        </Link>
+                    </div>
+
+                    {customStats.total === 0 ? (
+                        <p className="text-sm text-muted-foreground">
+                            Még nem adtál hozzá saját szót.{' '}
+                            <Link href={`${wordsIndex()}#custom-words`} className="text-primary underline underline-offset-2">
+                                Hozzáadás →
+                            </Link>
+                        </p>
+                    ) : (
+                        <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+                            <div className="flex justify-between">
+                                <span className="flex items-center gap-1">
+                                    <CheckCheck className="size-3 text-green-500" /> Tudom
+                                </span>
+                                <span>{customStats.known.toLocaleString()} / {customStats.total.toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="flex items-center gap-1">
+                                    <Clock className="size-3 text-blue-500" /> Tanulom
+                                </span>
+                                <span>{customStats.learning.toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="flex items-center gap-1">
+                                    <BookMarked className="size-3 text-orange-500" /> Később
+                                </span>
+                                <span>{customStats.saved.toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="flex items-center gap-1">
+                                    <Mic className="size-3 text-violet-500" /> Kiejtés
+                                </span>
+                                <span>{customStats.pronunciation.toLocaleString()}</span>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* codebarley.hu promo */}

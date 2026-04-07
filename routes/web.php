@@ -10,6 +10,8 @@ use App\Http\Controllers\FlashcardFolderDeckController;
 use App\Http\Controllers\FlashcardStudyController;
 use App\Http\Controllers\FolderController;
 use App\Http\Controllers\FolderWordController;
+use App\Http\Controllers\TextAnalysisController;
+use App\Http\Controllers\UserCustomWordController;
 use App\Http\Controllers\WordController;
 use Illuminate\Support\Facades\Route;
 use Laravel\Fortify\Features;
@@ -69,6 +71,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('flashcards/folders/{flashcardFolder}', [FlashcardFolderController::class, 'update'])->name('flashcards.folders.update');
     Route::delete('flashcards/folders/{flashcardFolder}', [FlashcardFolderController::class, 'destroy'])->name('flashcards.folders.destroy');
     Route::patch('flashcards/folders/{flashcardFolder}/decks/{flashcardDeck}', [FlashcardFolderDeckController::class, 'update'])->name('flashcards.folders.decks.update');
+
+    Route::get('text-analysis', [TextAnalysisController::class, 'show'])->name('text-analysis.show');
+    Route::post('text-analysis/fetch-source', [TextAnalysisController::class, 'fetchSource'])->name('text-analysis.fetch-source');
+    Route::post('text-analysis/analyze', [TextAnalysisController::class, 'analyze'])->name('text-analysis.analyze');
+
+    // Custom words
+    Route::post('custom-words', [UserCustomWordController::class, 'store'])->name('custom-words.store');
+    Route::patch('custom-words/{customWord}', [UserCustomWordController::class, 'update'])->name('custom-words.update');
+    Route::post('custom-words/{customWord}/status', [UserCustomWordController::class, 'status'])->name('custom-words.status');
+    Route::delete('custom-words/{customWord}', [UserCustomWordController::class, 'destroy'])->name('custom-words.destroy');
 
     Route::post('folders', [FolderController::class, 'store'])->name('folders.store');
     Route::patch('folders/{folder}', [FolderController::class, 'update'])->name('folders.update');

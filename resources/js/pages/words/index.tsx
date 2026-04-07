@@ -32,6 +32,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import { destroy as destroyCustomWord, status as customWordStatus, store as storeCustomWord, update as updateCustomWord } from '@/routes/custom-words';
 import { destroy, store, update } from '@/routes/folders';
 import { update as folderWordUpdate } from '@/routes/folders/words';
 import { importMethod as importFromWord } from '@/routes/flashcards/cards';
@@ -87,6 +88,15 @@ interface FlashcardDeck {
     name: string;
 }
 
+interface CustomWord {
+    id: number;
+    word: string;
+    meaning_hu: string | null;
+    part_of_speech: string | null;
+    example_en: string | null;
+    status: 'known' | 'learning' | 'saved' | 'pronunciation' | null;
+}
+
 interface Props {
     words: PaginatedWords;
     filters: {
@@ -104,6 +114,8 @@ interface Props {
         saved: number;
         pronunciation: number;
     };
+    customWords: CustomWord[];
+    customStats: { total: number; known: number; learning: number };
     markedPages: number[];
     markedLetters: string[];
     folders: Folder[];
@@ -136,6 +148,8 @@ export default function WordsIndex({
     words,
     filters,
     stats,
+    customWords,
+    customStats,
     markedPages,
     markedLetters,
     folders,
@@ -150,8 +164,15 @@ export default function WordsIndex({
     const [editFolderId, setEditFolderId] = useState<number | null>(null);
     const [editFolderName, setEditFolderName] = useState('');
     const [showFolderSheet, setShowFolderSheet] = useState(false);
+    const [showAddCustomWord, setShowAddCustomWord] = useState(false);
+    const [customWordForm, setCustomWordForm] = useState({ word: '', meaning_hu: '', part_of_speech: '', example_en: '' });
+    const [customWordErrors, setCustomWordErrors] = useState<Record<string, string>>({});
+    const [selectedCustomWordId, setSelectedCustomWordId] = useState<number | null>(null);
+    const [editCustomWordId, setEditCustomWordId] = useState<number | null>(null);
+    const [editCustomWordForm, setEditCustomWordForm] = useState<{ word: string; meaning_hu: string; example_en: string }>({ word: '', meaning_hu: '', example_en: '' });
     const [selectedDeckId, setSelectedDeckId] = useState<string>('');
     const [importingFlashcard, setImportingFlashcard] = useState(false);
+    const [customImportSuccess, setCustomImportSuccess] = useState(false);
     const selectedWord =
         selectedWordId !== null
             ? (words.data.find((w) => w.id === selectedWordId) ?? null)
@@ -393,20 +414,113 @@ export default function WordsIndex({
         );
     }
 
+    function handleAddCustomWord(e: React.FormEvent) {
+        e.preventDefault();
+        if (!customWordForm.word.trim()) {
+            setCustomWordErrors({ word: 'A szó megadása kötelező.' });
+            return;
+        }
+        router.post(storeCustomWord(), {
+            word: customWordForm.word.trim(),
+            meaning_hu: customWordForm.meaning_hu.trim() || null,
+            part_of_speech: customWordForm.part_of_speech || null,
+            example_en: customWordForm.example_en.trim() || null,
+        }, {
+            preserveScroll: true,
+            only: ['customWords', 'customStats', 'stats'],
+            onSuccess: () => {
+                setCustomWordForm({ word: '', meaning_hu: '', part_of_speech: '', example_en: '' });
+                setShowAddCustomWord(false);
+                setCustomWordErrors({});
+            },
+            onError: (e) => setCustomWordErrors(e),
+        });
+    }
+
+    function handleCustomWordStatus(wordId: number, newStatus: 'known' | 'learning' | 'saved' | 'pronunciation', _currentStatus: string | null) {
+        router.post(customWordStatus(wordId), { status: newStatus }, {
+            preserveScroll: true,
+            only: ['customWords', 'customStats', 'stats'],
+        });
+    }
+
+    function handleDeleteCustomWord(wordId: number) {
+        router.delete(destroyCustomWord(wordId), {
+            preserveScroll: true,
+            only: ['customWords', 'customStats', 'stats'],
+        });
+    }
+
+    function handleSaveEditCustomWord(wordId: number) {
+        router.patch(updateCustomWord(wordId), editCustomWordForm, {
+            preserveScroll: true,
+            only: ['customWords', 'customStats'],
+            onSuccess: () => {
+                setEditCustomWordId(null);
+            },
+        });
+    }
+
     return (
         <>
             <Head title="Top 10 000 angol szó" />
 
-            <div className="flex h-full flex-1 flex-col gap-4 p-4 pb-20 sm:pb-6 md:p-6">
+            <div className="flex h-full flex-1 flex-col gap-4 p-4 pb-24 md:px-6 md:pt-6 md:pb-28">
                 {/* Header */}
-                <div className="flex flex-col gap-1">
-                    <h1 className="text-2xl font-bold tracking-tight">
-                        Top 10 000 angol szó
-                    </h1>
-                    <p className="text-sm text-muted-foreground">
-                        Jelöld meg a szavakat, amelyeket már ismersz.
-                    </p>
+                <div className="flex items-start justify-between gap-3">
+                    <div className="flex flex-col gap-1">
+                        <h1 className="text-2xl font-bold tracking-tight">
+                            Top 10 000 angol szó
+                        </h1>
+                        <p className="text-sm text-muted-foreground">
+                            Jelöld meg a szavakat, amelyeket már ismersz.
+                        </p>
+                    </div>
+                    <Button size="sm" variant="outline" onClick={() => setShowAddCustomWord(true)} className="shrink-0 mt-1">
+                        <Plus className="size-3.5" />
+                        Saját szó
+                        {customStats.total > 0 && (
+                            <span className="ml-1 text-xs font-normal opacity-60">{customStats.total}</span>
+                        )}
+                    </Button>
                 </div>
+
+                {/* Add custom word form */}
+                {showAddCustomWord && (
+                    <div className="rounded-xl border bg-card px-4 py-3">
+                        <form onSubmit={handleAddCustomWord} className="flex flex-col gap-2">
+                            <div className="flex gap-2">
+                                <div className="flex-1">
+                                    <Input
+                                        placeholder="Angol szó *"
+                                        value={customWordForm.word}
+                                        onChange={(e) => setCustomWordForm({ ...customWordForm, word: e.target.value })}
+                                        autoFocus
+                                    />
+                                    {customWordErrors.word && <p className="mt-1 text-xs text-destructive">{customWordErrors.word}</p>}
+                                </div>
+                                <Input
+                                    placeholder="Magyar jelentés"
+                                    value={customWordForm.meaning_hu}
+                                    onChange={(e) => setCustomWordForm({ ...customWordForm, meaning_hu: e.target.value })}
+                                    className="flex-1"
+                                />
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <Input
+                                    placeholder="Példamondat (opcionális)"
+                                    value={customWordForm.example_en}
+                                    onChange={(e) => setCustomWordForm({ ...customWordForm, example_en: e.target.value })}
+                                    className="flex-1"
+                                />
+                                <Button type="submit" size="sm">Mentés</Button>
+                                <Button type="button" variant="ghost" size="sm" onClick={() => { setShowAddCustomWord(false); setCustomWordErrors({}); }}>
+                                    <X className="size-4" />
+                                </Button>
+                            </div>
+                        </form>
+                    </div>
+                )}
 
                 {/* Progress */}
                 <div className="rounded-xl border bg-card p-4">
@@ -527,79 +641,43 @@ export default function WordsIndex({
                     </Button>
                     <Button
                         size="sm"
-                        variant={
-                            filters.status === 'known' ? 'default' : 'outline'
-                        }
-                        className={
-                            filters.status === 'known'
-                                ? 'bg-green-600 hover:bg-green-700'
-                                : 'hover:border-green-500 hover:text-green-700'
-                        }
+                        variant={filters.status === 'known' ? 'default' : 'outline'}
+                        className={filters.status === 'known' ? 'bg-green-600 hover:bg-green-700' : 'hover:border-green-500 hover:text-green-700'}
                         onClick={() => handleStatusFilter('known')}
                     >
                         <CheckCheck className="size-3.5" />
                         Tudom
-                        <span className="text-xs font-normal opacity-75">
-                            {stats.known.toLocaleString()}
-                        </span>
+                        <span className="text-xs font-normal opacity-75">{stats.known.toLocaleString()}</span>
                     </Button>
                     <Button
                         size="sm"
-                        variant={
-                            filters.status === 'learning'
-                                ? 'default'
-                                : 'outline'
-                        }
-                        className={
-                            filters.status === 'learning'
-                                ? 'bg-blue-600 hover:bg-blue-700'
-                                : 'hover:border-blue-500 hover:text-blue-700'
-                        }
+                        variant={filters.status === 'learning' ? 'default' : 'outline'}
+                        className={filters.status === 'learning' ? 'bg-blue-600 hover:bg-blue-700' : 'hover:border-blue-500 hover:text-blue-700'}
                         onClick={() => handleStatusFilter('learning')}
                     >
                         <Clock className="size-3.5" />
                         Tanulom
-                        <span className="text-xs font-normal opacity-75">
-                            {stats.learning.toLocaleString()}
-                        </span>
+                        <span className="text-xs font-normal opacity-75">{stats.learning.toLocaleString()}</span>
                     </Button>
                     <Button
                         size="sm"
-                        variant={
-                            filters.status === 'saved' ? 'default' : 'outline'
-                        }
-                        className={
-                            filters.status === 'saved'
-                                ? 'bg-orange-500 hover:bg-orange-600'
-                                : 'hover:border-orange-500 hover:text-orange-700'
-                        }
+                        variant={filters.status === 'saved' ? 'default' : 'outline'}
+                        className={filters.status === 'saved' ? 'bg-orange-500 hover:bg-orange-600' : 'hover:border-orange-500 hover:text-orange-700'}
                         onClick={() => handleStatusFilter('saved')}
                     >
                         <BookMarked className="size-3.5" />
                         Később
-                        <span className="text-xs font-normal opacity-75">
-                            {stats.saved.toLocaleString()}
-                        </span>
+                        <span className="text-xs font-normal opacity-75">{stats.saved.toLocaleString()}</span>
                     </Button>
                     <Button
                         size="sm"
-                        variant={
-                            filters.status === 'pronunciation'
-                                ? 'default'
-                                : 'outline'
-                        }
-                        className={
-                            filters.status === 'pronunciation'
-                                ? 'bg-violet-600 hover:bg-violet-700'
-                                : 'hover:border-violet-500 hover:text-violet-700'
-                        }
+                        variant={filters.status === 'pronunciation' ? 'default' : 'outline'}
+                        className={filters.status === 'pronunciation' ? 'bg-violet-600 hover:bg-violet-700' : 'hover:border-violet-500 hover:text-violet-700'}
                         onClick={() => handleStatusFilter('pronunciation')}
                     >
                         <Mic className="size-3.5" />
                         Kiejtés
-                        <span className="text-xs font-normal opacity-75">
-                            {stats.pronunciation.toLocaleString()}
-                        </span>
+                        <span className="text-xs font-normal opacity-75">{stats.pronunciation.toLocaleString()}</span>
                     </Button>
                 </div>
 
@@ -797,7 +875,7 @@ export default function WordsIndex({
                 </div>
 
                 {/* Word list */}
-                {words.data.length === 0 ? (
+                {words.data.length === 0 && customWords.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-16 text-center text-muted-foreground">
                         <Search className="mb-3 size-10 opacity-30" />
                         <p className="font-medium">Nincs találat</p>
@@ -808,6 +886,69 @@ export default function WordsIndex({
                 ) : (
                     <div className="rounded-xl border">
                         <ul className="divide-y">
+                            {customWords.length > 0 && (
+                                <>
+                                    <li className="px-3 py-1.5 text-xs font-medium text-muted-foreground bg-muted/30">Saját szavak</li>
+                                    {customWords.map((word) => (
+                                        <li
+                                            key={`custom-${word.id}`}
+                                            className={`flex items-center gap-3 px-3 py-2.5 transition-colors ${
+                                                word.status === 'known' ? 'bg-green-50 dark:bg-green-950/20'
+                                                : word.status === 'learning' ? 'bg-blue-50 dark:bg-blue-950/20'
+                                                : word.status === 'saved' ? 'bg-orange-50 dark:bg-orange-950/20'
+                                                : word.status === 'pronunciation' ? 'bg-violet-50 dark:bg-violet-950/20'
+                                                : ''
+                                            }`}
+                                        >
+                                            <button
+                                                onClick={() => setSelectedCustomWordId(word.id)}
+                                                className={`flex-1 text-left underline decoration-dotted underline-offset-2 transition-opacity hover:opacity-70 ${
+                                                    flipMode ? 'text-sm font-normal' : 'font-medium'
+                                                } ${
+                                                    word.status === 'known' ? 'text-green-700 decoration-green-400 dark:text-green-400'
+                                                    : word.status === 'learning' ? 'text-blue-700 decoration-blue-400 dark:text-blue-400'
+                                                    : word.status === 'saved' ? 'text-orange-700 decoration-orange-400 dark:text-orange-400'
+                                                    : word.status === 'pronunciation' ? 'text-violet-700 decoration-violet-400 dark:text-violet-400'
+                                                    : 'decoration-muted-foreground/40'
+                                                }`}
+                                            >
+                                                {flipMode
+                                                    ? (word.meaning_hu ?? <span className="italic text-muted-foreground">(nincs fordítás)</span>)
+                                                    : word.word}
+                                                <Info className="mb-0.5 ml-1 inline size-3 opacity-40" />
+                                            </button>
+                                            <button
+                                                onClick={() => speak(word.word)}
+                                                title="Felolvasás"
+                                                className="shrink-0 cursor-pointer rounded p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                                            >
+                                                <Volume2 className="size-3.5" />
+                                            </button>
+                                            <div className="flex shrink-0 gap-1">
+                                                {([
+                                                    { s: 'known' as const, Icon: CheckCheck, active: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400', hover: 'hover:bg-green-100 hover:text-green-700', label: 'Tudom' },
+                                                    { s: 'learning' as const, Icon: Clock, active: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400', hover: 'hover:bg-blue-100 hover:text-blue-700', label: 'Tanulom' },
+                                                    { s: 'saved' as const, Icon: BookMarked, active: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400', hover: 'hover:bg-orange-100 hover:text-orange-700', label: 'Később' },
+                                                    { s: 'pronunciation' as const, Icon: Mic, active: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-400', hover: 'hover:bg-violet-100 hover:text-violet-700', label: 'Kiejtés' },
+                                                ]).map(({ s, Icon, active, hover, label }) => (
+                                                    <button
+                                                        key={s}
+                                                        onClick={() => handleCustomWordStatus(word.id, s, word.status ?? null)}
+                                                        title={label}
+                                                        className={`flex cursor-pointer items-center gap-1.5 rounded-full px-3.5 py-2.5 text-xs font-medium transition-all ${word.status === s ? active : `bg-secondary text-muted-foreground ${hover}`}`}
+                                                    >
+                                                        <Icon className="size-4" />
+                                                        <span className="hidden sm:inline">{label}</span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </li>
+                                    ))}
+                                    {words.data.length > 0 && (
+                                        <li className="px-3 py-1.5 text-xs font-medium text-muted-foreground bg-muted/30">Top 10 000 szó</li>
+                                    )}
+                                </>
+                            )}
                             {words.data.map((word) => (
                                 <li
                                     key={word.id}
@@ -975,6 +1116,7 @@ export default function WordsIndex({
                         })}
                     </div>
                 )}
+
             </div>
 
             {/* Flip mode FAB */}
@@ -996,6 +1138,175 @@ export default function WordsIndex({
                     {flipMode ? 'Magyar → Angol' : 'Fordított mód'}
                 </span>
             </button>
+
+            {/* Custom word detail modal */}
+            <Dialog open={selectedCustomWordId !== null} onOpenChange={(open) => { if (!open) setSelectedCustomWordId(null); }}>
+                <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-md">
+                    {(() => {
+                        const cw = customWords.find((w) => w.id === selectedCustomWordId);
+                        if (!cw) return null;
+                        return (
+                            <>
+                                <div className="border-b bg-gradient-to-br from-primary/8 to-primary/3 px-6 pb-4 pt-5">
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="min-w-0 flex-1">
+                                            <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                                                <span className="rounded-full bg-primary/15 px-2 py-0.5 text-xs font-semibold text-primary">saját szó</span>
+                                                {cw.part_of_speech && <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">{cw.part_of_speech}</span>}
+                                            </div>
+                                            <DialogTitle asChild>
+                                                <h2 className="text-3xl font-bold tracking-tight">{cw.word}</h2>
+                                            </DialogTitle>
+                                        </div>
+                                        <button onClick={() => speak(cw.word)} title="Felolvasás" className="mt-1 shrink-0 rounded-full bg-background/80 p-2 text-muted-foreground shadow-sm transition-colors hover:bg-background hover:text-foreground">
+                                            <Volume2 className="size-4" />
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="space-y-4 px-6 py-5">
+                                    {cw.meaning_hu && (
+                                        <div className="rounded-xl border bg-card px-4 py-3.5">
+                                            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Magyar jelentés</p>
+                                            <p className="text-lg font-semibold leading-snug">{cw.meaning_hu}</p>
+                                        </div>
+                                    )}
+                                    {cw.example_en && (
+                                        <div className="rounded-xl border-l-4 border-primary/40 bg-muted/30 px-4 py-3.5">
+                                            <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Példamondat</p>
+                                            <p className="text-sm font-medium italic">"{cw.example_en}"</p>
+                                        </div>
+                                    )}
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {([
+                                            { s: 'known' as const, label: 'Tudom', icon: CheckCheck, active: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400', hover: 'hover:bg-green-50 hover:text-green-700' },
+                                            { s: 'learning' as const, label: 'Tanulom', icon: Clock, active: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400', hover: 'hover:bg-blue-50 hover:text-blue-700' },
+                                            { s: 'saved' as const, label: 'Később', icon: BookMarked, active: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400', hover: 'hover:bg-orange-50 hover:text-orange-700' },
+                                            { s: 'pronunciation' as const, label: 'Kiejtés', icon: Mic, active: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-400', hover: 'hover:bg-violet-50 hover:text-violet-700' },
+                                        ] as const).map(({ s, label, icon: Icon, active, hover }) => (
+                                            <button key={s} onClick={() => handleCustomWordStatus(cw.id, s, cw.status ?? null)}
+                                                className={`flex cursor-pointer items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${cw.status === s ? active : `bg-secondary text-muted-foreground ${hover}`}`}>
+                                                <Icon className="size-4" /> {label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    {flashcardDecks.length > 0 && (
+                                        <div>
+                                            <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Flashcard deckhez adás</p>
+                                            <div className="flex gap-2">
+                                                <Select value={selectedDeckId} onValueChange={setSelectedDeckId}>
+                                                    <SelectTrigger className="h-9 flex-1 text-sm">
+                                                        <SelectValue placeholder="Válassz decket..." />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {flashcardDecks.map((deck) => (
+                                                            <SelectItem key={deck.id} value={String(deck.id)}>
+                                                                {deck.name}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                                <Button
+                                                    size="sm"
+                                                    variant={customImportSuccess ? 'default' : 'outline'}
+                                                    disabled={!selectedDeckId || importingFlashcard}
+                                                    onClick={() => {
+                                                        if (!selectedDeckId) return;
+                                                        setImportingFlashcard(true);
+                                                        setCustomImportSuccess(false);
+                                                        router.post(
+                                                            importFromWord(Number(selectedDeckId)).url,
+                                                            { custom_word_id: cw.id },
+                                                            {
+                                                                preserveScroll: true,
+                                                                onSuccess: () => {
+                                                                    setCustomImportSuccess(true);
+                                                                    setTimeout(() => setCustomImportSuccess(false), 2500);
+                                                                },
+                                                                onFinish: () => setImportingFlashcard(false),
+                                                            },
+                                                        );
+                                                    }}
+                                                >
+                                                    <Layers className="size-4 mr-1.5" />
+                                                    {customImportSuccess ? 'Hozzáadva!' : 'Hozzáadás'}
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    )}
+                                    <div className="flex gap-2 border-t pt-4">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="flex-1"
+                                            onClick={() => {
+                                                setSelectedCustomWordId(null);
+                                                setEditCustomWordId(cw.id);
+                                                setEditCustomWordForm({ word: cw.word, meaning_hu: cw.meaning_hu ?? '', example_en: cw.example_en ?? '' });
+                                            }}
+                                        >
+                                            <Pencil className="size-3.5" />
+                                            Szerkesztés
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                            onClick={() => {
+                                                handleDeleteCustomWord(cw.id);
+                                                setSelectedCustomWordId(null);
+                                            }}
+                                        >
+                                            <Trash2 className="size-3.5" />
+                                            Törlés
+                                        </Button>
+                                    </div>
+                                </div>
+                            </>
+                        );
+                    })()}
+                </DialogContent>
+            </Dialog>
+
+            {/* Custom word edit modal */}
+            <Dialog open={editCustomWordId !== null} onOpenChange={(open) => { if (!open) setEditCustomWordId(null); }}>
+                <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-md">
+                    <DialogHeader className="border-b px-6 py-4">
+                        <DialogTitle>Saját szó szerkesztése</DialogTitle>
+                    </DialogHeader>
+                    <div className="flex flex-col gap-3 px-6 py-5">
+                        <div>
+                            <Input
+                                placeholder="Angol szó *"
+                                value={editCustomWordForm.word}
+                                onChange={(e) => setEditCustomWordForm({ ...editCustomWordForm, word: e.target.value })}
+                                autoFocus
+                            />
+                        </div>
+                        <Input
+                            placeholder="Magyar jelentés"
+                            value={editCustomWordForm.meaning_hu}
+                            onChange={(e) => setEditCustomWordForm({ ...editCustomWordForm, meaning_hu: e.target.value })}
+                        />
+                        <Input
+                            placeholder="Példamondat (opcionális)"
+                            value={editCustomWordForm.example_en}
+                            onChange={(e) => setEditCustomWordForm({ ...editCustomWordForm, example_en: e.target.value })}
+                        />
+                        <div className="flex gap-2 pt-1">
+                            <Button
+                                className="flex-1"
+                                disabled={!editCustomWordForm.word.trim()}
+                                onClick={() => editCustomWordId !== null && handleSaveEditCustomWord(editCustomWordId)}
+                            >
+                                Mentés
+                            </Button>
+                            <Button variant="outline" onClick={() => setEditCustomWordId(null)}>
+                                Mégse
+                            </Button>
+                        </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
 
             {/* Word detail modal */}
             <Dialog

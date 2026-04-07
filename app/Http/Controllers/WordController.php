@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Folder;
+use App\Models\UserCustomWord;
 use App\Models\Word;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -121,15 +122,52 @@ class WordController extends Controller
             ->map(fn ($rows) => $rows->pluck('folder_id')->all())
             ->all();
 
+        $allCustomWords = $user->customWords()->get(['id', 'word', 'meaning_hu', 'part_of_speech', 'example_en', 'status']);
+        $customStatusCounts = $allCustomWords->countBy('status')->all();
+
+        $customKnown = $customStatusCounts['known'] ?? 0;
+        $customLearning = $customStatusCounts['learning'] ?? 0;
+        $customSaved = $customStatusCounts['saved'] ?? 0;
+        $customPronunciation = $customStatusCounts['pronunciation'] ?? 0;
+
+        // Filter custom words to match current active filters so they appear inline
+        $customWords = $allCustomWords->filter(function ($cw) use ($search, $letter, $statusFilter, $folderId, $difficulty) {
+            if ($folderId !== null) {
+                return false; // custom words are not in folders
+            }
+            if ($difficulty !== '') {
+                return false; // custom words have no rank/difficulty
+            }
+            if ($search !== '' && ! str_contains(mb_strtolower($cw->word), $search)) {
+                return false;
+            }
+            if ($letter !== '' && $letter !== 'ALL' && mb_strtoupper(mb_substr($cw->word, 0, 1)) !== $letter) {
+                return false;
+            }
+            if ($statusFilter !== '' && $cw->status !== $statusFilter) {
+                return false;
+            }
+
+            return true;
+        })->values();
+
         return Inertia::render('words/index', [
             'words' => $words,
             'filters' => ['search' => $search, 'letter' => $letter, 'difficulty' => $difficulty, 'status' => $statusFilter, 'folder' => $folderId, 'per_page' => $perPage],
             'stats' => [
-                'total' => Word::count(),
-                'known' => $statusCounts['known'] ?? 0,
-                'learning' => $statusCounts['learning'] ?? 0,
-                'saved' => $statusCounts['saved'] ?? 0,
-                'pronunciation' => $statusCounts['pronunciation'] ?? 0,
+                'total' => Word::count() + $allCustomWords->count(),
+                'known' => ($statusCounts['known'] ?? 0) + $customKnown,
+                'learning' => ($statusCounts['learning'] ?? 0) + $customLearning,
+                'saved' => ($statusCounts['saved'] ?? 0) + $customSaved,
+                'pronunciation' => ($statusCounts['pronunciation'] ?? 0) + $customPronunciation,
+            ],
+            'customWords' => $customWords,
+            'customStats' => [
+                'total' => $allCustomWords->count(),
+                'known' => $customKnown,
+                'learning' => $customLearning,
+                'saved' => $customSaved,
+                'pronunciation' => $customPronunciation,
             ],
             'markedPages' => $markedPages,
             'markedLetters' => $markedLetters,
@@ -147,14 +185,23 @@ class WordController extends Controller
             return response()->json([]);
         }
 
-        $results = Word::where('word', 'like', $query.'%')
+        $words = Word::where('word', 'like', $query.'%')
             ->orWhere('word', 'like', '%'.$query.'%')
             ->orderByRaw('CASE WHEN word LIKE ? THEN 0 ELSE 1 END', [$query.'%'])
             ->orderBy('rank')
             ->limit(10)
-            ->get(['id', 'word', 'meaning_hu']);
+            ->get(['id', 'word', 'meaning_hu'])
+            ->map(fn ($w) => ['id' => $w->id, 'word' => $w->word, 'meaning_hu' => $w->meaning_hu, 'is_custom' => false]);
 
-        return response()->json($results);
+        $customWords = $request->user()
+            ->customWords()
+            ->where('word', 'like', '%'.$query.'%')
+            ->orderByRaw('CASE WHEN word LIKE ? THEN 0 ELSE 1 END', [$query.'%'])
+            ->limit(5)
+            ->get(['id', 'word', 'meaning_hu'])
+            ->map(fn ($w) => ['id' => $w->id, 'word' => $w->word, 'meaning_hu' => $w->meaning_hu, 'is_custom' => true]);
+
+        return response()->json($customWords->concat($words)->values());
     }
 
     public function quiz(Request $request): Response
@@ -206,23 +253,45 @@ class WordController extends Controller
             $query->whereIn('id', $folderWordIds);
         }
 
-        $available = $query->count();
+        // Custom words are included when no difficulty/folder filter is active
+        $includeCustom = $difficulty === '' && $folderWordIds === null;
+        $customWordQuery = $includeCustom
+            ? UserCustomWord::where('user_id', $user->id)->whereNotNull('meaning_hu')
+            : null;
+
+        if ($customWordQuery && in_array($status, ['known', 'learning', 'saved', 'pronunciation'])) {
+            $customWordQuery->where('status', $status);
+        } elseif ($customWordQuery && $status === 'marked') {
+            // all custom words count as marked
+        }
+
+        $customAvailable = $customWordQuery?->count() ?? 0;
+        $available = $query->count() + $customAvailable;
 
         $words = [];
 
         if ($count > 0 && $available > 0) {
-            $quizWords = (clone $query)->inRandomOrder()->limit($count)->get(['id', 'word', 'meaning_hu', 'part_of_speech', 'form_base', 'verb_past', 'verb_past_participle', 'verb_present_participle', 'verb_third_person', 'is_irregular', 'noun_plural', 'adj_comparative', 'adj_superlative', 'example_en', 'example_hu', 'synonyms', 'rank']);
+            // Proportionally split count between regular and custom words
+            $customShare = $available > 0 ? (int) round($count * ($customAvailable / $available)) : 0;
+            $regularShare = $count - $customShare;
+
+            $quizWords = (clone $query)->inRandomOrder()->limit($regularShare)->get(['id', 'word', 'meaning_hu', 'part_of_speech', 'form_base', 'verb_past', 'verb_past_participle', 'verb_present_participle', 'verb_third_person', 'is_irregular', 'noun_plural', 'adj_comparative', 'adj_superlative', 'example_en', 'example_hu', 'synonyms', 'rank']);
+
+            $customQuizWords = $customWordQuery
+                ? (clone $customWordQuery)->inRandomOrder()->limit($customShare)->get(['id', 'word', 'meaning_hu', 'part_of_speech', 'example_en', 'status'])
+                : collect();
 
             $decoyPool = Word::whereNotNull('meaning_hu')
                 ->whereNotIn('id', $quizWords->pluck('id'))
                 ->inRandomOrder()
                 ->limit($count * 4)
                 ->pluck('meaning_hu')
+                ->merge($customQuizWords->whereNotNull('meaning_hu')->pluck('meaning_hu'))
                 ->shuffle()
                 ->values()
                 ->all();
 
-            $words = $quizWords->map(function (Word $word, int $i) use ($decoyPool, $wordStatuses) {
+            $regularMapped = $quizWords->map(function (Word $word, int $i) use ($decoyPool, $wordStatuses) {
                 $decoys = array_slice($decoyPool, $i * 3, 3);
                 $options = collect([$word->meaning_hu, ...$decoys])->shuffle()->values()->all();
 
@@ -245,9 +314,43 @@ class WordController extends Controller
                     'synonyms' => $word->synonyms,
                     'rank' => $word->rank,
                     'status' => $wordStatuses[$word->id] ?? null,
+                    'is_custom' => false,
                     'options' => $options,
                 ];
-            })->all();
+            });
+
+            $offset = $regularMapped->count() * 3;
+            $customMapped = $customQuizWords->values()->map(function (UserCustomWord $word, int $i) use ($decoyPool, $offset) {
+                $decoys = array_slice($decoyPool, ($offset / 3 + $i) * 3, 3);
+                $options = $word->meaning_hu
+                    ? collect([$word->meaning_hu, ...$decoys])->shuffle()->values()->all()
+                    : [];
+
+                return [
+                    'id' => 'custom_'.$word->id,
+                    'word' => $word->word,
+                    'meaning_hu' => $word->meaning_hu,
+                    'part_of_speech' => $word->part_of_speech,
+                    'form_base' => null,
+                    'verb_past' => null,
+                    'verb_past_participle' => null,
+                    'verb_present_participle' => null,
+                    'verb_third_person' => null,
+                    'is_irregular' => false,
+                    'noun_plural' => null,
+                    'adj_comparative' => null,
+                    'adj_superlative' => null,
+                    'example_en' => $word->example_en,
+                    'example_hu' => null,
+                    'synonyms' => null,
+                    'rank' => null,
+                    'status' => $word->status,
+                    'is_custom' => true,
+                    'options' => $options,
+                ];
+            });
+
+            $words = $regularMapped->concat($customMapped)->shuffle()->values()->all();
         }
 
         return Inertia::render('words/quiz', [

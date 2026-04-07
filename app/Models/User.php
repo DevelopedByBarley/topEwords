@@ -42,6 +42,11 @@ class User extends Authenticatable
         return $this->hasMany(FlashcardFolder::class)->orderBy('name');
     }
 
+    public function customWords(): HasMany
+    {
+        return $this->hasMany(UserCustomWord::class)->orderBy('word');
+    }
+
     public function knownWords(): BelongsToMany
     {
         return $this->belongsToMany(Word::class, 'user_word')->withPivot('status')->withTimestamps();

@@ -1,5 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
-import { FolderOpen, Globe, LayoutGrid, Languages, Layers, Swords } from 'lucide-react';
+import { FolderOpen, Globe, LayoutGrid, Languages, Layers, ScanText, Swords } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
@@ -16,6 +16,7 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
+import { show as textAnalysisShow } from '@/routes/text-analysis';
 import { index as flashcardsIndex } from '@/routes/flashcards';
 import { index as wordsIndex, quiz as wordsQuiz } from '@/routes/words';
 import type { NavItem } from '@/types';
@@ -40,6 +41,11 @@ const mainNavItems: NavItem[] = [
         title: 'Flashcards',
         href: flashcardsIndex(),
         icon: Layers,
+    },
+    {
+        title: 'Szövegelemzés',
+        href: textAnalysisShow(),
+        icon: ScanText,
     },
 ];
 
