@@ -215,15 +215,19 @@ class WordController extends Controller
         $status = $request->string('status')->trim()->lower()->value();
         $difficulty = $request->string('difficulty')->trim()->lower()->value();
         $folderId = $request->integer('folder') ?: null;
-        $count = min(max((int) $request->input('count', 0), 0), 500);
+        $user = $request->user();
+        $freeQuizLimit = 10;
+        $maxCount = $user->hasActiveAccess() ? 500 : $freeQuizLimit;
+        $count = min(max((int) $request->input('count', 0), 0), $maxCount);
 
         // Parse comma-separated ids param for manual word selection
         $idsParam = $request->string('ids')->trim()->value();
         $selectedIds = $idsParam !== '' ? array_filter(array_map('trim', explode(',', $idsParam))) : [];
+        if (! $user->hasActiveAccess() && count($selectedIds) > $freeQuizLimit) {
+            $selectedIds = array_slice($selectedIds, 0, $freeQuizLimit);
+        }
         $selectedRegularIds = array_values(array_map('intval', array_filter($selectedIds, fn ($id) => ! str_starts_with($id, 'custom_'))));
         $selectedCustomIds = array_values(array_map(fn ($id) => (int) substr($id, 7), array_filter($selectedIds, fn ($id) => str_starts_with($id, 'custom_'))));
-
-        $user = $request->user();
 
         $wordStatuses = $user->knownWords()
             ->pluck('user_word.status', 'words.id')
@@ -422,14 +426,26 @@ class WordController extends Controller
                 'folder' => $folderId,
                 'count' => $count,
             ],
+            'freeQuizLimit' => $user->hasActiveAccess() ? null : $freeQuizLimit,
         ]);
     }
 
-    public function status(Request $request, Word $word): RedirectResponse
+    public function status(Request $request, Word $word): RedirectResponse|JsonResponse
     {
         $status = $request->validate(['status' => 'required|in:known,learning,saved,pronunciation'])['status'];
 
         $existing = $request->user()->knownWords()->wherePivot('word_id', $word->id)->first();
+
+        if (! $existing && $request->user()->isOnFreePlan()) {
+            $savedCount = $request->user()->knownWords()->count();
+            if ($savedCount >= 50) {
+                if ($request->expectsJson()) {
+                    return response()->json(['error' => 'limit_reached', 'upgrade_url' => route('pricing')], 403);
+                }
+
+                return back()->with('error', 'Elérted az ingyenes szómentési limitet (50 szó). Frissíts prémiumra a korlátlan hozzáféréshez.');
+            }
+        }
 
         if ($existing && $existing->pivot->status === $status) {
             $request->user()->knownWords()->detach($word->id);

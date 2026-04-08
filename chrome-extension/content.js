@@ -322,25 +322,33 @@ function renderBody(data) {
     `;
     header.querySelector('.close').addEventListener('click', hidePopup);
 
-    const statusBtns = Object.entries(STATUS_LABELS).map(([key, label]) => {
-        const isActive = status === key;
-        const color = STATUS_COLORS[key];
-        const activeStyle = isActive ? `background:${color};border-color:${color};color:#fff` : '';
-        return `<button class="status-btn${isActive ? ' active' : ''}" data-status="${key}" style="${activeStyle}">${label}</button>`;
-    }).join('');
+    let statusSection;
+    if (data.has_active_access) {
+        const statusBtns = Object.entries(STATUS_LABELS).map(([key, label]) => {
+            const isActive = status === key;
+            const color = STATUS_COLORS[key];
+            const activeStyle = isActive ? `background:${color};border-color:${color};color:#fff` : '';
+            return `<button class="status-btn${isActive ? ' active' : ''}" data-status="${key}" style="${activeStyle}">${label}</button>`;
+        }).join('');
+        statusSection = `<div class="statuses">${statusBtns}</div>`;
+    } else {
+        statusSection = `<a class="link" href="${APP_URL}/pricing" target="_blank" style="display:block;margin-bottom:10px;">⭐ Prémiumra váltva státuszokat is menthetsz</a>`;
+    }
 
     body.innerHTML = `
         <span class="meaning">${esc(meaning_hu)}</span>
         ${extra_meanings ? `<span class="extra">${esc(extra_meanings)}</span>` : ''}
-        <div class="statuses">${statusBtns}</div>
+        ${statusSection}
         <div class="footer">
             <a class="link" href="${APP_URL}/words?search=${encodeURIComponent(word)}" target="_blank">Megnyitás →</a>
         </div>
     `;
 
-    body.querySelectorAll('.status-btn').forEach((btn) => {
-        btn.addEventListener('click', () => handleStatusClick(btn, data));
-    });
+    if (data.has_active_access) {
+        body.querySelectorAll('.status-btn').forEach((btn) => {
+            btn.addEventListener('click', () => handleStatusClick(btn, data));
+        });
+    }
 }
 
 function handleStatusClick(btn, data) {

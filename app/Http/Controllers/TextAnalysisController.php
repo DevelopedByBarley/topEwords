@@ -7,6 +7,7 @@ use App\Models\Word;
 use App\Services\AchievementService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -94,6 +95,23 @@ class TextAnalysisController extends Controller
 
     public function analyze(Request $request): JsonResponse
     {
+        $user = $request->user();
+
+        if ($user->isOnFreePlan()) {
+            $cacheKey = "text_analysis_daily_{$user->id}_".today()->format('Y-m-d');
+            $dailyCount = Cache::get($cacheKey, 0);
+
+            if ($dailyCount >= 2) {
+                return response()->json([
+                    'error' => 'limit_reached',
+                    'message' => 'Napi 2 szövegelemzést használhatsz ingyenesen. Frissíts prémiumra a korlátlan hozzáféréshez.',
+                    'upgrade_url' => route('pricing'),
+                ], 403);
+            }
+
+            Cache::put($cacheKey, $dailyCount + 1, now()->endOfDay());
+        }
+
         $text = $request->validate(['text' => 'required|string|max:15000'])['text'];
 
         $tokens = $this->tokenize($text);

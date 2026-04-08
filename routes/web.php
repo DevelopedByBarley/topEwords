@@ -14,8 +14,10 @@ use App\Http\Controllers\FlashcardStudyController;
 use App\Http\Controllers\FolderController;
 use App\Http\Controllers\FolderWordController;
 use App\Http\Controllers\IrregularVerbController;
+use App\Http\Controllers\PricingController;
 use App\Http\Controllers\QuizController;
 use App\Http\Controllers\ReviewController;
+use App\Http\Controllers\StripeWebhookController;
 use App\Http\Controllers\TextAnalysisController;
 use App\Http\Controllers\UserCustomWordController;
 use App\Http\Controllers\WordController;
@@ -28,6 +30,11 @@ Route::inertia('/', 'welcome', [
 
 Route::inertia('/terms', 'legal/terms')->name('terms');
 Route::inertia('/privacy', 'legal/privacy')->name('privacy');
+Route::get('/pricing', [PricingController::class, 'index'])->name('pricing');
+Route::middleware('auth')->group(function () {
+    Route::post('/pricing/checkout/{plan}', [PricingController::class, 'checkout'])->name('pricing.checkout');
+    Route::post('/pricing/portal', [PricingController::class, 'portal'])->name('pricing.portal');
+});
 
 Route::get('/sitemap.xml', function () {
     return response()->view('sitemap')->header('Content-Type', 'application/xml');
@@ -105,5 +112,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('folders/{folder}', [FolderController::class, 'destroy'])->name('folders.destroy');
     Route::patch('folders/{folder}/words/{word}', [FolderWordController::class, 'update'])->name('folders.words.update');
 });
+
+// Stripe webhook — CSRF exempt, handled by Cashier signature verification
+Route::post('stripe/webhook', [StripeWebhookController::class, 'handleWebhook'])->name('cashier.webhook');
 
 require __DIR__.'/settings.php';

@@ -17,6 +17,10 @@ class FlashcardCardController extends Controller
     {
         abort_unless($deck->user_id === $request->user()->id, 403);
 
+        if ($request->user()->isOnFreePlan() && $deck->flashcards()->count() >= 20) {
+            return back()->with('error', 'Ingyenes fiókkal paklinként max 20 kártyát adhatsz hozzá. Frissíts prémiumra a korlátlan hozzáféréshez.');
+        }
+
         $deck->flashcards()->create($request->validated());
 
         return to_route('flashcards.show', $deck);

@@ -51,6 +51,10 @@ class FlashcardDeckController extends Controller
 
     public function store(StoreFlashcardDeckRequest $request): RedirectResponse
     {
+        if ($request->user()->isOnFreePlan() && $request->user()->flashcardDecks()->count() >= 1) {
+            return back()->with('error', 'Ingyenes fiókkal csak 1 paklit hozhatsz létre. Frissíts prémiumra a korlátlan hozzáféréshez.');
+        }
+
         $validated = $request->validated();
         $folderId = $validated['folder_id'] ?? null;
 

@@ -3,6 +3,7 @@ import {
     ArrowRight,
     BookMarked,
     Brain,
+    Check,
     CheckCheck,
     Clock,
     Code2,
@@ -12,6 +13,7 @@ import {
     FlaskConical,
     FolderOpen,
     FolderPlus,
+    Infinity,
     Layers,
     Lightbulb,
     Mail,
@@ -36,7 +38,7 @@ import {
 import { useEffect, useState } from 'react';
 import AppLogoIcon from '@/components/app-logo-icon';
 import { Button } from '@/components/ui/button';
-import { dashboard, login, register, terms, privacy } from '@/routes';
+import { dashboard, login, register, terms, privacy, pricing } from '@/routes';
 import { index as wordsIndex } from '@/routes/words';
 
 export default function Welcome({ canRegister = true }: { canRegister?: boolean }) {
@@ -199,6 +201,88 @@ export default function Welcome({ canRegister = true }: { canRegister?: boolean 
                                 <p className="text-sm text-muted-foreground">{desc}</p>
                             </div>
                         ))}
+                    </div>
+                </section>
+
+                {/* Pricing */}
+                <section className="border-t py-20">
+                    <div className="mx-auto max-w-5xl px-6">
+                        <div className="mb-12 text-center">
+                            <h2 className="mb-3 text-3xl font-bold tracking-tight">Egyszerű árazás</h2>
+                            <p className="text-muted-foreground">5 nap ingyenes próbaidőszak, utána döntsd el melyik csomag illik hozzád.</p>
+                        </div>
+
+                        <div className="grid gap-6 md:grid-cols-3">
+                            {/* Free */}
+                            <div className="rounded-2xl border bg-card p-6">
+                                <div className="mb-4">
+                                    <p className="text-sm font-medium text-muted-foreground">Ingyenes</p>
+                                    <p className="mt-1 text-3xl font-bold">0 Ft</p>
+                                    <p className="mt-1 text-xs text-muted-foreground">örökké</p>
+                                </div>
+                                <ul className="mb-6 space-y-2.5">
+                                    {['50 szó mentése', '10 saját szó', '1 flashcard pakli (max 20 kártya)', 'Napi 10 quiz kérdés', 'Napi 5 cloze feladat', 'Napi 2 szövegelemzés', 'Review & Achievements'].map((f) => (
+                                        <li key={f} className="flex items-start gap-2 text-sm text-muted-foreground">
+                                            <Check className="mt-0.5 size-4 shrink-0 text-muted-foreground/60" />
+                                            {f}
+                                        </li>
+                                    ))}
+                                </ul>
+                                <Link href={canRegister ? register() : login()}>
+                                    <Button variant="outline" className="w-full">Regisztrálok ingyen</Button>
+                                </Link>
+                            </div>
+
+                            {/* Monthly */}
+                            <div className="relative rounded-2xl border-2 border-primary bg-card p-6">
+                                <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                                    <span className="rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground">Legnépszerűbb</span>
+                                </div>
+                                <div className="mb-4">
+                                    <p className="text-sm font-medium text-muted-foreground">Havi</p>
+                                    <p className="mt-1 text-3xl font-bold">1 500 Ft</p>
+                                    <p className="mt-1 text-xs text-muted-foreground">/ hónap · ~4 €</p>
+                                </div>
+                                <ul className="mb-6 space-y-2.5">
+                                    {['Korlátlan szómentés', 'Korlátlan saját szó', 'Korlátlan flashcard pakli & kártya', 'Korlátlan quiz & cloze', 'Korlátlan szövegelemzés', 'Chrome extension státusz mentés', 'Minden jövőbeli funkció'].map((f) => (
+                                        <li key={f} className="flex items-start gap-2 text-sm">
+                                            <Check className="mt-0.5 size-4 shrink-0 text-primary" />
+                                            {f}
+                                        </li>
+                                    ))}
+                                </ul>
+                                <Link href={pricing()}>
+                                    <Button className="w-full">Előfizetek</Button>
+                                </Link>
+                            </div>
+
+                            {/* Lifetime */}
+                            <div className="rounded-2xl border bg-card p-6">
+                                <div className="mb-4">
+                                    <div className="flex items-center gap-1.5">
+                                        <p className="text-sm font-medium text-muted-foreground">Lifetime</p>
+                                        <Star className="size-3.5 text-amber-500" />
+                                    </div>
+                                    <p className="mt-1 text-3xl font-bold">16 500 Ft</p>
+                                    <p className="mt-1 text-xs text-muted-foreground">egyszeri fizetés · ~45 €</p>
+                                </div>
+                                <ul className="mb-6 space-y-2.5">
+                                    {['Korlátlan szómentés', 'Korlátlan saját szó', 'Korlátlan flashcard pakli & kártya', 'Korlátlan quiz & cloze', 'Korlátlan szövegelemzés', 'Chrome extension státusz mentés', 'Minden jövőbeli funkció'].map((f) => (
+                                        <li key={f} className="flex items-start gap-2 text-sm">
+                                            <Check className="mt-0.5 size-4 shrink-0 text-amber-500" />
+                                            {f}
+                                        </li>
+                                    ))}
+                                    <li className="flex items-start gap-2 text-sm font-medium">
+                                        <Infinity className="mt-0.5 size-4 shrink-0 text-amber-500" />
+                                        Örökös hozzáférés
+                                    </li>
+                                </ul>
+                                <Link href={pricing()}>
+                                    <Button variant="outline" className="w-full">Megveszem</Button>
+                                </Link>
+                            </div>
+                        </div>
                     </div>
                 </section>
 

@@ -40,6 +40,12 @@ class HandleInertiaRequests extends Middleware
             'name' => config('app.name'),
             'auth' => [
                 'user' => $request->user(),
+                'subscription' => $request->user() ? [
+                    'hasActiveAccess' => $request->user()->hasActiveAccess(),
+                    'isSubscribed' => $request->user()->subscribed('default'),
+                    'hasLifetime' => (bool) $request->user()->lifetime_access,
+                    'isOnTrial' => $request->user()->onTrial(),
+                ] : null,
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'flash' => [

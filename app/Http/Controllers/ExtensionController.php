@@ -15,6 +15,8 @@ class ExtensionController extends Controller
             return response()->json(['error' => 'unauthenticated']);
         }
 
+        $hasActiveAccess = $request->user()->hasActiveAccess();
+
         $word = $request->string('word')->trim()->value();
 
         if (empty($word)) {
@@ -44,6 +46,7 @@ class ExtensionController extends Controller
                 'rank' => $match->rank,
                 'status' => $status,
                 'csrf' => csrf_token(),
+                'has_active_access' => $hasActiveAccess,
             ]);
         }
 
@@ -68,9 +71,10 @@ class ExtensionController extends Controller
                 'rank' => null,
                 'status' => $custom->status,
                 'csrf' => csrf_token(),
+                'has_active_access' => $hasActiveAccess,
             ]);
         }
 
-        return response()->json(['found' => false, 'word' => $word, 'csrf' => csrf_token()]);
+        return response()->json(['found' => false, 'word' => $word, 'csrf' => csrf_token(), 'has_active_access' => $hasActiveAccess]);
     }
 }

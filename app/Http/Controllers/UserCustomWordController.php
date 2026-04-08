@@ -20,6 +20,10 @@ class UserCustomWordController extends Controller
 
     public function store(StoreUserCustomWordRequest $request): RedirectResponse
     {
+        if ($request->user()->isOnFreePlan() && $request->user()->customWords()->count() >= 10) {
+            return back()->with('error', 'Elérted az ingyenes saját szó limitet (10 szó). Frissíts prémiumra a korlátlan hozzáféréshez.');
+        }
+
         $request->user()->customWords()->create($request->validated());
 
         if ($request->user()->updateStreak()) {

@@ -16,15 +16,19 @@ class ClozeController extends Controller
         $status = $request->string('status')->trim()->lower()->value();
         $difficulty = $request->string('difficulty')->trim()->lower()->value();
         $folderId = $request->integer('folder') ?: null;
-        $count = min(max((int) $request->input('count', 0), 0), 500);
+        $user = $request->user();
+        $freeClozeLimit = 5;
+        $maxCount = $user->hasActiveAccess() ? 500 : $freeClozeLimit;
+        $count = min(max((int) $request->input('count', 0), 0), $maxCount);
 
         // Parse comma-separated ids param for manual word selection
         $idsParam = $request->string('ids')->trim()->value();
         $selectedIds = $idsParam !== '' ? array_filter(array_map('trim', explode(',', $idsParam))) : [];
+        if (! $user->hasActiveAccess() && count($selectedIds) > $freeClozeLimit) {
+            $selectedIds = array_slice($selectedIds, 0, $freeClozeLimit);
+        }
         $selectedRegularIds = array_values(array_map('intval', array_filter($selectedIds, fn ($id) => ! str_starts_with($id, 'custom_'))));
         $selectedCustomIds = array_values(array_map(fn ($id) => (int) substr($id, 7), array_filter($selectedIds, fn ($id) => str_starts_with($id, 'custom_'))));
-
-        $user = $request->user();
 
         $wordStatuses = $user->knownWords()
             ->pluck('user_word.status', 'words.id')
@@ -205,6 +209,7 @@ class ClozeController extends Controller
                 'folder' => $folderId,
                 'count' => $count,
             ],
+            'freeClozeLimit' => $user->hasActiveAccess() ? null : $freeClozeLimit,
         ]);
     }
 

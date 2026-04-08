@@ -13,14 +13,15 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
+use Laravel\Cashier\Billable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 
-#[Fillable(['name', 'email', 'password', 'streak', 'last_activity_date', 'quiz_completions', 'text_analyses'])]
+#[Fillable(['name', 'email', 'password', 'streak', 'last_activity_date', 'quiz_completions', 'text_analyses', 'lifetime_access'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable, TwoFactorAuthenticatable;
+    use Billable, HasFactory, Notifiable, TwoFactorAuthenticatable;
 
     public function folders(): HasMany
     {
@@ -57,6 +58,18 @@ class User extends Authenticatable
         return $this->hasMany(UserAchievement::class);
     }
 
+    public function hasActiveAccess(): bool
+    {
+        return $this->lifetime_access
+            || $this->onTrial()
+            || $this->subscribed('default');
+    }
+
+    public function isOnFreePlan(): bool
+    {
+        return ! $this->hasActiveAccess();
+    }
+
     public function updateStreak(): bool
     {
         $today = Carbon::today();
@@ -85,6 +98,8 @@ class User extends Authenticatable
             'password' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',
             'last_activity_date' => 'date',
+            'trial_ends_at' => 'datetime',
+            'lifetime_access' => 'boolean',
         ];
     }
 }
