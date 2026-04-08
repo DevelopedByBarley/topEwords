@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Folder;
 use App\Models\UserCustomWord;
 use App\Models\Word;
+use App\Services\AchievementService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -122,7 +123,12 @@ class WordController extends Controller
             ->map(fn ($rows) => $rows->pluck('folder_id')->all())
             ->all();
 
-        $allCustomWords = $user->customWords()->get(['id', 'word', 'meaning_hu', 'part_of_speech', 'example_en', 'status']);
+        $allCustomWords = $user->customWords()->get([
+            'id', 'word', 'meaning_hu', 'extra_meanings', 'synonyms', 'part_of_speech',
+            'example_en', 'example_hu', 'status', 'form_base', 'verb_past',
+            'verb_past_participle', 'verb_present_participle', 'verb_third_person',
+            'is_irregular', 'noun_plural', 'adj_comparative', 'adj_superlative',
+        ]);
         $customStatusCounts = $allCustomWords->countBy('status')->all();
 
         $customKnown = $customStatusCounts['known'] ?? 0;
@@ -378,6 +384,14 @@ class WordController extends Controller
             $request->user()->knownWords()->syncWithoutDetaching([$word->id => ['status' => $status]]);
             if ($request->user()->updateStreak()) {
                 session()->flash('streak_triggered', $request->user()->streak);
+            }
+
+            $newAchievements = app(AchievementService::class)->checkAndAward(
+                $request->user(),
+                ['streak', 'vocab', 'known']
+            );
+            if ($newAchievements) {
+                session()->flash('achievements', $newAchievements);
             }
         }
 

@@ -1,7 +1,8 @@
 import { Head } from '@inertiajs/react';
-import { BookOpen, CheckCheck, Clock, FileText, Globe, HelpCircle, History, Loader2, ScanText, Trash2, X, Youtube } from 'lucide-react';
-import { useState } from 'react';
+import { BookMarked, BookOpen, CheckCheck, Clock, FileText, Globe, HelpCircle, History, Loader2, Mic, Plus, ScanText, Trash2, Volume2, X, Youtube } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { show as textAnalysisShow } from '@/routes/text-analysis';
@@ -42,6 +43,11 @@ function addHistoryEntry(entry: Omit<HistoryEntry, 'id' | 'date'>) {
 const MODE_ICONS: Record<InputMode, React.ElementType> = { text: FileText, youtube: Youtube, url: Globe };
 type TokenStatus = 'known' | 'learning' | 'saved' | 'pronunciation' | 'in_list' | 'not_in_list';
 
+type LookupResult =
+    | { type: 'word'; id: number; word: string; meaning_hu: string | null; example_en: string | null; part_of_speech: string | null; rank: number; status: string | null }
+    | { type: 'custom'; id: number; word: string; meaning_hu: string | null; example_en: string | null; part_of_speech: string | null; status: string | null }
+    | { type: 'not_found'; word: string };
+
 interface UnknownWord {
     word: string;
     frequency: number;
@@ -70,7 +76,15 @@ const STATUS_STYLES: Record<TokenStatus, string> = {
 
 const EXAMPLE_TEXT = `The quick brown fox jumps over the lazy dog. Learning new words every day is one of the best investments you can make in your language skills. Reading books, articles, and other written materials helps you encounter words in context, which makes them much easier to remember.`;
 
-function HighlightedText({ text, tokenStatuses }: { text: string; tokenStatuses: Record<string, TokenStatus> }) {
+function HighlightedText({
+    text,
+    tokenStatuses,
+    onWordClick,
+}: {
+    text: string;
+    tokenStatuses: Record<string, TokenStatus>;
+    onWordClick?: (word: string) => void;
+}) {
     const parts = text.split(/([a-zA-Z]+)/);
 
     return (
@@ -84,7 +98,11 @@ function HighlightedText({ text, tokenStatuses }: { text: string; tokenStatuses:
                 const className = status ? STATUS_STYLES[status] : '';
 
                 return (
-                    <span key={i} className={className ? `rounded px-0.5 ${className}` : undefined}>
+                    <span
+                        key={i}
+                        onClick={() => onWordClick?.(part)}
+                        className={`cursor-pointer rounded px-0.5 transition-opacity hover:opacity-70 ${className}`}
+                    >
                         {part}
                     </span>
                 );
@@ -115,6 +133,47 @@ export default function TextAnalysis() {
     const [error, setError] = useState<string | null>(null);
     const [history, setHistory] = useState<HistoryEntry[]>(() => loadHistory());
     const [showHistory, setShowHistory] = useState(false);
+
+    const [lookupWord, setLookupWord] = useState<string | null>(null);
+    const [lookupResult, setLookupResult] = useState<LookupResult | null>(null);
+    const [lookupLoading, setLookupLoading] = useState(false);
+    const [lookupStatus, setLookupStatus] = useState<string | null>(null);
+    const [addMeaning, setAddMeaning] = useState('');
+    const [addExampleEn, setAddExampleEn] = useState('');
+    const [addPartOfSpeech, setAddPartOfSpeech] = useState('');
+    const [addingCustom, setAddingCustom] = useState(false);
+    const [addedCustom, setAddedCustom] = useState(false);
+
+    const didAutoFetch = useRef(false);
+    useEffect(() => {
+        if (didAutoFetch.current) return;
+        const params = new URLSearchParams(window.location.search);
+        const urlParam = params.get('url');
+        if (!urlParam) return;
+        didAutoFetch.current = true;
+        const isYouTube = /youtube\.com|youtu\.be/.test(urlParam);
+        setMode(isYouTube ? 'youtube' : 'url');
+        setUrlInput(urlParam);
+        // fetch directly with the param value, not via state (which isn't set yet)
+        setIsFetching(true);
+        setError(null);
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
+        fetch('/text-analysis/fetch-source', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken, Accept: 'application/json' },
+            body: JSON.stringify({ url: urlParam }),
+        })
+            .then((r) => r.json())
+            .then((data) => {
+                if (data.error || data.message) {
+                    setError(data.error ?? data.message ?? 'Hiba történt.');
+                } else {
+                    setFetchedSource(data.text as string);
+                }
+            })
+            .catch(() => setError('Hálózati hiba.'))
+            .finally(() => setIsFetching(false));
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     const refreshHistory = () => setHistory(loadHistory());
 
@@ -151,13 +210,14 @@ export default function TextAnalysis() {
     };
 
     const fetchSource = async () => {
-        if (!urlInput.trim()) return;
+        const url = urlInput;
+        if (!url.trim()) return;
         setIsFetching(true);
         setError(null);
         setFetchedSource(null);
 
         try {
-            const { ok, data } = await postJson('/text-analysis/fetch-source', { url: urlInput });
+            const { ok, data } = await postJson('/text-analysis/fetch-source', { url });
             if (!ok) {
                 setError((data.error as string) ?? (data.message as string) ?? 'Hiba történt.');
                 return;
@@ -185,6 +245,10 @@ export default function TextAnalysis() {
             }
             setResult(data as unknown as AnalysisResult);
 
+            if (Array.isArray(data.achievements) && (data.achievements as unknown[]).length > 0) {
+                window.dispatchEvent(new CustomEvent('achievements-unlocked', { detail: data.achievements }));
+            }
+
             const label = mode === 'text'
                 ? input.slice(0, 80).trim() + (input.length > 80 ? '…' : '')
                 : urlInput;
@@ -194,6 +258,82 @@ export default function TextAnalysis() {
             setError('Hálózati hiba. Próbáld újra.');
         } finally {
             setIsAnalyzing(false);
+        }
+    };
+
+    const handleWordClick = async (word: string) => {
+        const token = word.toLowerCase();
+        setLookupWord(token);
+        setLookupResult(null);
+        setLookupLoading(true);
+        setLookupStatus(null);
+        setAddMeaning('');
+        setAddExampleEn('');
+        setAddPartOfSpeech('');
+        setAddedCustom(false);
+
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
+        const res = await fetch(`/text-analysis/word-lookup?word=${encodeURIComponent(token)}`, {
+            headers: { 'X-CSRF-TOKEN': csrfToken, Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        });
+        const data = await res.json();
+        setLookupResult(data);
+        setLookupStatus((data as LookupResult & { status?: string | null }).status ?? null);
+        setLookupLoading(false);
+    };
+
+    const handleLookupStatus = async (newStatus: string) => {
+        if (!lookupResult || lookupResult.type === 'not_found') return;
+        const path =
+            lookupResult.type === 'word'
+                ? `/words/${lookupResult.id}/status`
+                : `/custom-words/${lookupResult.id}/status`;
+        const sameStatus = lookupStatus === newStatus;
+        const nextStatus = sameStatus ? null : (newStatus as TokenStatus);
+
+        // Update modal button highlight
+        setLookupStatus(nextStatus);
+
+        // Update highlighted text colors in the result
+        if (lookupWord) {
+            const tokenStatus: TokenStatus = nextStatus ?? (lookupResult.type === 'word' ? 'in_list' : 'not_in_list');
+            setResult((prev) => {
+                if (!prev) return prev;
+                return {
+                    ...prev,
+                    tokenStatuses: { ...prev.tokenStatuses, [lookupWord]: tokenStatus },
+                };
+            });
+        }
+
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
+        await fetch(path, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
+            body: JSON.stringify({ status: newStatus }),
+        });
+    };
+
+    const handleAddAsCustom = async () => {
+        if (!lookupResult || lookupResult.type !== 'not_found') return;
+        setAddingCustom(true);
+        try {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
+            const response = await fetch('/custom-words', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
+                body: JSON.stringify({
+                    word: lookupResult.word,
+                    meaning_hu: addMeaning || null,
+                    example_en: addExampleEn || null,
+                    part_of_speech: addPartOfSpeech || null,
+                }),
+            });
+            if (response.ok || response.redirected) {
+                setAddedCustom(true);
+            }
+        } finally {
+            setAddingCustom(false);
         }
     };
 
@@ -225,7 +365,7 @@ export default function TextAnalysis() {
                     </p>
                 </div>
 
-                {/* Mode tabs + history toggle */}
+{/* Mode tabs + history toggle */}
                 {!result && (
                     <div className="flex flex-wrap items-center gap-3">
                         <div className="flex gap-1 rounded-lg border bg-muted p-1">
@@ -354,7 +494,7 @@ export default function TextAnalysis() {
                                     />
                                     <Button
                                         variant="outline"
-                                        onClick={fetchSource}
+                                        onClick={() => fetchSource()}
                                         disabled={isFetching || !urlInput.trim() || !!fetchedSource}
                                     >
                                         {isFetching ? <Loader2 className="size-4 animate-spin" /> : (mode === 'youtube' ? <Youtube className="size-4" /> : <Globe className="size-4" />)}
@@ -466,7 +606,7 @@ export default function TextAnalysis() {
                         {/* Highlighted text */}
                         <div className="rounded-xl border bg-card p-5">
                             <p className="mb-3 text-sm font-medium">Szöveg kiemelésekkel</p>
-                            <HighlightedText text={activeText} tokenStatuses={result.tokenStatuses} />
+                            <HighlightedText text={activeText} tokenStatuses={result.tokenStatuses} onWordClick={handleWordClick} />
                         </div>
 
                         {/* Top unknown words */}
@@ -503,6 +643,196 @@ export default function TextAnalysis() {
                     </div>
                 )}
             </div>
+
+            {/* Word lookup modal */}
+            <Dialog
+                open={lookupWord !== null}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        setLookupWord(null);
+                        setLookupResult(null);
+                    }
+                }}
+            >
+                <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-md">
+                    {lookupLoading && (
+                        <div className="flex items-center justify-center py-12">
+                            <Loader2 className="size-6 animate-spin text-muted-foreground" />
+                        </div>
+                    )}
+                    {!lookupLoading && lookupResult && (
+                        <>
+                            {/* Header */}
+                            <div className="border-b bg-linear-to-br from-primary/8 to-primary/3 px-5 pb-4 pt-5">
+                                <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                        {lookupResult.type !== 'not_found' && (
+                                            <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+                                                {lookupResult.type === 'word' && lookupResult.rank && (
+                                                    <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                                                        #{lookupResult.rank}
+                                                    </span>
+                                                )}
+                                                {lookupResult.type === 'custom' && (
+                                                    <span className="rounded-full bg-primary/15 px-2 py-0.5 text-xs font-semibold text-primary">
+                                                        saját szó
+                                                    </span>
+                                                )}
+                                                {lookupResult.part_of_speech && (
+                                                    <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                                                        {lookupResult.part_of_speech}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        )}
+                                        <DialogTitle className="text-2xl font-bold tracking-tight">
+                                            {lookupResult.word}
+                                        </DialogTitle>
+                                    </div>
+                                    {lookupResult.type !== 'not_found' && (
+                                        <button
+                                            onClick={() => {
+                                                const u = new SpeechSynthesisUtterance(lookupResult.word);
+                                                u.lang = 'en-US';
+                                                speechSynthesis.speak(u);
+                                            }}
+                                            className="mt-1 shrink-0 rounded-full bg-background/80 p-2 text-muted-foreground shadow-sm transition-colors hover:bg-background hover:text-foreground"
+                                        >
+                                            <Volume2 className="size-4" />
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="space-y-4 px-5 py-4">
+                                {/* Word or Custom found */}
+                                {lookupResult.type !== 'not_found' && (
+                                    <>
+                                        {lookupResult.meaning_hu && (
+                                            <div className="rounded-xl border bg-card px-4 py-3">
+                                                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                                    Magyar jelentés
+                                                </p>
+                                                <p className="font-semibold leading-snug">{lookupResult.meaning_hu}</p>
+                                            </div>
+                                        )}
+                                        {lookupResult.example_en && (
+                                            <div className="rounded-xl border-l-4 border-primary/40 bg-muted/30 px-4 py-3">
+                                                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                                    Példamondat
+                                                </p>
+                                                <p className="text-sm italic">"{lookupResult.example_en}"</p>
+                                            </div>
+                                        )}
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {(
+                                                [
+                                                    {
+                                                        s: 'known',
+                                                        label: 'Tudom',
+                                                        Icon: CheckCheck,
+                                                        active: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400',
+                                                        hover: 'hover:bg-green-50 hover:text-green-700',
+                                                    },
+                                                    {
+                                                        s: 'learning',
+                                                        label: 'Tanulom',
+                                                        Icon: Clock,
+                                                        active: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400',
+                                                        hover: 'hover:bg-blue-50 hover:text-blue-700',
+                                                    },
+                                                    {
+                                                        s: 'saved',
+                                                        label: 'Később',
+                                                        Icon: BookMarked,
+                                                        active: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400',
+                                                        hover: 'hover:bg-orange-50 hover:text-orange-700',
+                                                    },
+                                                    {
+                                                        s: 'pronunciation',
+                                                        label: 'Kiejtés',
+                                                        Icon: Mic,
+                                                        active: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-400',
+                                                        hover: 'hover:bg-violet-50 hover:text-violet-700',
+                                                    },
+                                                ] as const
+                                            ).map(({ s, label, Icon, active, hover }) => (
+                                                <button
+                                                    key={s}
+                                                    onClick={() => handleLookupStatus(s)}
+                                                    className={`flex cursor-pointer items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${
+                                                        lookupStatus === s ? active : `bg-secondary text-muted-foreground ${hover}`
+                                                    }`}
+                                                >
+                                                    <Icon className="size-4" /> {label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </>
+                                )}
+
+                                {/* Not found — add as custom */}
+                                {lookupResult.type === 'not_found' && (
+                                    <>
+                                        <p className="text-sm text-muted-foreground">
+                                            Ez a szó nincs a Top 10 000 listában. Hozzáadhatod saját szóként.
+                                        </p>
+                                        {addedCustom ? (
+                                            <div className="flex items-center gap-2 rounded-xl bg-green-50 px-4 py-3 text-sm font-medium text-green-700 dark:bg-green-950/30 dark:text-green-400">
+                                                <CheckCheck className="size-4" /> Sikeresen hozzáadva!
+                                            </div>
+                                        ) : (
+                                            <div className="flex flex-col gap-3">
+                                                <div className="flex flex-col gap-1.5">
+                                                    <label className="text-xs font-medium text-muted-foreground">Magyar jelentés</label>
+                                                    <Input
+                                                        placeholder="pl. le, lent, lefelé"
+                                                        value={addMeaning}
+                                                        onChange={(e) => setAddMeaning(e.target.value)}
+                                                    />
+                                                </div>
+                                                <div className="flex flex-col gap-1.5">
+                                                    <label className="text-xs font-medium text-muted-foreground">Szófaj</label>
+                                                    <select
+                                                        value={addPartOfSpeech}
+                                                        onChange={(e) => setAddPartOfSpeech(e.target.value)}
+                                                        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                                    >
+                                                        <option value="">– válassz –</option>
+                                                        <option value="noun">noun (főnév)</option>
+                                                        <option value="verb">verb (ige)</option>
+                                                        <option value="adjective">adjective (melléknév)</option>
+                                                        <option value="adverb">adverb (határozószó)</option>
+                                                        <option value="preposition">preposition (elöljárószó)</option>
+                                                        <option value="conjunction">conjunction (kötőszó)</option>
+                                                        <option value="pronoun">pronoun (névmás)</option>
+                                                        <option value="phrase">phrase (kifejezés)</option>
+                                                        <option value="other">other (egyéb)</option>
+                                                    </select>
+                                                </div>
+                                                <div className="flex flex-col gap-1.5">
+                                                    <label className="text-xs font-medium text-muted-foreground">Példamondat (angol)</label>
+                                                    <Textarea
+                                                        placeholder="pl. She looked down at the floor."
+                                                        value={addExampleEn}
+                                                        onChange={(e) => setAddExampleEn(e.target.value)}
+                                                        className="min-h-20 resize-none text-sm"
+                                                        maxLength={500}
+                                                    />
+                                                </div>
+                                                <Button onClick={handleAddAsCustom} disabled={addingCustom}>
+                                                    {addingCustom ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
+                                                    Hozzáadás saját szóként
+                                                </Button>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+                            </div>
+                        </>
+                    )}
+                </DialogContent>
+            </Dialog>
         </>
     );
 }

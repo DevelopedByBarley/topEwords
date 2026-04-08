@@ -18,7 +18,10 @@
       "Read(//private/tmp/**)",
       "Bash(yt-dlp --js-runtimes nodejs --write-auto-subs --skip-download --sub-langs en --sub-format json3 -o \"/tmp/yt_%\\(id\\)s\" \"https://www.youtube.com/watch?v=VHsuo86XFfY\")",
       "Bash(ls /tmp/yt_*)",
-      "Bash(yt-dlp --js-runtimes node --write-auto-subs --skip-download --sub-langs en --sub-format json3 -o \"/tmp/yt_%\\(id\\)s\" \"https://www.youtube.com/watch?v=dQw4w9WgXcQ\")"
+      "Bash(yt-dlp --js-runtimes node --write-auto-subs --skip-download --sub-langs en --sub-format json3 -o \"/tmp/yt_%\\(id\\)s\" \"https://www.youtube.com/watch?v=dQw4w9WgXcQ\")",
+      "Bash(vendor/bin/pint --dirty --format agent resources/js/pages/text-analysis/index.tsx)",
+      "mcp__laravel-boost__get-absolute-url",
+      "Bash(find /Applications/XAMPP/xamppfiles/htdocs/topEwords/database/migrations -type f -name \"*.php\" -exec grep -l \"achievement\\\\|Achievement\" {} \\\\;)"
     ],
     "additionalDirectories": [
       "/private/tmp"

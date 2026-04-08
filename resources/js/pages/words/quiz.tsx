@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { ArrowLeft, CheckCircle2, ChevronRight, RotateCcw, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { quiz as quizRoute, index as wordsIndex } from '@/routes/words';
+import { complete as quizComplete } from '@/routes/words/quiz';
 
 interface QuizWord {
     id: number;
@@ -94,8 +95,24 @@ export default function Quiz({ words, available, folders, filters }: Props) {
         }
     }
 
+    async function submitQuizComplete(perfect: boolean) {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
+        const res = await fetch(quizComplete().url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
+            body: JSON.stringify({ perfect }),
+        }).catch(() => null);
+        if (res) {
+            const data = await res.json().catch(() => ({}));
+            if (Array.isArray(data.achievements) && data.achievements.length > 0) {
+                window.dispatchEvent(new CustomEvent('achievements-unlocked', { detail: data.achievements }));
+            }
+        }
+    }
+
     function handleNext() {
         if (current + 1 >= words.length) {
+            submitQuizComplete(wrongAnswers.length === 0 && answerState === 'correct');
             setFinished(true);
         } else {
             setCurrent((c) => c + 1);

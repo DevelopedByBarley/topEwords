@@ -2,6 +2,7 @@ import { AppContent } from '@/components/app-content';
 import { AppShell } from '@/components/app-shell';
 import { AppSidebar } from '@/components/app-sidebar';
 import { AppSidebarHeader } from '@/components/app-sidebar-header';
+import AchievementToast from '@/components/achievement-toast';
 import StreakCelebration from '@/components/streak-celebration';
 import type { AppLayoutProps } from '@/types';
 
@@ -17,6 +18,7 @@ export default function AppSidebarLayout({
                 {children}
             </AppContent>
             <StreakCelebration />
+            <AchievementToast />
         </AppShell>
     );
 }

@@ -92,10 +92,49 @@ interface CustomWord {
     id: number;
     word: string;
     meaning_hu: string | null;
+    extra_meanings: string | null;
+    synonyms: string | null;
     part_of_speech: string | null;
     example_en: string | null;
+    example_hu: string | null;
     status: 'known' | 'learning' | 'saved' | 'pronunciation' | null;
+    form_base: string | null;
+    verb_past: string | null;
+    verb_past_participle: string | null;
+    verb_present_participle: string | null;
+    verb_third_person: string | null;
+    is_irregular: boolean | null;
+    noun_plural: string | null;
+    adj_comparative: string | null;
+    adj_superlative: string | null;
 }
+
+type CustomWordFormData = {
+    word: string;
+    meaning_hu: string;
+    extra_meanings: string;
+    synonyms: string;
+    part_of_speech: string;
+    example_en: string;
+    example_hu: string;
+    form_base: string;
+    verb_past: string;
+    verb_past_participle: string;
+    verb_present_participle: string;
+    verb_third_person: string;
+    is_irregular: boolean;
+    noun_plural: string;
+    adj_comparative: string;
+    adj_superlative: string;
+};
+
+const EMPTY_CUSTOM_WORD_FORM: CustomWordFormData = {
+    word: '', meaning_hu: '', extra_meanings: '', synonyms: '',
+    part_of_speech: '', example_en: '', example_hu: '',
+    form_base: '', verb_past: '', verb_past_participle: '',
+    verb_present_participle: '', verb_third_person: '',
+    is_irregular: false, noun_plural: '', adj_comparative: '', adj_superlative: '',
+};
 
 interface Props {
     words: PaginatedWords;
@@ -165,11 +204,11 @@ export default function WordsIndex({
     const [editFolderName, setEditFolderName] = useState('');
     const [showFolderSheet, setShowFolderSheet] = useState(false);
     const [showAddCustomWord, setShowAddCustomWord] = useState(false);
-    const [customWordForm, setCustomWordForm] = useState({ word: '', meaning_hu: '', part_of_speech: '', example_en: '' });
+    const [customWordForm, setCustomWordForm] = useState<CustomWordFormData>(EMPTY_CUSTOM_WORD_FORM);
     const [customWordErrors, setCustomWordErrors] = useState<Record<string, string>>({});
     const [selectedCustomWordId, setSelectedCustomWordId] = useState<number | null>(null);
     const [editCustomWordId, setEditCustomWordId] = useState<number | null>(null);
-    const [editCustomWordForm, setEditCustomWordForm] = useState<{ word: string; meaning_hu: string; example_en: string }>({ word: '', meaning_hu: '', example_en: '' });
+    const [editCustomWordForm, setEditCustomWordForm] = useState<CustomWordFormData>(EMPTY_CUSTOM_WORD_FORM);
     const [selectedDeckId, setSelectedDeckId] = useState<string>('');
     const [importingFlashcard, setImportingFlashcard] = useState(false);
     const [customImportSuccess, setCustomImportSuccess] = useState(false);
@@ -364,7 +403,7 @@ export default function WordsIndex({
             {
                 preserveScroll: true,
                 preserveState: true,
-                only: ['words', 'stats'],
+                only: ['words', 'stats', 'flash'],
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 optimistic: (props: any) => {
                     const prev = word.status;
@@ -420,16 +459,35 @@ export default function WordsIndex({
             setCustomWordErrors({ word: 'A szó megadása kötelező.' });
             return;
         }
-        router.post(storeCustomWord(), {
+        const payload: Record<string, string | boolean | null> = {
             word: customWordForm.word.trim(),
             meaning_hu: customWordForm.meaning_hu.trim() || null,
+            extra_meanings: customWordForm.extra_meanings.trim() || null,
+            synonyms: customWordForm.synonyms.trim() || null,
             part_of_speech: customWordForm.part_of_speech || null,
             example_en: customWordForm.example_en.trim() || null,
-        }, {
+            example_hu: customWordForm.example_hu.trim() || null,
+        };
+        if (customWordForm.part_of_speech === 'verb') {
+            payload.form_base = customWordForm.form_base.trim() || null;
+            payload.verb_past = customWordForm.verb_past.trim() || null;
+            payload.verb_past_participle = customWordForm.verb_past_participle.trim() || null;
+            payload.verb_present_participle = customWordForm.verb_present_participle.trim() || null;
+            payload.verb_third_person = customWordForm.verb_third_person.trim() || null;
+            payload.is_irregular = customWordForm.is_irregular;
+        }
+        if (customWordForm.part_of_speech === 'noun') {
+            payload.noun_plural = customWordForm.noun_plural.trim() || null;
+        }
+        if (customWordForm.part_of_speech === 'adj') {
+            payload.adj_comparative = customWordForm.adj_comparative.trim() || null;
+            payload.adj_superlative = customWordForm.adj_superlative.trim() || null;
+        }
+        router.post(storeCustomWord(), payload, {
             preserveScroll: true,
-            only: ['customWords', 'customStats', 'stats'],
+            only: ['customWords', 'customStats', 'stats', 'flash'],
             onSuccess: () => {
-                setCustomWordForm({ word: '', meaning_hu: '', part_of_speech: '', example_en: '' });
+                setCustomWordForm(EMPTY_CUSTOM_WORD_FORM);
                 setShowAddCustomWord(false);
                 setCustomWordErrors({});
             },
@@ -440,7 +498,7 @@ export default function WordsIndex({
     function handleCustomWordStatus(wordId: number, newStatus: 'known' | 'learning' | 'saved' | 'pronunciation', _currentStatus: string | null) {
         router.post(customWordStatus(wordId), { status: newStatus }, {
             preserveScroll: true,
-            only: ['customWords', 'customStats', 'stats'],
+            only: ['customWords', 'customStats', 'stats', 'flash'],
         });
     }
 
@@ -485,42 +543,105 @@ export default function WordsIndex({
                     </Button>
                 </div>
 
-                {/* Add custom word form */}
-                {showAddCustomWord && (
-                    <div className="rounded-xl border bg-card px-4 py-3">
-                        <form onSubmit={handleAddCustomWord} className="flex flex-col gap-2">
-                            <div className="flex gap-2">
-                                <div className="flex-1">
-                                    <Input
-                                        placeholder="Angol szó *"
-                                        value={customWordForm.word}
-                                        onChange={(e) => setCustomWordForm({ ...customWordForm, word: e.target.value })}
-                                        autoFocus
-                                    />
-                                    {customWordErrors.word && <p className="mt-1 text-xs text-destructive">{customWordErrors.word}</p>}
+                {/* Add custom word dialog */}
+                <Dialog open={showAddCustomWord} onOpenChange={(open) => { if (!open) { setShowAddCustomWord(false); setCustomWordErrors({}); setCustomWordForm(EMPTY_CUSTOM_WORD_FORM); } }}>
+                    <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-lg">
+                        <DialogHeader className="border-b px-6 py-4">
+                            <DialogTitle>Saját szó hozzáadása</DialogTitle>
+                        </DialogHeader>
+                        <form onSubmit={handleAddCustomWord}>
+                            <div className="max-h-[65vh] overflow-y-auto px-6 py-5 flex flex-col gap-4">
+                                {/* Alap mezők */}
+                                <div className="flex gap-2">
+                                    <div className="flex-1">
+                                        <Input placeholder="Angol szó *" value={customWordForm.word} onChange={(e) => setCustomWordForm({ ...customWordForm, word: e.target.value })} autoFocus />
+                                        {customWordErrors.word && <p className="mt-1 text-xs text-destructive">{customWordErrors.word}</p>}
+                                    </div>
+                                    <Select value={customWordForm.part_of_speech} onValueChange={(v) => setCustomWordForm({ ...customWordForm, part_of_speech: v })}>
+                                        <SelectTrigger className="w-36">
+                                            <SelectValue placeholder="Szófaj" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {Object.entries(POS_LABELS).map(([val, label]) => (
+                                                <SelectItem key={val} value={val}>{label}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
                                 </div>
-                                <Input
-                                    placeholder="Magyar jelentés"
-                                    value={customWordForm.meaning_hu}
-                                    onChange={(e) => setCustomWordForm({ ...customWordForm, meaning_hu: e.target.value })}
-                                    className="flex-1"
-                                />
+                                <Input placeholder="Magyar jelentés" value={customWordForm.meaning_hu} onChange={(e) => setCustomWordForm({ ...customWordForm, meaning_hu: e.target.value })} />
+                                <Input placeholder="További jelentések (pl. alternatív fordítások)" value={customWordForm.extra_meanings} onChange={(e) => setCustomWordForm({ ...customWordForm, extra_meanings: e.target.value })} />
+                                <Input placeholder="Szinonimák (pl. consent, accept)" value={customWordForm.synonyms} onChange={(e) => setCustomWordForm({ ...customWordForm, synonyms: e.target.value })} />
+                                <Input placeholder="Példamondat (angol)" value={customWordForm.example_en} onChange={(e) => setCustomWordForm({ ...customWordForm, example_en: e.target.value })} />
+                                <Input placeholder="Példamondat (magyar)" value={customWordForm.example_hu} onChange={(e) => setCustomWordForm({ ...customWordForm, example_hu: e.target.value })} />
+
+                                {/* Ige mezők */}
+                                {customWordForm.part_of_speech === 'verb' && (
+                                    <div className="rounded-xl border bg-muted/30 px-4 py-4 flex flex-col gap-3">
+                                        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Igealakok</p>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <div>
+                                                <label className="text-xs text-muted-foreground">Alap (to ...)</label>
+                                                <Input placeholder="pl. agree" value={customWordForm.form_base} onChange={(e) => setCustomWordForm({ ...customWordForm, form_base: e.target.value })} className="mt-1" />
+                                            </div>
+                                            <div>
+                                                <label className="text-xs text-muted-foreground">Múlt idő</label>
+                                                <Input placeholder="pl. agreed" value={customWordForm.verb_past} onChange={(e) => setCustomWordForm({ ...customWordForm, verb_past: e.target.value })} className="mt-1" />
+                                            </div>
+                                            <div>
+                                                <label className="text-xs text-muted-foreground">Befejezett igenév</label>
+                                                <Input placeholder="pl. agreed" value={customWordForm.verb_past_participle} onChange={(e) => setCustomWordForm({ ...customWordForm, verb_past_participle: e.target.value })} className="mt-1" />
+                                            </div>
+                                            <div>
+                                                <label className="text-xs text-muted-foreground">Folyamatos (-ing)</label>
+                                                <Input placeholder="pl. agreeing" value={customWordForm.verb_present_participle} onChange={(e) => setCustomWordForm({ ...customWordForm, verb_present_participle: e.target.value })} className="mt-1" />
+                                            </div>
+                                            <div>
+                                                <label className="text-xs text-muted-foreground">E/3 jelen</label>
+                                                <Input placeholder="pl. agrees" value={customWordForm.verb_third_person} onChange={(e) => setCustomWordForm({ ...customWordForm, verb_third_person: e.target.value })} className="mt-1" />
+                                            </div>
+                                        </div>
+                                        <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                                            <input type="checkbox" checked={customWordForm.is_irregular} onChange={(e) => setCustomWordForm({ ...customWordForm, is_irregular: e.target.checked })} className="rounded" />
+                                            Rendhagyó ige
+                                        </label>
+                                    </div>
+                                )}
+
+                                {/* Főnév mezők */}
+                                {customWordForm.part_of_speech === 'noun' && (
+                                    <div className="rounded-xl border bg-muted/30 px-4 py-4 flex flex-col gap-3">
+                                        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Főnév alakok</p>
+                                        <div>
+                                            <label className="text-xs text-muted-foreground">Többes szám</label>
+                                            <Input placeholder="pl. agreements" value={customWordForm.noun_plural} onChange={(e) => setCustomWordForm({ ...customWordForm, noun_plural: e.target.value })} className="mt-1" />
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Melléknév mezők */}
+                                {customWordForm.part_of_speech === 'adj' && (
+                                    <div className="rounded-xl border bg-muted/30 px-4 py-4 flex flex-col gap-3">
+                                        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Fokozás</p>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <div>
+                                                <label className="text-xs text-muted-foreground">Középfok</label>
+                                                <Input placeholder="pl. better" value={customWordForm.adj_comparative} onChange={(e) => setCustomWordForm({ ...customWordForm, adj_comparative: e.target.value })} className="mt-1" />
+                                            </div>
+                                            <div>
+                                                <label className="text-xs text-muted-foreground">Felsőfok</label>
+                                                <Input placeholder="pl. best" value={customWordForm.adj_superlative} onChange={(e) => setCustomWordForm({ ...customWordForm, adj_superlative: e.target.value })} className="mt-1" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
-                            <div className="flex items-center gap-2">
-                                <Input
-                                    placeholder="Példamondat (opcionális)"
-                                    value={customWordForm.example_en}
-                                    onChange={(e) => setCustomWordForm({ ...customWordForm, example_en: e.target.value })}
-                                    className="flex-1"
-                                />
-                                <Button type="submit" size="sm">Mentés</Button>
-                                <Button type="button" variant="ghost" size="sm" onClick={() => { setShowAddCustomWord(false); setCustomWordErrors({}); }}>
-                                    <X className="size-4" />
-                                </Button>
+                            <div className="flex gap-2 border-t px-6 py-4">
+                                <Button type="submit" className="flex-1" disabled={!customWordForm.word.trim()}>Mentés</Button>
+                                <Button type="button" variant="outline" onClick={() => { setShowAddCustomWord(false); setCustomWordErrors({}); setCustomWordForm(EMPTY_CUSTOM_WORD_FORM); }}>Mégse</Button>
                             </div>
                         </form>
-                    </div>
-                )}
+                    </DialogContent>
+                </Dialog>
 
                 {/* Progress */}
                 <div className="rounded-xl border bg-card p-4">
@@ -1163,17 +1284,85 @@ export default function WordsIndex({
                                         </button>
                                     </div>
                                 </div>
-                                <div className="space-y-4 px-6 py-5">
+                                <div className="max-h-[60vh] space-y-4 overflow-y-auto px-6 py-5">
                                     {cw.meaning_hu && (
                                         <div className="rounded-xl border bg-card px-4 py-3.5">
                                             <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Magyar jelentés</p>
                                             <p className="text-lg font-semibold leading-snug">{cw.meaning_hu}</p>
+                                            {cw.extra_meanings && (
+                                                <p className="mt-1 text-sm text-muted-foreground">{cw.extra_meanings}</p>
+                                            )}
                                         </div>
                                     )}
-                                    {cw.example_en && (
+                                    {cw.synonyms && (
+                                        <div className="rounded-xl border bg-card px-4 py-3.5">
+                                            <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Szinonimák</p>
+                                            <div className="flex flex-wrap gap-1.5">
+                                                {cw.synonyms.split(',').map((s) => s.trim()).filter(Boolean).map((s) => (
+                                                    <span key={s} className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium">{s}</span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                    {cw.part_of_speech === 'verb' && cw.verb_past && (
+                                        <div className="rounded-xl border bg-card px-4 py-3.5">
+                                            <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Igealakok</p>
+                                            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                                                {([
+                                                    { label: 'Alap', value: cw.form_base },
+                                                    { label: 'Múlt idő', value: cw.verb_past },
+                                                    { label: 'Befejezett igenév', value: cw.verb_past_participle },
+                                                    { label: 'Folyamatos (-ing)', value: cw.verb_present_participle },
+                                                    { label: 'E/3 jelen', value: cw.verb_third_person },
+                                                ] as const).filter(({ value }) => value).map(({ label, value }) => (
+                                                    <div key={label} className="rounded-lg bg-muted/50 px-3 py-2">
+                                                        <p className="text-[10px] text-muted-foreground">{label}</p>
+                                                        <p className="font-semibold">{value}</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                    {cw.part_of_speech === 'noun' && cw.noun_plural && (
+                                        <div className="rounded-xl border bg-card px-4 py-3.5">
+                                            <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Többes szám</p>
+                                            <div className="flex items-center gap-3">
+                                                <div className="rounded-lg bg-muted/50 px-3 py-2">
+                                                    <p className="text-[10px] text-muted-foreground">Egyes szám</p>
+                                                    <p className="font-semibold">{cw.form_base ?? cw.word}</p>
+                                                </div>
+                                                <span className="text-muted-foreground">→</span>
+                                                <div className="rounded-lg bg-muted/50 px-3 py-2">
+                                                    <p className="text-[10px] text-muted-foreground">Többes szám</p>
+                                                    <p className="font-semibold">{cw.noun_plural}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                    {cw.part_of_speech === 'adj' && cw.adj_comparative && (
+                                        <div className="rounded-xl border bg-card px-4 py-3.5">
+                                            <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Fokozás</p>
+                                            <div className="flex gap-2">
+                                                {cw.adj_comparative && (
+                                                    <div className="rounded-lg bg-muted/50 px-3 py-2">
+                                                        <p className="text-[10px] text-muted-foreground">Középfok</p>
+                                                        <p className="font-semibold">{cw.adj_comparative}</p>
+                                                    </div>
+                                                )}
+                                                {cw.adj_superlative && (
+                                                    <div className="rounded-lg bg-muted/50 px-3 py-2">
+                                                        <p className="text-[10px] text-muted-foreground">Felsőfok</p>
+                                                        <p className="font-semibold">{cw.adj_superlative}</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                    {(cw.example_en || cw.example_hu) && (
                                         <div className="rounded-xl border-l-4 border-primary/40 bg-muted/30 px-4 py-3.5">
                                             <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Példamondat</p>
-                                            <p className="text-sm font-medium italic">"{cw.example_en}"</p>
+                                            {cw.example_en && <p className="text-sm font-medium italic">"{cw.example_en}"</p>}
+                                            {cw.example_hu && <p className="mt-1 text-sm text-muted-foreground italic">"{cw.example_hu}"</p>}
                                         </div>
                                     )}
                                     <div className="grid grid-cols-2 gap-2">
@@ -1241,7 +1430,24 @@ export default function WordsIndex({
                                             onClick={() => {
                                                 setSelectedCustomWordId(null);
                                                 setEditCustomWordId(cw.id);
-                                                setEditCustomWordForm({ word: cw.word, meaning_hu: cw.meaning_hu ?? '', example_en: cw.example_en ?? '' });
+                                                setEditCustomWordForm({
+                                                    word: cw.word,
+                                                    meaning_hu: cw.meaning_hu ?? '',
+                                                    extra_meanings: cw.extra_meanings ?? '',
+                                                    synonyms: cw.synonyms ?? '',
+                                                    part_of_speech: cw.part_of_speech ?? '',
+                                                    example_en: cw.example_en ?? '',
+                                                    example_hu: cw.example_hu ?? '',
+                                                    form_base: cw.form_base ?? '',
+                                                    verb_past: cw.verb_past ?? '',
+                                                    verb_past_participle: cw.verb_past_participle ?? '',
+                                                    verb_present_participle: cw.verb_present_participle ?? '',
+                                                    verb_third_person: cw.verb_third_person ?? '',
+                                                    is_irregular: cw.is_irregular ?? false,
+                                                    noun_plural: cw.noun_plural ?? '',
+                                                    adj_comparative: cw.adj_comparative ?? '',
+                                                    adj_superlative: cw.adj_superlative ?? '',
+                                                });
                                             }}
                                         >
                                             <Pencil className="size-3.5" />
@@ -1269,41 +1475,97 @@ export default function WordsIndex({
 
             {/* Custom word edit modal */}
             <Dialog open={editCustomWordId !== null} onOpenChange={(open) => { if (!open) setEditCustomWordId(null); }}>
-                <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-md">
+                <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-lg">
                     <DialogHeader className="border-b px-6 py-4">
                         <DialogTitle>Saját szó szerkesztése</DialogTitle>
                     </DialogHeader>
-                    <div className="flex flex-col gap-3 px-6 py-5">
-                        <div>
-                            <Input
-                                placeholder="Angol szó *"
-                                value={editCustomWordForm.word}
-                                onChange={(e) => setEditCustomWordForm({ ...editCustomWordForm, word: e.target.value })}
-                                autoFocus
-                            />
+                    <div className="max-h-[65vh] overflow-y-auto px-6 py-5 flex flex-col gap-4">
+                        <div className="flex gap-2">
+                            <div className="flex-1">
+                                <Input placeholder="Angol szó *" value={editCustomWordForm.word} onChange={(e) => setEditCustomWordForm({ ...editCustomWordForm, word: e.target.value })} autoFocus />
+                            </div>
+                            <Select value={editCustomWordForm.part_of_speech} onValueChange={(v) => setEditCustomWordForm({ ...editCustomWordForm, part_of_speech: v })}>
+                                <SelectTrigger className="w-36">
+                                    <SelectValue placeholder="Szófaj" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {Object.entries(POS_LABELS).map(([val, label]) => (
+                                        <SelectItem key={val} value={val}>{label}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         </div>
-                        <Input
-                            placeholder="Magyar jelentés"
-                            value={editCustomWordForm.meaning_hu}
-                            onChange={(e) => setEditCustomWordForm({ ...editCustomWordForm, meaning_hu: e.target.value })}
-                        />
-                        <Input
-                            placeholder="Példamondat (opcionális)"
-                            value={editCustomWordForm.example_en}
-                            onChange={(e) => setEditCustomWordForm({ ...editCustomWordForm, example_en: e.target.value })}
-                        />
-                        <div className="flex gap-2 pt-1">
-                            <Button
-                                className="flex-1"
-                                disabled={!editCustomWordForm.word.trim()}
-                                onClick={() => editCustomWordId !== null && handleSaveEditCustomWord(editCustomWordId)}
-                            >
-                                Mentés
-                            </Button>
-                            <Button variant="outline" onClick={() => setEditCustomWordId(null)}>
-                                Mégse
-                            </Button>
-                        </div>
+                        <Input placeholder="Magyar jelentés" value={editCustomWordForm.meaning_hu} onChange={(e) => setEditCustomWordForm({ ...editCustomWordForm, meaning_hu: e.target.value })} />
+                        <Input placeholder="További jelentések" value={editCustomWordForm.extra_meanings} onChange={(e) => setEditCustomWordForm({ ...editCustomWordForm, extra_meanings: e.target.value })} />
+                        <Input placeholder="Szinonimák (pl. consent, accept)" value={editCustomWordForm.synonyms} onChange={(e) => setEditCustomWordForm({ ...editCustomWordForm, synonyms: e.target.value })} />
+                        <Input placeholder="Példamondat (angol)" value={editCustomWordForm.example_en} onChange={(e) => setEditCustomWordForm({ ...editCustomWordForm, example_en: e.target.value })} />
+                        <Input placeholder="Példamondat (magyar)" value={editCustomWordForm.example_hu} onChange={(e) => setEditCustomWordForm({ ...editCustomWordForm, example_hu: e.target.value })} />
+
+                        {editCustomWordForm.part_of_speech === 'verb' && (
+                            <div className="rounded-xl border bg-muted/30 px-4 py-4 flex flex-col gap-3">
+                                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Igealakok</p>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label className="text-xs text-muted-foreground">Alap (to ...)</label>
+                                        <Input placeholder="pl. agree" value={editCustomWordForm.form_base} onChange={(e) => setEditCustomWordForm({ ...editCustomWordForm, form_base: e.target.value })} className="mt-1" />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs text-muted-foreground">Múlt idő</label>
+                                        <Input placeholder="pl. agreed" value={editCustomWordForm.verb_past} onChange={(e) => setEditCustomWordForm({ ...editCustomWordForm, verb_past: e.target.value })} className="mt-1" />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs text-muted-foreground">Befejezett igenév</label>
+                                        <Input placeholder="pl. agreed" value={editCustomWordForm.verb_past_participle} onChange={(e) => setEditCustomWordForm({ ...editCustomWordForm, verb_past_participle: e.target.value })} className="mt-1" />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs text-muted-foreground">Folyamatos (-ing)</label>
+                                        <Input placeholder="pl. agreeing" value={editCustomWordForm.verb_present_participle} onChange={(e) => setEditCustomWordForm({ ...editCustomWordForm, verb_present_participle: e.target.value })} className="mt-1" />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs text-muted-foreground">E/3 jelen</label>
+                                        <Input placeholder="pl. agrees" value={editCustomWordForm.verb_third_person} onChange={(e) => setEditCustomWordForm({ ...editCustomWordForm, verb_third_person: e.target.value })} className="mt-1" />
+                                    </div>
+                                </div>
+                                <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                                    <input type="checkbox" checked={editCustomWordForm.is_irregular} onChange={(e) => setEditCustomWordForm({ ...editCustomWordForm, is_irregular: e.target.checked })} className="rounded" />
+                                    Rendhagyó ige
+                                </label>
+                            </div>
+                        )}
+
+                        {editCustomWordForm.part_of_speech === 'noun' && (
+                            <div className="rounded-xl border bg-muted/30 px-4 py-4 flex flex-col gap-3">
+                                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Főnév alakok</p>
+                                <div>
+                                    <label className="text-xs text-muted-foreground">Többes szám</label>
+                                    <Input placeholder="pl. agreements" value={editCustomWordForm.noun_plural} onChange={(e) => setEditCustomWordForm({ ...editCustomWordForm, noun_plural: e.target.value })} className="mt-1" />
+                                </div>
+                            </div>
+                        )}
+
+                        {editCustomWordForm.part_of_speech === 'adj' && (
+                            <div className="rounded-xl border bg-muted/30 px-4 py-4 flex flex-col gap-3">
+                                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Fokozás</p>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label className="text-xs text-muted-foreground">Középfok</label>
+                                        <Input placeholder="pl. better" value={editCustomWordForm.adj_comparative} onChange={(e) => setEditCustomWordForm({ ...editCustomWordForm, adj_comparative: e.target.value })} className="mt-1" />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs text-muted-foreground">Felsőfok</label>
+                                        <Input placeholder="pl. best" value={editCustomWordForm.adj_superlative} onChange={(e) => setEditCustomWordForm({ ...editCustomWordForm, adj_superlative: e.target.value })} className="mt-1" />
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                    <div className="flex gap-2 border-t px-6 py-4">
+                        <Button className="flex-1" disabled={!editCustomWordForm.word.trim()} onClick={() => editCustomWordId !== null && handleSaveEditCustomWord(editCustomWordId)}>
+                            Mentés
+                        </Button>
+                        <Button variant="outline" onClick={() => setEditCustomWordId(null)}>
+                            Mégse
+                        </Button>
                     </div>
                 </DialogContent>
             </Dialog>

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AchievementController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FlashcardCardController;
@@ -10,6 +11,8 @@ use App\Http\Controllers\FlashcardFolderDeckController;
 use App\Http\Controllers\FlashcardStudyController;
 use App\Http\Controllers\FolderController;
 use App\Http\Controllers\FolderWordController;
+use App\Http\Controllers\IrregularVerbController;
+use App\Http\Controllers\QuizController;
 use App\Http\Controllers\TextAnalysisController;
 use App\Http\Controllers\UserCustomWordController;
 use App\Http\Controllers\WordController;
@@ -34,6 +37,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('words', [WordController::class, 'index'])->name('words.index');
     Route::get('words/quiz', [WordController::class, 'quiz'])->name('words.quiz');
+    Route::post('words/quiz/complete', [QuizController::class, 'complete'])->name('words.quiz.complete');
     Route::get('words/search', [WordController::class, 'search'])->name('words.search');
     Route::post('words/{word}/status', [WordController::class, 'status'])->name('words.status');
 
@@ -72,9 +76,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('flashcards/folders/{flashcardFolder}', [FlashcardFolderController::class, 'destroy'])->name('flashcards.folders.destroy');
     Route::patch('flashcards/folders/{flashcardFolder}/decks/{flashcardDeck}', [FlashcardFolderDeckController::class, 'update'])->name('flashcards.folders.decks.update');
 
+    Route::get('achievements', [AchievementController::class, 'index'])->name('achievements.index');
+
+    Route::get('irregular-verbs', [IrregularVerbController::class, 'index'])->name('irregular-verbs.index');
+
     Route::get('text-analysis', [TextAnalysisController::class, 'show'])->name('text-analysis.show');
     Route::post('text-analysis/fetch-source', [TextAnalysisController::class, 'fetchSource'])->name('text-analysis.fetch-source');
     Route::post('text-analysis/analyze', [TextAnalysisController::class, 'analyze'])->name('text-analysis.analyze');
+    Route::get('text-analysis/word-lookup', [TextAnalysisController::class, 'wordLookup'])->name('text-analysis.word-lookup');
 
     // Custom words
     Route::post('custom-words', [UserCustomWordController::class, 'store'])->name('custom-words.store');

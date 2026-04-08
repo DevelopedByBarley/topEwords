@@ -1,5 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
-import { FolderOpen, Globe, LayoutGrid, Languages, Layers, ScanText, Swords } from 'lucide-react';
+import { FolderOpen, Globe, LayoutGrid, Languages, Layers, Medal, ScanText, Swords, Shuffle } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
@@ -16,6 +16,8 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
+import { index as achievementsIndex } from '@/routes/achievements';
+import { index as irregularVerbsIndex } from '@/routes/irregular-verbs';
 import { show as textAnalysisShow } from '@/routes/text-analysis';
 import { index as flashcardsIndex } from '@/routes/flashcards';
 import { index as wordsIndex, quiz as wordsQuiz } from '@/routes/words';
@@ -46,6 +48,16 @@ const mainNavItems: NavItem[] = [
         title: 'Szövegelemzés',
         href: textAnalysisShow(),
         icon: ScanText,
+    },
+    {
+        title: 'Rendhagyó igék',
+        href: irregularVerbsIndex.url(),
+        icon: Shuffle,
+    },
+    {
+        title: 'Teljesítmények',
+        href: achievementsIndex(),
+        icon: Medal,
     },
 ];
 

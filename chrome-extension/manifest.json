@@ -1,0 +1,13 @@
+{
+    "manifest_version": 3,
+    "name": "TopEwords Szövegelemző",
+    "version": "1.0",
+    "description": "Elemezd az aktuális weboldal vagy YouTube videó szövegét egy kattintással.",
+    "permissions": ["activeTab"],
+    "action": {
+        "default_title": "Szövegelemzés megnyitása"
+    },
+    "background": {
+        "service_worker": "background.js"
+    }
+}

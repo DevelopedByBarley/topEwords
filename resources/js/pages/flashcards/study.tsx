@@ -93,7 +93,7 @@ export default function FlashcardStudy({ deck, cards }: { deck: Deck; cards: Car
                     ? decodeURIComponent(xsrfCookie.substring('XSRF-TOKEN='.length))
                     : '';
 
-                await fetch(submitReview(deck.id).url, {
+                const res = await fetch(submitReview(deck.id).url, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -102,6 +102,10 @@ export default function FlashcardStudy({ deck, cards }: { deck: Deck; cards: Car
                     },
                     body: JSON.stringify({ flashcard_id: current.id, direction: current.study_direction, rating }),
                 });
+                const data = await res.json().catch(() => ({}));
+                if (Array.isArray(data.achievements) && data.achievements.length > 0) {
+                    window.dispatchEvent(new CustomEvent('achievements-unlocked', { detail: data.achievements }));
+                }
             } catch {
                 // continue anyway
             } finally {

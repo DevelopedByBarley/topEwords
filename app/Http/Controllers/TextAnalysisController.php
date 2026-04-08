@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\UserCustomWord;
 use App\Models\Word;
+use App\Services\AchievementService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
@@ -15,6 +16,61 @@ class TextAnalysisController extends Controller
     public function show(): Response
     {
         return Inertia::render('text-analysis/index');
+    }
+
+    public function wordLookup(Request $request): JsonResponse
+    {
+        $raw = $request->string('word')->trim()->lower()->value();
+
+        if (strlen($raw) < 1) {
+            return response()->json(['type' => 'not_found']);
+        }
+
+        $user = $request->user();
+
+        // Check user's custom words first
+        $customWord = $user->customWords()->whereRaw('LOWER(word) = ?', [$raw])->first();
+        if ($customWord) {
+            return response()->json([
+                'type' => 'custom',
+                'id' => $customWord->id,
+                'word' => $customWord->word,
+                'meaning_hu' => $customWord->meaning_hu,
+                'example_en' => $customWord->example_en,
+                'part_of_speech' => $customWord->part_of_speech,
+                'status' => $customWord->status,
+            ]);
+        }
+
+        // Check main word list (all forms)
+        $word = Word::where(function ($q) use ($raw) {
+            $q->whereRaw('LOWER(word) = ?', [$raw])
+                ->orWhereRaw('LOWER(form_base) = ?', [$raw])
+                ->orWhereRaw('LOWER(verb_past) = ?', [$raw])
+                ->orWhereRaw('LOWER(verb_past_participle) = ?', [$raw])
+                ->orWhereRaw('LOWER(verb_present_participle) = ?', [$raw])
+                ->orWhereRaw('LOWER(verb_third_person) = ?', [$raw])
+                ->orWhereRaw('LOWER(noun_plural) = ?', [$raw])
+                ->orWhereRaw('LOWER(adj_comparative) = ?', [$raw])
+                ->orWhereRaw('LOWER(adj_superlative) = ?', [$raw]);
+        })->first();
+
+        if (! $word) {
+            return response()->json(['type' => 'not_found', 'word' => $raw]);
+        }
+
+        $status = $user->knownWords()->wherePivot('word_id', $word->id)->first()?->pivot->status;
+
+        return response()->json([
+            'type' => 'word',
+            'id' => $word->id,
+            'word' => $word->word,
+            'meaning_hu' => $word->meaning_hu,
+            'example_en' => $word->example_en,
+            'part_of_speech' => $word->part_of_speech,
+            'rank' => $word->rank,
+            'status' => $status,
+        ]);
     }
 
     public function fetchSource(Request $request): JsonResponse
@@ -158,15 +214,19 @@ class TextAnalysisController extends Controller
         );
 
         $totalTokenCount = count($tokens);
+        $comprehension = $totalTokenCount > 0 ? round(($knownTokenCount / $totalTokenCount) * 100) : 0;
+
+        $newAchievements = app(AchievementService::class)->checkAndAwardAnalysis($request->user(), $comprehension);
 
         return response()->json([
-            'comprehension' => $totalTokenCount > 0 ? round(($knownTokenCount / $totalTokenCount) * 100) : 0,
+            'comprehension' => $comprehension,
             'totalWords' => $totalTokenCount,
             'uniqueWords' => count($uniqueTokens),
             'knownCount' => $knownTokenCount,
             'learningCount' => $learningTokenCount,
             'tokenStatuses' => $tokenStatuses,
             'topUnknown' => array_values(array_slice($unknownInListWords, 0, 20, true)),
+            'achievements' => $newAchievements,
         ]);
     }
 
@@ -372,16 +432,37 @@ class TextAnalysisController extends Controller
 
         $html = $response->body();
 
-        // Strip unwanted tags with their content
-        $html = preg_replace('/<(script|style|nav|header|footer|aside|noscript)[^>]*>.*?<\/\1>/si', '', $html) ?? $html;
+        // Try to isolate the main article body first
+        $html = $this->extractMainContent($html) ?? $html;
+
+        // Strip elements that are never article content
+        $html = preg_replace('/<(script|style|nav|header|footer|aside|noscript|button|form|input|select|textarea|dialog|menu|figure|figcaption)[^>]*>.*?<\/\1>/si', '', $html) ?? $html;
 
         // Strip remaining tags, decode entities
         $text = strip_tags($html);
         $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $text = preg_replace('/[ \t]+/', ' ', $text) ?? $text;
+
+        // Remove short lines – these are almost always navigation labels, button text, etc.
+        $lines = explode("\n", $text);
+        $lines = array_filter($lines, fn ($line) => mb_strlen(trim($line)) > 35);
+        $text = implode("\n", $lines);
+
         $text = preg_replace('/(\s*\n\s*){3,}/', "\n\n", $text) ?? $text;
 
         return trim($text);
+    }
+
+    private function extractMainContent(string $html): ?string
+    {
+        // Prefer <article>, then <main> — these reliably contain the editorial body
+        foreach (['article', 'main'] as $tag) {
+            if (preg_match('/<'.$tag.'\b[^>]*>(.*?)<\/'.$tag.'>/si', $html, $m)) {
+                return $m[1];
+            }
+        }
+
+        return null;
     }
 
     /** @return string[] */

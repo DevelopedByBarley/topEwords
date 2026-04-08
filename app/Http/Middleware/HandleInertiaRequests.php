@@ -45,6 +45,7 @@ class HandleInertiaRequests extends Middleware
             'flash' => [
                 'streakTriggered' => session('streak_triggered'),
                 'success' => session('success'),
+                'achievements' => session('achievements', []),
             ],
         ];
     }

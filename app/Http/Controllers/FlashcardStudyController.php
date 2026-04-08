@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\SubmitFlashcardReviewRequest;
 use App\Models\Flashcard;
 use App\Models\FlashcardDeck;
+use App\Services\AchievementService;
 use App\Services\FlashcardSrsService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -77,6 +78,8 @@ class FlashcardStudyController extends Controller
 
         $this->srs->processReview($review, $request->integer('rating'), $settings);
 
-        return response()->json(['ok' => true]);
+        $newAchievements = app(AchievementService::class)->checkAndAward($request->user(), ['flashcard']);
+
+        return response()->json(['ok' => true, 'achievements' => $newAchievements]);
     }
 }

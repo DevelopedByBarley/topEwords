@@ -6,6 +6,7 @@ use App\Http\Requests\StoreFlashcardDeckRequest;
 use App\Http\Requests\UpdateFlashcardDeckRequest;
 use App\Http\Requests\UpdateFlashcardDeckSettingsRequest;
 use App\Models\FlashcardDeck;
+use App\Services\AchievementService;
 use App\Services\FlashcardSrsService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -62,6 +63,11 @@ class FlashcardDeckController extends Controller
             if ($folder) {
                 $deck->folders()->attach($folder->id);
             }
+        }
+
+        $newAchievements = app(AchievementService::class)->checkAndAward($request->user(), ['flashcard']);
+        if ($newAchievements) {
+            session()->flash('achievements', $newAchievements);
         }
 
         return to_route('flashcards.show', $deck);

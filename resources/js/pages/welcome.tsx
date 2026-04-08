@@ -15,17 +15,25 @@ import {
     Layers,
     Lightbulb,
     Mail,
+    Medal,
+    MonitorSmartphone,
+    PencilLine,
+    Puzzle,
     RefreshCw,
     Repeat2,
+    ScanText,
     Settings2,
     Shuffle,
+    Smartphone,
     Star,
     Swords,
     TrendingUp,
     Upload,
     Volume2,
+    Youtube,
     Zap,
 } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import AppLogoIcon from '@/components/app-logo-icon';
 import { Button } from '@/components/ui/button';
 import { dashboard, login, register, terms, privacy } from '@/routes';
@@ -33,6 +41,29 @@ import { index as wordsIndex } from '@/routes/words';
 
 export default function Welcome({ canRegister = true }: { canRegister?: boolean }) {
     const { auth } = usePage().props;
+
+    const [installPrompt, setInstallPrompt] = useState<Event | null>(null);
+    const [isInstalled, setIsInstalled] = useState(false);
+
+    useEffect(() => {
+        if (window.matchMedia('(display-mode: standalone)').matches) {
+            setIsInstalled(true);
+        }
+        const handler = (e: Event) => { e.preventDefault(); setInstallPrompt(e); };
+        window.addEventListener('beforeinstallprompt', handler);
+        return () => window.removeEventListener('beforeinstallprompt', handler);
+    }, []);
+
+    const handleInstall = async () => {
+        if (!installPrompt) return;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (installPrompt as any).prompt();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { outcome } = await (installPrompt as any).userChoice;
+        if (outcome === 'accepted') { setIsInstalled(true); setInstallPrompt(null); }
+    };
+
+    const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
 
     return (
         <>
@@ -121,7 +152,7 @@ export default function Welcome({ canRegister = true }: { canRegister?: boolean 
                         {[
                             { value: '10 000', label: 'Angol szó' },
                             { value: 'SRS', label: 'Flashcard rendszer' },
-                            { value: 'Kvíz', label: 'Tesztelési mód' },
+                            { value: '29', label: 'Teljesítmény' },
                             { value: '100%', label: 'Ingyenes' },
                         ].map((stat) => (
                             <div key={stat.label} className="px-6 py-2 text-center first:pl-0 last:pr-0">
@@ -430,6 +461,250 @@ export default function Welcome({ canRegister = true }: { canRegister?: boolean 
                                         </li>
                                     ))}
                                 </ul>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                {/* Text Analysis */}
+                <section className="border-t">
+                    <div className="mx-auto max-w-5xl px-6 py-20">
+                        <div className="grid items-center gap-12 md:grid-cols-2">
+                            <div>
+                                <div className="mb-3 inline-flex items-center gap-1.5 rounded-full border bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
+                                    <ScanText className="size-3" />
+                                    Szövegelemzés
+                                </div>
+                                <h2 className="mb-4 text-2xl font-bold tracking-tight">Elemezz bármilyen angol szöveget</h2>
+                                <p className="mb-6 text-muted-foreground">
+                                    Illeszd be a szöveget, adj meg egy webcímet — vagy egy YouTube videót — és az alkalmazás azonnal megmutatja, mennyit értesz belőle a jelenlegi szókincseddel.
+                                </p>
+                                <ul className="flex flex-col gap-3 text-sm">
+                                    {[
+                                        { icon: CheckCheck, color: 'text-[#00ADB5]', text: 'Érthetőség % — látod, hány szót ismersz a szövegben' },
+                                        { icon: ScanText, color: 'text-primary', text: 'Kiemelés — zölddel, kékkel, pirossal jelöli a szavakat státusz szerint' },
+                                        { icon: Youtube, color: 'text-red-500', text: 'YouTube felirat — bármely videó angol felirata elemezhető' },
+                                        { icon: PencilLine, color: 'text-violet-500', text: 'Szóra kattintva — megjelentés, státusz változtatás, saját szóként mentés' },
+                                        { icon: Clock, color: 'text-blue-500', text: 'Előzmények — az utolsó 10 elemzés automatikusan mentve' },
+                                    ].map(({ icon: Icon, color, text }) => (
+                                        <li key={text} className="flex items-start gap-3">
+                                            <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                                                <Icon className={`size-3 ${color}`} />
+                                            </div>
+                                            <span className="text-muted-foreground">{text}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                            <div className="rounded-xl border bg-card overflow-hidden shadow-sm">
+                                <div className="border-b bg-muted/40 px-4 py-3 flex items-center justify-between">
+                                    <span className="text-sm font-medium">Szövegelemzés</span>
+                                    <span className="text-2xl font-bold text-green-600">87%</span>
+                                </div>
+                                <div className="px-4 py-3 border-b">
+                                    <div className="h-2 w-full overflow-hidden rounded-full bg-secondary mb-1">
+                                        <div className="h-2 rounded-full bg-green-500" style={{ width: '87%' }} />
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">312 ismert szó / 358 szó összesen</p>
+                                </div>
+                                <div className="px-4 py-4 text-sm leading-7">
+                                    <p className="whitespace-pre-wrap text-sm">
+                                        <span className="rounded bg-green-100 px-0.5 text-green-900 dark:bg-green-900/40 dark:text-green-300">The</span>
+                                        {' '}
+                                        <span className="rounded bg-green-100 px-0.5 text-green-900 dark:bg-green-900/40 dark:text-green-300">quick</span>
+                                        {' '}
+                                        <span className="rounded bg-blue-100 px-0.5 text-blue-900 dark:bg-blue-900/40 dark:text-blue-300">brown</span>
+                                        {' '}
+                                        <span className="rounded bg-red-100 px-0.5 text-red-900 dark:bg-red-900/40 dark:text-red-300">fox</span>
+                                        {' '}
+                                        <span className="rounded bg-green-100 px-0.5 text-green-900 dark:bg-green-900/40 dark:text-green-300">jumps</span>
+                                        {' over the '}
+                                        <span className="rounded bg-green-100 px-0.5 text-green-900 dark:bg-green-900/40 dark:text-green-300">lazy</span>
+                                        {' '}
+                                        <span>dog.</span>
+                                    </p>
+                                </div>
+                                <div className="border-t px-4 py-3 flex flex-wrap gap-3 text-xs text-muted-foreground">
+                                    <span className="flex items-center gap-1"><span className="inline-block size-2.5 rounded-sm bg-green-400" /> Tudom</span>
+                                    <span className="flex items-center gap-1"><span className="inline-block size-2.5 rounded-sm bg-blue-400" /> Tanulom</span>
+                                    <span className="flex items-center gap-1"><span className="inline-block size-2.5 rounded-sm bg-red-400" /> Top 10k, ismeretlen</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                {/* Custom Words + Achievements */}
+                <section className="border-t bg-muted/40">
+                    <div className="mx-auto max-w-5xl px-6 py-20">
+                        <div className="grid gap-12 md:grid-cols-2">
+                            {/* Custom Words */}
+                            <div>
+                                <div className="mb-3 inline-flex items-center gap-1.5 rounded-full border bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
+                                    <PencilLine className="size-3" />
+                                    Saját szavak
+                                </div>
+                                <h2 className="mb-4 text-2xl font-bold tracking-tight">Add hozzá a saját szavaidat</h2>
+                                <p className="mb-5 text-muted-foreground text-sm">
+                                    Ha olyan szóval találkozol, ami nincs a top 10 000-ben, saját szóként felveheted — ugyanúgy viselkedik, mint a lista többi tagja.
+                                </p>
+                                <ul className="flex flex-col gap-2.5 text-sm">
+                                    {[
+                                        'Magyar jelentés, szófaj és példamondat tárolható',
+                                        'Státuszok: Tudom, Tanulom, Később, Kiejtés',
+                                        'Megjelenik a szólistában és az elemzésben is',
+                                        'Flashcard paklikba importálható',
+                                        'Szövegelemzésből egyetlen kattintással hozzáadható',
+                                    ].map((text) => (
+                                        <li key={text} className="flex items-start gap-2.5">
+                                            <CheckCheck className="mt-0.5 size-4 shrink-0 text-[#00ADB5]" />
+                                            <span className="text-muted-foreground">{text}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+
+                            {/* Achievements */}
+                            <div>
+                                <div className="mb-3 inline-flex items-center gap-1.5 rounded-full border bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
+                                    <Medal className="size-3" />
+                                    Teljesítmények
+                                </div>
+                                <h2 className="mb-4 text-2xl font-bold tracking-tight">29 teljesítmény vár rád</h2>
+                                <p className="mb-5 text-muted-foreground text-sm">
+                                    Minden fontos mérföldkőhöz jár egy achievement — sorozat, szókincs, flashcard, kvíz és szövegelemzés kategóriákban.
+                                </p>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {[
+                                        { icon: '🔥', title: '7 napos sorozat', desc: '7 egymást követő nap' },
+                                        { icon: '✅', title: '100 szót tudom', desc: '100 ismert szó' },
+                                        { icon: '🃏', title: '100 flashcard', desc: '100 kártya tanulva' },
+                                        { icon: '⭐', title: 'Tökéletes kvíz', desc: 'Minden válasz helyes' },
+                                        { icon: '📄', title: 'Folyékony olvasó', desc: '90%+ érthetőség' },
+                                        { icon: '✏️', title: '10 saját szó', desc: '10 egyéni szó' },
+                                    ].map((a) => (
+                                        <div key={a.title} className="flex items-center gap-2.5 rounded-lg border bg-card p-2.5">
+                                            <span className="text-xl">{a.icon}</span>
+                                            <div className="min-w-0">
+                                                <p className="truncate text-xs font-semibold">{a.title}</p>
+                                                <p className="truncate text-[10px] text-muted-foreground">{a.desc}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                {/* Install as app */}
+                <section className="border-t">
+                    <div className="mx-auto max-w-5xl px-6 py-20">
+                        <div className="mb-3 flex justify-center">
+                            <div className="inline-flex items-center gap-1.5 rounded-full border bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
+                                <MonitorSmartphone className="size-3" />
+                                Telepítés
+                            </div>
+                        </div>
+                        <h2 className="mb-3 text-center text-2xl font-bold tracking-tight">Használd alkalmazásként</h2>
+                        <p className="mx-auto mb-12 max-w-xl text-center text-muted-foreground">
+                            Nincs App Store, nincs Play Store — telepítsd közvetlenül a böngészőből, és úgy néz ki mint egy natív alkalmazás.
+                        </p>
+
+                        <div className="grid gap-6 md:grid-cols-3">
+                            {/* Chrome / Edge */}
+                            <div className="rounded-xl border bg-card p-6">
+                                <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-950/40">
+                                    <MonitorSmartphone className="size-5 text-blue-600 dark:text-blue-400" />
+                                </div>
+                                <h3 className="mb-1 font-semibold">Chrome / Edge (asztali)</h3>
+                                <p className="mb-4 text-xs text-muted-foreground">A böngésző azonnal felajánlja a telepítést.</p>
+                                <ol className="flex flex-col gap-1.5 text-xs text-muted-foreground">
+                                    <li className="flex gap-2"><span className="font-bold text-foreground">1.</span> Nyisd meg az oldalt Chrome-ban vagy Edge-ben</li>
+                                    <li className="flex gap-2"><span className="font-bold text-foreground">2.</span> Kattints a <strong className="text-foreground">Telepítés</strong> ikonra a böngésző címsorában (⊕)</li>
+                                    <li className="flex gap-2"><span className="font-bold text-foreground">3.</span> Erősítsd meg — az alkalmazás megjelenik az asztalon</li>
+                                </ol>
+                                {isInstalled ? (
+                                    <div className="mt-4 rounded-lg bg-green-50 px-3 py-2 text-xs font-medium text-green-700 dark:bg-green-950/30 dark:text-green-400">
+                                        ✓ Az alkalmazás már telepítve van
+                                    </div>
+                                ) : installPrompt ? (
+                                    <button
+                                        onClick={handleInstall}
+                                        className="mt-4 w-full rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+                                    >
+                                        Telepítés most
+                                    </button>
+                                ) : null}
+                            </div>
+
+                            {/* Android */}
+                            <div className="rounded-xl border bg-card p-6">
+                                <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-green-100 dark:bg-green-950/40">
+                                    <Smartphone className="size-5 text-green-600 dark:text-green-400" />
+                                </div>
+                                <h3 className="mb-1 font-semibold">Android (Chrome)</h3>
+                                <p className="mb-4 text-xs text-muted-foreground">Chrome automatikusan felajánlja a telepítést.</p>
+                                <ol className="flex flex-col gap-1.5 text-xs text-muted-foreground">
+                                    <li className="flex gap-2"><span className="font-bold text-foreground">1.</span> Nyisd meg az oldalt Chrome-ban</li>
+                                    <li className="flex gap-2"><span className="font-bold text-foreground">2.</span> Koppints a <strong className="text-foreground">Hozzáadás a kezdőképernyőhöz</strong> értesítésre</li>
+                                    <li className="flex gap-2"><span className="font-bold text-foreground">3.</span> Vagy: ⋮ menü → <strong className="text-foreground">Alkalmazás telepítése</strong></li>
+                                </ol>
+                            </div>
+
+                            {/* iOS */}
+                            <div className={`rounded-xl border bg-card p-6 ${isIOS ? 'ring-2 ring-primary' : ''}`}>
+                                <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800">
+                                    <Smartphone className="size-5 text-gray-600 dark:text-gray-400" />
+                                </div>
+                                <h3 className="mb-1 font-semibold">iPhone / iPad (Safari)</h3>
+                                <p className="mb-4 text-xs text-muted-foreground">iOS-on Safari-t kell használni a telepítéshez.</p>
+                                <ol className="flex flex-col gap-1.5 text-xs text-muted-foreground">
+                                    <li className="flex gap-2"><span className="font-bold text-foreground">1.</span> Nyisd meg az oldalt <strong className="text-foreground">Safari</strong>-ban</li>
+                                    <li className="flex gap-2"><span className="font-bold text-foreground">2.</span> Koppints a <strong className="text-foreground">Megosztás</strong> ikonra (⎙)</li>
+                                    <li className="flex gap-2"><span className="font-bold text-foreground">3.</span> Válaszd: <strong className="text-foreground">Hozzáadás a kezdőképernyőhöz</strong></li>
+                                </ol>
+                                {isIOS && (
+                                    <div className="mt-4 rounded-lg bg-primary/10 px-3 py-2 text-xs font-medium text-primary">
+                                        Safari-t használsz — kövesd a fenti lépéseket!
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Chrome Extension */}
+                        <div className="mt-8 rounded-2xl border bg-muted/40 p-8">
+                            <div className="flex flex-col gap-6 md:flex-row md:items-start md:gap-10">
+                                <div className="flex-1">
+                                    <div className="mb-3 flex items-center gap-2">
+                                        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-950/40">
+                                            <Puzzle className="size-5 text-violet-600 dark:text-violet-400" />
+                                        </div>
+                                        <h3 className="font-semibold">Chrome Extension — egy kattintásos elemzés</h3>
+                                    </div>
+                                    <p className="mb-4 text-sm text-muted-foreground">
+                                        Telepítsd a Chrome bővítményt, és bármely weboldalon vagy YouTube videónál egyetlen kattintással megnyílik a szövegelemző — URL másolás nélkül.
+                                    </p>
+                                </div>
+                                <div className="md:w-80 shrink-0">
+                                    <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Telepítés lépései</p>
+                                    <ol className="flex flex-col gap-2 text-sm">
+                                        {[
+                                            { n: 1, text: 'Nyisd meg: chrome://extensions' },
+                                            { n: 2, text: 'Kapcsold be a Fejlesztői módot (jobb felső sarok)' },
+                                            { n: 3, text: 'Kattints: Kicsomagolt bővítmény betöltése' },
+                                            { n: 4, text: 'Válaszd ki a topEwords/chrome-extension mappát' },
+                                        ].map(({ n, text }) => (
+                                            <li key={n} className="flex gap-3">
+                                                <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-violet-100 text-xs font-bold text-violet-700 dark:bg-violet-950/40 dark:text-violet-400">{n}</span>
+                                                <span className="text-muted-foreground text-xs leading-5">{text}</span>
+                                            </li>
+                                        ))}
+                                    </ol>
+                                    <p className="mt-3 text-xs text-muted-foreground">
+                                        Ha az alkalmazás éles szerverre kerül, a bővítmény a Chrome Web Store-ban is elérhető lesz.
+                                    </p>
+                                </div>
                             </div>
                         </div>
                     </div>

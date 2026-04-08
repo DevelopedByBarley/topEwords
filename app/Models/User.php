@@ -15,7 +15,7 @@ use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 
-#[Fillable(['name', 'email', 'password', 'streak', 'last_activity_date'])]
+#[Fillable(['name', 'email', 'password', 'streak', 'last_activity_date', 'quiz_completions', 'text_analyses'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -50,6 +50,11 @@ class User extends Authenticatable
     public function knownWords(): BelongsToMany
     {
         return $this->belongsToMany(Word::class, 'user_word')->withPivot('status')->withTimestamps();
+    }
+
+    public function achievements(): HasMany
+    {
+        return $this->hasMany(UserAchievement::class);
     }
 
     public function updateStreak(): bool

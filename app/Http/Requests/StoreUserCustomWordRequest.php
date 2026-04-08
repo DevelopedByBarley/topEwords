@@ -44,9 +44,21 @@ class StoreUserCustomWordRequest extends FormRequest
                 },
             ],
             'meaning_hu' => ['nullable', 'string', 'max:255'],
+            'extra_meanings' => ['nullable', 'string', 'max:500'],
+            'synonyms' => ['nullable', 'string', 'max:255'],
             'part_of_speech' => ['nullable', 'string', 'max:20'],
             'example_en' => ['nullable', 'string', 'max:500'],
+            'example_hu' => ['nullable', 'string', 'max:500'],
             'status' => ['nullable', 'in:known,learning,saved,pronunciation'],
+            'form_base' => ['nullable', 'string', 'max:100'],
+            'verb_past' => ['nullable', 'string', 'max:100'],
+            'verb_past_participle' => ['nullable', 'string', 'max:100'],
+            'verb_present_participle' => ['nullable', 'string', 'max:100'],
+            'verb_third_person' => ['nullable', 'string', 'max:100'],
+            'is_irregular' => ['boolean'],
+            'noun_plural' => ['nullable', 'string', 'max:100'],
+            'adj_comparative' => ['nullable', 'string', 'max:100'],
+            'adj_superlative' => ['nullable', 'string', 'max:100'],
         ];
     }
 }
