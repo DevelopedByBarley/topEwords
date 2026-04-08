@@ -1,7 +1,8 @@
 import { Head, Link, router } from '@inertiajs/react';
 import { useState } from 'react';
-import { ArrowLeft, CheckCircle2, ChevronRight, RotateCcw, XCircle } from 'lucide-react';
+import { ArrowLeft, Check, CheckCircle2, ChevronRight, RotateCcw, Search, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { quiz as quizRoute, index as wordsIndex } from '@/routes/words';
 import { complete as quizComplete } from '@/routes/words/quiz';
 
@@ -27,6 +28,15 @@ interface QuizWord {
     options: string[];
 }
 
+interface SelectableWord {
+    id: number | string;
+    word: string;
+    meaning_hu: string | null;
+    rank: number | null;
+    status: string | null;
+    is_custom: boolean;
+}
+
 interface Folder {
     id: number;
     name: string;
@@ -45,6 +55,7 @@ interface Props {
     available: number;
     folders: Folder[];
     filters: Filters;
+    selectableWords: SelectableWord[];
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -65,7 +76,7 @@ const DIFFICULTY_LABELS: Record<string, string> = {
 
 type AnswerState = 'unanswered' | 'correct' | 'wrong';
 
-export default function Quiz({ words, available, folders, filters }: Props) {
+export default function Quiz({ words, available, folders, filters, selectableWords }: Props) {
     const [current, setCurrent] = useState(0);
     const [selected, setSelected] = useState<string | null>(null);
     const [answerState, setAnswerState] = useState<AnswerState>('unanswered');
@@ -81,6 +92,15 @@ export default function Quiz({ words, available, folders, filters }: Props) {
 
     function startQuiz(status: string, difficulty: string, folder: number | null, count: number) {
         router.get(quizRoute(), { status, difficulty, ...(folder ? { folder } : {}), count }, { preserveScroll: false });
+    }
+
+    function startQuizWithIds(ids: string) {
+        router.get(quizRoute(), {
+            status: filters.status,
+            difficulty: filters.difficulty,
+            ...(filters.folder ? { folder: filters.folder } : {}),
+            ids,
+        }, { preserveScroll: false });
     }
 
     function handleAnswer(option: string) {
@@ -154,7 +174,16 @@ export default function Quiz({ words, available, folders, filters }: Props) {
 
     // ── Setup screen ─────────────────────────────────────────────────────────
     if (isSetup) {
-        return <QuizSetup available={available} folders={folders} filters={filters} onStart={startQuiz} />;
+        return (
+            <QuizSetup
+                available={available}
+                folders={folders}
+                filters={filters}
+                selectableWords={selectableWords}
+                onStart={startQuiz}
+                onStartWithIds={startQuizWithIds}
+            />
+        );
     }
 
     // ── Finished screen ───────────────────────────────────────────────────────
@@ -250,19 +279,6 @@ export default function Quiz({ words, available, folders, filters }: Props) {
                     {card.options.map((option, i) => {
                         const isCorrect = option === card.meaning_hu;
                         const isSelected = option === selected;
-
-                        let variant: 'outline' | 'default' | 'ghost' = 'outline';
-                        let extraClass = 'justify-start text-left h-auto py-3 px-4';
-
-                        if (answerState !== 'unanswered') {
-                            if (isCorrect) {
-                                extraClass += ' border-green-500 bg-green-50 text-green-800 dark:bg-green-950/30 dark:text-green-300';
-                            } else if (isSelected) {
-                                extraClass += ' border-red-500 bg-red-50 text-red-800 dark:bg-red-950/30 dark:text-red-300';
-                            } else {
-                                extraClass += ' opacity-50';
-                            }
-                        }
 
                         return (
                             <button
@@ -371,26 +387,63 @@ export default function Quiz({ words, available, folders, filters }: Props) {
 }
 
 // ── Setup component ───────────────────────────────────────────────────────────
-function QuizSetup({ available, folders, filters, onStart }: {
+function QuizSetup({ available, folders, filters, selectableWords, onStart, onStartWithIds }: {
     available: number;
     folders: Folder[];
     filters: Filters;
+    selectableWords: SelectableWord[];
     onStart: (status: string, difficulty: string, folder: number | null, count: number) => void;
+    onStartWithIds: (ids: string) => void;
 }) {
     const [count, setCount] = useState(10);
+    const [search, setSearch] = useState('');
+    const [pickedIds, setPickedIds] = useState<Set<string>>(new Set());
 
     function updateFilter(params: Partial<Omit<Filters, 'count'>>) {
         const next = { ...filters, ...params };
+        setPickedIds(new Set());
+        setSearch('');
         router.get(
             quizRoute(),
             { status: next.status, difficulty: next.difficulty, ...(next.folder ? { folder: next.folder } : {}), count: 0 },
-            { only: ['available', 'filters'], preserveState: true, preserveScroll: true, replace: true },
+            { only: ['available', 'filters', 'selectableWords'], preserveState: true, preserveScroll: true, replace: true },
         );
     }
 
     const status = filters.status;
     const difficulty = filters.difficulty;
     const folder = filters.folder;
+
+    const q = search.toLowerCase();
+    const filteredWords = selectableWords.filter(
+        (w) => q === '' || w.word.toLowerCase().includes(q) || (w.meaning_hu ?? '').toLowerCase().includes(q),
+    );
+
+    const allFilteredPicked = filteredWords.length > 0 && filteredWords.every((w) => pickedIds.has(String(w.id)));
+
+    function toggleWord(id: string) {
+        setPickedIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(id)) {
+                next.delete(id);
+            } else {
+                next.add(id);
+            }
+            return next;
+        });
+    }
+
+    function toggleAll() {
+        setPickedIds((prev) => {
+            const next = new Set(prev);
+            if (allFilteredPicked) {
+                filteredWords.forEach((w) => next.delete(String(w.id)));
+            } else {
+                filteredWords.forEach((w) => next.add(String(w.id)));
+            }
+            return next;
+        });
+    }
 
     return (
         <>
@@ -521,12 +574,92 @@ function QuizSetup({ available, folders, filters, onStart }: {
                         <Button
                             size="lg"
                             className="mt-4 w-full"
+                            disabled={pickedIds.size > 0}
                             onClick={() => onStart(status, difficulty, folder, count)}
                         >
                             Kvíz indítása
                         </Button>
                     </div>
                 </div>
+
+                {/* Selectable word list */}
+                {selectableWords.length > 0 && (
+                    <div className="mt-6 rounded-xl border bg-card p-5">
+                        <div className="mb-4 flex items-center justify-between gap-4">
+                            <div>
+                                <p className="text-sm font-semibold">Szavak kiválasztása (opcionális)</p>
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                    Ha kiválasztasz szavakat, a kvíz csak azokból fog dolgozni.
+                                </p>
+                            </div>
+                            {pickedIds.size > 0 && (
+                                <span className="shrink-0 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+                                    {pickedIds.size} kiválasztva
+                                </span>
+                            )}
+                        </div>
+
+                        <div className="mb-3 flex items-center gap-2">
+                            <div className="relative flex-1">
+                                <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                                <Input
+                                    value={search}
+                                    onChange={(e) => setSearch(e.target.value)}
+                                    placeholder="Keresés..."
+                                    className="pl-9 text-sm"
+                                />
+                            </div>
+                            <Button variant="outline" size="sm" onClick={toggleAll}>
+                                {allFilteredPicked ? 'Mind ki' : 'Mind be'}
+                            </Button>
+                        </div>
+
+                        <div className="max-h-72 overflow-y-auto rounded-lg border divide-y">
+                            {filteredWords.length === 0 ? (
+                                <p className="px-4 py-6 text-center text-sm text-muted-foreground">Nincs találat</p>
+                            ) : (
+                                filteredWords.map((w) => {
+                                    const id = String(w.id);
+                                    const picked = pickedIds.has(id);
+                                    return (
+                                        <button
+                                            key={id}
+                                            onClick={() => toggleWord(id)}
+                                            className={`flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors ${
+                                                picked ? 'bg-primary/5' : 'hover:bg-muted'
+                                            }`}
+                                        >
+                                            <span className={`flex size-4 shrink-0 items-center justify-center rounded border transition-colors ${picked ? 'border-primary bg-primary' : 'border-input bg-background'}`}>
+                                                {picked && <Check className="size-3 text-primary-foreground" />}
+                                            </span>
+                                            <span className="flex-1 font-medium">{w.word}</span>
+                                            {w.meaning_hu && (
+                                                <span className="max-w-48 truncate text-xs text-muted-foreground">{w.meaning_hu}</span>
+                                            )}
+                                            {w.rank && (
+                                                <span className="shrink-0 text-xs text-muted-foreground">#{w.rank}</span>
+                                            )}
+                                            {w.is_custom && (
+                                                <span className="shrink-0 rounded bg-violet-100 px-1.5 py-0.5 text-xs font-medium text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">saját</span>
+                                            )}
+                                        </button>
+                                    );
+                                })
+                            )}
+                        </div>
+
+                        {pickedIds.size > 0 && (
+                            <div className="mt-4 flex items-center justify-between gap-3">
+                                <Button variant="ghost" size="sm" onClick={() => setPickedIds(new Set())}>
+                                    Kijelölés törlése
+                                </Button>
+                                <Button size="lg" onClick={() => onStartWithIds(Array.from(pickedIds).join(','))}>
+                                    Kvíz indítása ({pickedIds.size} szóval)
+                                </Button>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
         </>
     );

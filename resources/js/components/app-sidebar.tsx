@@ -1,5 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
-import { FolderOpen, Globe, LayoutGrid, Languages, Layers, Medal, ScanText, Swords, Shuffle } from 'lucide-react';
+import { FolderOpen, Globe, LayoutGrid, Languages, Layers, Medal, PenLine, RefreshCw, ScanText, Shuffle, Swords } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
@@ -17,7 +17,9 @@ import {
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
 import { index as achievementsIndex } from '@/routes/achievements';
+import { index as reviewIndex } from '@/routes/review';
 import { index as irregularVerbsIndex } from '@/routes/irregular-verbs';
+import { cloze as wordsCloze } from '@/routes/words';
 import { show as textAnalysisShow } from '@/routes/text-analysis';
 import { index as flashcardsIndex } from '@/routes/flashcards';
 import { index as wordsIndex, quiz as wordsQuiz } from '@/routes/words';
@@ -40,6 +42,11 @@ const mainNavItems: NavItem[] = [
         icon: Swords,
     },
     {
+        title: 'Mondatkiegészítés',
+        href: wordsCloze(),
+        icon: PenLine,
+    },
+    {
         title: 'Flashcards',
         href: flashcardsIndex(),
         icon: Layers,
@@ -53,6 +60,11 @@ const mainNavItems: NavItem[] = [
         title: 'Rendhagyó igék',
         href: irregularVerbsIndex.url(),
         icon: Shuffle,
+    },
+    {
+        title: 'Napi ismétlés',
+        href: reviewIndex(),
+        icon: RefreshCw,
     },
     {
         title: 'Teljesítmények',

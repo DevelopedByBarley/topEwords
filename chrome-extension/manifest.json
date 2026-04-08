@@ -1,13 +1,22 @@
 {
     "manifest_version": 3,
-    "name": "TopEwords Szövegelemző",
-    "version": "1.0",
-    "description": "Elemezd az aktuális weboldal vagy YouTube videó szövegét egy kattintással.",
-    "permissions": ["activeTab"],
+    "name": "TopEwords",
+    "version": "1.2",
+    "description": "Keress szavakat és elemezd az oldalak szövegét egy kattintással.",
+    "permissions": ["activeTab", "contextMenus"],
+    "host_permissions": ["http://localhost:8000/*"],
     "action": {
         "default_title": "Szövegelemzés megnyitása"
     },
     "background": {
         "service_worker": "background.js"
-    }
+    },
+    "content_scripts": [
+        {
+            "matches": ["<all_urls>"],
+            "exclude_matches": ["http://localhost:8000/*"],
+            "js": ["content.js"],
+            "css": ["content.css"]
+        }
+    ]
 }

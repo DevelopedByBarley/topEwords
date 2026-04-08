@@ -2,7 +2,9 @@
 
 use App\Http\Controllers\AchievementController;
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\ClozeController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\ExtensionController;
 use App\Http\Controllers\FlashcardCardController;
 use App\Http\Controllers\FlashcardCsvController;
 use App\Http\Controllers\FlashcardDeckController;
@@ -13,6 +15,7 @@ use App\Http\Controllers\FolderController;
 use App\Http\Controllers\FolderWordController;
 use App\Http\Controllers\IrregularVerbController;
 use App\Http\Controllers\QuizController;
+use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\TextAnalysisController;
 use App\Http\Controllers\UserCustomWordController;
 use App\Http\Controllers\WordController;
@@ -36,6 +39,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     Route::get('words', [WordController::class, 'index'])->name('words.index');
+    Route::get('words/cloze', [ClozeController::class, 'index'])->name('words.cloze');
     Route::get('words/quiz', [WordController::class, 'quiz'])->name('words.quiz');
     Route::post('words/quiz/complete', [QuizController::class, 'complete'])->name('words.quiz.complete');
     Route::get('words/search', [WordController::class, 'search'])->name('words.search');
@@ -75,6 +79,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('flashcards/folders/{flashcardFolder}', [FlashcardFolderController::class, 'update'])->name('flashcards.folders.update');
     Route::delete('flashcards/folders/{flashcardFolder}', [FlashcardFolderController::class, 'destroy'])->name('flashcards.folders.destroy');
     Route::patch('flashcards/folders/{flashcardFolder}/decks/{flashcardDeck}', [FlashcardFolderDeckController::class, 'update'])->name('flashcards.folders.decks.update');
+
+    Route::get('extension/lookup', [ExtensionController::class, 'lookup'])->name('extension.lookup');
+
+    Route::get('review', [ReviewController::class, 'index'])->name('review.index');
+    Route::post('review/complete', [ReviewController::class, 'complete'])->name('review.complete');
 
     Route::get('achievements', [AchievementController::class, 'index'])->name('achievements.index');
 

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\UserCustomWord;
 use App\Models\Word;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -74,6 +75,26 @@ class DashboardController extends Controller
             'pronunciation' => (int) ($customWords['pronunciation'] ?? 0),
         ];
 
+        $today = Carbon::today();
+        $reviewIntervals = ['learning' => 1, 'saved' => 3, 'pronunciation' => 7, 'known' => 14];
+        $reviewDueCount = 0;
+
+        foreach ($reviewIntervals as $status => $days) {
+            $cutoff = $today->copy()->subDays($days)->toDateString();
+
+            $reviewDueCount += DB::table('user_word')
+                ->where('user_id', $request->user()->id)
+                ->where('status', $status)
+                ->where(fn ($q) => $q->whereNull('reviewed_at')->orWhere('reviewed_at', '<=', $cutoff))
+                ->count();
+
+            $reviewDueCount += DB::table('user_custom_words')
+                ->where('user_id', $request->user()->id)
+                ->where('status', $status)
+                ->where(fn ($q) => $q->whereNull('reviewed_at')->orWhere('reviewed_at', '<=', $cutoff))
+                ->count();
+        }
+
         return Inertia::render('dashboard', [
             'levelStats' => $levelStats,
             'totalKnown' => $totalKnown,
@@ -81,6 +102,7 @@ class DashboardController extends Controller
             'totalPercent' => $totalWords > 0 ? round(($totalKnown / $totalWords) * 100) : 0,
             'streak' => $request->user()->streak,
             'customStats' => $customStats,
+            'reviewDueCount' => $reviewDueCount,
         ]);
     }
 }
