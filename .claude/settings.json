@@ -22,7 +22,8 @@
       "Bash(vendor/bin/pint --dirty --format agent resources/js/pages/text-analysis/index.tsx)",
       "mcp__laravel-boost__get-absolute-url",
       "Bash(find /Applications/XAMPP/xamppfiles/htdocs/topEwords/database/migrations -type f -name \"*.php\" -exec grep -l \"achievement\\\\|Achievement\" {} \\\\;)",
-      "Bash(composer require:*)"
+      "Bash(composer require:*)",
+      "Read(//private/var/folders/xk/rzsv7mrx0q948zcpnns9yfjc0000gn/T/ch.sudo.cyberduck/editor-7f787571-c0f4-4d2a-81e3-3795c1933075/web/topwords.eu/storage/logs/38570433/**)"
     ],
     "additionalDirectories": [
       "/private/tmp"

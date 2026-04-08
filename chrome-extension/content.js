@@ -1,4 +1,4 @@
-const APP_URL = 'http://localhost:8000';
+const APP_URL = 'https://topwords.eu';
 
 const STATUS_LABELS = {
     learning: 'Tanulom',
