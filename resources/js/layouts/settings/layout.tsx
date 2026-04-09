@@ -33,11 +33,12 @@ const sidebarNavItems: NavItem[] = [
         href: editFlashcards(),
         icon: null,
     },
-    {
-        title: 'Előfizetés',
-        href: editSubscription(),
-        icon: null,
-    },
+    // Payment temporarily disabled — subscription settings hidden
+    // {
+    //     title: 'Előfizetés',
+    //     href: editSubscription(),
+    //     icon: null,
+    // },
 ];
 
 export default function SettingsLayout({ children }: PropsWithChildren) {

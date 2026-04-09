@@ -23,10 +23,17 @@
       "mcp__laravel-boost__get-absolute-url",
       "Bash(find /Applications/XAMPP/xamppfiles/htdocs/topEwords/database/migrations -type f -name \"*.php\" -exec grep -l \"achievement\\\\|Achievement\" {} \\\\;)",
       "Bash(composer require:*)",
-      "Read(//private/var/folders/xk/rzsv7mrx0q948zcpnns9yfjc0000gn/T/ch.sudo.cyberduck/editor-7f787571-c0f4-4d2a-81e3-3795c1933075/web/topwords.eu/storage/logs/38570433/**)"
+      "Read(//private/var/folders/xk/rzsv7mrx0q948zcpnns9yfjc0000gn/T/ch.sudo.cyberduck/editor-7f787571-c0f4-4d2a-81e3-3795c1933075/web/topwords.eu/storage/logs/38570433/**)",
+      "Bash(find /Applications/XAMPP/xamppfiles/htdocs/topEwords/resources/js -type f \\\\\\( -name \"*.tsx\" -o -name \"*.ts\" \\\\\\) -exec grep -l \"csv_file\\\\|csv-import\" {} \\\\;)",
+      "Bash(composer show:*)",
+      "Bash(php -r \"echo extension_loaded\\('zip'\\) ? 'zip: yes' : 'zip: no'; echo PHP_EOL; echo extension_loaded\\('zlib'\\) ? 'zlib: yes' : 'zlib: no';\")",
+      "Bash(php -r \"echo php_ini_loaded_file\\(\\);\")",
+      "Bash(php -r \"echo ini_get\\('upload_max_filesize'\\), ' / ', ini_get\\('post_max_size'\\);\")",
+      "Read(//opt/homebrew/etc/php/8.4/**)"
     ],
     "additionalDirectories": [
-      "/private/tmp"
+      "/private/tmp",
+      "/opt/homebrew/etc/php/8.4"
     ]
   }
 }

@@ -301,7 +301,7 @@ function renderBody(data) {
         body.innerHTML = `
             <span class="msg">„${esc(data.word)}" nincs az adatbázisban.</span>
             <div class="footer" style="margin-top:8px">
-                <a class="link" href="${APP_URL}/words?search=${encodeURIComponent(data.word)}" target="_blank">
+                <a class="link" href="${APP_URL}/words?add=${encodeURIComponent(data.word)}" target="_blank">
                     Saját szóként hozzáadom →
                 </a>
             </div>

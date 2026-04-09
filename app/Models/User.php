@@ -60,14 +60,18 @@ class User extends Authenticatable
 
     public function hasActiveAccess(): bool
     {
-        return $this->lifetime_access
-            || $this->onTrial()
-            || $this->subscribed('default');
+        // Payment temporarily disabled — everyone has access
+        return true;
+        // return $this->lifetime_access
+        //     || $this->onTrial()
+        //     || $this->subscribed('default');
     }
 
     public function isOnFreePlan(): bool
     {
-        return ! $this->hasActiveAccess();
+        // Payment temporarily disabled
+        return false;
+        // return ! $this->hasActiveAccess();
     }
 
     public function updateStreak(): bool

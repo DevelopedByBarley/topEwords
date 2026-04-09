@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\UserBook;
 use App\Models\UserCustomWord;
 use App\Models\Word;
 use App\Services\AchievementService;
@@ -11,6 +12,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Inertia\Inertia;
 use Inertia\Response;
+use Smalot\PdfParser\Parser as PdfParser;
 
 class TextAnalysisController extends Controller
 {
@@ -478,6 +480,365 @@ class TextAnalysisController extends Controller
             if (preg_match('/<'.$tag.'\b[^>]*>(.*?)<\/'.$tag.'>/si', $html, $m)) {
                 return $m[1];
             }
+        }
+
+        return null;
+    }
+
+    public function listBooks(Request $request): JsonResponse
+    {
+        $books = $request->user()
+            ->hasMany(UserBook::class, 'user_id')
+            ->orderByDesc('created_at')
+            ->get(['id', 'title', 'file_type', 'total_pages', 'created_at'])
+            ->map(fn ($b) => [
+                'id' => $b->id,
+                'title' => $b->title,
+                'file_type' => $b->file_type,
+                'total_pages' => $b->total_pages,
+            ]);
+
+        return response()->json(['books' => $books]);
+    }
+
+    public function uploadBook(Request $request): JsonResponse
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:pdf,epub|max:102400', // 100 MB
+        ]);
+
+        $file = $request->file('file');
+        $extension = strtolower($file->getClientOriginalExtension());
+        $title = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
+
+        $text = match ($extension) {
+            'pdf' => $this->extractPdfText($file->getRealPath()),
+            'epub' => $this->extractEpubText($file->getRealPath()),
+            default => throw new \RuntimeException('Nem támogatott formátum.'),
+        };
+
+        $text = preg_replace('/\s+/', ' ', trim($text)) ?? '';
+
+        if (mb_strlen($text) < 100) {
+            return response()->json(['error' => 'A fájlból nem sikerült szöveget kinyerni. Szkennelt PDF-eket nem tudunk feldolgozni.'], 422);
+        }
+
+        $totalPages = (int) ceil(mb_strlen($text) / UserBook::PAGE_SIZE);
+        $compressed = gzencode($text, 6);
+
+        $book = UserBook::create([
+            'user_id' => $request->user()->id,
+            'title' => mb_substr($title, 0, 255),
+            'file_type' => $extension,
+            'compressed_text' => $compressed,
+            'total_pages' => $totalPages,
+        ]);
+
+        return response()->json([
+            'book' => [
+                'id' => $book->id,
+                'title' => $book->title,
+                'file_type' => $book->file_type,
+                'total_pages' => $book->total_pages,
+            ],
+            'page' => 1,
+            'text' => mb_substr($text, 0, UserBook::PAGE_SIZE),
+        ]);
+    }
+
+    public function getBookPage(Request $request, UserBook $book): JsonResponse
+    {
+        abort_unless($book->user_id === $request->user()->id, 403);
+
+        $page = max(1, min((int) $request->query('page', 1), $book->total_pages));
+
+        return response()->json([
+            'page' => $page,
+            'text' => $book->getPage($page),
+        ]);
+    }
+
+    public function deleteBook(Request $request, UserBook $book): JsonResponse
+    {
+        abort_unless($book->user_id === $request->user()->id, 403);
+        $book->delete();
+
+        return response()->json(['ok' => true]);
+    }
+
+    private function extractPdfText(string $path): string
+    {
+        $parser = new PdfParser;
+        $pdf = $parser->parseFile($path);
+        $raw = $pdf->getText();
+
+        return $this->cleanExtractedText($raw);
+    }
+
+    private function extractEpubText(string $path): string
+    {
+        $zip = new \ZipArchive;
+
+        if ($zip->open($path) !== true) {
+            throw new \RuntimeException('Az EPUB fájl nem olvasható.');
+        }
+
+        // Read spine order from OPF so chapters come in the right sequence
+        $opfPath = $this->findEpubOpfPath($zip);
+        $spineFiles = $opfPath ? $this->readEpubSpine($zip, $opfPath) : [];
+
+        // Fall back to alphabetical listing if spine couldn't be parsed
+        if (empty($spineFiles)) {
+            for ($i = 0; $i < $zip->numFiles; $i++) {
+                $name = $zip->getNameIndex($i);
+                if (preg_match('/\.(html|htm|xhtml)$/i', $name)) {
+                    $spineFiles[] = $name;
+                }
+            }
+            sort($spineFiles);
+        }
+
+        $parts = [];
+        foreach ($spineFiles as $name) {
+            $content = $zip->getFromName($name);
+            if ($content === false) {
+                continue;
+            }
+
+            $text = $this->htmlToCleanText($content);
+            if (mb_strlen($text) > 60) {
+                $parts[] = $text;
+            }
+        }
+
+        $zip->close();
+
+        return implode("\n\n", $parts);
+    }
+
+    /**
+     * Convert an HTML/XHTML string to plain readable text,
+     * removing images, links' hrefs, navigation, and other non-prose noise.
+     */
+    private function htmlToCleanText(string $html): string
+    {
+        // Drop elements that never contain readable prose
+        $html = preg_replace(
+            '/<(script|style|img|figure|figcaption|nav|header|footer|aside|svg|math)[^>]*>.*?<\/\1>/si',
+            ' ',
+            $html
+        ) ?? $html;
+
+        // Self-closing img / br / hr
+        $html = preg_replace('/<(img|br|hr)[^>]*\/?>/si', ' ', $html) ?? $html;
+
+        // Replace block-level tags with newlines so sentences don't run together
+        $html = preg_replace('/<\/(p|div|li|h[1-6]|blockquote|tr|td|th)>/si', "\n", $html) ?? $html;
+
+        $text = strip_tags($html);
+        $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+        return $this->cleanExtractedText($text);
+    }
+
+    /**
+     * Remove URLs, lines that are mostly non-letter characters,
+     * and other common e-book garbage from extracted text.
+     */
+    private function cleanExtractedText(string $text): string
+    {
+        $lines = explode("\n", $text);
+        $clean = [];
+
+        foreach ($lines as $line) {
+            $line = trim($line);
+
+            if ($line === '') {
+                continue;
+            }
+
+            // Drop lines that look like URLs or file paths
+            if (preg_match('/^https?:\/\/\S+$/i', $line) || preg_match('/^www\.\S+$/i', $line)) {
+                continue;
+            }
+
+            // Drop lines where less than 50 % of characters are letters
+            // (catches: "* * *", "- - -", page numbers, ISBN lines, etc.)
+            $letterCount = preg_match_all('/[a-zA-Z]/u', $line);
+            $totalCount = mb_strlen($line);
+            if ($totalCount > 0 && ($letterCount / $totalCount) < 0.5) {
+                continue;
+            }
+
+            // Drop very short lines that are just one word (headers/captions/labels)
+            // but keep short lines if they're part of dialogue (start with " or —)
+            if (mb_strlen($line) < 15 && ! preg_match('/^["""—]/u', $line)) {
+                continue;
+            }
+
+            $clean[] = $line;
+        }
+
+        $result = implode("\n", $clean);
+
+        // Collapse runs of blank lines and excessive whitespace
+        $result = preg_replace('/(\s*\n\s*){3,}/', "\n\n", $result) ?? $result;
+        $result = preg_replace('/[ \t]+/', ' ', $result) ?? $result;
+
+        return trim($result);
+    }
+
+    /**
+     * Parse the OPF spine to get HTML files in reading order,
+     * skipping navigation/TOC/cover items.
+     *
+     * @return string[]
+     */
+    private function readEpubSpine(\ZipArchive $zip, string $opfPath): array
+    {
+        $opfContent = $zip->getFromName($opfPath);
+        if ($opfContent === false) {
+            return [];
+        }
+
+        $opfDir = dirname($opfPath);
+        if ($opfDir === '.') {
+            $opfDir = '';
+        }
+
+        // Build id → [href, properties] map from manifest
+        $manifest = [];
+        preg_match_all('/<item\s([^>]+)>/si', $opfContent, $items, PREG_SET_ORDER);
+        foreach ($items as $item) {
+            $attrs = $item[1];
+            preg_match('/\bid="([^"]+)"/i', $attrs, $idM);
+            preg_match('/\bhref="([^"]+)"/i', $attrs, $hrefM);
+            preg_match('/\bproperties="([^"]+)"/i', $attrs, $propM);
+            preg_match('/\bmedia-type="([^"]+)"/i', $attrs, $typeM);
+
+            if (! isset($idM[1], $hrefM[1])) {
+                continue;
+            }
+
+            $manifest[$idM[1]] = [
+                'href' => $hrefM[1],
+                'properties' => $propM[1] ?? '',
+                'media_type' => $typeM[1] ?? '',
+            ];
+        }
+
+        // Collect IDs that are non-prose by nature (nav, cover)
+        $skipIds = [];
+        foreach ($manifest as $id => $meta) {
+            $props = strtolower($meta['properties']);
+            if (str_contains($props, 'nav') || str_contains($props, 'cover')) {
+                $skipIds[$id] = true;
+            }
+        }
+
+        // Also collect cover/toc hrefs from <guide> and <reference> elements
+        $skipHrefs = [];
+        preg_match_all('/<(?:guide\s*>.*?<\/guide|reference\s[^>]+>)/si', $opfContent, $guides);
+        preg_match_all('/<reference\s[^>]*type="([^"]+)"[^>]*href="([^"]+)"/si', $opfContent, $refs2, PREG_SET_ORDER);
+        foreach ($refs2 as $ref) {
+            $type = strtolower($ref[1]);
+            if (str_contains($type, 'toc') || str_contains($type, 'cover') || str_contains($type, 'title-page')) {
+                $skipHrefs[strtok($ref[2], '#')] = true;
+            }
+        }
+
+        // Read spine idrefs in order
+        preg_match_all('/<itemref\s[^>]*idref="([^"]+)"/si', $opfContent, $refs, PREG_SET_ORDER);
+
+        $files = [];
+        foreach ($refs as $ref) {
+            $id = $ref[1];
+
+            if (isset($skipIds[$id])) {
+                continue;
+            }
+
+            $meta = $manifest[$id] ?? null;
+            if ($meta === null) {
+                continue;
+            }
+
+            $href = strtok($meta['href'], '#');
+
+            if (isset($skipHrefs[$href])) {
+                continue;
+            }
+
+            $fullPath = $opfDir !== '' ? $opfDir.'/'.$href : $href;
+            $fullPath = $this->normalizePath($fullPath);
+
+            if (! preg_match('/\.(html|htm|xhtml)$/i', $fullPath)) {
+                continue;
+            }
+
+            // Skip by filename patterns common for covers/TOC
+            $basename = strtolower(basename($fullPath));
+            if (preg_match('/^(cover|toc|contents|nav|navigation|title[\-_]?page)/i', $basename)) {
+                continue;
+            }
+
+            // Content-based skip: read file and check if it's a TOC page
+            $content = $zip->getFromName($fullPath);
+            if ($content !== false && $this->looksLikeTocPage($content)) {
+                continue;
+            }
+
+            $files[] = $fullPath;
+        }
+
+        return array_values(array_unique($files));
+    }
+
+    /**
+     * Returns true if the HTML content looks like a table of contents
+     * rather than readable prose (many links relative to text, or epub:type="toc").
+     */
+    private function looksLikeTocPage(string $html): bool
+    {
+        // EPUB3 nav document
+        if (preg_match('/epub:type="[^"]*toc[^"]*"/i', $html) ||
+            preg_match('/epub:type="[^"]*landmarks[^"]*"/i', $html)) {
+            return true;
+        }
+
+        // Count <a> tags vs total text length — TOC pages are link-dense
+        $linkCount = substr_count(strtolower($html), '<a ');
+        $textLength = mb_strlen(strip_tags($html));
+        if ($linkCount > 5 && $textLength > 0 && ($linkCount / ($textLength / 100)) > 1.5) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private function normalizePath(string $path): string
+    {
+        $parts = explode('/', $path);
+        $stack = [];
+        foreach ($parts as $part) {
+            if ($part === '..') {
+                array_pop($stack);
+            } elseif ($part !== '' && $part !== '.') {
+                $stack[] = $part;
+            }
+        }
+
+        return implode('/', $stack);
+    }
+
+    private function findEpubOpfPath(\ZipArchive $zip): ?string
+    {
+        $container = $zip->getFromName('META-INF/container.xml');
+        if ($container === false) {
+            return null;
+        }
+        if (preg_match('/full-path="([^"]+\.opf)"/i', $container, $m)) {
+            return $m[1];
         }
 
         return null;

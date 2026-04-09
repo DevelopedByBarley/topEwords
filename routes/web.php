@@ -100,6 +100,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('text-analysis/fetch-source', [TextAnalysisController::class, 'fetchSource'])->name('text-analysis.fetch-source');
     Route::post('text-analysis/analyze', [TextAnalysisController::class, 'analyze'])->name('text-analysis.analyze');
     Route::get('text-analysis/word-lookup', [TextAnalysisController::class, 'wordLookup'])->name('text-analysis.word-lookup');
+    Route::get('text-analysis/books', [TextAnalysisController::class, 'listBooks'])->name('text-analysis.books.index');
+    Route::post('text-analysis/books', [TextAnalysisController::class, 'uploadBook'])->name('text-analysis.books.store');
+    Route::get('text-analysis/books/{book}/page', [TextAnalysisController::class, 'getBookPage'])->name('text-analysis.books.page');
+    Route::delete('text-analysis/books/{book}', [TextAnalysisController::class, 'deleteBook'])->name('text-analysis.books.destroy');
 
     // Custom words
     Route::post('custom-words', [UserCustomWordController::class, 'store'])->name('custom-words.store');

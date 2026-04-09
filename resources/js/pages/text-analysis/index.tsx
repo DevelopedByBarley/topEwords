@@ -1,5 +1,5 @@
 import { Head } from '@inertiajs/react';
-import { BookMarked, BookOpen, CheckCheck, Clock, FileText, Globe, HelpCircle, History, Loader2, Mic, Plus, ScanText, Trash2, Volume2, X, Youtube } from 'lucide-react';
+import { BookMarked, BookOpen, ChevronLeft, ChevronRight, CheckCheck, Clock, FileText, Globe, HelpCircle, History, Loader2, Mic, Plus, ScanText, Trash2, Upload, Volume2, X, Youtube } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
@@ -7,7 +7,14 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { show as textAnalysisShow } from '@/routes/text-analysis';
 
-type InputMode = 'text' | 'youtube' | 'url';
+type InputMode = 'text' | 'youtube' | 'url' | 'book';
+
+interface UserBook {
+    id: number;
+    title: string;
+    file_type: string;
+    total_pages: number;
+}
 
 interface HistoryEntry {
     id: number;
@@ -40,7 +47,7 @@ function addHistoryEntry(entry: Omit<HistoryEntry, 'id' | 'date'>) {
     saveHistory([newEntry, ...filtered].slice(0, MAX_HISTORY));
 }
 
-const MODE_ICONS: Record<InputMode, React.ElementType> = { text: FileText, youtube: Youtube, url: Globe };
+const MODE_ICONS: Record<InputMode, React.ElementType> = { text: FileText, youtube: Youtube, url: Globe, book: BookOpen };
 type TokenStatus = 'known' | 'learning' | 'saved' | 'pronunciation' | 'in_list' | 'not_in_list';
 
 type LookupResult =
@@ -76,6 +83,37 @@ const STATUS_STYLES: Record<TokenStatus, string> = {
 
 const EXAMPLE_TEXT = `The quick brown fox jumps over the lazy dog. Learning new words every day is one of the best investments you can make in your language skills. Reading books, articles, and other written materials helps you encounter words in context, which makes them much easier to remember.`;
 
+function HighlightedParagraph({
+    para,
+    tokenStatuses,
+    onWordClick,
+}: {
+    para: string;
+    tokenStatuses: Record<string, TokenStatus>;
+    onWordClick?: (word: string) => void;
+}) {
+    const parts = para.split(/([a-zA-Z]+)/);
+    return (
+        <p className="wrap-break-word leading-7">
+            {parts.map((part, i) => {
+                if (i % 2 === 0) return part;
+                const token = part.toLowerCase();
+                const status = tokenStatuses[token];
+                const className = status ? STATUS_STYLES[status] : '';
+                return (
+                    <span
+                        key={i}
+                        onClick={() => onWordClick?.(part)}
+                        className={`cursor-pointer rounded px-0.5 transition-opacity hover:opacity-70 ${className}`}
+                    >
+                        {part}
+                    </span>
+                );
+            })}
+        </p>
+    );
+}
+
 function HighlightedText({
     text,
     tokenStatuses,
@@ -85,8 +123,24 @@ function HighlightedText({
     tokenStatuses: Record<string, TokenStatus>;
     onWordClick?: (word: string) => void;
 }) {
-    const parts = text.split(/([a-zA-Z]+)/);
+    const paragraphs = text.split(/\n+/).filter((p) => p.trim());
 
+    if (paragraphs.length > 1) {
+        return (
+            <div className="space-y-4 text-sm">
+                {paragraphs.map((para, pi) => (
+                    <HighlightedParagraph
+                        key={pi}
+                        para={para}
+                        tokenStatuses={tokenStatuses}
+                        onWordClick={onWordClick}
+                    />
+                ))}
+            </div>
+        );
+    }
+
+    const parts = text.split(/([a-zA-Z]+)/);
     return (
         <p className="whitespace-pre-wrap wrap-break-word text-sm leading-7">
             {parts.map((part, i) => {
@@ -134,6 +188,14 @@ export default function TextAnalysis() {
     const [history, setHistory] = useState<HistoryEntry[]>(() => loadHistory());
     const [showHistory, setShowHistory] = useState(false);
 
+    const [books, setBooks] = useState<UserBook[]>([]);
+    const [booksLoaded, setBooksLoaded] = useState(false);
+    const [activeBook, setActiveBook] = useState<UserBook | null>(null);
+    const [bookPage, setBookPage] = useState(1);
+    const [isUploadingBook, setIsUploadingBook] = useState(false);
+    const [isLoadingPage, setIsLoadingPage] = useState(false);
+    const bookFileInputRef = useRef<HTMLInputElement>(null);
+
     const [lookupWord, setLookupWord] = useState<string | null>(null);
     const [lookupResult, setLookupResult] = useState<LookupResult | null>(null);
     const [lookupLoading, setLookupLoading] = useState(false);
@@ -177,6 +239,90 @@ export default function TextAnalysis() {
 
     const refreshHistory = () => setHistory(loadHistory());
 
+    const getBookmarkKey = (bookId: number) => `book_bookmark_${bookId}`;
+    const saveBookmark = (bookId: number, page: number) =>
+        localStorage.setItem(getBookmarkKey(bookId), String(page));
+    const loadBookmark = (bookId: number): number =>
+        parseInt(localStorage.getItem(getBookmarkKey(bookId)) ?? '1', 10) || 1;
+
+    const fetchBooks = async () => {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
+        const res = await fetch('/text-analysis/books', { headers: { 'X-CSRF-TOKEN': csrfToken, Accept: 'application/json' } });
+        const data = await res.json();
+        setBooks(data.books ?? []);
+        setBooksLoaded(true);
+    };
+
+    const loadBookPage = async (book: UserBook, page: number, thenAnalyze = false) => {
+        setIsLoadingPage(true);
+        setError(null);
+        try {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
+            const res = await fetch(`/text-analysis/books/${book.id}/page?page=${page}`, {
+                headers: { 'X-CSRF-TOKEN': csrfToken, Accept: 'application/json' },
+            });
+            const data = await res.json();
+            const pageText = data.text as string;
+            setFetchedSource(pageText);
+            setBookPage(page);
+            saveBookmark(book.id, page);
+            setResult(null);
+            if (thenAnalyze) {
+                await analyze(pageText);
+            }
+        } catch {
+            setError('Hálózati hiba. Próbáld újra.');
+        } finally {
+            setIsLoadingPage(false);
+        }
+    };
+
+    const selectBook = (book: UserBook) => {
+        setActiveBook(book);
+        loadBookPage(book, loadBookmark(book.id));
+    };
+
+    const handleBookUpload = async (file: File) => {
+        setIsUploadingBook(true);
+        setError(null);
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
+        const formData = new FormData();
+        formData.append('file', file);
+        try {
+            const res = await fetch('/text-analysis/books', {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': csrfToken, Accept: 'application/json' },
+                body: formData,
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                setError((data.errors?.file?.[0] as string) ?? (data.error as string) ?? 'Feltöltés sikertelen.');
+                return;
+            }
+            const book = data.book as UserBook;
+            setBooks((prev) => [book, ...prev]);
+            setActiveBook(book);
+            setBookPage(1);
+            setFetchedSource(data.text as string);
+            setResult(null);
+        } catch {
+            setError('Hálózati hiba. Próbáld újra.');
+        } finally {
+            setIsUploadingBook(false);
+        }
+    };
+
+    const deleteBookById = async (id: number) => {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
+        await fetch(`/text-analysis/books/${id}`, { method: 'DELETE', headers: { 'X-CSRF-TOKEN': csrfToken } });
+        setBooks((prev) => prev.filter((b) => b.id !== id));
+        if (activeBook?.id === id) {
+            setActiveBook(null);
+            setFetchedSource(null);
+            setResult(null);
+        }
+    };
+
     const reset = () => {
         setResult(null);
         setFetchedSource(null);
@@ -186,6 +332,9 @@ export default function TextAnalysis() {
     const switchMode = (m: InputMode) => {
         setMode(m);
         reset();
+        if (m === 'book' && !booksLoaded) {
+            fetchBooks();
+        }
     };
 
     const loadFromHistory = (entry: HistoryEntry) => {
@@ -249,11 +398,13 @@ export default function TextAnalysis() {
                 window.dispatchEvent(new CustomEvent('achievements-unlocked', { detail: data.achievements }));
             }
 
-            const label = mode === 'text'
-                ? input.slice(0, 80).trim() + (input.length > 80 ? '…' : '')
-                : urlInput;
-            addHistoryEntry({ mode, label, text: input, url: mode !== 'text' ? urlInput : undefined });
-            refreshHistory();
+            if (mode !== 'book') {
+                const label = mode === 'text'
+                    ? input.slice(0, 80).trim() + (input.length > 80 ? '…' : '')
+                    : urlInput;
+                addHistoryEntry({ mode, label, text: input, url: mode !== 'text' ? urlInput : undefined });
+                refreshHistory();
+            }
         } catch {
             setError('Hálózati hiba. Próbáld újra.');
         } finally {
@@ -373,6 +524,7 @@ export default function TextAnalysis() {
                                 { id: 'text', label: 'Szöveg', Icon: FileText },
                                 { id: 'youtube', label: 'YouTube', Icon: Youtube },
                                 { id: 'url', label: 'Weboldal', Icon: Globe },
+                                { id: 'book', label: 'Könyv', Icon: BookOpen },
                             ] as { id: InputMode; label: string; Icon: React.ElementType }[]).map(({ id, label, Icon }) => (
                                 <button
                                     key={id}
@@ -536,6 +688,142 @@ export default function TextAnalysis() {
                             </>
                         )}
 
+                        {mode === 'book' && (
+                            <>
+                                <input
+                                    ref={bookFileInputRef}
+                                    type="file"
+                                    accept=".pdf,.epub"
+                                    className="hidden"
+                                    onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) handleBookUpload(file);
+                                        e.target.value = '';
+                                    }}
+                                />
+
+                                {/* Book list */}
+                                {!activeBook && (
+                                    <div className="flex flex-col gap-3">
+                                        <div className="flex items-center justify-between">
+                                            <p className="text-sm text-muted-foreground">
+                                                {booksLoaded && books.length === 0 ? 'Még nincs feltöltött könyved.' : `${books.length} könyv`}
+                                            </p>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => bookFileInputRef.current?.click()}
+                                                disabled={isUploadingBook}
+                                            >
+                                                {isUploadingBook ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
+                                                {isUploadingBook ? 'Feldolgozás...' : 'PDF / EPUB feltöltése'}
+                                            </Button>
+                                        </div>
+                                        {!booksLoaded && (
+                                            <div className="flex justify-center py-6">
+                                                <Loader2 className="size-5 animate-spin text-muted-foreground" />
+                                            </div>
+                                        )}
+                                        {booksLoaded && books.length > 0 && (
+                                            <div className="flex flex-col divide-y rounded-xl border bg-card">
+                                                {books.map((book) => {
+                                                    const bookmark = loadBookmark(book.id);
+                                                    const hasProgress = bookmark > 1;
+                                                    return (
+                                                        <div key={book.id} className="group flex items-center gap-3 px-4 py-3 hover:bg-accent/40 transition-colors">
+                                                            <BookOpen className="size-4 shrink-0 text-muted-foreground" />
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => selectBook(book)}
+                                                                className="flex-1 min-w-0 text-left"
+                                                            >
+                                                                <p className="truncate text-sm font-medium">{book.title}</p>
+                                                                <p className="text-xs text-muted-foreground">
+                                                                    {book.file_type.toUpperCase()} · {book.total_pages} oldal
+                                                                    {hasProgress && (
+                                                                        <span className="ml-2 text-primary font-medium">
+                                                                            · Könyvjelző: {bookmark}. oldal
+                                                                        </span>
+                                                                    )}
+                                                                </p>
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => deleteBookById(book.id)}
+                                                                className="shrink-0 rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
+                                                            >
+                                                                <Trash2 className="size-3.5" />
+                                                            </button>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Active book page view */}
+                                {activeBook && fetchedSource !== null && (
+                                    <>
+                                        {/* Book header */}
+                                        <div className="flex items-center justify-between gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => { setActiveBook(null); setFetchedSource(null); setResult(null); }}
+                                                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                                            >
+                                                <ChevronLeft className="size-3.5" />
+                                                Könyvek
+                                            </button>
+                                            <p className="truncate text-xs font-medium text-muted-foreground">{activeBook.title}</p>
+                                            <span className="shrink-0 text-xs text-muted-foreground tabular-nums">{bookPage} / {activeBook.total_pages}</span>
+                                        </div>
+
+                                        {/* Readable text box */}
+                                        <div className="max-h-80 overflow-y-auto rounded-xl border bg-card px-5 py-4 text-sm leading-7">
+                                            {fetchedSource.split(/\n+/).filter(p => p.trim()).map((para, i) => (
+                                                <p key={i} className="mb-3 last:mb-0">{para}</p>
+                                            ))}
+                                        </div>
+
+                                        {/* Page navigation */}
+                                        <div className="flex items-center justify-between gap-2">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => loadBookPage(activeBook, bookPage - 1)}
+                                                disabled={bookPage <= 1 || isLoadingPage}
+                                            >
+                                                {isLoadingPage ? <Loader2 className="size-4 animate-spin" /> : <ChevronLeft className="size-4" />}
+                                                Előző
+                                            </Button>
+                                            <div className="flex gap-2">
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => loadBookPage(activeBook, bookPage + 1)}
+                                                    disabled={bookPage >= activeBook.total_pages || isLoadingPage}
+                                                >
+                                                    Következő
+                                                    {isLoadingPage ? <Loader2 className="size-4 animate-spin" /> : <ChevronRight className="size-4" />}
+                                                </Button>
+                                                <Button onClick={() => analyze(fetchedSource)} disabled={isAnalyzing || isLoadingPage}>
+                                                    {isAnalyzing ? <Loader2 className="size-4 animate-spin" /> : <ScanText className="size-4" />}
+                                                    {isAnalyzing ? 'Elemzés...' : 'Elemzés'}
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
+
+                                {activeBook && isLoadingPage && !fetchedSource && (
+                                    <div className="flex justify-center py-8">
+                                        <Loader2 className="size-5 animate-spin text-muted-foreground" />
+                                    </div>
+                                )}
+                            </>
+                        )}
+
                         {error && <p className="text-sm text-destructive">{error}</p>}
                     </div>
                 )}
@@ -634,6 +922,33 @@ export default function TextAnalysis() {
                                         </div>
                                     ))}
                                 </div>
+                            </div>
+                        )}
+
+                        {/* Book page navigation in results view */}
+                        {mode === 'book' && activeBook && (
+                            <div className="flex items-center justify-between gap-2 rounded-xl border bg-card p-4">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => loadBookPage(activeBook, bookPage - 1, true)}
+                                    disabled={bookPage <= 1 || isLoadingPage || isAnalyzing}
+                                >
+                                    {(isLoadingPage || isAnalyzing) ? <Loader2 className="size-4 animate-spin" /> : <ChevronLeft className="size-4" />}
+                                    Előző oldal
+                                </Button>
+                                <span className="text-sm text-muted-foreground tabular-nums">
+                                    {bookPage} / {activeBook.total_pages}
+                                </span>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => loadBookPage(activeBook, bookPage + 1, true)}
+                                    disabled={bookPage >= activeBook.total_pages || isLoadingPage || isAnalyzing}
+                                >
+                                    Következő oldal
+                                    {(isLoadingPage || isAnalyzing) ? <Loader2 className="size-4 animate-spin" /> : <ChevronRight className="size-4" />}
+                                </Button>
                             </div>
                         )}
 

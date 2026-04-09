@@ -37,6 +37,7 @@ export function NavUser() {
                             data-test="sidebar-menu-button"
                         >
                             <UserInfo user={auth.user} />
+                            {/* Payment temporarily disabled — subscription badges hidden
                             {sub?.hasLifetime && (
                                 <span className="ml-auto flex items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-900/40 dark:text-amber-400 group-data-[collapsible=icon]:hidden">
                                     <Crown className="size-3" />
@@ -54,6 +55,7 @@ export function NavUser() {
                                     Prémium
                                 </span>
                             )}
+                            */}
                             <ChevronsUpDown className="size-4 shrink-0" />
                         </SidebarMenuButton>
                     </DropdownMenuTrigger>

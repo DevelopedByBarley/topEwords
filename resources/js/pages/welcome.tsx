@@ -204,7 +204,7 @@ export default function Welcome({ canRegister = true }: { canRegister?: boolean 
                     </div>
                 </section>
 
-                {/* Pricing */}
+                {/* Pricing — temporarily disabled
                 <section className="border-t py-20">
                     <div className="mx-auto max-w-5xl px-6">
                         <div className="mb-12 text-center">
@@ -213,7 +213,6 @@ export default function Welcome({ canRegister = true }: { canRegister?: boolean 
                         </div>
 
                         <div className="grid gap-6 md:grid-cols-3">
-                            {/* Free */}
                             <div className="rounded-2xl border bg-card p-6">
                                 <div className="mb-4">
                                     <p className="text-sm font-medium text-muted-foreground">Ingyenes</p>
@@ -233,7 +232,6 @@ export default function Welcome({ canRegister = true }: { canRegister?: boolean 
                                 </Link>
                             </div>
 
-                            {/* Monthly */}
                             <div className="relative rounded-2xl border-2 border-primary bg-card p-6">
                                 <div className="absolute -top-3 left-1/2 -translate-x-1/2">
                                     <span className="rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground">Legnépszerűbb</span>
@@ -256,7 +254,6 @@ export default function Welcome({ canRegister = true }: { canRegister?: boolean 
                                 </Link>
                             </div>
 
-                            {/* Lifetime */}
                             <div className="rounded-2xl border bg-card p-6">
                                 <div className="mb-4">
                                     <div className="flex items-center gap-1.5">
@@ -285,6 +282,7 @@ export default function Welcome({ canRegister = true }: { canRegister?: boolean 
                         </div>
                     </div>
                 </section>
+                */}
 
                 {/* Word list section */}
                 <section className="border-t bg-muted/40">

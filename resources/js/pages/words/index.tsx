@@ -233,6 +233,18 @@ export default function WordsIndex({
 
     useEffect(() => {
         const search = new URLSearchParams(window.location.search);
+        const addWord = search.get('add');
+
+        if (addWord) {
+            setCustomWordForm({ ...EMPTY_CUSTOM_WORD_FORM, word: addWord.trim() });
+            setShowAddCustomWord(true);
+            // Clean the ?add= param from the URL without reloading
+            const clean = new URL(window.location.href);
+            clean.searchParams.delete('add');
+            window.history.replaceState({}, '', clean.toString());
+            return;
+        }
+
         const hasParams = search.has('page') || search.has('per_page') || search.has('letter') || search.has('difficulty') || search.has('status') || search.has('search');
 
         if (!hasParams) {
