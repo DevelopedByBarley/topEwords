@@ -12,49 +12,49 @@ use Inertia\Response;
 
 class DashboardController extends Controller
 {
+    public const LEVELS = [
+        1 => ['label' => 'Kezdő', 'color' => 'green'],
+        2 => ['label' => 'Alapszint', 'color' => 'blue'],
+        3 => ['label' => 'Középszint', 'color' => 'yellow'],
+        4 => ['label' => 'Haladó', 'color' => 'orange'],
+        5 => ['label' => 'Szakértő', 'color' => 'purple'],
+        6 => ['label' => 'Mester', 'color' => 'red'],
+    ];
+
     public function index(Request $request): Response
     {
-        $levels = [
-            'beginner' => ['label' => 'Kezdő', 'min' => 1, 'max' => 2000, 'difficulty' => 'beginner'],
-            'intermediate' => ['label' => 'Középhaladó', 'min' => 2001, 'max' => 6000, 'difficulty' => 'intermediate'],
-            'advanced' => ['label' => 'Haladó', 'min' => 6001, 'max' => 10000, 'difficulty' => 'advanced'],
-        ];
-
         $userStats = DB::table('user_word')
             ->join('words', 'words.id', '=', 'user_word.word_id')
             ->where('user_word.user_id', $request->user()->id)
             ->selectRaw("
-                SUM(CASE WHEN words.rank BETWEEN 1 AND 2000 AND user_word.status = 'known' THEN 1 ELSE 0 END) as beginner_known,
-                SUM(CASE WHEN words.rank BETWEEN 1 AND 2000 AND user_word.status = 'learning' THEN 1 ELSE 0 END) as beginner_learning,
-                SUM(CASE WHEN words.rank BETWEEN 1 AND 2000 AND user_word.status = 'saved' THEN 1 ELSE 0 END) as beginner_saved,
-                SUM(CASE WHEN words.rank BETWEEN 1 AND 2000 AND user_word.status = 'pronunciation' THEN 1 ELSE 0 END) as beginner_pronunciation,
-                SUM(CASE WHEN words.rank BETWEEN 2001 AND 6000 AND user_word.status = 'known' THEN 1 ELSE 0 END) as intermediate_known,
-                SUM(CASE WHEN words.rank BETWEEN 2001 AND 6000 AND user_word.status = 'learning' THEN 1 ELSE 0 END) as intermediate_learning,
-                SUM(CASE WHEN words.rank BETWEEN 2001 AND 6000 AND user_word.status = 'saved' THEN 1 ELSE 0 END) as intermediate_saved,
-                SUM(CASE WHEN words.rank BETWEEN 2001 AND 6000 AND user_word.status = 'pronunciation' THEN 1 ELSE 0 END) as intermediate_pronunciation,
-                SUM(CASE WHEN words.rank BETWEEN 6001 AND 10000 AND user_word.status = 'known' THEN 1 ELSE 0 END) as advanced_known,
-                SUM(CASE WHEN words.rank BETWEEN 6001 AND 10000 AND user_word.status = 'learning' THEN 1 ELSE 0 END) as advanced_learning,
-                SUM(CASE WHEN words.rank BETWEEN 6001 AND 10000 AND user_word.status = 'saved' THEN 1 ELSE 0 END) as advanced_saved,
-                SUM(CASE WHEN words.rank BETWEEN 6001 AND 10000 AND user_word.status = 'pronunciation' THEN 1 ELSE 0 END) as advanced_pronunciation
+                words.level,
+                SUM(CASE WHEN user_word.status = 'known' THEN 1 ELSE 0 END) as known,
+                SUM(CASE WHEN user_word.status = 'learning' THEN 1 ELSE 0 END) as learning,
+                SUM(CASE WHEN user_word.status = 'saved' THEN 1 ELSE 0 END) as saved,
+                SUM(CASE WHEN user_word.status = 'pronunciation' THEN 1 ELSE 0 END) as pronunciation
             ")
-            ->first();
+            ->groupBy('words.level')
+            ->get()
+            ->keyBy('level');
 
-        $levelStats = collect($levels)->map(function (array $level, string $key) use ($userStats) {
-            $total = Word::whereBetween('rank', [$level['min'], $level['max']])->count();
-            $known = (int) ($userStats->{$key.'_known'} ?? 0);
-            $learning = (int) ($userStats->{$key.'_learning'} ?? 0);
-            $saved = (int) ($userStats->{$key.'_saved'} ?? 0);
-            $pronunciation = (int) ($userStats->{$key.'_pronunciation'} ?? 0);
+        $wordCounts = Word::selectRaw('level, COUNT(*) as total')
+            ->groupBy('level')
+            ->pluck('total', 'level');
+
+        $levelStats = collect(self::LEVELS)->map(function (array $level, int $key) use ($userStats, $wordCounts) {
+            $stats = $userStats->get($key);
+            $total = (int) ($wordCounts->get($key) ?? 0);
+            $known = (int) ($stats->known ?? 0);
 
             return [
+                'level' => $key,
                 'label' => $level['label'],
-                'difficulty' => $level['difficulty'],
-                'range' => $level['min'].' – '.$level['max'],
+                'color' => $level['color'],
                 'total' => $total,
                 'known' => $known,
-                'learning' => $learning,
-                'saved' => $saved,
-                'pronunciation' => $pronunciation,
+                'learning' => (int) ($stats->learning ?? 0),
+                'saved' => (int) ($stats->saved ?? 0),
+                'pronunciation' => (int) ($stats->pronunciation ?? 0),
                 'percent' => $total > 0 ? round(($known / $total) * 100) : 0,
             ];
         })->values();

@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\FlashcardReview;
 use App\Models\User;
 use App\Models\UserAchievement;
+use App\Models\Word;
 
 class AchievementService
 {
@@ -56,6 +57,14 @@ class AchievementService
         'analysis_first' => ['title' => 'Első elemzés', 'description' => 'Elvégezted az első szövegelemzésedet.', 'icon' => '📄', 'group' => 'analysis'],
         'analysis_10' => ['title' => '10 elemzés', 'description' => '10 szöveget elemeztél.', 'icon' => '📄', 'group' => 'analysis'],
         'analysis_comprehension_90' => ['title' => 'Folyékony olvasó', 'description' => 'Elértél 90%+ érthetőséget egy elemzésen.', 'icon' => '🌟', 'group' => 'analysis'],
+
+        // Level completion
+        'level_1_complete' => ['title' => 'Kezdő – teljesítve', 'description' => 'Az összes Kezdő szintű szót megtanultad.', 'icon' => '🟢', 'group' => 'level'],
+        'level_2_complete' => ['title' => 'Alapszint – teljesítve', 'description' => 'Az összes Alapszintű szót megtanultad.', 'icon' => '🔵', 'group' => 'level'],
+        'level_3_complete' => ['title' => 'Középszint – teljesítve', 'description' => 'Az összes Középszintű szót megtanultad.', 'icon' => '🟡', 'group' => 'level'],
+        'level_4_complete' => ['title' => 'Haladó – teljesítve', 'description' => 'Az összes Haladó szintű szót megtanultad.', 'icon' => '🟠', 'group' => 'level'],
+        'level_5_complete' => ['title' => 'Szakértő – teljesítve', 'description' => 'Az összes Szakértő szintű szót megtanultad.', 'icon' => '🟣', 'group' => 'level'],
+        'level_6_complete' => ['title' => 'Mester – teljesítve', 'description' => 'Az összes Mester szintű szót megtanultad.', 'icon' => '🏆', 'group' => 'level'],
     ];
 
     /**
@@ -139,6 +148,14 @@ class AchievementService
             'analysis_10' => $user->text_analyses >= 10,
             'analysis_comprehension_90' => false, // checked via extra param, see checkAndAwardAnalysis()
 
+            // Level completion
+            'level_1_complete' => $this->isLevelComplete($user, 1),
+            'level_2_complete' => $this->isLevelComplete($user, 2),
+            'level_3_complete' => $this->isLevelComplete($user, 3),
+            'level_4_complete' => $this->isLevelComplete($user, 4),
+            'level_5_complete' => $this->isLevelComplete($user, 5),
+            'level_6_complete' => $this->isLevelComplete($user, 6),
+
             default => false,
         };
     }
@@ -205,6 +222,22 @@ class AchievementService
         }
 
         return $newlyUnlocked;
+    }
+
+    private function isLevelComplete(User $user, int $level): bool
+    {
+        $total = Word::where('level', $level)->count();
+
+        if ($total === 0) {
+            return false;
+        }
+
+        $known = $user->knownWords()
+            ->wherePivot('status', 'known')
+            ->where('level', $level)
+            ->count();
+
+        return $known >= $total;
     }
 
     private function totalFlashcardReviews(User $user): int

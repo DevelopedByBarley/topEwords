@@ -141,7 +141,7 @@ interface Props {
     filters: {
         search: string;
         letter: string;
-        difficulty: string;
+        level: number | null;
         status: string;
         folder: number | null;
         per_page: number;
@@ -175,10 +175,13 @@ const POS_LABELS: Record<string, string> = {
     interj: 'indulatszó',
 };
 
-const DIFFICULTIES = [
-    { value: 'beginner', label: 'Kezdő', description: '1–2 000' },
-    { value: 'intermediate', label: 'Középhaladó', description: '2 001–6 000' },
-    { value: 'advanced', label: 'Haladó', description: '6 001–10 000' },
+const LEVELS = [
+    { value: 1, label: 'Kezdő' },
+    { value: 2, label: 'Alapszint' },
+    { value: 3, label: 'Középszint' },
+    { value: 4, label: 'Haladó' },
+    { value: 5, label: 'Szakértő' },
+    { value: 6, label: 'Mester' },
 ] as const;
 
 const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
@@ -245,7 +248,7 @@ export default function WordsIndex({
             return;
         }
 
-        const hasParams = search.has('page') || search.has('per_page') || search.has('letter') || search.has('difficulty') || search.has('status') || search.has('search');
+        const hasParams = search.has('page') || search.has('per_page') || search.has('letter') || search.has('level') || search.has('status') || search.has('search');
 
         if (!hasParams) {
             const saved = localStorage.getItem(STORAGE_KEY);
@@ -261,7 +264,7 @@ export default function WordsIndex({
         (params: {
             search?: string;
             letter?: string;
-            difficulty?: string;
+            level?: number | null;
             status?: string;
             folder?: number | null;
             page?: number;
@@ -270,7 +273,7 @@ export default function WordsIndex({
             const resolved = {
                 search: params.search ?? filters.search,
                 letter: params.letter !== undefined ? params.letter : filters.letter,
-                difficulty: params.difficulty !== undefined ? params.difficulty : filters.difficulty,
+                level: params.level !== undefined ? params.level : filters.level,
                 status: params.status !== undefined ? params.status : filters.status,
                 folder: params.folder !== undefined ? params.folder : filters.folder,
                 per_page: params.per_page !== undefined ? params.per_page : filters.per_page,
@@ -388,9 +391,9 @@ export default function WordsIndex({
         navigate({ search: '', letter, page: 1 });
     }
 
-    function handleDifficultyClick(difficulty: string) {
+    function handleLevelClick(level: number | null) {
         setSearch('');
-        navigate({ search: '', difficulty, letter: 'ALL', page: 1 });
+        navigate({ search: '', level, letter: 'ALL', page: 1 });
     }
 
     function handleStatusFilter(statusValue: string) {
@@ -730,34 +733,24 @@ export default function WordsIndex({
                     ))}
                 </div>
 
-                {/* Difficulty filter */}
+                {/* Level filter */}
                 {!search && (
                     <div className="flex flex-wrap gap-2">
                         <Button
                             size="sm"
-                            variant={
-                                !filters.difficulty ? 'default' : 'outline'
-                            }
-                            onClick={() => handleDifficultyClick('')}
+                            variant={filters.level === null ? 'default' : 'outline'}
+                            onClick={() => handleLevelClick(null)}
                         >
                             Minden szint
                         </Button>
-                        {DIFFICULTIES.map((d) => (
+                        {LEVELS.map((l) => (
                             <Button
-                                key={d.value}
+                                key={l.value}
                                 size="sm"
-                                variant={
-                                    filters.difficulty === d.value
-                                        ? 'default'
-                                        : 'outline'
-                                }
-                                onClick={() => handleDifficultyClick(d.value)}
-                                title={`Rank ${d.description}`}
+                                variant={filters.level === l.value ? 'default' : 'outline'}
+                                onClick={() => handleLevelClick(l.value)}
                             >
-                                {d.label}
-                                <span className="ml-1.5 text-xs font-normal text-muted-foreground">
-                                    {d.description}
-                                </span>
+                                {l.value}. {l.label}
                             </Button>
                         ))}
                     </div>

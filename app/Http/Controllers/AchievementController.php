@@ -21,6 +21,7 @@ class AchievementController extends Controller
             'streak' => 'Sorozat',
             'vocab' => 'Szókincs',
             'known' => 'Ismert szavak',
+            'level' => 'Szintek',
             'custom' => 'Saját szavak',
             'flashcard' => 'Flashcards',
             'quiz' => 'Kvíz',
