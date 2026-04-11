@@ -14,6 +14,7 @@ use App\Http\Controllers\FlashcardStudyController;
 use App\Http\Controllers\FolderController;
 use App\Http\Controllers\FolderWordController;
 use App\Http\Controllers\IrregularVerbController;
+use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\PricingController;
 use App\Http\Controllers\QuizController;
 use App\Http\Controllers\ReviewController;
@@ -21,6 +22,7 @@ use App\Http\Controllers\StripeWebhookController;
 use App\Http\Controllers\TextAnalysisController;
 use App\Http\Controllers\UserCustomWordController;
 use App\Http\Controllers\WordController;
+use App\Http\Middleware\EnsureOnboardingComplete;
 use Illuminate\Support\Facades\Route;
 use Laravel\Fortify\Features;
 
@@ -42,7 +44,18 @@ Route::get('/sitemap.xml', function () {
 
 Route::middleware(['auth', 'can:admin'])->get('admin', [AdminController::class, 'index'])->name('admin');
 
+// Extension routes — auth handled manually in controller (no middleware redirect)
+Route::get('extension/lookup', [ExtensionController::class, 'lookup'])->name('extension.lookup');
+Route::get('extension/search', [ExtensionController::class, 'search'])->name('extension.search');
+Route::get('extension/statuses', [ExtensionController::class, 'statuses'])->name('extension.statuses');
+Route::post('extension/add-word', [ExtensionController::class, 'addWord'])->name('extension.add-word');
+
 Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('onboarding', [OnboardingController::class, 'show'])->name('onboarding');
+    Route::post('onboarding', [OnboardingController::class, 'complete'])->name('onboarding.complete');
+});
+
+Route::middleware(['auth', 'verified', EnsureOnboardingComplete::class])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     Route::get('words', [WordController::class, 'index'])->name('words.index');
@@ -50,6 +63,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('words/quiz', [WordController::class, 'quiz'])->name('words.quiz');
     Route::post('words/quiz/complete', [QuizController::class, 'complete'])->name('words.quiz.complete');
     Route::get('words/search', [WordController::class, 'search'])->name('words.search');
+    Route::patch('words/{word}', [WordController::class, 'update'])->name('words.update')->middleware('can:admin');
     Route::post('words/{word}/status', [WordController::class, 'status'])->name('words.status');
 
     // Flashcard decks
@@ -86,8 +100,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('flashcards/folders/{flashcardFolder}', [FlashcardFolderController::class, 'update'])->name('flashcards.folders.update');
     Route::delete('flashcards/folders/{flashcardFolder}', [FlashcardFolderController::class, 'destroy'])->name('flashcards.folders.destroy');
     Route::patch('flashcards/folders/{flashcardFolder}/decks/{flashcardDeck}', [FlashcardFolderDeckController::class, 'update'])->name('flashcards.folders.decks.update');
-
-    Route::get('extension/lookup', [ExtensionController::class, 'lookup'])->name('extension.lookup');
 
     Route::get('review', [ReviewController::class, 'index'])->name('review.index');
     Route::post('review/complete', [ReviewController::class, 'complete'])->name('review.complete');

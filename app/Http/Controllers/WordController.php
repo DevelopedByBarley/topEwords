@@ -9,6 +9,7 @@ use App\Services\AchievementService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -84,13 +85,19 @@ class WordController extends Controller
                 'status' => $wordStatuses[$word->id] ?? null,
             ]);
 
-        $markedPages = (clone $baseQuery)
-            ->orderBy('rank')
-            ->pluck('id')
-            ->values()
+        $orderedIds = (clone $baseQuery)->orderBy('rank')->pluck('id')->values();
+
+        $markedPages = $orderedIds
             ->map(fn ($id, $index) => isset($wordStatuses[$id]) ? (int) ceil(($index + 1) / $perPage) : null)
             ->filter()
             ->unique()
+            ->values()
+            ->all();
+
+        $completedPages = $orderedIds
+            ->chunk($perPage)
+            ->map(fn ($chunk, $index) => $chunk->every(fn ($id) => isset($wordStatuses[$id])) ? $index + 1 : null)
+            ->filter()
             ->values()
             ->all();
 
@@ -174,6 +181,7 @@ class WordController extends Controller
                 'pronunciation' => $customPronunciation,
             ],
             'markedPages' => $markedPages,
+            'completedPages' => $completedPages,
             'markedLetters' => $markedLetters,
             'folders' => $folders,
             'wordFolderIds' => $wordFolderIds,
@@ -422,6 +430,34 @@ class WordController extends Controller
             ],
             'freeQuizLimit' => $user->hasActiveAccess() ? null : $freeQuizLimit,
         ]);
+    }
+
+    public function update(Request $request, Word $word): RedirectResponse
+    {
+        Gate::authorize('admin');
+
+        $data = $request->validate([
+            'word' => ['sometimes', 'string', 'max:100'],
+            'meaning_hu' => ['nullable', 'string', 'max:255'],
+            'extra_meanings' => ['nullable', 'string', 'max:500'],
+            'synonyms' => ['nullable', 'string', 'max:255'],
+            'part_of_speech' => ['nullable', 'string', 'max:20'],
+            'example_en' => ['nullable', 'string', 'max:500'],
+            'example_hu' => ['nullable', 'string', 'max:500'],
+            'form_base' => ['nullable', 'string', 'max:100'],
+            'verb_past' => ['nullable', 'string', 'max:100'],
+            'verb_past_participle' => ['nullable', 'string', 'max:100'],
+            'verb_present_participle' => ['nullable', 'string', 'max:100'],
+            'verb_third_person' => ['nullable', 'string', 'max:100'],
+            'is_irregular' => ['boolean'],
+            'noun_plural' => ['nullable', 'string', 'max:100'],
+            'adj_comparative' => ['nullable', 'string', 'max:100'],
+            'adj_superlative' => ['nullable', 'string', 'max:100'],
+        ]);
+
+        $word->update($data);
+
+        return back();
     }
 
     public function status(Request $request, Word $word): RedirectResponse|JsonResponse

@@ -1,12 +1,22 @@
 {
     "manifest_version": 3,
     "name": "TopEwords",
-    "version": "1.2",
-    "description": "Keress szavakat és elemezd az oldalak szövegét egy kattintással.",
-    "permissions": ["activeTab", "contextMenus"],
-    "host_permissions": ["http://localhost:8000/*"],
+    "version": "1.3",
+    "description": "Look up English words instantly on any webpage and track your vocabulary progress with spaced repetition.",
+    "permissions": ["activeTab", "contextMenus", "storage"],
+    "host_permissions": ["https://topwords.eu/*"],
+    "icons": {
+        "16": "icon16.png",
+        "48": "icon48.png",
+        "128": "icon128.png"
+    },
     "action": {
-        "default_title": "Szövegelemzés megnyitása"
+        "default_title": "TopEwords",
+        "default_icon": {
+            "16": "icon16.png",
+            "48": "icon48.png"
+        },
+        "default_popup": "popup.html"
     },
     "background": {
         "service_worker": "background.js"
@@ -14,7 +24,6 @@
     "content_scripts": [
         {
             "matches": ["<all_urls>"],
-            "exclude_matches": ["http://localhost:8000/*"],
             "js": ["content.js"],
             "css": ["content.css"]
         }

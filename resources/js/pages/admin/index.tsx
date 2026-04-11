@@ -46,31 +46,36 @@ export default function AdminIndex({ stats, topStreaks, recentUsers, mostActive,
             <Head title="Admin" />
 
             <div className="min-h-screen bg-zinc-950 text-zinc-100">
+                {/* Teal accent strip */}
+                <div className="h-1 bg-gradient-to-r from-primary via-primary/80 to-primary/40" />
+
                 {/* Header */}
-                <header className="border-b border-zinc-800 px-6 py-4">
+                <header className="border-b border-zinc-800/60 px-6 py-4">
                     <div className="mx-auto flex max-w-7xl items-center gap-3">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary shadow-lg shadow-primary/30">
                             <AppLogoIcon className="size-4.5 text-primary-foreground" />
                         </div>
-                        <div>
+                        <div className="flex items-center gap-2">
                             <span className="font-semibold tracking-tight">TopWords</span>
-                            <span className="ml-2 rounded bg-zinc-800 px-1.5 py-0.5 text-xs text-zinc-400">admin</span>
+                            <span className="rounded border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-primary">
+                                admin
+                            </span>
                         </div>
                     </div>
                 </header>
 
-                <main className="mx-auto max-w-7xl px-6 py-10 space-y-10">
+                <main className="mx-auto max-w-7xl space-y-10 px-6 py-10">
 
                     {/* Stat cards */}
                     <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
                         {[
-                            { label: 'Összes felhasználó', value: stats.totalUsers, icon: Users, color: 'text-blue-400' },
+                            { label: 'Összes felhasználó', value: stats.totalUsers, icon: Users, color: 'text-primary' },
                             { label: 'Hitelesített email', value: stats.verifiedUsers, icon: CheckCheck, color: 'text-green-400' },
-                            { label: 'Ez a hónap', value: stats.usersThisMonth, icon: TrendingUp, color: 'text-violet-400' },
+                            { label: 'Ez a hónap', value: stats.usersThisMonth, icon: TrendingUp, color: 'text-primary' },
                             { label: 'Ez a hét', value: stats.usersThisWeek, icon: Activity, color: 'text-orange-400' },
                             { label: 'Ma aktív', value: stats.activeToday, icon: Flame, color: 'text-red-400' },
                         ].map((s) => (
-                            <div key={s.label} className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
+                            <div key={s.label} className="rounded-xl border border-zinc-800 bg-zinc-900 p-4 transition-colors hover:border-zinc-700">
                                 <s.icon className={`mb-3 size-5 ${s.color}`} />
                                 <div className="text-2xl font-bold tabular-nums">{s.value.toLocaleString()}</div>
                                 <div className="mt-0.5 text-xs text-zinc-500">{s.label}</div>
@@ -80,15 +85,18 @@ export default function AdminIndex({ stats, topStreaks, recentUsers, mostActive,
 
                     {/* Word statuses */}
                     <div>
-                        <h2 className="mb-4 text-sm font-medium text-zinc-400 uppercase tracking-wider">Szóstátuszok összesen</h2>
+                        <h2 className="mb-4 flex items-center gap-2 text-sm font-medium uppercase tracking-wider text-zinc-400">
+                            <span className="inline-block h-3.5 w-0.5 rounded-full bg-primary" />
+                            Szóstátuszok összesen
+                        </h2>
                         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
                             {[
-                                { label: 'Tudom', value: stats.known, icon: CheckCheck, color: 'text-[#00ADB5] bg-[#00ADB5]/10' },
+                                { label: 'Tudom', value: stats.known, icon: CheckCheck, color: 'text-primary bg-primary/10' },
                                 { label: 'Tanulom', value: stats.learning, icon: Clock, color: 'text-blue-400 bg-blue-400/10' },
                                 { label: 'Később', value: stats.saved, icon: BookMarked, color: 'text-orange-400 bg-orange-400/10' },
                                 { label: 'Kiejtés', value: stats.pronunciation, icon: Mic, color: 'text-violet-400 bg-violet-400/10' },
                             ].map((s) => (
-                                <div key={s.label} className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
+                                <div key={s.label} className="rounded-xl border border-zinc-800 bg-zinc-900 p-4 transition-colors hover:border-zinc-700">
                                     <div className={`mb-3 flex h-9 w-9 items-center justify-center rounded-lg ${s.color}`}>
                                         <s.icon className="size-4.5" />
                                     </div>
@@ -102,13 +110,16 @@ export default function AdminIndex({ stats, topStreaks, recentUsers, mostActive,
                     {/* Registrations chart (last 30 days) */}
                     {registrationsByDay.length > 0 && (
                         <div>
-                            <h2 className="mb-4 text-sm font-medium text-zinc-400 uppercase tracking-wider">Regisztrációk – utolsó 30 nap</h2>
+                            <h2 className="mb-4 flex items-center gap-2 text-sm font-medium uppercase tracking-wider text-zinc-400">
+                                <span className="inline-block h-3.5 w-0.5 rounded-full bg-primary" />
+                                Regisztrációk – utolsó 30 nap
+                            </h2>
                             <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
                                 <div className="flex h-28 items-end gap-1">
                                     {registrationsByDay.map((d) => (
                                         <div key={d.date} className="group relative flex flex-1 flex-col items-center">
                                             <div
-                                                className="w-full rounded-sm bg-primary/70 transition-all group-hover:bg-primary"
+                                                className="w-full rounded-sm bg-primary/50 transition-all group-hover:bg-primary"
                                                 style={{ height: `${Math.round((d.count / maxDayCount) * 100)}%`, minHeight: '2px' }}
                                             />
                                             <div className="pointer-events-none absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-zinc-700 px-1.5 py-0.5 text-xs opacity-0 group-hover:opacity-100">
@@ -128,8 +139,11 @@ export default function AdminIndex({ stats, topStreaks, recentUsers, mostActive,
                     <div className="grid gap-8 lg:grid-cols-2">
                         {/* Recent registrations */}
                         <div>
-                            <h2 className="mb-4 text-sm font-medium text-zinc-400 uppercase tracking-wider">Legutóbbi regisztrációk</h2>
-                            <div className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
+                            <h2 className="mb-4 flex items-center gap-2 text-sm font-medium uppercase tracking-wider text-zinc-400">
+                                <span className="inline-block h-3.5 w-0.5 rounded-full bg-primary" />
+                                Legutóbbi regisztrációk
+                            </h2>
+                            <div className="overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900">
                                 <table className="w-full text-sm">
                                     <thead className="border-b border-zinc-800">
                                         <tr>
@@ -140,10 +154,10 @@ export default function AdminIndex({ stats, topStreaks, recentUsers, mostActive,
                                     </thead>
                                     <tbody className="divide-y divide-zinc-800">
                                         {recentUsers.map((u) => (
-                                            <tr key={u.email} className="hover:bg-zinc-800/50 transition-colors">
+                                            <tr key={u.email} className="transition-colors hover:bg-primary/5">
                                                 <td className="px-4 py-3">
-                                                    <div className="font-medium truncate max-w-[160px]">{u.name}</div>
-                                                    <div className="text-xs text-zinc-500 truncate max-w-[160px]">{u.email}</div>
+                                                    <div className="max-w-[160px] truncate font-medium">{u.name}</div>
+                                                    <div className="max-w-[160px] truncate text-xs text-zinc-500">{u.email}</div>
                                                     {!u.email_verified_at && (
                                                         <span className="text-[10px] text-orange-400">nem hitelesített</span>
                                                     )}
@@ -153,7 +167,7 @@ export default function AdminIndex({ stats, topStreaks, recentUsers, mostActive,
                                                 </td>
                                                 <td className="px-4 py-3 text-right">
                                                     {u.streak > 0 ? (
-                                                        <span className="inline-flex items-center gap-1 text-orange-400 font-medium">
+                                                        <span className="inline-flex items-center gap-1 font-medium text-orange-400">
                                                             <Flame className="size-3" />{u.streak}
                                                         </span>
                                                     ) : (
@@ -169,8 +183,11 @@ export default function AdminIndex({ stats, topStreaks, recentUsers, mostActive,
 
                         {/* Most active users */}
                         <div>
-                            <h2 className="mb-4 text-sm font-medium text-zinc-400 uppercase tracking-wider">Legaktívabb felhasználók</h2>
-                            <div className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
+                            <h2 className="mb-4 flex items-center gap-2 text-sm font-medium uppercase tracking-wider text-zinc-400">
+                                <span className="inline-block h-3.5 w-0.5 rounded-full bg-primary" />
+                                Legaktívabb felhasználók
+                            </h2>
+                            <div className="overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900">
                                 <table className="w-full text-sm">
                                     <thead className="border-b border-zinc-800">
                                         <tr>
@@ -182,18 +199,18 @@ export default function AdminIndex({ stats, topStreaks, recentUsers, mostActive,
                                     </thead>
                                     <tbody className="divide-y divide-zinc-800">
                                         {mostActive.map((u, i) => (
-                                            <tr key={u.email} className="hover:bg-zinc-800/50 transition-colors">
-                                                <td className="px-4 py-3 text-zinc-600 tabular-nums">{i + 1}</td>
+                                            <tr key={u.email} className="transition-colors hover:bg-primary/5">
+                                                <td className="px-4 py-3 font-medium tabular-nums text-primary">{i + 1}</td>
                                                 <td className="px-4 py-3">
-                                                    <div className="font-medium truncate max-w-[160px]">{u.name}</div>
-                                                    <div className="text-xs text-zinc-500 truncate max-w-[160px]">{u.email}</div>
+                                                    <div className="max-w-[160px] truncate font-medium">{u.name}</div>
+                                                    <div className="max-w-[160px] truncate text-xs text-zinc-500">{u.email}</div>
                                                 </td>
-                                                <td className="px-4 py-3 text-right font-medium tabular-nums">
+                                                <td className="px-4 py-3 text-right font-medium tabular-nums text-primary">
                                                     {(u.known_words_count ?? 0).toLocaleString()}
                                                 </td>
                                                 <td className="px-4 py-3 text-right">
                                                     {u.streak > 0 ? (
-                                                        <span className="inline-flex items-center justify-end gap-1 text-orange-400 font-medium">
+                                                        <span className="inline-flex items-center justify-end gap-1 font-medium text-orange-400">
                                                             <Flame className="size-3" />{u.streak}
                                                         </span>
                                                     ) : (
@@ -211,16 +228,19 @@ export default function AdminIndex({ stats, topStreaks, recentUsers, mostActive,
                     {/* Top streaks */}
                     {topStreaks.length > 0 && (
                         <div>
-                            <h2 className="mb-4 text-sm font-medium text-zinc-400 uppercase tracking-wider">Top streaks</h2>
+                            <h2 className="mb-4 flex items-center gap-2 text-sm font-medium uppercase tracking-wider text-zinc-400">
+                                <span className="inline-block h-3.5 w-0.5 rounded-full bg-primary" />
+                                Top streaks
+                            </h2>
                             <div className="flex flex-wrap gap-3">
                                 {topStreaks.map((u, i) => (
-                                    <div key={u.email} className="flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3">
-                                        <span className="text-sm text-zinc-600 tabular-nums w-4">{i + 1}</span>
+                                    <div key={u.email} className="flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3 transition-colors hover:border-primary/30">
+                                        <span className="w-4 text-sm font-bold tabular-nums text-primary">{i + 1}</span>
                                         <div>
                                             <div className="text-sm font-medium">{u.name}</div>
                                             <div className="text-xs text-zinc-500">{u.email}</div>
                                         </div>
-                                        <span className="ml-2 flex items-center gap-1 text-orange-400 font-bold text-lg">
+                                        <span className="ml-2 flex items-center gap-1 text-lg font-bold text-orange-400">
                                             <Flame className="size-4" />{u.streak}
                                         </span>
                                     </div>

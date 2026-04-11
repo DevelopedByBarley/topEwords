@@ -29,7 +29,11 @@
       "Bash(php -r \"echo extension_loaded\\('zip'\\) ? 'zip: yes' : 'zip: no'; echo PHP_EOL; echo extension_loaded\\('zlib'\\) ? 'zlib: yes' : 'zlib: no';\")",
       "Bash(php -r \"echo php_ini_loaded_file\\(\\);\")",
       "Bash(php -r \"echo ini_get\\('upload_max_filesize'\\), ' / ', ini_get\\('post_max_size'\\);\")",
-      "Read(//opt/homebrew/etc/php/8.4/**)"
+      "Read(//opt/homebrew/etc/php/8.4/**)",
+      "Bash(/Applications/XAMPP/xamppfiles/bin/mysql -u root -e \"SELECT COUNT\\(*\\) as total, MAX\\(rank\\) as max_rank FROM topewords.words;\")",
+      "Bash(vendor/bin/pint app/Http/Controllers/TextAnalysisController.php --format agent)",
+      "Bash(git checkout:*)",
+      "Bash(vendor/bin/pint --dirty --format agent app/Http/Controllers/ExtensionController.php)"
     ],
     "additionalDirectories": [
       "/private/tmp",

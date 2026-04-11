@@ -1,0 +1,112 @@
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    width: 230px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 13px;
+    color: #1e293b;
+    background: #fff;
+}
+
+.header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 14px 12px;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.logo {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    background: linear-gradient(135deg, #00a9a7, #008988);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 18px;
+    font-weight: 800;
+    color: #fff;
+    padding-bottom: 3px;
+    position: relative;
+}
+
+.logo::after {
+    content: '';
+    position: absolute;
+    bottom: 4px;
+    left: 4px;
+    right: 4px;
+    height: 2px;
+    background: rgba(255,255,255,0.85);
+    border-radius: 1px;
+}
+
+.title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.actions {
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.btn-primary {
+    display: block;
+    width: 100%;
+    padding: 8px 12px;
+    background: #00a9a7;
+    color: #fff;
+    border: none;
+    border-radius: 7px;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    text-align: center;
+    transition: background 0.15s;
+}
+
+.btn-primary:hover { background: #008988; }
+
+.btn-secondary {
+    display: block;
+    width: 100%;
+    padding: 7px 12px;
+    background: #f1f5f9;
+    color: #475569;
+    border: none;
+    border-radius: 7px;
+    font-size: 12px;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    text-align: center;
+    text-decoration: none;
+    transition: background 0.15s;
+}
+
+.btn-secondary:hover { background: #e2e8f0; }
+
+.hint {
+    padding: 10px 14px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.hint p {
+    font-size: 11px;
+    color: #64748b;
+    line-height: 1.4;
+}

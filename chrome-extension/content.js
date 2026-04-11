@@ -179,32 +179,37 @@ let host = null;
 let shadow = null;
 let currentWord = null;
 let currentData = null;
+let holdTimer = null;
 
 // ── Selection detection ───────────────────────────────────────────────────────
 
-document.addEventListener('mouseup', (e) => {
+document.addEventListener('mousedown', (e) => {
     if (host && host.contains(e.target)) return;
+    clearTimeout(holdTimer);
 
-    setTimeout(() => {
-        const selection = window.getSelection();
-        const text = selection?.toString().trim();
+    if (e.detail === 2) {
+        // Dupla klikk + nyomva tartás → popup
+        holdTimer = setTimeout(() => {
+            const selection = window.getSelection();
+            const text = selection?.toString().trim();
+            if (!text) return;
+            const word = text.replace(/[^a-zA-Z'-]/g, '').trim();
+            if (!word || word.length < 2 || text.split(/\s+/).length > 1) return;
+            if (word === currentWord && host) return;
+            const range = selection.getRangeAt(0);
+            const rect = range.getBoundingClientRect();
+            showPopup(word, rect);
+        }, 300);
+    }
+});
 
-        if (!text) { hidePopup(); return; }
-
-        // Single words only, strip punctuation
-        const word = text.replace(/[^a-zA-Z'-]/g, '').trim();
-        if (!word || word.length < 2 || text.split(/\s+/).length > 1) return;
-
-        if (word === currentWord && host) return;
-
-        const range = selection.getRangeAt(0);
-        const rect = range.getBoundingClientRect();
-        showPopup(word, rect);
-    }, 10);
+document.addEventListener('mouseup', () => {
+    clearTimeout(holdTimer);
 });
 
 document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') hidePopup();
+    if (e.key === 'Escape') { hidePopup(); hideSearch(); }
+    if (e.altKey && e.code === 'KeyW') { e.preventDefault(); toggleSearch(); }
 });
 
 // ── Popup ─────────────────────────────────────────────────────────────────────
@@ -248,7 +253,7 @@ function showPopup(word, rect) {
         document.addEventListener('mousedown', onOutsideClick);
     }, 0);
 
-    chrome.runtime.sendMessage({ type: 'LOOKUP_WORD', word }, (response) => {
+    sendMsg({ type: 'LOOKUP_WORD', word }, (response) => {
         if (!shadow) return;
         currentData = response;
         renderBody(response);
@@ -292,17 +297,21 @@ function renderBody(data) {
     if (!shadow) return;
     const body = shadow.querySelector('.body');
 
-    if (!data || data.error === 'unauthenticated') {
-        body.innerHTML = `<span class="msg">Jelentkezz be a TopEwords-be a szókereséshez.</span>`;
+    if (!data || data.error === 'unauthenticated' || data.error === 'network') {
+        body.innerHTML = `<span class="msg">${data?.error === 'network' ? 'Nincs kapcsolat a TopEwords-szel.' : 'Jelentkezz be a TopEwords-be a szókereséshez.'}</span>`;
         return;
     }
 
     if (!data.found) {
+        const googleUrl = `https://www.google.com/search?q=${encodeURIComponent(data.word + ' angol szó: jelentése magyarul, szinonimák, példamondat angolul és magyarul, szófaj, igeragozás ha ige')}&udm=50`;
         body.innerHTML = `
             <span class="msg">„${esc(data.word)}" nincs az adatbázisban.</span>
-            <div class="footer" style="margin-top:8px">
+            <div class="footer" style="margin-top:8px;gap:8px;flex-wrap:wrap">
                 <a class="link" href="${APP_URL}/words?add=${encodeURIComponent(data.word)}" target="_blank">
                     Saját szóként hozzáadom →
+                </a>
+                <a class="link" href="${googleUrl}" target="_blank" style="color:#4285f4">
+                    🔍 Google AI
                 </a>
             </div>
         `;
@@ -374,7 +383,7 @@ function handleStatusClick(btn, data) {
     // Update local data so toggling works correctly
     currentData = { ...data, status: isSame ? null : newStatus };
 
-    chrome.runtime.sendMessage({
+    sendMsg({
         type: 'UPDATE_STATUS',
         id: data.id,
         is_custom: data.is_custom,
@@ -383,8 +392,655 @@ function handleStatusClick(btn, data) {
     });
 }
 
+// ── Search modal ──────────────────────────────────────────────────────────────
+
+const SEARCH_CSS = `
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :host {
+        position: fixed;
+        inset: 0;
+        z-index: 2147483647;
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+        padding-top: 80px;
+        background: rgba(15, 23, 42, 0.45);
+        backdrop-filter: blur(2px);
+    }
+
+    #modal {
+        width: 480px;
+        max-height: 520px;
+        background: #ffffff;
+        border-radius: 14px;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.2), 0 4px 12px rgba(0,0,0,0.1);
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        font-size: 14px;
+        color: #1e293b;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    #search-wrap {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 14px 16px;
+        border-bottom: 1px solid #f1f5f9;
+    }
+
+    #search-icon {
+        color: #94a3b8;
+        flex-shrink: 0;
+    }
+
+    #search-input {
+        flex: 1;
+        border: none;
+        outline: none;
+        font-size: 16px;
+        color: #0f172a;
+        background: transparent;
+    }
+
+    #search-input::placeholder { color: #cbd5e1; }
+
+    #shortcut-hint {
+        font-size: 11px;
+        color: #cbd5e1;
+        flex-shrink: 0;
+    }
+
+    #results {
+        overflow-y: auto;
+        flex: 1;
+    }
+
+    .result-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 16px;
+        cursor: pointer;
+        border-bottom: 1px solid #f8fafc;
+        transition: background 0.1s;
+    }
+
+    .result-item:hover { background: #f8fafc; }
+    .result-item:last-child { border-bottom: none; }
+
+    .result-main { flex: 1; min-width: 0; }
+
+    .result-word {
+        font-weight: 600;
+        font-size: 14px;
+        color: #0f172a;
+    }
+
+    .result-meaning {
+        font-size: 12px;
+        color: #64748b;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        margin-top: 1px;
+    }
+
+    .result-meta {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 3px;
+        flex-shrink: 0;
+    }
+
+    .result-rank { font-size: 11px; color: #cbd5e1; }
+
+    .result-status {
+        font-size: 10px;
+        padding: 1px 7px;
+        border-radius: 20px;
+        font-weight: 500;
+        color: #fff;
+    }
+
+    .result-custom {
+        font-size: 10px;
+        padding: 1px 7px;
+        border-radius: 20px;
+        background: #ede9fe;
+        color: #7c3aed;
+        font-weight: 500;
+    }
+
+    #empty {
+        padding: 32px 16px;
+        text-align: center;
+        color: #94a3b8;
+        font-size: 13px;
+    }
+
+    #loading {
+        padding: 24px 16px;
+        text-align: center;
+        color: #94a3b8;
+        font-size: 13px;
+    }
+
+    /* Detail panel */
+    #detail {
+        padding: 14px 16px;
+        border-top: 1px solid #f1f5f9;
+        display: none;
+    }
+
+    #detail.visible { display: block; }
+
+    .detail-header {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 8px;
+    }
+
+    .detail-word {
+        font-size: 18px;
+        font-weight: 700;
+        color: #0f172a;
+    }
+
+    .detail-pos { font-size: 12px; color: #94a3b8; font-style: italic; }
+    .detail-rank { font-size: 12px; color: #cbd5e1; margin-left: auto; }
+
+    .detail-meaning { font-size: 14px; color: #334155; margin-bottom: 4px; }
+    .detail-extra { font-size: 12px; color: #94a3b8; margin-bottom: 10px; }
+
+    .detail-statuses {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+        margin-bottom: 10px;
+    }
+
+    .status-btn {
+        display: inline-flex;
+        align-items: center;
+        padding: 4px 11px;
+        border-radius: 20px;
+        border: 1px solid #e2e8f0;
+        background: #f8fafc;
+        font-size: 12px;
+        font-weight: 500;
+        color: #64748b;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+
+    .status-btn:hover { border-color: #6366f1; color: #6366f1; background: #eef2ff; }
+    .status-btn.active { color: #fff; border-color: transparent; }
+
+    .detail-link {
+        font-size: 12px;
+        color: #6366f1;
+        cursor: pointer;
+        text-decoration: underline;
+        text-underline-offset: 2px;
+    }
+
+    .detail-link:hover { color: #4f46e5; }
+
+    #footer-hint {
+        padding: 8px 16px;
+        border-top: 1px solid #f1f5f9;
+        font-size: 11px;
+        color: #cbd5e1;
+        text-align: center;
+    }
+
+    #detail.form-mode {
+        overflow-y: auto;
+        max-height: 310px;
+    }
+
+    .form-fields { display: flex; flex-direction: column; gap: 6px; }
+
+    .form-input {
+        width: 100%;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 6px 10px;
+        font-size: 13px;
+        outline: none;
+        font-family: inherit;
+        color: #0f172a;
+        background: #fff;
+        box-sizing: border-box;
+    }
+
+    .form-input:focus { border-color: #6366f1; }
+
+    select.form-input { cursor: pointer; }
+
+    .form-row { display: flex; gap: 6px; }
+    .form-row .form-input { flex: 1; min-width: 0; }
+
+    .form-section {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .form-section-label {
+        font-size: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #94a3b8;
+        margin-bottom: 2px;
+    }
+
+    .form-check {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        color: #475569;
+        cursor: pointer;
+    }
+
+    .add-btn {
+        padding: 7px 18px;
+        background: #6366f1;
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        font-family: inherit;
+        transition: background 0.15s;
+        flex-shrink: 0;
+    }
+
+    .add-btn:hover { background: #4f46e5; }
+    .add-btn:disabled { opacity: 0.6; cursor: default; }
+
+    .google-ai-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 11px;
+        font-weight: 500;
+        color: #4285f4;
+        text-decoration: none;
+        padding: 3px 10px;
+        border: 1px solid #dbeafe;
+        border-radius: 20px;
+        background: #eff6ff;
+        white-space: nowrap;
+        transition: all 0.15s;
+    }
+
+    .google-ai-link:hover { background: #dbeafe; border-color: #93c5fd; }
+`;
+
+let searchHost = null;
+let searchShadow = null;
+let searchDebounce = null;
+let searchCsrf = null;
+let searchHasAccess = false;
+
+function toggleSearch() {
+    if (searchHost) { hideSearch(); return; }
+    showSearch();
+}
+
+function showSearch() {
+    hidePopup();
+    searchHost = document.createElement('div');
+    searchHost.style.cssText = 'position:fixed;inset:0;z-index:2147483647;pointer-events:auto;';
+    document.body.appendChild(searchHost);
+
+    searchShadow = searchHost.attachShadow({ mode: 'open' });
+
+    const style = document.createElement('style');
+    style.textContent = SEARCH_CSS;
+    searchShadow.appendChild(style);
+
+    searchShadow.innerHTML += `
+        <div id="modal">
+            <div id="search-wrap">
+                <svg id="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+                </svg>
+                <input id="search-input" type="text" placeholder="Keress egy szót…" autocomplete="off" spellcheck="false" />
+                <span id="shortcut-hint">Alt+W</span>
+            </div>
+            <div id="results"><div id="empty" style="display:none">Nincs találat.</div></div>
+            <div id="detail"></div>
+            <div id="footer-hint">Enter · kattintás = részletek &nbsp;·&nbsp; Esc = bezár</div>
+        </div>
+    `;
+
+    const input = searchShadow.getElementById('search-input');
+    input.focus();
+
+    input.addEventListener('input', () => {
+        clearTimeout(searchDebounce);
+        const q = input.value.trim();
+        if (!q) { renderSearchResults([]); return; }
+        showSearchLoading();
+        searchDebounce = setTimeout(() => {
+            sendMsg({ type: 'SEARCH_WORD', q }, (resp) => {
+                if (!searchShadow) return;
+                searchCsrf = resp?.csrf ?? null;
+                searchHasAccess = resp?.has_active_access ?? false;
+                renderSearchResults(resp?.results ?? [], resp?.error);
+            });
+        }, 250);
+    });
+
+    searchHost.addEventListener('mousedown', (e) => {
+        const modal = searchShadow.getElementById('modal');
+        if (!e.composedPath().includes(modal)) hideSearch();
+    });
+}
+
+function hideSearch() {
+    if (searchHost) {
+        searchHost.remove();
+        searchHost = null;
+        searchShadow = null;
+        clearTimeout(searchDebounce);
+    }
+}
+
+function showSearchLoading() {
+    if (!searchShadow) return;
+    searchShadow.getElementById('results').innerHTML = '<div id="loading">Keresés…</div>';
+    const detail = searchShadow.getElementById('detail');
+    detail.classList.remove('visible');
+    detail.innerHTML = '';
+}
+
+function renderSearchResults(results, error) {
+    if (!searchShadow) return;
+    const container = searchShadow.getElementById('results');
+    const detail = searchShadow.getElementById('detail');
+    detail.classList.remove('visible');
+    detail.innerHTML = '';
+
+    if (error === 'unauthenticated' || error === 'network') {
+        container.innerHTML = `<div id="empty">${error === 'network' ? 'Nincs kapcsolat a TopEwords-szel.' : 'Jelentkezz be a TopEwords-be a kereséshez.'}</div>`;
+        return;
+    }
+
+    if (!results.length) {
+        const q = searchShadow.getElementById('search-input')?.value.trim() ?? '';
+        if (q) {
+            container.innerHTML = `
+                <div class="result-item" id="add-notfound">
+                    <div class="result-main">
+                        <div class="result-word">${esc(q)}</div>
+                        <div class="result-meaning" style="color:#94a3b8">Nincs az adatbázisban – hozzáadás saját szóként</div>
+                    </div>
+                    <div class="result-meta">
+                        <span style="font-size:10px;padding:1px 7px;border-radius:20px;background:#dcfce7;color:#16a34a;font-weight:500">+ saját</span>
+                    </div>
+                </div>
+            `;
+            container.querySelector('#add-notfound').addEventListener('click', () => {
+                showSearchDetail({ word: q, _notFound: true });
+            });
+        } else {
+            container.innerHTML = '<div id="empty">Nincs találat.</div>';
+        }
+        return;
+    }
+
+    container.innerHTML = results.map((r, i) => {
+        const statusColor = r.status ? STATUS_COLORS[r.status] : null;
+        const statusLabel = r.status ? STATUS_LABELS[r.status] : null;
+        return `
+            <div class="result-item" data-index="${i}">
+                <div class="result-main">
+                    <div class="result-word">${esc(r.word)}</div>
+                    <div class="result-meaning">${esc(r.meaning_hu ?? '')}</div>
+                </div>
+                <div class="result-meta">
+                    ${r.rank ? `<span class="result-rank">#${r.rank}</span>` : ''}
+                    ${r.is_custom ? `<span class="result-custom">saját</span>` : ''}
+                    ${statusLabel ? `<span class="result-status" style="background:${statusColor}">${statusLabel}</span>` : ''}
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    container.querySelectorAll('.result-item').forEach((el) => {
+        el.addEventListener('click', () => {
+            const idx = parseInt(el.dataset.index);
+            showSearchDetail(results[idx]);
+        });
+    });
+}
+
+function showSearchDetail(data) {
+    if (!searchShadow) return;
+    const detail = searchShadow.getElementById('detail');
+
+    let statusSection = '';
+    if (searchHasAccess) {
+        const btns = Object.entries(STATUS_LABELS).map(([key, label]) => {
+            const isActive = data.status === key;
+            const color = STATUS_COLORS[key];
+            const activeStyle = isActive ? `background:${color};border-color:${color};color:#fff` : '';
+            return `<button class="status-btn${isActive ? ' active' : ''}" data-status="${key}" style="${activeStyle}">${label}</button>`;
+        }).join('');
+        statusSection = `<div class="detail-statuses">${btns}</div>`;
+    }
+
+    // Ha nincs a DB-ben (nem found), mutass teljes "Hozzáadás" formot
+    if (data._notFound) {
+        const googleUrl = `https://www.google.com/search?q=${encodeURIComponent(data.word + ' angol szó: jelentése magyarul, szinonimák, példamondat angolul és magyarul, szófaj, igeragozás ha ige')}&udm=50`;
+        detail.innerHTML = `
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+                <span style="font-size:14px;font-weight:700;color:#0f172a">${esc(data.word)}</span>
+                <a class="google-ai-link" href="${googleUrl}" target="_blank">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                    Google AI
+                </a>
+            </div>
+            <div class="form-fields">
+                <select class="form-input" id="add-pos">
+                    <option value="">Szófaj (opcionális)</option>
+                    <option value="verb">ige</option>
+                    <option value="noun">főnév</option>
+                    <option value="adj">melléknév</option>
+                    <option value="adv">határozószó</option>
+                    <option value="prep">elöljáró</option>
+                    <option value="conj">kötőszó</option>
+                    <option value="det">névelő</option>
+                    <option value="pron">névmás</option>
+                    <option value="num">számnév</option>
+                    <option value="interj">indulatszó</option>
+                </select>
+                <input class="form-input" id="add-meaning" type="text" placeholder="Magyar jelentés" />
+                <input class="form-input" id="add-extra" type="text" placeholder="További jelentések" />
+                <input class="form-input" id="add-synonyms" type="text" placeholder="Szinonimák (pl. consent, accept)" />
+                <input class="form-input" id="add-example-en" type="text" placeholder="Példamondat (angol)" />
+                <input class="form-input" id="add-example-hu" type="text" placeholder="Példamondat (magyar)" />
+
+                <div id="verb-fields" class="form-section" style="display:none">
+                    <div class="form-section-label">Igealakok</div>
+                    <div class="form-row">
+                        <input class="form-input" id="add-form-base" type="text" placeholder="Alap (to ...)" />
+                        <input class="form-input" id="add-verb-past" type="text" placeholder="Múlt idő" />
+                    </div>
+                    <div class="form-row">
+                        <input class="form-input" id="add-verb-pp" type="text" placeholder="Bef. igenév" />
+                        <input class="form-input" id="add-verb-prog" type="text" placeholder="Folyamatos (-ing)" />
+                    </div>
+                    <input class="form-input" id="add-verb-3rd" type="text" placeholder="E/3 jelen" />
+                    <label class="form-check">
+                        <input type="checkbox" id="add-irregular" /> Rendhagyó ige
+                    </label>
+                </div>
+
+                <div id="noun-fields" class="form-section" style="display:none">
+                    <div class="form-section-label">Főnév</div>
+                    <input class="form-input" id="add-noun-plural" type="text" placeholder="Többes szám" />
+                </div>
+
+                <div id="adj-fields" class="form-section" style="display:none">
+                    <div class="form-section-label">Fokozás</div>
+                    <div class="form-row">
+                        <input class="form-input" id="add-adj-comp" type="text" placeholder="Középfok" />
+                        <input class="form-input" id="add-adj-super" type="text" placeholder="Felsőfok" />
+                    </div>
+                </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:12px">
+                <button id="add-btn" class="add-btn">Hozzáadás</button>
+                <div id="add-feedback" style="font-size:12px;color:#22c55e;display:none"></div>
+            </div>
+        `;
+        detail.classList.add('visible', 'form-mode');
+
+        const posSelect = detail.querySelector('#add-pos');
+        posSelect.addEventListener('change', () => {
+            const pos = posSelect.value;
+            detail.querySelector('#verb-fields').style.display = pos === 'verb' ? 'flex' : 'none';
+            detail.querySelector('#noun-fields').style.display = pos === 'noun' ? 'flex' : 'none';
+            detail.querySelector('#adj-fields').style.display = pos === 'adj' ? 'flex' : 'none';
+        });
+
+        detail.querySelector('#add-btn').addEventListener('click', () => {
+            const pos = posSelect.value;
+            const btn = detail.querySelector('#add-btn');
+            btn.disabled = true;
+            btn.textContent = '…';
+
+            const payload = {
+                type: 'ADD_WORD',
+                csrf: searchCsrf,
+                word: data.word,
+                meaning_hu: detail.querySelector('#add-meaning').value.trim() || null,
+                extra_meanings: detail.querySelector('#add-extra').value.trim() || null,
+                synonyms: detail.querySelector('#add-synonyms').value.trim() || null,
+                part_of_speech: pos || null,
+                example_en: detail.querySelector('#add-example-en').value.trim() || null,
+                example_hu: detail.querySelector('#add-example-hu').value.trim() || null,
+            };
+
+            if (pos === 'verb') {
+                payload.form_base = detail.querySelector('#add-form-base').value.trim() || null;
+                payload.verb_past = detail.querySelector('#add-verb-past').value.trim() || null;
+                payload.verb_past_participle = detail.querySelector('#add-verb-pp').value.trim() || null;
+                payload.verb_present_participle = detail.querySelector('#add-verb-prog').value.trim() || null;
+                payload.verb_third_person = detail.querySelector('#add-verb-3rd').value.trim() || null;
+                payload.is_irregular = detail.querySelector('#add-irregular').checked;
+            }
+            if (pos === 'noun') {
+                payload.noun_plural = detail.querySelector('#add-noun-plural').value.trim() || null;
+            }
+            if (pos === 'adj') {
+                payload.adj_comparative = detail.querySelector('#add-adj-comp').value.trim() || null;
+                payload.adj_superlative = detail.querySelector('#add-adj-super').value.trim() || null;
+            }
+
+            sendMsg(payload, (resp) => {
+                const fb = detail.querySelector('#add-feedback');
+                if (resp?.ok) {
+                    btn.style.display = 'none';
+                    fb.textContent = `„${esc(data.word)}" hozzáadva!`;
+                    fb.style.color = '#22c55e';
+                    fb.style.display = 'block';
+                } else if (resp?.error === 'duplicate') {
+                    btn.disabled = false;
+                    btn.textContent = 'Hozzáadás';
+                    fb.textContent = 'Már szerepel a saját szavaid között.';
+                    fb.style.color = '#f97316';
+                    fb.style.display = 'block';
+                } else if (resp?.error === 'limit') {
+                    btn.disabled = false;
+                    btn.textContent = 'Hozzáadás';
+                    fb.textContent = 'Elérted az ingyenes limitet (10 szó).';
+                    fb.style.color = '#f97316';
+                    fb.style.display = 'block';
+                } else {
+                    btn.disabled = false;
+                    btn.textContent = 'Hozzáadás';
+                }
+            });
+        });
+        return;
+    }
+
+    detail.innerHTML = `
+        <div class="detail-header">
+            <span class="detail-word">${esc(data.word)}</span>
+            ${data.part_of_speech ? `<span class="detail-pos">${esc(data.part_of_speech)}</span>` : ''}
+            ${data.rank ? `<span class="detail-rank">#${data.rank}</span>` : ''}
+            ${data.is_custom ? `<span style="font-size:10px;padding:1px 7px;border-radius:20px;background:#ede9fe;color:#7c3aed;font-weight:500">saját</span>` : ''}
+        </div>
+        <div class="detail-meaning">${esc(data.meaning_hu ?? '')}</div>
+        ${data.extra_meanings ? `<div class="detail-extra">${esc(data.extra_meanings)}</div>` : ''}
+        ${statusSection}
+        <a class="detail-link" href="${APP_URL}/words?search=${encodeURIComponent(data.word)}" target="_blank">Megnyitás a TopEwords-ben →</a>
+    `;
+    detail.classList.add('visible');
+
+    if (searchHasAccess) {
+        detail.querySelectorAll('.status-btn').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const newStatus = btn.dataset.status;
+                const isSame = btn.classList.contains('active');
+
+                detail.querySelectorAll('.status-btn').forEach((b) => {
+                    b.classList.remove('active');
+                    b.style.background = '';
+                    b.style.borderColor = '';
+                    b.style.color = '';
+                });
+
+                if (!isSame) {
+                    btn.classList.add('active');
+                    const color = STATUS_COLORS[newStatus];
+                    btn.style.background = color;
+                    btn.style.borderColor = color;
+                    btn.style.color = '#fff';
+                }
+
+                data = { ...data, status: isSame ? null : newStatus };
+
+                sendMsg({
+                    type: 'UPDATE_STATUS',
+                    id: data.id,
+                    is_custom: data.is_custom,
+                    status: isSame ? null : newStatus,
+                    csrf: searchCsrf,
+                });
+            });
+        });
+    }
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function esc(str) {
     return String(str ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function sendMsg(msg, callback) {
+    try {
+        chrome.runtime.sendMessage(msg, callback);
+    } catch (_) {
+        callback?.({ error: 'network' });
+    }
 }

@@ -1,4 +1,4 @@
-import { Head, router } from '@inertiajs/react';
+import { Head, router, usePage } from '@inertiajs/react';
 import {
     ArrowLeftRight,
     BookMarked,
@@ -36,7 +36,7 @@ import { destroy as destroyCustomWord, status as customWordStatus, store as stor
 import { destroy, store, update } from '@/routes/folders';
 import { update as folderWordUpdate } from '@/routes/folders/words';
 import { importMethod as importFromWord } from '@/routes/flashcards/cards';
-import { index, status } from '@/routes/words';
+import { index, status, update as updateWord } from '@/routes/words';
 
 type WordStatus = 'known' | 'learning' | 'saved' | 'pronunciation' | null;
 
@@ -156,6 +156,7 @@ interface Props {
     customWords: CustomWord[];
     customStats: { total: number; known: number; learning: number };
     markedPages: number[];
+    completedPages: number[];
     markedLetters: string[];
     folders: Folder[];
     wordFolderIds: Record<number, number[]>;
@@ -193,6 +194,7 @@ export default function WordsIndex({
     customWords,
     customStats,
     markedPages,
+    completedPages,
     markedLetters,
     folders,
     wordFolderIds,
@@ -212,9 +214,14 @@ export default function WordsIndex({
     const [selectedCustomWordId, setSelectedCustomWordId] = useState<number | null>(null);
     const [editCustomWordId, setEditCustomWordId] = useState<number | null>(null);
     const [editCustomWordForm, setEditCustomWordForm] = useState<CustomWordFormData>(EMPTY_CUSTOM_WORD_FORM);
+    const [editWordId, setEditWordId] = useState<number | null>(null);
+    const [editWordForm, setEditWordForm] = useState<CustomWordFormData>(EMPTY_CUSTOM_WORD_FORM);
     const [selectedDeckId, setSelectedDeckId] = useState<string>('');
     const [importingFlashcard, setImportingFlashcard] = useState(false);
     const [customImportSuccess, setCustomImportSuccess] = useState(false);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { auth } = usePage<{ auth: { isAdmin: boolean } }>().props as any;
+    const isAdmin: boolean = auth?.isAdmin ?? false;
     const selectedWord =
         selectedWordId !== null
             ? (words.data.find((w) => w.id === selectedWordId) ?? null)
@@ -530,6 +537,16 @@ export default function WordsIndex({
             only: ['customWords', 'customStats'],
             onSuccess: () => {
                 setEditCustomWordId(null);
+            },
+        });
+    }
+
+    function handleSaveEditWord(wordId: number) {
+        router.patch(updateWord(wordId), editWordForm, {
+            preserveScroll: true,
+            only: ['words'],
+            onSuccess: () => {
+                setEditWordId(null);
             },
         });
     }
@@ -1208,35 +1225,29 @@ export default function WordsIndex({
                     <div className="flex flex-wrap justify-center gap-1">
                         {words.links.map((link, i) => {
                             const pageNum = link.url
-                                ? Number(
-                                      new URL(link.url).searchParams.get(
-                                          'page',
-                                      ) ?? 1,
-                                  )
+                                ? Number(new URL(link.url).searchParams.get('page') ?? 1)
                                 : null;
-                            const hasMarks =
-                                pageNum !== null &&
-                                !link.active &&
-                                markedPages.includes(pageNum);
+                            const isCompleted = pageNum !== null && !link.active && completedPages.includes(pageNum);
+                            const hasMarks = pageNum !== null && !link.active && !isCompleted && markedPages.includes(pageNum);
+                            const label = (link.label.includes('Previous') || link.label.includes('pagination.previous')) ? '←'
+                                : (link.label.includes('Next') || link.label.includes('pagination.next')) ? '→'
+                                : link.label;
 
                             return (
                                 <button
                                     key={i}
                                     disabled={!link.url}
-                                    onClick={() => {
-                                        if (link.url && pageNum)
-                                            navigate({ page: pageNum });
-                                    }}
+                                    onClick={() => { if (link.url && pageNum) navigate({ page: pageNum }); }}
                                     className={`relative rounded-md px-3 py-1.5 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
                                         link.active
                                             ? 'bg-primary font-medium text-primary-foreground'
-                                            : hasMarks
-                                              ? 'border border-green-400 bg-green-50 text-green-800 hover:bg-green-100 dark:border-green-700 dark:bg-green-950/30 dark:text-green-300'
-                                              : 'border hover:bg-accent'
+                                            : isCompleted
+                                              ? 'border border-green-400 bg-green-50 font-medium text-green-800 hover:bg-green-100 dark:border-green-700 dark:bg-green-950/30 dark:text-green-300'
+                                              : hasMarks
+                                                ? 'border border-muted-foreground/30 bg-muted/40 hover:bg-accent'
+                                                : 'border hover:bg-accent'
                                     }`}
-                                    dangerouslySetInnerHTML={{
-                                        __html: link.label,
-                                    }}
+                                    dangerouslySetInnerHTML={{ __html: label }}
                                 />
                             );
                         })}
@@ -1820,11 +1831,145 @@ export default function WordsIndex({
                                         </div>
                                     </div>
                                 )}
+
+                                {/* Admin szerkesztés */}
+                                {isAdmin && (
+                                    <div className="border-t pt-4">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="w-full border-amber-300 text-amber-700 hover:bg-amber-50 hover:text-amber-800 dark:border-amber-700 dark:text-amber-400 dark:hover:bg-amber-950/30"
+                                            onClick={() => {
+                                                setSelectedWordId(null);
+                                                setEditWordId(selectedWord.id);
+                                                setEditWordForm({
+                                                    word: selectedWord.word,
+                                                    meaning_hu: selectedWord.meaning_hu ?? '',
+                                                    extra_meanings: selectedWord.extra_meanings ?? '',
+                                                    synonyms: selectedWord.synonyms ?? '',
+                                                    part_of_speech: selectedWord.part_of_speech ?? '',
+                                                    example_en: selectedWord.example_en ?? '',
+                                                    example_hu: selectedWord.example_hu ?? '',
+                                                    form_base: selectedWord.form_base ?? '',
+                                                    verb_past: selectedWord.verb_past ?? '',
+                                                    verb_past_participle: selectedWord.verb_past_participle ?? '',
+                                                    verb_present_participle: selectedWord.verb_present_participle ?? '',
+                                                    verb_third_person: selectedWord.verb_third_person ?? '',
+                                                    is_irregular: selectedWord.is_irregular === 1,
+                                                    noun_plural: selectedWord.noun_plural ?? '',
+                                                    adj_comparative: selectedWord.adj_comparative ?? '',
+                                                    adj_superlative: selectedWord.adj_superlative ?? '',
+                                                });
+                                            }}
+                                        >
+                                            <Pencil className="size-3.5" />
+                                            Admin szerkesztés
+                                        </Button>
+                                    </div>
+                                )}
                             </div>
                         </>
                     )}
                 </DialogContent>
             </Dialog>
+            {/* Admin word edit modal */}
+            {isAdmin && (
+                <Dialog open={editWordId !== null} onOpenChange={(open) => { if (!open) setEditWordId(null); }}>
+                    <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-lg">
+                        <DialogHeader className="border-b px-6 py-4">
+                            <DialogTitle>Szó szerkesztése (Admin)</DialogTitle>
+                        </DialogHeader>
+                        <div className="max-h-[65vh] overflow-y-auto px-6 py-5 flex flex-col gap-4">
+                            <div className="flex gap-2">
+                                <div className="flex-1">
+                                    <Input placeholder="Angol szó *" value={editWordForm.word} onChange={(e) => setEditWordForm({ ...editWordForm, word: e.target.value })} autoFocus />
+                                </div>
+                                <Select value={editWordForm.part_of_speech} onValueChange={(v) => setEditWordForm({ ...editWordForm, part_of_speech: v })}>
+                                    <SelectTrigger className="w-36">
+                                        <SelectValue placeholder="Szófaj" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {Object.entries(POS_LABELS).map(([val, label]) => (
+                                            <SelectItem key={val} value={val}>{label}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <Input placeholder="Magyar jelentés" value={editWordForm.meaning_hu} onChange={(e) => setEditWordForm({ ...editWordForm, meaning_hu: e.target.value })} />
+                            <Input placeholder="További jelentések" value={editWordForm.extra_meanings} onChange={(e) => setEditWordForm({ ...editWordForm, extra_meanings: e.target.value })} />
+                            <Input placeholder="Szinonimák (pl. consent, accept)" value={editWordForm.synonyms} onChange={(e) => setEditWordForm({ ...editWordForm, synonyms: e.target.value })} />
+                            <Input placeholder="Példamondat (angol)" value={editWordForm.example_en} onChange={(e) => setEditWordForm({ ...editWordForm, example_en: e.target.value })} />
+                            <Input placeholder="Példamondat (magyar)" value={editWordForm.example_hu} onChange={(e) => setEditWordForm({ ...editWordForm, example_hu: e.target.value })} />
+
+                            {editWordForm.part_of_speech === 'verb' && (
+                                <div className="rounded-xl border bg-muted/30 px-4 py-4 flex flex-col gap-3">
+                                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Igealakok</p>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <label className="text-xs text-muted-foreground">Alap (to ...)</label>
+                                            <Input placeholder="pl. agree" value={editWordForm.form_base} onChange={(e) => setEditWordForm({ ...editWordForm, form_base: e.target.value })} className="mt-1" />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs text-muted-foreground">Múlt idő</label>
+                                            <Input placeholder="pl. agreed" value={editWordForm.verb_past} onChange={(e) => setEditWordForm({ ...editWordForm, verb_past: e.target.value })} className="mt-1" />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs text-muted-foreground">Befejezett igenév</label>
+                                            <Input placeholder="pl. agreed" value={editWordForm.verb_past_participle} onChange={(e) => setEditWordForm({ ...editWordForm, verb_past_participle: e.target.value })} className="mt-1" />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs text-muted-foreground">Folyamatos (-ing)</label>
+                                            <Input placeholder="pl. agreeing" value={editWordForm.verb_present_participle} onChange={(e) => setEditWordForm({ ...editWordForm, verb_present_participle: e.target.value })} className="mt-1" />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs text-muted-foreground">E/3 jelen</label>
+                                            <Input placeholder="pl. agrees" value={editWordForm.verb_third_person} onChange={(e) => setEditWordForm({ ...editWordForm, verb_third_person: e.target.value })} className="mt-1" />
+                                        </div>
+                                    </div>
+                                    <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                                        <input type="checkbox" checked={editWordForm.is_irregular} onChange={(e) => setEditWordForm({ ...editWordForm, is_irregular: e.target.checked })} className="rounded" />
+                                        Rendhagyó ige
+                                    </label>
+                                </div>
+                            )}
+
+                            {editWordForm.part_of_speech === 'noun' && (
+                                <div className="rounded-xl border bg-muted/30 px-4 py-4 flex flex-col gap-3">
+                                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Főnév alakok</p>
+                                    <div>
+                                        <label className="text-xs text-muted-foreground">Többes szám</label>
+                                        <Input placeholder="pl. agreements" value={editWordForm.noun_plural} onChange={(e) => setEditWordForm({ ...editWordForm, noun_plural: e.target.value })} className="mt-1" />
+                                    </div>
+                                </div>
+                            )}
+
+                            {editWordForm.part_of_speech === 'adj' && (
+                                <div className="rounded-xl border bg-muted/30 px-4 py-4 flex flex-col gap-3">
+                                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Fokozás</p>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <label className="text-xs text-muted-foreground">Középfok</label>
+                                            <Input placeholder="pl. better" value={editWordForm.adj_comparative} onChange={(e) => setEditWordForm({ ...editWordForm, adj_comparative: e.target.value })} className="mt-1" />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs text-muted-foreground">Felsőfok</label>
+                                            <Input placeholder="pl. best" value={editWordForm.adj_superlative} onChange={(e) => setEditWordForm({ ...editWordForm, adj_superlative: e.target.value })} className="mt-1" />
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                        <div className="flex gap-2 border-t px-6 py-4">
+                            <Button className="flex-1" disabled={!editWordForm.word.trim()} onClick={() => editWordId !== null && handleSaveEditWord(editWordId)}>
+                                Mentés
+                            </Button>
+                            <Button variant="outline" onClick={() => setEditWordId(null)}>
+                                Mégse
+                            </Button>
+                        </div>
+                    </DialogContent>
+                </Dialog>
+            )}
         </>
     );
 }
