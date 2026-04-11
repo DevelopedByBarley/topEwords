@@ -48,6 +48,7 @@ Route::middleware(['auth', 'can:admin'])->get('admin', [AdminController::class, 
 Route::get('extension/lookup', [ExtensionController::class, 'lookup'])->name('extension.lookup');
 Route::get('extension/search', [ExtensionController::class, 'search'])->name('extension.search');
 Route::get('extension/statuses', [ExtensionController::class, 'statuses'])->name('extension.statuses');
+Route::get('extension/badge', [ExtensionController::class, 'badge'])->name('extension.badge');
 Route::post('extension/add-word', [ExtensionController::class, 'addWord'])->name('extension.add-word');
 
 Route::middleware(['auth', 'verified'])->group(function () {

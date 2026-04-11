@@ -166,6 +166,24 @@ const POPUP_CSS = `
 
     a.link:hover { color: #4f46e5; }
 
+    .tts-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        border: 1px solid #e2e8f0;
+        background: none;
+        cursor: pointer;
+        font-size: 13px;
+        margin-left: auto;
+        flex-shrink: 0;
+        transition: background 0.15s;
+    }
+
+    .tts-btn:hover { background: #f1f5f9; }
+
     .feedback {
         display: block;
         font-size: 12px;
@@ -210,6 +228,16 @@ document.addEventListener('mouseup', () => {
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') { hidePopup(); hideSearch(); }
     if (e.altKey && e.code === 'KeyW') { e.preventDefault(); toggleSearch(); }
+
+    // 1–4 státusz billentyűk nyitott popup-nál
+    if (shadow && currentData?.found && currentData?.has_active_access) {
+        const statusByKey = { '1': 'learning', '2': 'saved', '3': 'known', '4': 'pronunciation' };
+        const status = statusByKey[e.key];
+        if (status) {
+            const btn = shadow.querySelector(`.status-btn[data-status="${status}"]`);
+            if (btn) { e.preventDefault(); handleStatusClick(btn, currentData); }
+        }
+    }
 });
 
 // ── Popup ─────────────────────────────────────────────────────────────────────
@@ -350,6 +378,7 @@ function renderBody(data) {
         ${statusSection}
         <div class="footer">
             <a class="link" href="${APP_URL}/words?search=${encodeURIComponent(word)}" target="_blank">Megnyitás →</a>
+            <button class="tts-btn" title="Kiejtés angolul">🔊</button>
         </div>
     `;
 
@@ -358,6 +387,8 @@ function renderBody(data) {
             btn.addEventListener('click', () => handleStatusClick(btn, data));
         });
     }
+
+    body.querySelector('.tts-btn')?.addEventListener('click', () => speakWord(word));
 }
 
 function handleStatusClick(btn, data) {
@@ -688,6 +719,24 @@ const SEARCH_CSS = `
     }
 
     .google-ai-link:hover { background: #dbeafe; border-color: #93c5fd; }
+
+    .detail-tts-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        border: 1px solid #e2e8f0;
+        background: none;
+        cursor: pointer;
+        font-size: 13px;
+        margin-left: auto;
+        flex-shrink: 0;
+        transition: background 0.15s;
+    }
+
+    .detail-tts-btn:hover { background: #f1f5f9; }
 `;
 
 let searchHost = null;
@@ -992,9 +1041,14 @@ function showSearchDetail(data) {
         <div class="detail-meaning">${esc(data.meaning_hu ?? '')}</div>
         ${data.extra_meanings ? `<div class="detail-extra">${esc(data.extra_meanings)}</div>` : ''}
         ${statusSection}
-        <a class="detail-link" href="${APP_URL}/words?search=${encodeURIComponent(data.word)}" target="_blank">Megnyitás a TopEwords-ben →</a>
+        <div style="display:flex;align-items:center;gap:4px">
+            <a class="detail-link" href="${APP_URL}/words?search=${encodeURIComponent(data.word)}" target="_blank">Megnyitás a TopEwords-ben →</a>
+            <button class="detail-tts-btn" title="Kiejtés angolul">🔊</button>
+        </div>
     `;
     detail.classList.add('visible');
+
+    detail.querySelector('.detail-tts-btn')?.addEventListener('click', () => speakWord(data.word));
 
     if (searchHasAccess) {
         detail.querySelectorAll('.status-btn').forEach((btn) => {
@@ -1031,7 +1085,195 @@ function showSearchDetail(data) {
     }
 }
 
+// ── Page Highlighting ─────────────────────────────────────────────────────────
+
+let highlightEnabled = false;
+let hlWordMap = null;
+
+const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'TEXTAREA', 'INPUT', 'SELECT', 'NOSCRIPT', 'CODE', 'PRE', 'BUTTON']);
+
+function initHighlight() {
+    chrome.storage.local.get('hlEnabled', ({ hlEnabled }) => {
+        if (hlEnabled) {
+            highlightEnabled = true;
+            loadAndApplyHighlights();
+        }
+    });
+}
+
+function loadAndApplyHighlights() {
+    sendMsg({ type: 'GET_STATUSES' }, (resp) => {
+        if (!resp || resp.error || !resp.statuses) { return; }
+        const entries = Object.entries(resp.statuses);
+        if (!entries.length) { return; }
+        hlWordMap = new Map(entries.map(([w, s]) => [w.toLowerCase(), s]));
+        applyHighlights();
+    });
+}
+
+function applyHighlights() {
+    if (!hlWordMap?.size) { return; }
+    removeHighlights();
+
+    const walker = document.createTreeWalker(
+        document.body,
+        NodeFilter.SHOW_TEXT,
+        {
+            acceptNode(node) {
+                const el = node.parentElement;
+                if (!el) { return NodeFilter.FILTER_REJECT; }
+                if ('twHl' in el.dataset) { return NodeFilter.FILTER_REJECT; }
+                if (el.isContentEditable) { return NodeFilter.FILTER_REJECT; }
+                if (SKIP_TAGS.has(el.tagName)) { return NodeFilter.FILTER_REJECT; }
+                return NodeFilter.FILTER_ACCEPT;
+            },
+        }
+    );
+
+    const nodes = [];
+    while (walker.nextNode()) { nodes.push(walker.currentNode); }
+    nodes.forEach(highlightTextNode);
+
+    document.addEventListener('click', handleHlClick, { capture: true });
+}
+
+function highlightTextNode(node) {
+    const text = node.textContent;
+    const regex = /\b([a-zA-Z]{2,})\b/g;
+    const parts = [];
+    let lastIndex = 0;
+    let hasMatch = false;
+    let match;
+
+    while ((match = regex.exec(text)) !== null) {
+        const status = hlWordMap.get(match[1].toLowerCase());
+        if (!status) { continue; }
+
+        hasMatch = true;
+        if (match.index > lastIndex) {
+            parts.push(document.createTextNode(text.slice(lastIndex, match.index)));
+        }
+
+        const span = document.createElement('span');
+        span.dataset.twHl = match[1].toLowerCase();
+        span.dataset.twStatus = status;
+        span.style.cssText = `display:inline;text-decoration-line:underline;text-decoration-color:${STATUS_COLORS[status]};text-decoration-thickness:2px;cursor:pointer;`;
+        span.textContent = match[1];
+        parts.push(span);
+        lastIndex = match.index + match[1].length;
+    }
+
+    if (!hasMatch) { return; }
+    if (lastIndex < text.length) {
+        parts.push(document.createTextNode(text.slice(lastIndex)));
+    }
+
+    const parent = node.parentNode;
+    if (!parent) { return; }
+
+    const fragment = document.createDocumentFragment();
+    parts.forEach((p) => fragment.appendChild(p));
+    parent.replaceChild(fragment, node);
+}
+
+function removeHighlights() {
+    document.removeEventListener('click', handleHlClick, { capture: true });
+    document.querySelectorAll('[data-tw-hl]').forEach((span) => {
+        const text = document.createTextNode(span.textContent);
+        span.parentNode?.replaceChild(text, span);
+    });
+    if (document.body) { document.body.normalize(); }
+}
+
+function handleHlClick(e) {
+    const span = e.target?.closest?.('[data-tw-hl]');
+    if (!span) { return; }
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = span.getBoundingClientRect();
+    showPopup(span.textContent, rect);
+}
+
+function toggleHighlight() {
+    highlightEnabled = !highlightEnabled;
+    chrome.storage.local.set({ hlEnabled: highlightEnabled });
+    if (highlightEnabled) {
+        loadAndApplyHighlights();
+    } else {
+        hlWordMap = null;
+        removeHighlights();
+    }
+    return highlightEnabled;
+}
+
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+    if (msg.type === 'TOGGLE_HIGHLIGHT') {
+        sendResponse({ enabled: toggleHighlight() });
+    }
+    if (msg.type === 'GET_HL_STATE') {
+        sendResponse({ enabled: highlightEnabled });
+    }
+    if (msg.type === 'GET_PAGE_STATS') {
+        if (hlWordMap) {
+            sendResponse({ stats: getPageStats(hlWordMap) });
+        } else {
+            sendMsg({ type: 'GET_STATUSES' }, (resp) => {
+                if (!resp || resp.error || !resp.statuses) {
+                    sendResponse({ error: resp?.error ?? 'unknown' });
+                    return;
+                }
+                const map = new Map(Object.entries(resp.statuses).map(([w, s]) => [w.toLowerCase(), s]));
+                sendResponse({ stats: getPageStats(map) });
+            });
+            return true;
+        }
+    }
+});
+
+initHighlight();
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+function speakWord(word) {
+    if (!window.speechSynthesis) { return; }
+    window.speechSynthesis.cancel();
+    const utt = new window.SpeechSynthesisUtterance(word);
+    utt.lang = 'en-US';
+    utt.rate = 0.9;
+    window.speechSynthesis.speak(utt);
+}
+
+function getPageStats(wordMap) {
+    const seen = new Set();
+    const walker = document.createTreeWalker(
+        document.body,
+        NodeFilter.SHOW_TEXT,
+        {
+            acceptNode(node) {
+                const el = node.parentElement;
+                if (!el) { return NodeFilter.FILTER_REJECT; }
+                if (SKIP_TAGS.has(el.tagName)) { return NodeFilter.FILTER_REJECT; }
+                return NodeFilter.FILTER_ACCEPT;
+            },
+        }
+    );
+
+    const regex = /\b([a-zA-Z]{2,})\b/g;
+    while (walker.nextNode()) {
+        const text = walker.currentNode.textContent;
+        let match;
+        while ((match = regex.exec(text)) !== null) {
+            seen.add(match[1].toLowerCase());
+        }
+    }
+
+    const counts = { learning: 0, saved: 0, known: 0, pronunciation: 0, total: seen.size };
+    for (const word of seen) {
+        const status = wordMap.get(word);
+        if (status && status in counts) { counts[status]++; }
+    }
+    return counts;
+}
 
 function esc(str) {
     return String(str ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');

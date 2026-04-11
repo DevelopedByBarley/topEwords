@@ -1,5 +1,20 @@
 const APP_URL = 'https://topwords.eu';
 
+// ── Badge ─────────────────────────────────────────────────────────────────────
+
+function refreshBadge() {
+    fetch(`${APP_URL}/extension/badge`, {
+        credentials: 'include',
+        headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+    })
+        .then((r) => r.json())
+        .then(({ count }) => {
+            chrome.action.setBadgeText({ text: count > 0 ? String(count) : '' });
+            chrome.action.setBadgeBackgroundColor({ color: '#3b82f6' });
+        })
+        .catch(() => chrome.action.setBadgeText({ text: '' }));
+}
+
 // ── Context menus ─────────────────────────────────────────────────────────────
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -14,6 +29,8 @@ chrome.runtime.onInstalled.addListener(() => {
         title: 'Oldal szövegelemzése',
         contexts: ['page', 'selection'],
     });
+
+    refreshBadge();
 });
 
 // Extension icon click → analyze current page
@@ -97,6 +114,18 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         return true;
     }
 
+    if (msg.type === 'GET_STATUSES') {
+        fetch(`${APP_URL}/extension/statuses`, {
+            credentials: 'include',
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+        })
+            .then((r) => r.json())
+            .then((data) => sendResponse(data))
+            .catch(() => sendResponse({ error: 'network' }));
+
+        return true;
+    }
+
     if (msg.type === 'UPDATE_STATUS') {
         const url = msg.is_custom
             ? `${APP_URL}/custom-words/${msg.id}/status`
@@ -115,9 +144,16 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
             },
             body,
         })
-            .then((r) => sendResponse({ ok: r.ok }))
+            .then((r) => {
+                if (r.ok) { refreshBadge(); }
+                sendResponse({ ok: r.ok });
+            })
             .catch(() => sendResponse({ error: 'network' }));
 
         return true;
+    }
+
+    if (msg.type === 'REFRESH_BADGE') {
+        refreshBadge();
     }
 });

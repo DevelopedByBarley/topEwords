@@ -98,6 +98,108 @@ body {
 
 .btn-secondary:hover { background: #e2e8f0; }
 
+.toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 9px 14px;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.toggle-label {
+    font-size: 12px;
+    color: #475569;
+}
+
+.btn-toggle {
+    padding: 3px 10px;
+    border-radius: 20px;
+    border: 1px solid #e2e8f0;
+    background: #f1f5f9;
+    color: #94a3b8;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    min-width: 32px;
+    transition: all 0.15s;
+}
+
+.btn-toggle.active {
+    background: #dcfce7;
+    border-color: #86efac;
+    color: #16a34a;
+}
+
+.page-stats {
+    padding: 9px 14px;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.btn-stats {
+    display: block;
+    width: 100%;
+    padding: 6px 12px;
+    background: none;
+    border: 1px dashed #e2e8f0;
+    border-radius: 7px;
+    font-size: 11px;
+    font-weight: 500;
+    color: #94a3b8;
+    font-family: inherit;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.15s;
+}
+
+.btn-stats:hover { border-color: #6366f1; color: #6366f1; background: #f8fafc; }
+.btn-stats:disabled { opacity: 0.5; cursor: default; }
+
+.stats-result { padding-top: 8px; }
+
+.stats-header {
+    font-size: 11px;
+    font-weight: 600;
+    color: #475569;
+    margin-bottom: 5px;
+}
+
+.stat-line {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: #475569;
+    margin-bottom: 3px;
+}
+
+.stat-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.stat-name { flex: 1; }
+
+.stat-count {
+    font-weight: 600;
+    color: #1e293b;
+}
+
+.stats-total {
+    font-size: 10px;
+    color: #94a3b8;
+    margin-top: 5px;
+    border-top: 1px solid #f1f5f9;
+    padding-top: 5px;
+}
+
+.stats-msg {
+    font-size: 11px;
+    color: #94a3b8;
+}
+
 .hint {
     padding: 10px 14px 12px;
     display: flex;

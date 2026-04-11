@@ -148,6 +148,24 @@ class ExtensionController extends Controller
         ]);
     }
 
+    public function badge(Request $request): JsonResponse
+    {
+        if (! $request->user()) {
+            return response()->json(['count' => 0]);
+        }
+
+        $count = \DB::table('user_word')
+            ->where('user_id', $request->user()->id)
+            ->where('status', 'learning')
+            ->count();
+
+        $customCount = UserCustomWord::where('user_id', $request->user()->id)
+            ->where('status', 'learning')
+            ->count();
+
+        return response()->json(['count' => $count + $customCount]);
+    }
+
     public function search(Request $request): JsonResponse
     {
         if (! $request->user()) {
