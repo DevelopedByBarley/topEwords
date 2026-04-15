@@ -81,34 +81,43 @@ class FlashcardDeckController extends Controller
     {
         abort_unless($deck->user_id === $request->user()->id, 403);
 
-        $flashcards = $deck->flashcards()->with('reviews', 'word')->get();
-
         $effectiveSettings = $deck->deckSettings ?? $request->user()->flashcardSettings ?? $srs->defaultSettings();
-        $dueCount = $srs->getDueCards($deck->id, $effectiveSettings)->count();
+        $dueItems = $srs->getDueCards($deck->id, $effectiveSettings);
+
+        $newDueCount = $dueItems->filter(
+            fn (array $item) => ! $item['review'] || $item['review']->state === 'new'
+        )->count();
+
+        $reviewDueCount = $dueItems->filter(
+            fn (array $item) => $item['review'] && in_array($item['review']->state, ['learning', 'relearning', 'review'])
+        )->count();
 
         return Inertia::render('flashcards/show', [
             'deck' => $deck,
-            'flashcards' => $flashcards->map(fn ($card) => [
-                'id' => $card->id,
-                'front' => $card->front,
-                'front_notes' => $card->front_notes,
-                'front_speak' => $card->front_speak,
-                'back' => $card->back,
-                'back_notes' => $card->back_notes,
-                'back_speak' => $card->back_speak,
-                'direction' => $card->direction,
-                'color' => $card->color,
-                'word_id' => $card->word_id,
-                // For 'both' cards show the worst (earliest due) of the two reviews
-                'review' => $card->reviews->sortBy('due_at')->first() ? [
-                    'state' => $card->reviews->sortBy('due_at')->first()->state,
-                    'interval' => $card->reviews->sortBy('due_at')->first()->interval,
-                    'lapses' => $card->reviews->sum('lapses'),
-                    'is_leech' => $card->reviews->contains('is_leech', true),
-                    'due_at' => $card->reviews->sortBy('due_at')->first()->due_at?->toIso8601String(),
-                ] : null,
-            ]),
-            'dueCount' => $dueCount,
+            'flashcards' => Inertia::defer(function () use ($deck) {
+                return $deck->flashcards()->with('reviews', 'word')->get()->map(fn ($card) => [
+                    'id' => $card->id,
+                    'front' => $card->front,
+                    'front_notes' => $card->front_notes,
+                    'front_speak' => $card->front_speak,
+                    'back' => $card->back,
+                    'back_notes' => $card->back_notes,
+                    'back_speak' => $card->back_speak,
+                    'direction' => $card->direction,
+                    'color' => $card->color,
+                    'word_id' => $card->word_id,
+                    // For 'both' cards show the worst (earliest due) of the two reviews
+                    'review' => $card->reviews->sortBy('due_at')->first() ? [
+                        'state' => $card->reviews->sortBy('due_at')->first()->state,
+                        'interval' => $card->reviews->sortBy('due_at')->first()->interval,
+                        'lapses' => $card->reviews->sum('lapses'),
+                        'is_leech' => $card->reviews->contains('is_leech', true),
+                        'due_at' => $card->reviews->sortBy('due_at')->first()->due_at?->toIso8601String(),
+                    ] : null,
+                ]);
+            }),
+            'newDueCount' => $newDueCount,
+            'reviewDueCount' => $reviewDueCount,
             'deckSettings' => $deck->deckSettings,
             'otherDecks' => $request->user()->flashcardDecks()
                 ->where('id', '!=', $deck->id)

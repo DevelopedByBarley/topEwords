@@ -50,7 +50,7 @@ class FlashcardSrsService
         $isLearning = in_array($review->state, ['new', 'learning', 'relearning']);
 
         if ($isLearning) {
-            $step = $review->learning_step ?? 0;
+            $step = min($review->learning_step ?? 0, count($steps) - 1);
             $nextStep = $step + 1;
 
             $again = $this->formatMinutes($steps[0]);
@@ -73,7 +73,7 @@ class FlashcardSrsService
                 $settings->max_interval
             );
             $easyInterval = min(
-                max($interval + 1, (int) round($interval * $ease / 100 * $settings->easy_bonus / 100 * $settings->interval_modifier / 100)),
+                max($goodInterval + 1, (int) round($interval * $ease / 100 * $settings->easy_bonus / 100 * $settings->interval_modifier / 100)),
                 $settings->max_interval
             );
 
@@ -108,9 +108,32 @@ class FlashcardSrsService
 
     public function processReview(FlashcardReview $review, int $rating, FlashcardSetting|FlashcardDeckSetting $settings): void
     {
+        $today = Carbon::today()->toDateString();
+
+        $review->previous_state = [
+            'state' => $review->state,
+            'due_at' => $review->due_at?->toIso8601String(),
+            'interval' => $review->interval,
+            'ease_factor' => $review->ease_factor,
+            'repetitions' => $review->repetitions,
+            'lapses' => $review->lapses,
+            'learning_step' => $review->learning_step,
+            'is_leech' => $review->is_leech,
+            'introduced_on' => $review->introduced_on,
+            'reviewed_on' => $review->reviewed_on,
+        ];
+
+        // Track when the card first left 'new' state (once only)
+        if ($review->state === 'new' && $review->introduced_on === null) {
+            $review->introduced_on = $today;
+        }
+
+        $review->reviewed_on = $today;
+
         match ($review->state) {
             'new', 'learning', 'relearning' => $this->processLearning($review, $rating, $settings),
             'review' => $this->processReview_($review, $rating, $settings),
+            default => null,
         };
 
         $review->save();
@@ -157,9 +180,31 @@ class FlashcardSrsService
     public function getDueCards(int $deckId, FlashcardSetting|FlashcardDeckSetting $settings): Collection
     {
         $now = Carbon::now();
+        $today = Carbon::today()->toDateString();
+
         $cards = Flashcard::where('deck_id', $deckId)
             ->with('reviews')
             ->get();
+
+        // Count how many unique cards were already introduced / reviewed today.
+        // We count per physical card (not per direction) so that a 'both'-direction
+        // card doesn't consume two slots toward the daily limit.
+        $newCardIdsIntroducedToday = [];
+        $reviewCardIdsDoneToday = [];
+
+        foreach ($cards as $card) {
+            foreach ($card->reviews as $review) {
+                if ($review->introduced_on === $today) {
+                    $newCardIdsIntroducedToday[$card->id] = true;
+                }
+                if ($review->reviewed_on === $today && $review->introduced_on !== null && $review->introduced_on < $today) {
+                    $reviewCardIdsDoneToday[$card->id] = true;
+                }
+            }
+        }
+
+        $effectiveNewLimit = max(0, $settings->new_cards_per_day - count($newCardIdsIntroducedToday));
+        $effectiveReviewLimit = max(0, $settings->max_reviews_per_day - count($reviewCardIdsDoneToday));
 
         $newItems = collect();
         $learningItems = collect();
@@ -186,10 +231,39 @@ class FlashcardSrsService
             $reviewItems = $reviewItems->shuffle();
         }
 
-        return $newItems->take($settings->new_cards_per_day)
+        return $this->takeByUniqueCards($newItems, $effectiveNewLimit)
             ->merge($learningItems)
-            ->merge($reviewItems->take($settings->max_reviews_per_day))
+            ->merge($this->takeByUniqueCards($reviewItems, $effectiveReviewLimit))
             ->values();
+    }
+
+    /**
+     * Take items from a collection until $limit unique card IDs have been collected.
+     * This ensures a 'both'-direction card only counts as one toward the daily limit.
+     *
+     * @param  Collection<int, array{card: Flashcard, direction: string, review: FlashcardReview|null}>  $items
+     * @return Collection<int, array{card: Flashcard, direction: string, review: FlashcardReview|null}>
+     */
+    private function takeByUniqueCards(Collection $items, int $limit): Collection
+    {
+        $seenCardIds = [];
+        $result = [];
+
+        foreach ($items as $item) {
+            $cardId = $item['card']->id;
+
+            if (! array_key_exists($cardId, $seenCardIds)) {
+                if (count($seenCardIds) >= $limit) {
+                    continue;
+                }
+
+                $seenCardIds[$cardId] = true;
+            }
+
+            $result[] = $item;
+        }
+
+        return collect($result);
     }
 
     private function processLearning(FlashcardReview $review, int $rating, FlashcardSetting|FlashcardDeckSetting $settings): void
@@ -213,8 +287,9 @@ class FlashcardSrsService
 
     private function learningHard(FlashcardReview $review, array $steps): void
     {
+        $safeStep = min($review->learning_step, count($steps) - 1);
         $review->state = 'learning';
-        $minutes = max($steps[0] + 1, (int) round($steps[$review->learning_step] * 1.5));
+        $minutes = max($steps[0] + 1, (int) round($steps[$safeStep] * 1.5));
         $review->due_at = Carbon::now()->addMinutes($minutes);
     }
 
@@ -293,12 +368,16 @@ class FlashcardSrsService
 
     private function reviewEasy(FlashcardReview $review, FlashcardSetting|FlashcardDeckSetting $settings): void
     {
-        $newInterval = (int) round(
+        $goodInterval = min(
+            max($review->interval + 1, (int) round($review->interval * $review->ease_factor / 100 * $settings->interval_modifier / 100)),
+            $settings->max_interval
+        );
+        $easyInterval = (int) round(
             $review->interval * $review->ease_factor / 100
             * $settings->easy_bonus / 100
             * $settings->interval_modifier / 100
         );
-        $review->interval = min(max($review->interval + 1, $newInterval), $settings->max_interval);
+        $review->interval = min(max($goodInterval + 1, $easyInterval), $settings->max_interval);
         $review->ease_factor = min(999, $review->ease_factor + 15);
         $review->repetitions++;
         $review->due_at = Carbon::now()->addDays($review->interval);

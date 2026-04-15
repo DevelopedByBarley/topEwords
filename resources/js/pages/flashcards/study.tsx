@@ -1,10 +1,10 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { ArrowLeft, CheckCircle, RotateCcw, Volume2 } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { ArrowLeft, CheckCircle, Undo2, RotateCcw, Volume2 } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { RichTextContent } from '@/components/ui/rich-text-editor';
 import { index, show } from '@/routes/flashcards';
-import { submit as submitReview } from '@/routes/flashcards/study';
+import { submit as submitReview, undo as undoReview } from '@/routes/flashcards/study';
 
 type Review = {
     state: 'new' | 'learning' | 'review' | 'relearning';
@@ -54,12 +54,24 @@ function resolveCardSides(card: Card): { question: string; questionNotes: string
         : { question: card.front, questionNotes: card.front_notes, questionSpeak: card.front_speak, answer: card.back, answerNotes: card.back_notes, answerSpeak: card.back_speak };
 }
 
+type HistoryEntry = { id: number; direction: string };
+
+function getXsrfToken(): string {
+    const cookie = document.cookie.split('; ').find((r) => r.startsWith('XSRF-TOKEN='));
+    return cookie ? decodeURIComponent(cookie.substring('XSRF-TOKEN='.length)) : '';
+}
+
 export default function FlashcardStudy({ deck, cards }: { deck: Deck; cards: Card[] }) {
     const [queue, setQueue] = useState<Card[]>(cards);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [revealed, setRevealed] = useState(false);
+    const [undoing, setUndoing] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [done, setDone] = useState(false);
+    const [history, setHistory] = useState<HistoryEntry[]>([]);
+    // Track in-flight rating fetches keyed by "id-direction" so undo can wait for them
+    const pendingRatings = useRef<Map<string, Promise<void>>>(new Map());
+    const answerRef = useRef<HTMLDivElement>(null);
 
     const current = queue[currentIndex] ?? null;
     const sides = current ? resolveCardSides(current) : null;
@@ -76,42 +88,24 @@ export default function FlashcardStudy({ deck, cards }: { deck: Deck; cards: Car
     }, []);
 
     const handleReveal = useCallback(() => {
-        if (!revealed) setRevealed(true);
+        if (!revealed) {
+            setRevealed(true);
+            setTimeout(() => answerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50);
+        }
     }, [revealed]);
 
     const handleRate = useCallback(
-        async (rating: number) => {
+        (ratingValue: number) => {
             if (!current || submitting) return;
+
+            const cardId = current.id;
+            const direction = current.study_direction;
+            const key = `${cardId}-${direction}`;
 
             setSubmitting(true);
 
-            try {
-                const xsrfCookie = document.cookie
-                    .split('; ')
-                    .find((r) => r.startsWith('XSRF-TOKEN='));
-                const xsrfToken = xsrfCookie
-                    ? decodeURIComponent(xsrfCookie.substring('XSRF-TOKEN='.length))
-                    : '';
-
-                const res = await fetch(submitReview(deck.id).url, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'X-XSRF-TOKEN': xsrfToken,
-                    },
-                    body: JSON.stringify({ flashcard_id: current.id, direction: current.study_direction, rating }),
-                });
-                const data = await res.json().catch(() => ({}));
-                if (Array.isArray(data.achievements) && data.achievements.length > 0) {
-                    window.dispatchEvent(new CustomEvent('achievements-unlocked', { detail: data.achievements }));
-                }
-            } catch {
-                // continue anyway
-            } finally {
-                setSubmitting(false);
-            }
-
+            // Advance immediately — never block on the network
+            setHistory((prev) => [...prev, { id: cardId, direction }]);
             const next = currentIndex + 1;
             if (next >= queue.length) {
                 setDone(true);
@@ -119,9 +113,68 @@ export default function FlashcardStudy({ deck, cards }: { deck: Deck; cards: Car
                 setCurrentIndex(next);
                 setRevealed(false);
             }
+
+            // Fire-and-forget: submit rating in the background
+            const promise = fetch(submitReview(deck.id).url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-XSRF-TOKEN': getXsrfToken(),
+                },
+                body: JSON.stringify({ flashcard_id: cardId, direction, rating: ratingValue }),
+            })
+                .then((res) => res.json())
+                .then((data) => {
+                    if (Array.isArray(data?.achievements) && data.achievements.length > 0) {
+                        window.dispatchEvent(new CustomEvent('achievements-unlocked', { detail: data.achievements }));
+                    }
+                })
+                .catch(() => {})
+                .finally(() => {
+                    pendingRatings.current.delete(key);
+                    setSubmitting(false);
+                }) as Promise<void>;
+
+            pendingRatings.current.set(key, promise);
         },
         [current, currentIndex, queue.length, deck.id, submitting],
     );
+
+    const handleUndo = useCallback(async () => {
+        if (history.length === 0 || undoing) return;
+
+        const last = history[history.length - 1];
+        const key = `${last.id}-${last.direction}`;
+
+        setUndoing(true);
+
+        // Wait for any in-flight rating for this card before undoing
+        if (pendingRatings.current.has(key)) {
+            await pendingRatings.current.get(key);
+        }
+
+        try {
+            await fetch(undoReview(deck.id).url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-XSRF-TOKEN': getXsrfToken(),
+                },
+                body: JSON.stringify({ flashcard_id: last.id, direction: last.direction }),
+            });
+        } catch {
+            // continue anyway
+        } finally {
+            setUndoing(false);
+        }
+
+        setHistory((prev) => prev.slice(0, -1));
+        setDone(false);
+        setCurrentIndex((prev) => prev - 1);
+        setRevealed(false);
+    }, [history, undoing, deck.id]);
 
     // Keyboard shortcuts
     useEffect(() => {
@@ -134,10 +187,14 @@ export default function FlashcardStudy({ deck, cards }: { deck: Deck; cards: Car
             if (revealed && ['1', '2', '3', '4'].includes(e.key)) {
                 handleRate(Number(e.key));
             }
+            if (e.key === 'Backspace' && history.length > 0) {
+                e.preventDefault();
+                handleUndo();
+            }
         };
         window.addEventListener('keydown', handler);
         return () => window.removeEventListener('keydown', handler);
-    }, [revealed, handleReveal, handleRate]);
+    }, [revealed, handleReveal, handleRate, handleUndo, history.length, undoing]);
 
     if (done || queue.length === 0) {
         return (
@@ -183,9 +240,22 @@ export default function FlashcardStudy({ deck, cards }: { deck: Deck; cards: Car
                         <ArrowLeft className="size-4" />
                         {deck.name}
                     </Link>
-                    <span className="text-sm text-muted-foreground">
-                        {currentIndex + 1} / {queue.length}
-                    </span>
+                    <div className="flex items-center gap-3">
+                        {history.length > 0 && (
+                            <button
+                                onClick={handleUndo}
+                                disabled={undoing}
+                                title="Vissza (Backspace)"
+                                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-40 transition-colors"
+                            >
+                                <Undo2 className="size-3.5" />
+                                Vissza
+                            </button>
+                        )}
+                        <span className="text-sm text-muted-foreground">
+                            {currentIndex + 1} / {queue.length}
+                        </span>
+                    </div>
                 </div>
 
                 {/* Progress bar */}
@@ -241,7 +311,7 @@ export default function FlashcardStudy({ deck, cards }: { deck: Deck; cards: Car
 
                     {/* Answer */}
                     {revealed && (
-                        <div className="relative rounded-2xl border border-dashed bg-muted/30 p-6 text-center animate-in fade-in slide-in-from-bottom-2 duration-200">
+                        <div ref={answerRef} className="relative rounded-2xl border border-dashed bg-muted/30 p-6 text-center animate-in fade-in slide-in-from-bottom-2 duration-200">
                             <button
                                 onClick={() => speak(sides!.answer, sides!.answerSpeak)}
                                 className="absolute top-3 left-3 rounded-full p-1.5 text-muted-foreground/50 hover:bg-muted hover:text-foreground transition-colors"
@@ -262,7 +332,7 @@ export default function FlashcardStudy({ deck, cards }: { deck: Deck; cards: Car
                             {RATING_BUTTONS.map(({ rating, label, previewKey, shortcut, className }) => (
                                 <button
                                     key={rating}
-                                    disabled={submitting}
+                                    disabled={undoing || submitting}
                                     onClick={() => handleRate(rating)}
                                     className={`flex flex-col items-center justify-center gap-1 rounded-xl border-2 py-3 px-2 text-sm font-medium transition-colors disabled:opacity-50 ${className}`}
                                 >

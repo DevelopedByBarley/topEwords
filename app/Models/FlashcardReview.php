@@ -17,6 +17,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'lapses',
     'learning_step',
     'is_leech',
+    'previous_state',
+    'introduced_on',
+    'reviewed_on',
 ])]
 class FlashcardReview extends Model
 {
@@ -30,6 +33,7 @@ class FlashcardReview extends Model
         return [
             'due_at' => 'datetime',
             'is_leech' => 'boolean',
+            'previous_state' => 'array',
         ];
     }
 }

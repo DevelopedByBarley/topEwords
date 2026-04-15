@@ -5,6 +5,7 @@ use App\Http\Controllers\AdminController;
 use App\Http\Controllers\ClozeController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExtensionController;
+use App\Http\Controllers\FlashcardCalibrationController;
 use App\Http\Controllers\FlashcardCardController;
 use App\Http\Controllers\FlashcardCsvController;
 use App\Http\Controllers\FlashcardDeckController;
@@ -87,14 +88,20 @@ Route::middleware(['auth', 'verified', EnsureOnboardingComplete::class])->group(
     Route::post('flashcards/{deck}/cards/bulk-delete', [FlashcardCardController::class, 'bulkDelete'])->name('flashcards.cards.bulk-delete');
     Route::post('flashcards/{deck}/cards/bulk-reset', [FlashcardCardController::class, 'bulkReset'])->name('flashcards.cards.bulk-reset');
     Route::post('flashcards/{deck}/cards/bulk-move', [FlashcardCardController::class, 'bulkMove'])->name('flashcards.cards.bulk-move');
+    Route::post('flashcards/{deck}/cards/bulk-reverse', [FlashcardCardController::class, 'bulkReverse'])->name('flashcards.cards.bulk-reverse');
 
     // CSV import / export
     Route::post('flashcards/{deck}/csv-import', [FlashcardCsvController::class, 'import'])->name('flashcards.csv.import');
     Route::get('flashcards/{deck}/csv-export', [FlashcardCsvController::class, 'export'])->name('flashcards.csv.export');
 
+    // Calibration
+    Route::get('flashcards/{deck}/calibrate', [FlashcardCalibrationController::class, 'show'])->name('flashcards.calibrate');
+    Route::post('flashcards/{deck}/calibrate', [FlashcardCalibrationController::class, 'rate'])->name('flashcards.calibrate.rate');
+
     // Study session
     Route::get('flashcards/{deck}/study', [FlashcardStudyController::class, 'show'])->name('flashcards.study');
     Route::post('flashcards/{deck}/study', [FlashcardStudyController::class, 'submit'])->name('flashcards.study.submit');
+    Route::post('flashcards/{deck}/study/undo', [FlashcardStudyController::class, 'undo'])->name('flashcards.study.undo');
 
     // Flashcard folders
     Route::post('flashcards/folders', [FlashcardFolderController::class, 'store'])->name('flashcards.folders.store');

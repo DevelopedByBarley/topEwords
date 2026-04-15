@@ -1,5 +1,5 @@
-import { Form, Head, Link, router, usePage } from '@inertiajs/react';
-import { BookOpen, Copy, Download, Edit2, FileUp, Import, Loader2, MoreHorizontal, MoveRight, Plus, RotateCcw, Search, Settings2, SlidersHorizontal, Trash2, X } from 'lucide-react';
+import { Deferred, Form, Head, Link, router, usePage } from '@inertiajs/react';
+import { ArrowLeftRight, BookOpen, Copy, Download, Edit2, FileUp, Import, Loader2, MoreHorizontal, MoveRight, Plus, RotateCcw, Search, Settings2, SlidersHorizontal, Trash2, X } from 'lucide-react';
 import { useCallback, useRef, useState } from 'react';
 import { type RichTextEditorHandle } from '@/components/ui/rich-text-editor';
 import Heading from '@/components/heading';
@@ -32,9 +32,9 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
-import { bulkDelete as bulkDeleteCards, bulkMove as bulkMoveCards, bulkReset as bulkResetCards, destroy as destroyCard, duplicate as duplicateCard, importMethod as importFromWord, move as moveCard, reset as resetProgress, store as storeCard, update as updateCard } from '@/routes/flashcards/cards';
+import { bulkDelete as bulkDeleteCards, bulkMove as bulkMoveCards, bulkReset as bulkResetCards, bulkReverse as bulkReverseCards, destroy as destroyCard, duplicate as duplicateCard, importMethod as importFromWord, move as moveCard, reset as resetProgress, store as storeCard, update as updateCard } from '@/routes/flashcards/cards';
 import { exportMethod as csvExport, importMethod as csvImport } from '@/routes/flashcards/csv';
-import { index, show, study } from '@/routes/flashcards';
+import { calibrate, index, show, study } from '@/routes/flashcards';
 import { destroy as destroyDeckSettings, update as updateDeckSettings } from '@/routes/flashcards/settings';
 import { search as searchWords } from '@/routes/words';
 import InputError from '@/components/input-error';
@@ -677,7 +677,7 @@ function CsvImport({ deck }: { deck: Deck }) {
             encType="multipart/form-data"
             className="contents"
         >
-            <input type="hidden" name="_token" value={document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content ?? ''} />
+            <input type="hidden" name="_token" value={typeof document !== 'undefined' ? document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content ?? '' : ''} />
             <input
                 ref={inputRef}
                 type="file"
@@ -802,17 +802,20 @@ const STATE_FILTER_OPTIONS = [
 export default function FlashcardShow({
     deck,
     flashcards,
-    dueCount,
+    newDueCount,
+    reviewDueCount,
     deckSettings,
     otherDecks,
 }: {
     deck: Deck;
-    flashcards: Flashcard[];
-    dueCount: number;
+    flashcards: Flashcard[] | undefined;
+    newDueCount: number;
+    reviewDueCount: number;
     deckSettings: DeckSettings;
     otherDecks: OtherDeck[];
 }) {
-    const { flash } = usePage<{ flash: { success?: string | null } }>().props;
+    const { flash } = usePage<{ flash: { success?: string | null; calibrationPrompt?: number | null } }>().props;
+    const [showCalibrateModal, setShowCalibrateModal] = useState((flash?.calibrationPrompt ?? 0) > 0);
     const [showNewForm, setShowNewForm] = useState(false);
     const [editingCard, setEditingCard] = useState<Flashcard | null>(null);
     const [showSettings, setShowSettings] = useState(false);
@@ -820,7 +823,7 @@ export default function FlashcardShow({
     const [stateFilter, setStateFilter] = useState('');
     const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
-    const filtered = flashcards.filter((card) => {
+    const filtered = (flashcards ?? []).filter((card) => {
         if (stateFilter) {
             const s = card.review?.state ?? 'new';
             if (s !== stateFilter) return false;
@@ -833,10 +836,10 @@ export default function FlashcardShow({
     });
 
     const stateCounts = {
-        new: flashcards.filter((c) => !c.review || c.review.state === 'new').length,
-        learning: flashcards.filter((c) => c.review?.state === 'learning').length,
-        review: flashcards.filter((c) => c.review?.state === 'review').length,
-        relearning: flashcards.filter((c) => c.review?.state === 'relearning').length,
+        new: (flashcards ?? []).filter((c) => !c.review || c.review.state === 'new').length,
+        learning: (flashcards ?? []).filter((c) => c.review?.state === 'learning').length,
+        review: (flashcards ?? []).filter((c) => c.review?.state === 'review').length,
+        relearning: (flashcards ?? []).filter((c) => c.review?.state === 'relearning').length,
     };
 
     const handleSelect = (id: number, checked: boolean) => {
@@ -882,7 +885,7 @@ export default function FlashcardShow({
                         setShowNewForm(false);
                         return;
                     }
-                    const updatedCards = (page.props as unknown as { flashcards: Flashcard[] }).flashcards;
+                    const updatedCards = (page.props as unknown as { flashcards: Flashcard[] | undefined }).flashcards ?? [];
                     const imported = [...updatedCards]
                         .reverse()
                         .find((c) => c.word_id === word.id);
@@ -906,40 +909,48 @@ export default function FlashcardShow({
                         title={deck.name}
                         description={deck.description ?? undefined}
                     />
-                    <span className="text-sm text-muted-foreground shrink-0 mt-1">{flashcards.length} kártya</span>
+                    <span className="text-sm text-muted-foreground shrink-0 mt-1">{flashcards?.length ?? '—'} kártya</span>
                 </div>
 
                 {/* Study banner */}
-                {flashcards.length > 0 && (
-                    <div className={`flex items-center justify-between gap-4 rounded-xl border px-5 py-4 ${dueCount > 0 ? 'border-primary/30 bg-primary/5' : 'bg-muted/40'}`}>
-                        <div>
+                {(flashcards?.length ?? 0) > 0 && (() => {
+                    const dueCount = newDueCount + reviewDueCount;
+                    return (
+                        <div className={`flex items-center justify-between gap-4 rounded-xl border px-5 py-4 ${dueCount > 0 ? 'border-primary/30 bg-primary/5' : 'bg-muted/40'}`}>
+                            <div>
+                                {dueCount > 0 ? (
+                                    <>
+                                        <p className="font-semibold text-sm">
+                                            {newDueCount > 0 && <span className="text-blue-600 dark:text-blue-400">{newDueCount} új</span>}
+                                            {newDueCount > 0 && reviewDueCount > 0 && <span className="text-muted-foreground mx-1.5">·</span>}
+                                            {reviewDueCount > 0 && <span className="text-primary">{reviewDueCount} ismétlés</span>}
+                                            <span className="text-muted-foreground ml-1.5">esedékes</span>
+                                        </p>
+                                        <p className="text-xs text-muted-foreground mt-0.5">Folytathatod a tanulást!</p>
+                                    </>
+                                ) : (
+                                    <>
+                                        <p className="font-semibold text-sm text-muted-foreground">Nincs esedékes kártya</p>
+                                        <p className="text-xs text-muted-foreground mt-0.5">Gyere vissza később.</p>
+                                    </>
+                                )}
+                            </div>
                             {dueCount > 0 ? (
-                                <>
-                                    <p className="font-semibold text-sm">{dueCount} kártya esedékes</p>
-                                    <p className="text-xs text-muted-foreground mt-0.5">Folytathatod a tanulást!</p>
-                                </>
+                                <Link href={study(deck.id)}>
+                                    <Button size="lg" className="shrink-0 gap-2 px-6">
+                                        <BookOpen className="size-4" />
+                                        Tanulás
+                                    </Button>
+                                </Link>
                             ) : (
-                                <>
-                                    <p className="font-semibold text-sm text-muted-foreground">Nincs esedékes kártya</p>
-                                    <p className="text-xs text-muted-foreground mt-0.5">Gyere vissza később.</p>
-                                </>
-                            )}
-                        </div>
-                        {dueCount > 0 ? (
-                            <Link href={study(deck.id)}>
-                                <Button size="lg" className="shrink-0 gap-2 px-6">
+                                <Button size="lg" variant="outline" disabled className="shrink-0 gap-2 px-6">
                                     <BookOpen className="size-4" />
                                     Tanulás
                                 </Button>
-                            </Link>
-                        ) : (
-                            <Button size="lg" variant="outline" disabled className="shrink-0 gap-2 px-6">
-                                <BookOpen className="size-4" />
-                                Tanulás
-                            </Button>
-                        )}
-                    </div>
-                )}
+                            )}
+                        </div>
+                    );
+                })()}
 
                 {/* Flash message */}
                 {flash?.success && (
@@ -947,6 +958,27 @@ export default function FlashcardShow({
                         {flash.success}
                     </div>
                 )}
+
+                {/* Calibration modal */}
+                <Dialog open={showCalibrateModal} onOpenChange={setShowCalibrateModal}>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Kalibráció</DialogTitle>
+                        </DialogHeader>
+                        <p className="text-sm text-muted-foreground">
+                            <span className="font-semibold text-foreground">{flash?.calibrationPrompt} kártyát</span> importáltál.
+                            Szeretnéd kalibrálni őket, hogy az SRS ne nulláról induljon?
+                        </p>
+                        <div className="flex justify-end gap-3 mt-2">
+                            <Button variant="outline" onClick={() => setShowCalibrateModal(false)}>
+                                Kihagyás
+                            </Button>
+                            <Button onClick={() => router.visit(calibrate(deck.id))}>
+                                Kalibrálás indítása
+                            </Button>
+                        </div>
+                    </DialogContent>
+                </Dialog>
 
                 {/* Actions */}
                 <div className="flex flex-wrap gap-2">
@@ -960,7 +992,7 @@ export default function FlashcardShow({
                     </Button>
                     <WordSearchImport deck={deck} onImport={handleWordImport} />
                     <CsvImport deck={deck} />
-                    {flashcards.length > 0 && (
+                    {(flashcards?.length ?? 0) > 0 && (
                         <a href={csvExport(deck.id).url}>
                             <Button size="sm" variant="outline">
                                 <Download className="size-4 mr-1" />
@@ -977,10 +1009,20 @@ export default function FlashcardShow({
                     </Button>
                 </div>
 
+                <Deferred
+                    data="flashcards"
+                    fallback={
+                        <div className="space-y-2 pt-2">
+                            {[...Array(6)].map((_, i) => (
+                                <div key={i} className="h-14 rounded-lg border bg-muted/40 animate-pulse" />
+                            ))}
+                        </div>
+                    }
+                >
                 <Separator />
 
                 {/* Filters */}
-                {flashcards.length > 0 && (
+                {(flashcards?.length ?? 0) > 0 && (
                     <div className="space-y-3">
                         {/* Search */}
                         <div className="relative max-w-sm">
@@ -1040,7 +1082,7 @@ export default function FlashcardShow({
                 )}
 
                 {/* Card list */}
-                {flashcards.length === 0 ? (
+                {(flashcards?.length ?? 0) === 0 ? (
                     <div className="flex flex-col items-center justify-center py-16 text-center text-muted-foreground">
                         <BookOpen className="size-12 mb-4 opacity-30" />
                         <p className="text-sm">Még nincs kártya ebben a deckben.</p>
@@ -1074,6 +1116,17 @@ export default function FlashcardShow({
                                     >
                                         <RotateCcw className="size-3" />
                                         Haladás törlése
+                                    </button>
+
+                                    <button
+                                        onClick={() => {
+                                            if (!confirm(`Létrehozol ${selectedIds.size} fordított másolatot? Az eredeti kártyák megmaradnak.`)) return;
+                                            bulkAction(bulkReverseCards(deck.id).url);
+                                        }}
+                                        className="flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                                    >
+                                        <ArrowLeftRight className="size-3" />
+                                        Fordított másolat
                                     </button>
 
                                     {otherDecks.length > 0 && (
@@ -1125,6 +1178,7 @@ export default function FlashcardShow({
                         ))}
                     </div>
                 )}
+                </Deferred>
             </div>
 
             {/* Deck settings dialog */}

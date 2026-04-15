@@ -54,6 +54,7 @@ class HandleInertiaRequests extends Middleware
                 'streakTriggered' => session('streak_triggered'),
                 'success' => session('success'),
                 'achievements' => session('achievements', []),
+                'calibrationPrompt' => session('calibration_prompt'),
             ],
         ];
     }

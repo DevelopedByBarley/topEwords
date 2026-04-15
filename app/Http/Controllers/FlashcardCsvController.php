@@ -49,6 +49,7 @@ class FlashcardCsvController extends Controller
                 'front' => $this->textToHtml($front),
                 'back' => $this->textToHtml($back),
                 'direction' => 'both',
+                'is_imported' => true,
             ]);
 
             $imported++;
@@ -61,7 +62,9 @@ class FlashcardCsvController extends Controller
             $message .= ", {$skipped} kihagyva";
         }
 
-        return to_route('flashcards.show', $deck)->with('success', $message.'.');
+        return to_route('flashcards.show', $deck)
+            ->with('success', $message.'.')
+            ->with('calibration_prompt', $imported);
     }
 
     public function export(Request $request, FlashcardDeck $deck): Response
@@ -92,6 +95,9 @@ class FlashcardCsvController extends Controller
 
     private function textToHtml(string $text): string
     {
+        // Strip Anki cloze deletion syntax: {{c1::text}} → text
+        $text = preg_replace('/\{\{c\d+::(.+?)\}\}/s', '$1', $text) ?? $text;
+
         $lines = preg_split('/\r\n|\r|\n/', $text) ?: [$text];
         $html = '';
 
