@@ -219,7 +219,7 @@ class WordController extends Controller
     public function quiz(Request $request): Response
     {
         $status = $request->string('status')->trim()->lower()->value();
-        $level = $request->integer('level') ?: null;
+        $difficulty = $request->string('difficulty')->trim()->lower()->value();
         $folderId = $request->integer('folder') ?: null;
         $user = $request->user();
         $freeQuizLimit = 10;
@@ -263,16 +263,20 @@ class WordController extends Controller
             $query->whereIn('id', array_keys($wordStatuses));
         }
 
-        if ($level !== null) {
-            $query->where('level', $level);
+        if ($difficulty === 'beginner') {
+            $query->whereBetween('rank', [1, 2000]);
+        } elseif ($difficulty === 'intermediate') {
+            $query->whereBetween('rank', [2001, 6000]);
+        } elseif ($difficulty === 'advanced') {
+            $query->whereBetween('rank', [6001, 10000]);
         }
 
         if ($folderWordIds !== null) {
             $query->whereIn('id', $folderWordIds);
         }
 
-        // Custom words are included when no level/folder filter is active
-        $includeCustom = $level === null && $folderWordIds === null;
+        // Custom words are included when no difficulty/folder filter is active
+        $includeCustom = $difficulty === '' && $folderWordIds === null;
         $customWordQuery = $includeCustom
             ? UserCustomWord::where('user_id', $user->id)->whereNotNull('meaning_hu')
             : null;
@@ -424,7 +428,7 @@ class WordController extends Controller
             'selectableWords' => $selectableWords,
             'filters' => [
                 'status' => $status,
-                'level' => $level,
+                'difficulty' => $difficulty,
                 'folder' => $folderId,
                 'count' => $count,
             ],

@@ -31,8 +31,20 @@ class TextAnalysisController extends Controller
 
         $user = $request->user();
 
-        // Check user's custom words first
-        $customWord = $user->customWords()->whereRaw('LOWER(word) = ?', [$raw])->first();
+        // Check user's custom words first (all forms)
+        $customWord = $user->customWords()
+            ->where(function ($q) use ($raw) {
+                $q->whereRaw('LOWER(word) = ?', [$raw])
+                    ->orWhereRaw('LOWER(form_base) = ?', [$raw])
+                    ->orWhereRaw('LOWER(verb_past) = ?', [$raw])
+                    ->orWhereRaw('LOWER(verb_past_participle) = ?', [$raw])
+                    ->orWhereRaw('LOWER(verb_present_participle) = ?', [$raw])
+                    ->orWhereRaw('LOWER(verb_third_person) = ?', [$raw])
+                    ->orWhereRaw('LOWER(noun_plural) = ?', [$raw])
+                    ->orWhereRaw('LOWER(adj_comparative) = ?', [$raw])
+                    ->orWhereRaw('LOWER(adj_superlative) = ?', [$raw]);
+            })
+            ->first();
         if ($customWord) {
             return response()->json([
                 'type' => 'custom',
@@ -153,10 +165,20 @@ class TextAnalysisController extends Controller
             ->pluck('user_word.status', 'words.id')
             ->all();
 
-        // Include user's custom words in the analysis
+        // Include user's custom words in the analysis (check all forms)
         $customWords = UserCustomWord::where('user_id', $user->id)
-            ->whereIn('word', $uniqueTokens)
-            ->get(['id', 'word', 'status']);
+            ->where(function ($q) use ($uniqueTokens) {
+                $q->whereIn('word', $uniqueTokens)
+                    ->orWhereIn('form_base', $uniqueTokens)
+                    ->orWhereIn('verb_past', $uniqueTokens)
+                    ->orWhereIn('verb_past_participle', $uniqueTokens)
+                    ->orWhereIn('verb_present_participle', $uniqueTokens)
+                    ->orWhereIn('verb_third_person', $uniqueTokens)
+                    ->orWhereIn('noun_plural', $uniqueTokens)
+                    ->orWhereIn('adj_comparative', $uniqueTokens)
+                    ->orWhereIn('adj_superlative', $uniqueTokens);
+            })
+            ->get(['id', 'word', 'status', 'form_base', 'verb_past', 'verb_past_participle', 'verb_present_participle', 'verb_third_person', 'noun_plural', 'adj_comparative', 'adj_superlative']);
 
         // Build reverse map: lowercase form → Word model
         $formToWord = [];
@@ -185,14 +207,30 @@ class TextAnalysisController extends Controller
         $learningTokenCount = 0;
         $unknownInListWords = [];
 
-        $customWordMap = $customWords->keyBy(fn ($w) => mb_strtolower($w->word));
+        // Build reverse map: lowercase form → custom word (all forms take priority)
+        $formToCustomWord = [];
+        foreach ($customWords as $customWord) {
+            foreach (array_filter([
+                mb_strtolower($customWord->word),
+                $customWord->form_base ? mb_strtolower($customWord->form_base) : null,
+                $customWord->verb_past ? mb_strtolower($customWord->verb_past) : null,
+                $customWord->verb_past_participle ? mb_strtolower($customWord->verb_past_participle) : null,
+                $customWord->verb_present_participle ? mb_strtolower($customWord->verb_present_participle) : null,
+                $customWord->verb_third_person ? mb_strtolower($customWord->verb_third_person) : null,
+                $customWord->noun_plural ? mb_strtolower($customWord->noun_plural) : null,
+                $customWord->adj_comparative ? mb_strtolower($customWord->adj_comparative) : null,
+                $customWord->adj_superlative ? mb_strtolower($customWord->adj_superlative) : null,
+            ]) as $form) {
+                $formToCustomWord[$form] ??= $customWord;
+            }
+        }
 
         foreach ($uniqueTokens as $token) {
             $frequency = $tokenFrequencies[$token] ?? 1;
 
             // Custom words take priority over the main word list
-            if (isset($customWordMap[$token])) {
-                $customWord = $customWordMap[$token];
+            if (isset($formToCustomWord[$token])) {
+                $customWord = $formToCustomWord[$token];
                 $tokenStatuses[$token] = $customWord->status;
 
                 if ($customWord->status === 'known') {
@@ -270,67 +308,214 @@ class TextAnalysisController extends Controller
 
     private function fetchYouTubeCaptions(string $videoId): string
     {
-        $ytDlp = $this->findYtDlp();
-
-        if ($ytDlp === null) {
-            throw new \RuntimeException('A yt-dlp eszköz nem található a szerveren.');
+        // Strategy 1: InnerTube API with multiple clients
+        $text = $this->fetchViaInnertube($videoId);
+        if ($text !== '') {
+            return $text;
         }
 
-        $outTemplate = sys_get_temp_dir().'/ytcap_'.$videoId;
-        $url = 'https://www.youtube.com/watch?v='.$videoId;
-
-        $cmd = sprintf(
-            '%s --js-runtimes node --remote-components ejs:github --write-auto-subs --no-write-subs --skip-download --sub-langs en --sub-format json3 -o %s %s 2>&1',
-            escapeshellarg($ytDlp),
-            escapeshellarg($outTemplate),
-            escapeshellarg($url)
-        );
-
-        exec($cmd, $output, $exitCode);
-
-        // yt-dlp writes e.g. /tmp/ytcap_{id}.en.json3
-        $files = glob($outTemplate.'*.json3');
-        $captionFile = $files[0] ?? null;
-
-        if ($captionFile === null || ! file_exists($captionFile)) {
-            $outputStr = implode("\n", $output);
-
-            if (str_contains($outputStr, 'not available') || str_contains($outputStr, 'unavailable')) {
-                throw new \RuntimeException('A videó nem érhető el a szerver régiójából.');
-            }
-
-            if (str_contains($outputStr, 'no subtitles') || str_contains($outputStr, 'No subtitles')) {
-                throw new \RuntimeException('Ehhez a videóhoz nem érhetők el angol feliratok.');
-            }
-
-            throw new \RuntimeException('A felirat letöltése sikertelen.');
+        // Strategy 3: YouTube timedtext API
+        $text = $this->fetchViaTimedtextApi($videoId);
+        if ($text !== '') {
+            return $text;
         }
 
-        try {
-            $data = json_decode(file_get_contents($captionFile), true);
-            $text = $this->parseJson3Captions($data ?? []);
-        } finally {
-            @unlink($captionFile);
+        // Strategy 4: Scrape the watch page for a signed caption URL
+        $text = $this->fetchViaPageScraping($videoId);
+        if ($text !== '') {
+            return $text;
         }
 
-        if ($text === '') {
-            throw new \RuntimeException('A felirat üres.');
-        }
-
-        return $text;
+        throw new \RuntimeException('Ehhez a videóhoz nem érhetők el angol feliratok, vagy a felirat nem feldolgozható.');
     }
 
-    private function findYtDlp(): ?string
+    private function fetchViaInnertube(string $videoId): string
     {
-        foreach (['/opt/homebrew/bin/yt-dlp', '/usr/local/bin/yt-dlp', '/usr/bin/yt-dlp'] as $path) {
-            if (file_exists($path) && is_executable($path)) {
-                return $path;
+        $androidUa = 'com.google.android.youtube/20.10.38 (Linux; U; Android 11) gzip';
+
+        // Must extract the API key from the watch page — hardcoded keys return UNPLAYABLE
+        $pageResponse = Http::timeout(20)
+            ->withHeaders(['User-Agent' => $androidUa, 'Accept-Language' => 'en-US,en;q=0.9'])
+            ->get('https://www.youtube.com/watch?v='.$videoId);
+
+        if (! $pageResponse->ok()) {
+            return '';
+        }
+
+        if (! preg_match('/"INNERTUBE_API_KEY"\s*:\s*"([a-zA-Z0-9_-]+)"/', $pageResponse->body(), $keyMatch)) {
+            return '';
+        }
+
+        $apiKey = $keyMatch[1];
+
+        $playerResponse = Http::timeout(15)
+            ->withHeaders([
+                'Content-Type' => 'application/json',
+                'Accept-Language' => 'en-US',
+                'User-Agent' => $androidUa,
+            ])
+            ->post('https://www.youtube.com/youtubei/v1/player?key='.$apiKey, [
+                'context' => ['client' => ['clientName' => 'ANDROID', 'clientVersion' => '20.10.38']],
+                'videoId' => $videoId,
+            ]);
+
+        if (! $playerResponse->ok()) {
+            return '';
+        }
+
+        $tracks = $playerResponse->json('captions.playerCaptionsTracklistRenderer.captionTracks') ?? [];
+
+        if (empty($tracks)) {
+            return '';
+        }
+
+        $track = collect($tracks)->first(fn ($t) => str_starts_with($t['languageCode'] ?? '', 'en'))
+            ?? $tracks[0];
+
+        $captionUrl = $track['baseUrl'] ?? null;
+
+        if (! $captionUrl) {
+            return '';
+        }
+
+        // Try XML (default, no fmt) first — ANDROID returns timedtext XML with <p> tags
+        foreach ([$captionUrl, $captionUrl.'&fmt=json3'] as $url) {
+            $captionResponse = Http::timeout(15)->get($url);
+
+            if (! $captionResponse->ok() || mb_strlen($captionResponse->body()) < 20) {
+                continue;
+            }
+
+            $text = $this->parseCaptionBody($captionResponse->body());
+            if ($text !== '') {
+                return $text;
             }
         }
 
-        exec('which yt-dlp 2>/dev/null', $out);
+        return '';
+    }
 
-        return $out[0] ?? null;
+    private function fetchViaTimedtextApi(string $videoId): string
+    {
+        $base = 'https://www.youtube.com/api/timedtext?v='.urlencode($videoId).'&lang=en';
+
+        foreach (['&fmt=json3', '&fmt=vtt', ''] as $fmtParam) {
+            $response = Http::timeout(10)
+                ->withHeaders(['User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'])
+                ->get($base.$fmtParam);
+
+            if (! $response->ok() || mb_strlen($response->body()) < 20) {
+                continue;
+            }
+
+            $text = $this->parseCaptionBody($response->body());
+            if ($text !== '') {
+                return $text;
+            }
+        }
+
+        return '';
+    }
+
+    private function fetchViaPageScraping(string $videoId): string
+    {
+        $pageResponse = Http::timeout(20)
+            ->withHeaders([
+                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                'Accept-Language' => 'en-US,en;q=0.9',
+            ])
+            ->get('https://www.youtube.com/watch?v='.$videoId);
+
+        if (! $pageResponse->ok()) {
+            return '';
+        }
+
+        $captionUrl = $this->extractCaptionUrl($pageResponse->body());
+        if ($captionUrl === null) {
+            return '';
+        }
+
+        $json3Url = preg_replace('/([?&])fmt=[^&]*/', '$1fmt=json3', $captionUrl);
+        if (! str_contains($json3Url ?? '', 'fmt=')) {
+            $json3Url = $captionUrl.(str_contains($captionUrl, '?') ? '&' : '?').'fmt=json3';
+        }
+
+        foreach ([$json3Url, $captionUrl] as $url) {
+            $response = Http::timeout(15)->get($url);
+            if (! $response->ok() || mb_strlen($response->body()) < 20) {
+                continue;
+            }
+
+            $text = $this->parseCaptionBody($response->body());
+            if ($text !== '') {
+                return $text;
+            }
+        }
+
+        return '';
+    }
+
+    private function parseCaptionBody(string $body): string
+    {
+        $trimmed = ltrim($body);
+
+        if (str_starts_with($trimmed, '{')) {
+            $decoded = json_decode($body, true);
+            if (is_array($decoded)) {
+                return $this->parseJson3Captions($decoded);
+            }
+        }
+
+        if (str_starts_with($trimmed, 'WEBVTT')) {
+            return $this->parseVttCaptions($body);
+        }
+
+        if (str_starts_with($trimmed, '<') || str_contains($trimmed, '<?xml')) {
+            return $this->parseXmlCaptions($body);
+        }
+
+        return '';
+    }
+
+    private function parseVttCaptions(string $body): string
+    {
+        $lines = preg_split('/\r?\n/', $body) ?: [];
+        $texts = [];
+        $prev = '';
+        $pastHeader = false;
+
+        foreach ($lines as $line) {
+            $line = trim($line);
+
+            // The VTT header ends at the first blank line
+            if (! $pastHeader) {
+                if ($line === '') {
+                    $pastHeader = true;
+                }
+
+                continue;
+            }
+
+            // Skip blank lines, cue IDs (digits only), and timestamp lines
+            if ($line === '' || preg_match('/^\d+$/', $line) || str_contains($line, '-->')) {
+                continue;
+            }
+
+            // Strip inline timing tags (<00:00:00.000>, <c>, <c.color_white>, etc.)
+            $text = preg_replace('/<[^>]+>/', '', $line) ?? $line;
+            $text = html_entity_decode(trim($text), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            $text = preg_replace('/\[[^\]]*\]/', '', $text) ?? $text;
+            $text = trim(preg_replace('/\s+/', ' ', $text) ?? $text);
+
+            if ($text === '' || $text === $prev) {
+                continue;
+            }
+
+            $texts[] = $text;
+            $prev = $text;
+        }
+
+        return implode(' ', $texts);
     }
 
     private function extractCaptionUrl(string $html): ?string
@@ -426,8 +611,8 @@ class TextAnalysisController extends Controller
 
     private function parseXmlCaptions(string $body): string
     {
-        // Regex-based extraction avoids simplexml failing on malformed XML or HTML entities
-        if (! preg_match_all('/<text[^>]*>(.*?)<\/text>/s', $body, $matches)) {
+        // YouTube returns either <text> (older) or <p> (ANDROID InnerTube) tags
+        if (! preg_match_all('/<(?:text|p)[^>]*>(.*?)<\/(?:text|p)>/s', $body, $matches)) {
             return '';
         }
 
@@ -504,7 +689,7 @@ class TextAnalysisController extends Controller
     public function uploadBook(Request $request): JsonResponse
     {
         $request->validate([
-            'file' => 'required|file|mimes:pdf,epub|max:102400', // 100 MB
+            'file' => 'required|file|mimetypes:application/pdf,application/epub+zip,application/zip|extensions:pdf,epub|max:102400',
         ]);
 
         $file = $request->file('file');

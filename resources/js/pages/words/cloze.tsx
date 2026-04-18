@@ -334,7 +334,11 @@ export default function Cloze({ items, available, folders, filters, selectableWo
     const isEmpty = items.length === 0 && filters.count > 0;
     const card = items[current] ?? null;
     const progress = items.length > 0 ? (current / items.length) * 100 : 0;
-    const isCorrect = answerState !== 'unanswered' && normalize(input) === normalize(card?.answer ?? '');
+    const isCorrect = answerState !== 'unanswered' && (
+        normalize(input) === normalize(card?.answer ?? '') ||
+        normalize(input) === normalize(card?.word ?? '')
+    );
+    const usedBaseForm = isCorrect && normalize(input) === normalize(card?.word ?? '') && normalize(card?.word ?? '') !== normalize(card?.answer ?? '');
 
     useEffect(() => {
         if (answerState === 'unanswered') {
@@ -358,7 +362,7 @@ export default function Cloze({ items, available, folders, filters, selectableWo
     function handleCheck() {
         if (answerState !== 'unanswered' || !card || !input.trim()) return;
 
-        const correct = normalize(input) === normalize(card.answer);
+        const correct = normalize(input) === normalize(card.answer) || normalize(input) === normalize(card.word);
         setAnswerState(correct ? 'correct' : 'wrong');
         if (correct) {
             setScore((s) => s + 1);
@@ -529,6 +533,15 @@ export default function Cloze({ items, available, folders, filters, selectableWo
                             <span className="text-muted-foreground">Helyes válasz: </span>
                             <span className="font-semibold text-foreground">{card.answer}</span>
                             <span className="ml-3 text-muted-foreground italic">"{card.sentence.replace('_____', card.answer)}"</span>
+                        </div>
+                    )}
+
+                    {/* Correct but used base form: show the inflected form from the sentence */}
+                    {usedBaseForm && (
+                        <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm dark:border-green-800 dark:bg-green-950/20">
+                            <span className="text-green-700 dark:text-green-400">A mondatban: </span>
+                            <span className="font-semibold text-green-800 dark:text-green-300">{card.answer}</span>
+                            <span className="ml-2 text-green-700 italic dark:text-green-400">"{card.sentence.replace('_____', card.answer)}"</span>
                         </div>
                     )}
 

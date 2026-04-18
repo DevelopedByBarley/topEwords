@@ -1096,14 +1096,23 @@ function initHighlight() {
     chrome.storage.local.get('hlEnabled', ({ hlEnabled }) => {
         if (hlEnabled) {
             highlightEnabled = true;
-            loadAndApplyHighlights();
+            if (document.readyState === 'complete') {
+                loadAndApplyHighlights();
+            } else {
+                window.addEventListener('load', () => loadAndApplyHighlights(), { once: true });
+            }
         }
     });
 }
 
-function loadAndApplyHighlights() {
+function loadAndApplyHighlights(attempt = 0) {
     sendMsg({ type: 'GET_STATUSES' }, (resp) => {
-        if (!resp || resp.error || !resp.statuses) { return; }
+        if (!resp || resp.error || !resp.statuses) {
+            if (attempt < 3) {
+                setTimeout(() => loadAndApplyHighlights(attempt + 1), 1500 * (attempt + 1));
+            }
+            return;
+        }
         const entries = Object.entries(resp.statuses);
         if (!entries.length) { return; }
         hlWordMap = new Map(entries.map(([w, s]) => [w.toLowerCase(), s]));
@@ -1125,6 +1134,9 @@ function applyHighlights() {
                 if ('twHl' in el.dataset) { return NodeFilter.FILTER_REJECT; }
                 if (el.isContentEditable) { return NodeFilter.FILTER_REJECT; }
                 if (SKIP_TAGS.has(el.tagName)) { return NodeFilter.FILTER_REJECT; }
+                if (el.closest('a, button, [role="button"], [role="link"], [role="combobox"], [role="search"], [role="listbox"], [role="option"], [role="navigation"], ytd-searchbox, ytd-masthead, #search-form')) {
+                    return NodeFilter.FILTER_REJECT;
+                }
                 return NodeFilter.FILTER_ACCEPT;
             },
         }
@@ -1138,6 +1150,12 @@ function applyHighlights() {
 }
 
 function highlightTextNode(node) {
+    const parentEl = node.parentElement;
+    if (parentEl) {
+        const display = window.getComputedStyle(parentEl).display;
+        if (display.includes('flex') || display.includes('grid')) { return; }
+    }
+
     const text = node.textContent;
     const regex = /\b([a-zA-Z]{2,})\b/g;
     const parts = [];
@@ -1157,7 +1175,13 @@ function highlightTextNode(node) {
         const span = document.createElement('span');
         span.dataset.twHl = match[1].toLowerCase();
         span.dataset.twStatus = status;
-        span.style.cssText = `display:inline;text-decoration-line:underline;text-decoration-color:${STATUS_COLORS[status]};text-decoration-thickness:2px;cursor:pointer;`;
+        span.style.setProperty('display', 'inline', 'important');
+        span.style.setProperty('position', 'static', 'important');
+        span.style.setProperty('float', 'none', 'important');
+        span.style.setProperty('text-decoration-line', 'underline', 'important');
+        span.style.setProperty('text-decoration-color', STATUS_COLORS[status], 'important');
+        span.style.setProperty('text-decoration-thickness', '2px', 'important');
+        span.style.setProperty('cursor', 'pointer', 'important');
         span.textContent = match[1];
         parts.push(span);
         lastIndex = match.index + match[1].length;
@@ -1178,16 +1202,21 @@ function highlightTextNode(node) {
 
 function removeHighlights() {
     document.removeEventListener('click', handleHlClick, { capture: true });
+    const parents = new Set();
     document.querySelectorAll('[data-tw-hl]').forEach((span) => {
-        const text = document.createTextNode(span.textContent);
-        span.parentNode?.replaceChild(text, span);
+        const parent = span.parentNode;
+        if (parent) {
+            parent.replaceChild(document.createTextNode(span.textContent), span);
+            parents.add(parent);
+        }
     });
-    if (document.body) { document.body.normalize(); }
+    parents.forEach((p) => p.normalize());
 }
 
 function handleHlClick(e) {
     const span = e.target?.closest?.('[data-tw-hl]');
     if (!span) { return; }
+    if (e.target?.closest?.('a, button, [role="button"], [role="link"]')) { return; }
     e.preventDefault();
     e.stopPropagation();
     const rect = span.getBoundingClientRect();
@@ -1281,7 +1310,13 @@ function esc(str) {
 
 function sendMsg(msg, callback) {
     try {
-        chrome.runtime.sendMessage(msg, callback);
+        chrome.runtime.sendMessage(msg, (response) => {
+            if (chrome.runtime.lastError) {
+                callback?.({ error: 'network' });
+                return;
+            }
+            callback?.(response);
+        });
     } catch (_) {
         callback?.({ error: 'network' });
     }

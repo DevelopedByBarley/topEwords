@@ -201,7 +201,7 @@ export default function Dashboard({ levelStats, totalKnown, totalWords, totalPer
                                         </div>
 
                                         <Link
-                                            href={`${wordsIndex()}?level=${level.level}`}
+                                            href={wordsIndex({ query: { level: level.level } })}
                                             className={`text-xs font-medium underline underline-offset-2 ${colors.text} hover:opacity-80`}
                                         >
                                             Ugrás erre a szintre →
@@ -221,7 +221,7 @@ export default function Dashboard({ levelStats, totalKnown, totalWords, totalPer
                             <span className="font-semibold">Saját szavak</span>
                         </div>
                         <Link
-                            href={`${wordsIndex()}#custom-words`}
+                            href={`${wordsIndex.url()}#custom-words`}
                             className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
                         >
                             Kezelés →
@@ -231,7 +231,7 @@ export default function Dashboard({ levelStats, totalKnown, totalWords, totalPer
                     {customStats.total === 0 ? (
                         <p className="text-sm text-muted-foreground">
                             Még nem adtál hozzá saját szót.{' '}
-                            <Link href={`${wordsIndex()}#custom-words`} className="text-primary underline underline-offset-2">
+                            <Link href={`${wordsIndex.url()}#custom-words`} className="text-primary underline underline-offset-2">
                                 Hozzáadás →
                             </Link>
                         </p>

@@ -226,15 +226,69 @@ class FlashcardSrsService
             }
         }
 
-        if ($settings->shuffle_cards) {
-            $newItems = $newItems->shuffle();
-            $reviewItems = $reviewItems->shuffle();
-        }
-
-        return $this->takeByUniqueCards($newItems, $effectiveNewLimit)
+        $result = $this->takeByUniqueCards($newItems, $effectiveNewLimit)
             ->merge($learningItems)
             ->merge($this->takeByUniqueCards($reviewItems, $effectiveReviewLimit))
             ->values();
+
+        if ($settings->shuffle_cards) {
+            return $this->shuffleNoAdjacentPairs($result);
+        }
+
+        return $result;
+    }
+
+    /**
+     * Shuffle items ensuring no two adjacent items share the same card ID.
+     * A 'both'-direction card produces two items with the same card ID; this method
+     * guarantees they are never placed next to each other (as long as there are at
+     * least two distinct card IDs in the collection).
+     *
+     * Strategy: Fisher–Yates shuffle, then a repair pass that moves same-card-ID
+     * neighbours to a random non-adjacent position. Bounded by n² iterations so
+     * it always terminates even if the arrangement is impossible (e.g. only one
+     * unique card ID present).
+     *
+     * @param  Collection<int, array{card: Flashcard, direction: string, review: FlashcardReview|null}>  $items
+     * @return Collection<int, array{card: Flashcard, direction: string, review: FlashcardReview|null}>
+     */
+    private function shuffleNoAdjacentPairs(Collection $items): Collection
+    {
+        $arr = $items->shuffle()->values()->all();
+        $n = count($arr);
+
+        if ($n <= 2) {
+            return collect($arr);
+        }
+
+        for ($iter = 0; $iter < $n * $n; $iter++) {
+            $conflict = -1;
+            for ($i = 0; $i < $n - 1; $i++) {
+                if ($arr[$i]['card']->id === $arr[$i + 1]['card']->id) {
+                    $conflict = $i;
+                    break;
+                }
+            }
+
+            if ($conflict === -1) {
+                break; // No conflicts — done
+            }
+
+            // Positions that are not immediately adjacent to the conflict
+            $candidates = array_values(array_filter(
+                range(0, $n - 1),
+                fn ($j) => $j !== $conflict && $j !== $conflict + 1
+            ));
+
+            if (empty($candidates)) {
+                break; // Only one unique card ID — impossible to resolve
+            }
+
+            $target = $candidates[array_rand($candidates)];
+            [$arr[$conflict + 1], $arr[$target]] = [$arr[$target], $arr[$conflict + 1]];
+        }
+
+        return collect($arr);
     }
 
     /**
