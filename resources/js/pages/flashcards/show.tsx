@@ -1,5 +1,5 @@
 import { Deferred, Form, Head, Link, router, usePage } from '@inertiajs/react';
-import { ArrowLeftRight, BookOpen, Copy, Download, Edit2, FileUp, Import, Loader2, MoreHorizontal, MoveRight, Plus, RotateCcw, Search, Settings2, SlidersHorizontal, Trash2, X } from 'lucide-react';
+import { ArrowLeftRight, BookOpen, Copy, Download, Edit2, FileUp, Import, Loader2, MoreHorizontal, MoveRight, Plus, RotateCcw, Search, Settings2, SlidersHorizontal, Sparkles, Trash2, X } from 'lucide-react';
 import { useCallback, useRef, useState } from 'react';
 import { type RichTextEditorHandle } from '@/components/ui/rich-text-editor';
 import Heading from '@/components/heading';
@@ -483,11 +483,34 @@ function CardForm({
         ? updateCard({ deck: deck.id, flashcard: card.id })
         : storeCard(deck.id);
 
+    const frontEditorRef = useRef<RichTextEditorHandle>(null);
     const backEditorRef = useRef<RichTextEditorHandle>(null);
     const [frontText, setFrontText] = useState('');
     const [dictEntry, setDictEntry] = useState<DictEntry | null>(null);
     const [dictLoading, setDictLoading] = useState(false);
     const [dictError, setDictError] = useState('');
+    const [geminiLoading, setGeminiLoading] = useState(false);
+
+    const { auth } = usePage<{ auth: { isAdmin: boolean } }>().props as any;
+    const isAdmin: boolean = auth?.isAdmin ?? false;
+
+    const generateGeminiFlashcard = async () => {
+        const word = frontText.trim();
+        if (!word) return;
+        setGeminiLoading(true);
+        try {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
+            const res = await fetch(`/text-analysis/gemini-flashcard?word=${encodeURIComponent(word)}`, {
+                headers: { 'X-CSRF-TOKEN': csrfToken, Accept: 'application/json' },
+            });
+            const data = await res.json();
+            if (data.error) return;
+            if (data.front) frontEditorRef.current?.setContent(data.front);
+            if (data.back) backEditorRef.current?.setContent(data.back);
+        } finally {
+            setGeminiLoading(false);
+        }
+    };
 
     const lookupWord = async () => {
         const word = frontText.trim();
@@ -528,18 +551,33 @@ function CardForm({
                         <div className="space-y-1.5">
                             <div className="flex items-center justify-between">
                                 <Label>Előlap</Label>
-                                <button
-                                    type="button"
-                                    onClick={lookupWord}
-                                    disabled={!frontText.trim() || dictLoading}
-                                    className="flex items-center gap-1 text-xs text-primary hover:underline disabled:opacity-40 disabled:no-underline"
-                                >
-                                    {dictLoading
-                                        ? <><Loader2 className="size-3 animate-spin" /> Keresés...</>
-                                        : '📖 Szótár'}
-                                </button>
+                                <div className="flex items-center gap-3">
+                                    {isAdmin && (
+                                        <button
+                                            type="button"
+                                            onClick={generateGeminiFlashcard}
+                                            disabled={!frontText.trim() || geminiLoading}
+                                            className="flex items-center gap-1 text-xs text-violet-600 hover:underline disabled:opacity-40 disabled:no-underline"
+                                        >
+                                            {geminiLoading
+                                                ? <><Loader2 className="size-3 animate-spin" /> Generálás...</>
+                                                : <><Sparkles className="size-3" /> Gemini AI</>}
+                                        </button>
+                                    )}
+                                    <button
+                                        type="button"
+                                        onClick={lookupWord}
+                                        disabled={!frontText.trim() || dictLoading}
+                                        className="flex items-center gap-1 text-xs text-primary hover:underline disabled:opacity-40 disabled:no-underline"
+                                    >
+                                        {dictLoading
+                                            ? <><Loader2 className="size-3 animate-spin" /> Keresés...</>
+                                            : '📖 Szótár'}
+                                    </button>
+                                </div>
                             </div>
                             <RichTextEditor
+                                ref={frontEditorRef}
                                 name="front"
                                 defaultValue={card?.front ?? ''}
                                 placeholder="Angol szó, kérdés..."

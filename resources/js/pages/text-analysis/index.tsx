@@ -1,9 +1,10 @@
-import { Head } from '@inertiajs/react';
-import { BookMarked, BookOpen, ChevronLeft, ChevronRight, CheckCheck, Clock, FileText, Globe, HelpCircle, History, Loader2, Mic, Plus, ScanText, Trash2, Upload, Volume2, X, Youtube } from 'lucide-react';
+import { Head, usePage } from '@inertiajs/react';
+import { BookMarked, BookOpen, ChevronLeft, ChevronRight, CheckCheck, Clock, FileText, Globe, HelpCircle, History, Loader2, Mic, Plus, ScanText, Sparkles, Trash2, Upload, Volume2, X, Youtube } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { show as textAnalysisShow } from '@/routes/text-analysis';
 
@@ -79,6 +80,28 @@ const STATUS_STYLES: Record<TokenStatus, string> = {
     pronunciation: 'bg-violet-100 text-violet-900 dark:bg-violet-900/40 dark:text-violet-300',
     in_list: 'bg-red-100 text-red-900 dark:bg-red-900/40 dark:text-red-300',
     not_in_list: '',
+};
+
+const POS_LABELS: Record<string, string> = {
+    verb: 'ige', noun: 'főnév', adj: 'melléknév', adv: 'határozószó',
+    prep: 'elöljáró', conj: 'kötőszó', det: 'névelő', pron: 'névmás',
+    num: 'számnév', interj: 'indulatszó',
+};
+
+type CustomWordForm = {
+    meaning_hu: string; extra_meanings: string; synonyms: string;
+    part_of_speech: string; example_en: string; example_hu: string;
+    verb_past: string; verb_past_participle: string;
+    verb_present_participle: string; verb_third_person: string;
+    is_irregular: boolean; noun_plural: string;
+    adj_comparative: string; adj_superlative: string;
+};
+
+const EMPTY_CUSTOM_WORD_FORM: CustomWordForm = {
+    meaning_hu: '', extra_meanings: '', synonyms: '', part_of_speech: '',
+    example_en: '', example_hu: '', verb_past: '', verb_past_participle: '',
+    verb_present_participle: '', verb_third_person: '', is_irregular: false,
+    noun_plural: '', adj_comparative: '', adj_superlative: '',
 };
 
 const EXAMPLE_TEXT = `The quick brown fox jumps over the lazy dog. Learning new words every day is one of the best investments you can make in your language skills. Reading books, articles, and other written materials helps you encounter words in context, which makes them much easier to remember.`;
@@ -200,11 +223,13 @@ export default function TextAnalysis() {
     const [lookupResult, setLookupResult] = useState<LookupResult | null>(null);
     const [lookupLoading, setLookupLoading] = useState(false);
     const [lookupStatus, setLookupStatus] = useState<string | null>(null);
-    const [addMeaning, setAddMeaning] = useState('');
-    const [addExampleEn, setAddExampleEn] = useState('');
-    const [addPartOfSpeech, setAddPartOfSpeech] = useState('');
+    const [customWordForm, setCustomWordForm] = useState<CustomWordForm>(EMPTY_CUSTOM_WORD_FORM);
     const [addingCustom, setAddingCustom] = useState(false);
     const [addedCustom, setAddedCustom] = useState(false);
+    const [geminiLoading, setGeminiLoading] = useState(false);
+
+    const { auth } = usePage<{ auth: { isAdmin: boolean } }>().props as any;
+    const isAdmin: boolean = auth?.isAdmin ?? false;
 
     const didAutoFetch = useRef(false);
     useEffect(() => {
@@ -418,9 +443,7 @@ export default function TextAnalysis() {
         setLookupResult(null);
         setLookupLoading(true);
         setLookupStatus(null);
-        setAddMeaning('');
-        setAddExampleEn('');
-        setAddPartOfSpeech('');
+        setCustomWordForm(EMPTY_CUSTOM_WORD_FORM);
         setAddedCustom(false);
 
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
@@ -470,21 +493,56 @@ export default function TextAnalysis() {
         setAddingCustom(true);
         try {
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
+            const body: Record<string, unknown> = { word: lookupResult.word };
+            (Object.keys(customWordForm) as (keyof CustomWordForm)[]).forEach((k) => {
+                const v = customWordForm[k];
+                if (v !== '' && v !== false) body[k] = v;
+            });
             const response = await fetch('/custom-words', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
-                body: JSON.stringify({
-                    word: lookupResult.word,
-                    meaning_hu: addMeaning || null,
-                    example_en: addExampleEn || null,
-                    part_of_speech: addPartOfSpeech || null,
-                }),
+                body: JSON.stringify(body),
             });
             if (response.ok || response.redirected) {
                 setAddedCustom(true);
+                if (lookupWord) {
+                    setResult((prev) => prev ? { ...prev, tokenStatuses: { ...prev.tokenStatuses, [lookupWord]: 'not_in_list' } } : prev);
+                }
             }
         } finally {
             setAddingCustom(false);
+        }
+    };
+
+    const handleGeminiAutofill = async () => {
+        if (!lookupResult || lookupResult.type !== 'not_found') return;
+        setGeminiLoading(true);
+        try {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
+            const res = await fetch(`/text-analysis/gemini-lookup?word=${encodeURIComponent(lookupResult.word)}`, {
+                headers: { 'X-CSRF-TOKEN': csrfToken, Accept: 'application/json' },
+            });
+            const data = await res.json();
+            if (data.error) return;
+            setCustomWordForm((prev) => ({
+                ...prev,
+                meaning_hu: data.meaning_hu || prev.meaning_hu,
+                extra_meanings: data.extra_meanings || prev.extra_meanings,
+                synonyms: data.synonyms || prev.synonyms,
+                part_of_speech: data.part_of_speech || prev.part_of_speech,
+                example_en: data.example_en || prev.example_en,
+                example_hu: data.example_hu || prev.example_hu,
+                verb_past: data.verb_past || prev.verb_past,
+                verb_past_participle: data.verb_past_participle || prev.verb_past_participle,
+                verb_present_participle: data.verb_present_participle || prev.verb_present_participle,
+                verb_third_person: data.verb_third_person || prev.verb_third_person,
+                is_irregular: data.is_irregular ?? prev.is_irregular,
+                noun_plural: data.noun_plural || prev.noun_plural,
+                adj_comparative: data.adj_comparative || prev.adj_comparative,
+                adj_superlative: data.adj_superlative || prev.adj_superlative,
+            }));
+        } finally {
+            setGeminiLoading(false);
         }
     };
 
@@ -969,7 +1027,7 @@ export default function TextAnalysis() {
                     }
                 }}
             >
-                <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-md">
+                <DialogContent className={`gap-0 overflow-hidden p-0 ${lookupResult?.type === 'not_found' ? 'sm:max-w-lg' : 'sm:max-w-md'}`}>
                     {lookupLoading && (
                         <div className="flex items-center justify-center py-12">
                             <Loader2 className="size-6 animate-spin text-muted-foreground" />
@@ -1088,69 +1146,146 @@ export default function TextAnalysis() {
 
                                 {/* Not found — add as custom */}
                                 {lookupResult.type === 'not_found' && (
-                                    <>
-                                        <p className="text-sm text-muted-foreground">
-                                            Ez a szó nincs a Top 10 000 listában. Hozzáadhatod saját szóként.
-                                        </p>
-                                        <a
-                                            href={`https://www.google.com/search?q=${encodeURIComponent(lookupResult.word + ' angol szó: jelentése magyarul, szinonimák, példamondat angolul és magyarul, szófaj, igeragozás ha ige')}&udm=50`}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-400 dark:hover:bg-blue-950/50"
-                                        >
-                                            <svg className="size-4" viewBox="0 0 24 24" fill="currentColor"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
-                                            Keresés Google AI-val
-                                        </a>
+                                    <div className="-mx-5 -mt-4">
                                         {addedCustom ? (
-                                            <div className="flex items-center gap-2 rounded-xl bg-green-50 px-4 py-3 text-sm font-medium text-green-700 dark:bg-green-950/30 dark:text-green-400">
-                                                <CheckCheck className="size-4" /> Sikeresen hozzáadva!
+                                            <div className="flex items-center gap-2 px-5 py-6 text-sm font-medium text-green-700 dark:text-green-400">
+                                                <CheckCheck className="size-4" /> Sikeresen hozzáadva saját szóként!
                                             </div>
                                         ) : (
-                                            <div className="flex flex-col gap-3">
-                                                <div className="flex flex-col gap-1.5">
-                                                    <label className="text-xs font-medium text-muted-foreground">Magyar jelentés</label>
+                                            <>
+                                                <div className="max-h-[55vh] overflow-y-auto px-5 py-4 flex flex-col gap-3">
+                                                    {/* Action buttons */}
+                                                    <div className="flex gap-2">
+                                                        {isAdmin && (
+                                                            <Button
+                                                                variant="outline"
+                                                                onClick={handleGeminiAutofill}
+                                                                disabled={geminiLoading}
+                                                                className="flex-1 border-violet-200 text-violet-700 hover:bg-violet-50 dark:border-violet-800 dark:text-violet-400 dark:hover:bg-violet-950/30"
+                                                            >
+                                                                {geminiLoading ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+                                                                Gemini AI
+                                                            </Button>
+                                                        )}
+                                                        <a
+                                                            href={`https://www.google.com/search?q=${encodeURIComponent(lookupResult.word + ' angol szó: jelentése magyarul, szinonimák, példamondat angolul és magyarul, szófaj, igeragozás ha ige')}&udm=50`}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="flex flex-1 items-center justify-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-400"
+                                                        >
+                                                            <svg className="size-4 shrink-0" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+                                                            Google AI
+                                                        </a>
+                                                    </div>
+
+                                                    {/* Basic fields */}
+                                                    <div className="flex gap-2">
+                                                        <Input
+                                                            placeholder="Magyar jelentés"
+                                                            value={customWordForm.meaning_hu}
+                                                            onChange={(e) => setCustomWordForm({ ...customWordForm, meaning_hu: e.target.value })}
+                                                            className="flex-1"
+                                                        />
+                                                        <Select value={customWordForm.part_of_speech} onValueChange={(v) => setCustomWordForm({ ...customWordForm, part_of_speech: v })}>
+                                                            <SelectTrigger className="w-36">
+                                                                <SelectValue placeholder="Szófaj" />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                {Object.entries(POS_LABELS).map(([val, label]) => (
+                                                                    <SelectItem key={val} value={val}>{label}</SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </div>
                                                     <Input
-                                                        placeholder="pl. le, lent, lefelé"
-                                                        value={addMeaning}
-                                                        onChange={(e) => setAddMeaning(e.target.value)}
+                                                        placeholder="További jelentések (pl. alternatív fordítások)"
+                                                        value={customWordForm.extra_meanings}
+                                                        onChange={(e) => setCustomWordForm({ ...customWordForm, extra_meanings: e.target.value })}
                                                     />
-                                                </div>
-                                                <div className="flex flex-col gap-1.5">
-                                                    <label className="text-xs font-medium text-muted-foreground">Szófaj</label>
-                                                    <select
-                                                        value={addPartOfSpeech}
-                                                        onChange={(e) => setAddPartOfSpeech(e.target.value)}
-                                                        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                                    >
-                                                        <option value="">– válassz –</option>
-                                                        <option value="noun">noun (főnév)</option>
-                                                        <option value="verb">verb (ige)</option>
-                                                        <option value="adjective">adjective (melléknév)</option>
-                                                        <option value="adverb">adverb (határozószó)</option>
-                                                        <option value="preposition">preposition (elöljárószó)</option>
-                                                        <option value="conjunction">conjunction (kötőszó)</option>
-                                                        <option value="pronoun">pronoun (névmás)</option>
-                                                        <option value="phrase">phrase (kifejezés)</option>
-                                                        <option value="other">other (egyéb)</option>
-                                                    </select>
-                                                </div>
-                                                <div className="flex flex-col gap-1.5">
-                                                    <label className="text-xs font-medium text-muted-foreground">Példamondat (angol)</label>
-                                                    <Textarea
-                                                        placeholder="pl. She looked down at the floor."
-                                                        value={addExampleEn}
-                                                        onChange={(e) => setAddExampleEn(e.target.value)}
-                                                        className="min-h-20 resize-none text-sm"
-                                                        maxLength={500}
+                                                    <Input
+                                                        placeholder="Szinonimák (pl. consent, accept)"
+                                                        value={customWordForm.synonyms}
+                                                        onChange={(e) => setCustomWordForm({ ...customWordForm, synonyms: e.target.value })}
                                                     />
+                                                    <Input
+                                                        placeholder="Példamondat (angol)"
+                                                        value={customWordForm.example_en}
+                                                        onChange={(e) => setCustomWordForm({ ...customWordForm, example_en: e.target.value })}
+                                                    />
+                                                    <Input
+                                                        placeholder="Példamondat (magyar)"
+                                                        value={customWordForm.example_hu}
+                                                        onChange={(e) => setCustomWordForm({ ...customWordForm, example_hu: e.target.value })}
+                                                    />
+
+                                                    {/* Verb fields */}
+                                                    {customWordForm.part_of_speech === 'verb' && (
+                                                        <div className="rounded-xl border bg-muted/30 px-4 py-3 flex flex-col gap-3">
+                                                            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Igealakok</p>
+                                                            <div className="grid grid-cols-2 gap-2">
+                                                                <div>
+                                                                    <label className="text-xs text-muted-foreground">Múlt idő</label>
+                                                                    <Input placeholder="pl. agreed" value={customWordForm.verb_past} onChange={(e) => setCustomWordForm({ ...customWordForm, verb_past: e.target.value })} className="mt-1" />
+                                                                </div>
+                                                                <div>
+                                                                    <label className="text-xs text-muted-foreground">Befejezett igenév</label>
+                                                                    <Input placeholder="pl. agreed" value={customWordForm.verb_past_participle} onChange={(e) => setCustomWordForm({ ...customWordForm, verb_past_participle: e.target.value })} className="mt-1" />
+                                                                </div>
+                                                                <div>
+                                                                    <label className="text-xs text-muted-foreground">Folyamatos (-ing)</label>
+                                                                    <Input placeholder="pl. agreeing" value={customWordForm.verb_present_participle} onChange={(e) => setCustomWordForm({ ...customWordForm, verb_present_participle: e.target.value })} className="mt-1" />
+                                                                </div>
+                                                                <div>
+                                                                    <label className="text-xs text-muted-foreground">E/3 jelen</label>
+                                                                    <Input placeholder="pl. agrees" value={customWordForm.verb_third_person} onChange={(e) => setCustomWordForm({ ...customWordForm, verb_third_person: e.target.value })} className="mt-1" />
+                                                                </div>
+                                                            </div>
+                                                            <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                                                                <input type="checkbox" checked={customWordForm.is_irregular} onChange={(e) => setCustomWordForm({ ...customWordForm, is_irregular: e.target.checked })} className="rounded" />
+                                                                Rendhagyó ige
+                                                            </label>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Noun fields */}
+                                                    {customWordForm.part_of_speech === 'noun' && (
+                                                        <div className="rounded-xl border bg-muted/30 px-4 py-3 flex flex-col gap-2">
+                                                            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Főnév alakok</p>
+                                                            <div>
+                                                                <label className="text-xs text-muted-foreground">Többes szám</label>
+                                                                <Input placeholder="pl. agreements" value={customWordForm.noun_plural} onChange={(e) => setCustomWordForm({ ...customWordForm, noun_plural: e.target.value })} className="mt-1" />
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Adjective fields */}
+                                                    {customWordForm.part_of_speech === 'adj' && (
+                                                        <div className="rounded-xl border bg-muted/30 px-4 py-3 flex flex-col gap-3">
+                                                            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Fokozás</p>
+                                                            <div className="grid grid-cols-2 gap-2">
+                                                                <div>
+                                                                    <label className="text-xs text-muted-foreground">Középfok</label>
+                                                                    <Input placeholder="pl. better" value={customWordForm.adj_comparative} onChange={(e) => setCustomWordForm({ ...customWordForm, adj_comparative: e.target.value })} className="mt-1" />
+                                                                </div>
+                                                                <div>
+                                                                    <label className="text-xs text-muted-foreground">Felsőfok</label>
+                                                                    <Input placeholder="pl. best" value={customWordForm.adj_superlative} onChange={(e) => setCustomWordForm({ ...customWordForm, adj_superlative: e.target.value })} className="mt-1" />
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </div>
-                                                <Button onClick={handleAddAsCustom} disabled={addingCustom}>
-                                                    {addingCustom ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
-                                                    Hozzáadás saját szóként
-                                                </Button>
-                                            </div>
+
+                                                {/* Footer */}
+                                                <div className="flex gap-2 border-t px-5 py-4">
+                                                    <Button className="flex-1" onClick={handleAddAsCustom} disabled={addingCustom}>
+                                                        {addingCustom ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
+                                                        Hozzáadás saját szóként
+                                                    </Button>
+                                                </div>
+                                            </>
                                         )}
-                                    </>
+                                    </div>
                                 )}
                             </div>
                         </>

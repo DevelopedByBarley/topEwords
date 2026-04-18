@@ -9,6 +9,7 @@ use App\Services\AchievementService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Http;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -684,6 +685,217 @@ class TextAnalysisController extends Controller
             ]);
 
         return response()->json(['books' => $books]);
+    }
+
+    public function geminiFlashcard(Request $request): JsonResponse
+    {
+        Gate::authorize('admin');
+
+        $word = $request->string('word')->trim()->value();
+
+        if (strlen($word) < 1) {
+            return response()->json(['error' => 'Hiányzó szó.'], 422);
+        }
+
+        $apiKey = env('GEMINI_API_KEY') ?: config('services.gemini.api_key');
+        $prompt = <<<PROMPT
+You are an English vocabulary flashcard generator for Hungarian learners. Generate rich flashcard content for the English word "{$word}".
+
+Return ONLY valid JSON with this exact structure:
+{
+  "cloze_sentences": [
+    {"sentence": "sentence with _______ replacing the word", "hints": ["hungarian_synonym1", "hungarian_synonym2"]}
+  ],
+  "answer_options": ["hungarian translation 1", "hungarian translation 2", "hungarian translation 3", "hungarian translation 4", "hungarian translation 5"],
+  "negative_meaning_hu": ["opposite in hungarian 1", "opposite in hungarian 2", "opposite in hungarian 3"],
+  "collocations": [
+    {"pattern": "phrase with _______ replacing the word", "meaning_hu": "hungarian meaning", "example": "example with _______ or null"}
+  ],
+  "word_forms": {"base": "the word itself", "adjective": "adj form or null", "adverb": "adverb form or null", "noun": "noun form or null", "verb": "verb form or null"},
+  "common_pairs": ["common collocation 1", "common collocation 2", "common collocation 3", "common collocation 4"],
+  "synonyms": ["english synonym 1", "english synonym 2", "english synonym 3", "english synonym 4"],
+  "antonyms": ["english antonym 1", "english antonym 2", "english antonym 3"]
+}
+
+Rules:
+- Generate 4 cloze sentences. Each hint array has 2 Hungarian synonyms for the word in that context.
+- answer_options: 4-6 Hungarian translations/synonyms of the word
+- negative_meaning_hu: 3 Hungarian antonym translations
+- collocations: 4-5 common phrases/patterns using the word
+- word_forms: only include forms that actually exist (set null for non-existent)
+- Respond ONLY with valid JSON, no markdown.
+PROMPT;
+
+        try {
+            $response = Http::timeout(20)
+                ->withHeaders(['Content-Type' => 'application/json'])
+                ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key={$apiKey}", [
+                    'contents' => [['parts' => [['text' => $prompt]]]],
+                    'generationConfig' => ['temperature' => 0.3, 'maxOutputTokens' => 800],
+                ]);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Kapcsolódási hiba: '.$e->getMessage()], 502);
+        }
+
+        if (! $response->successful()) {
+            return response()->json(['error' => 'Gemini API hiba ('.$response->status().')'], 502);
+        }
+
+        $text = $response->json('candidates.0.content.parts.0.text') ?? '';
+        $text = preg_replace('/^```json\s*|\s*```$/s', '', trim($text));
+        $data = json_decode($text, true);
+
+        if (! is_array($data)) {
+            return response()->json(['error' => 'Érvénytelen válasz.'], 502);
+        }
+
+        $front = $this->buildFlashcardFront($data);
+        $back = $this->buildFlashcardBack($data);
+
+        return response()->json(['front' => $front, 'back' => $back]);
+    }
+
+    private function buildFlashcardFront(array $d): string
+    {
+        $html = '';
+
+        foreach ($d['cloze_sentences'] ?? [] as $item) {
+            $hints = implode(' / ', $item['hints'] ?? []);
+            $html .= '<p>'.htmlspecialchars($item['sentence'] ?? '').' <em>('.htmlspecialchars($hints).')</em></p>';
+        }
+
+        if (! empty($d['answer_options'])) {
+            $options = implode(' / ', array_map('htmlspecialchars', $d['answer_options']));
+            $html .= '<p><span style="color: #22c55e">'.$options.'</span></p>';
+        }
+
+        if (! empty($d['negative_meaning_hu'])) {
+            $neg = implode(' / ', array_map('htmlspecialchars', $d['negative_meaning_hu']));
+            $html .= '<p><span style="background-color: #f3f4f6; padding: 2px 6px; border-radius: 4px">Negative meaning (HU): '.$neg.'</span></p>';
+        }
+
+        if (! empty($d['collocations'])) {
+            $html .= '<p>🔑 Tanulási megjegyzés</p>';
+            foreach ($d['collocations'] as $col) {
+                $pattern = htmlspecialchars($col['pattern'] ?? '');
+                $meaning = htmlspecialchars($col['meaning_hu'] ?? '');
+                $example = ! empty($col['example']) ? ' (pl. '.htmlspecialchars($col['example']).')' : '';
+                $html .= '<p>👉 '.$pattern.' = '.$meaning.$example.'</p>';
+            }
+        }
+
+        return $html;
+    }
+
+    private function buildFlashcardBack(array $d): string
+    {
+        $html = '';
+
+        $forms = $d['word_forms'] ?? [];
+        foreach (['adjective' => 'adjective', 'adverb' => 'adverb', 'noun' => 'noun', 'verb' => 'verb'] as $key => $label) {
+            if (! empty($forms[$key])) {
+                $html .= '<p>'.$label.': <strong>'.htmlspecialchars($forms[$key]).'</strong></p>';
+            }
+        }
+
+        if (! empty($d['common_pairs'])) {
+            $pairs = implode(' / ', array_map('htmlspecialchars', $d['common_pairs']));
+            $html .= '<p><span style="color: #3b82f6">common pair: '.$pairs.'</span></p>';
+        }
+
+        if (! empty($d['synonyms'])) {
+            $syn = implode(' / ', array_map('htmlspecialchars', $d['synonyms']));
+            $html .= '<p>similar: '.$syn.'</p>';
+        }
+
+        if (! empty($d['antonyms'])) {
+            $ant = implode(' / ', array_map('htmlspecialchars', $d['antonyms']));
+            $html .= '<p><span style="color: #ef4444">negative: '.$ant.'</span></p>';
+        }
+
+        return $html;
+    }
+
+    public function geminiListModels(): JsonResponse
+    {
+        Gate::authorize('admin');
+        $apiKey = env('GEMINI_API_KEY') ?: config('services.gemini.api_key');
+        $response = Http::get("https://generativelanguage.googleapis.com/v1beta/models?key={$apiKey}");
+
+        return response()->json($response->json());
+    }
+
+    public function geminiWordLookup(Request $request): JsonResponse
+    {
+        Gate::authorize('admin');
+
+        $word = $request->string('word')->trim()->lower()->value();
+
+        if (strlen($word) < 1) {
+            return response()->json(['error' => 'Hiányzó szó.'], 422);
+        }
+
+        $apiKey = env('GEMINI_API_KEY') ?: config('services.gemini.api_key');
+        $prompt = <<<PROMPT
+You are a Hungarian-English dictionary assistant. For the English word "{$word}", return a JSON object with EXACTLY these fields:
+- meaning_hu: concise primary Hungarian translation (1-5 words)
+- extra_meanings: other Hungarian meanings comma-separated, or empty string
+- synonyms: English synonyms comma-separated (2-4 words), or empty string
+- part_of_speech: MUST be one of exactly: verb, noun, adj, adv, prep, conj, det, pron, num, interj
+- example_en: one natural example sentence in English
+- example_hu: Hungarian translation of that example sentence
+- verb_past: past tense if verb, else empty string
+- verb_past_participle: past participle if verb, else empty string
+- verb_present_participle: present participle (-ing) if verb, else empty string
+- verb_third_person: third person singular if verb, else empty string
+- is_irregular: true if irregular verb, else false
+- noun_plural: plural form if noun, else empty string
+- adj_comparative: comparative if adjective, else empty string
+- adj_superlative: superlative if adjective, else empty string
+
+Respond ONLY with valid JSON, no markdown, no explanation.
+PROMPT;
+
+        try {
+            $response = Http::timeout(15)
+                ->withHeaders(['Content-Type' => 'application/json'])
+                ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key={$apiKey}", [
+                    'contents' => [['parts' => [['text' => $prompt]]]],
+                    'generationConfig' => ['temperature' => 0.2, 'maxOutputTokens' => 400],
+                ]);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Kapcsolódási hiba a Gemini API-hoz: '.$e->getMessage()], 502);
+        }
+
+        if (! $response->successful()) {
+            return response()->json(['error' => 'Gemini API hiba ('.$response->status().'): '.$response->body()], 502);
+        }
+
+        $text = $response->json('candidates.0.content.parts.0.text') ?? '';
+        $text = preg_replace('/^```json\s*|\s*```$/s', '', trim($text));
+
+        $data = json_decode($text, true);
+
+        if (! is_array($data)) {
+            return response()->json(['error' => 'Érvénytelen válasz: '.$text], 502);
+        }
+
+        return response()->json([
+            'meaning_hu' => $data['meaning_hu'] ?? null,
+            'extra_meanings' => $data['extra_meanings'] ?? null,
+            'synonyms' => $data['synonyms'] ?? null,
+            'part_of_speech' => $data['part_of_speech'] ?? null,
+            'example_en' => $data['example_en'] ?? null,
+            'example_hu' => $data['example_hu'] ?? null,
+            'verb_past' => $data['verb_past'] ?? null,
+            'verb_past_participle' => $data['verb_past_participle'] ?? null,
+            'verb_present_participle' => $data['verb_present_participle'] ?? null,
+            'verb_third_person' => $data['verb_third_person'] ?? null,
+            'is_irregular' => $data['is_irregular'] ?? false,
+            'noun_plural' => $data['noun_plural'] ?? null,
+            'adj_comparative' => $data['adj_comparative'] ?? null,
+            'adj_superlative' => $data['adj_superlative'] ?? null,
+        ]);
     }
 
     public function uploadBook(Request $request): JsonResponse

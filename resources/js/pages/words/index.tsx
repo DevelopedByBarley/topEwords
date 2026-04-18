@@ -8,10 +8,12 @@ import {
     FolderPlus,
     Info,
     Layers,
+    Loader2,
     Mic,
     Pencil,
     Plus,
     Search,
+    Sparkles,
     Trash2,
     Volume2,
     X,
@@ -211,6 +213,7 @@ export default function WordsIndex({
     const [showAddCustomWord, setShowAddCustomWord] = useState(false);
     const [customWordForm, setCustomWordForm] = useState<CustomWordFormData>(EMPTY_CUSTOM_WORD_FORM);
     const [customWordErrors, setCustomWordErrors] = useState<Record<string, string>>({});
+    const [geminiLoading, setGeminiLoading] = useState(false);
     const [selectedCustomWordId, setSelectedCustomWordId] = useState<number | null>(null);
     const [editCustomWordId, setEditCustomWordId] = useState<number | null>(null);
     const [editCustomWordForm, setEditCustomWordForm] = useState<CustomWordFormData>(EMPTY_CUSTOM_WORD_FORM);
@@ -475,6 +478,39 @@ export default function WordsIndex({
         );
     }
 
+    async function handleGeminiAutofill() {
+        const word = customWordForm.word.trim();
+        if (!word) return;
+        setGeminiLoading(true);
+        try {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
+            const res = await fetch(`/text-analysis/gemini-lookup?word=${encodeURIComponent(word)}`, {
+                headers: { 'X-CSRF-TOKEN': csrfToken, Accept: 'application/json' },
+            });
+            const data = await res.json();
+            if (data.error) return;
+            setCustomWordForm((prev) => ({
+                ...prev,
+                meaning_hu: data.meaning_hu || prev.meaning_hu,
+                extra_meanings: data.extra_meanings || prev.extra_meanings,
+                synonyms: data.synonyms || prev.synonyms,
+                part_of_speech: data.part_of_speech || prev.part_of_speech,
+                example_en: data.example_en || prev.example_en,
+                example_hu: data.example_hu || prev.example_hu,
+                verb_past: data.verb_past || prev.verb_past,
+                verb_past_participle: data.verb_past_participle || prev.verb_past_participle,
+                verb_present_participle: data.verb_present_participle || prev.verb_present_participle,
+                verb_third_person: data.verb_third_person || prev.verb_third_person,
+                is_irregular: data.is_irregular ?? prev.is_irregular,
+                noun_plural: data.noun_plural || prev.noun_plural,
+                adj_comparative: data.adj_comparative || prev.adj_comparative,
+                adj_superlative: data.adj_superlative || prev.adj_superlative,
+            }));
+        } finally {
+            setGeminiLoading(false);
+        }
+    }
+
     function handleAddCustomWord(e: React.FormEvent) {
         e.preventDefault();
         if (!customWordForm.word.trim()) {
@@ -600,6 +636,18 @@ export default function WordsIndex({
                                         </SelectContent>
                                     </Select>
                                 </div>
+                                {isAdmin && (
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={handleGeminiAutofill}
+                                        disabled={geminiLoading || !customWordForm.word.trim()}
+                                        className="w-full border-violet-200 text-violet-700 hover:bg-violet-50 dark:border-violet-800 dark:text-violet-400 dark:hover:bg-violet-950/30"
+                                    >
+                                        {geminiLoading ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+                                        Kitöltés Gemini AI-val
+                                    </Button>
+                                )}
                                 <Input placeholder="Magyar jelentés" value={customWordForm.meaning_hu} onChange={(e) => setCustomWordForm({ ...customWordForm, meaning_hu: e.target.value })} />
                                 <Input placeholder="További jelentések (pl. alternatív fordítások)" value={customWordForm.extra_meanings} onChange={(e) => setCustomWordForm({ ...customWordForm, extra_meanings: e.target.value })} />
                                 <Input placeholder="Szinonimák (pl. consent, accept)" value={customWordForm.synonyms} onChange={(e) => setCustomWordForm({ ...customWordForm, synonyms: e.target.value })} />
