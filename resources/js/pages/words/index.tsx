@@ -10,6 +10,7 @@ import {
     Layers,
     Loader2,
     Mic,
+    PenLine,
     Pencil,
     Plus,
     Search,
@@ -18,7 +19,7 @@ import {
     Volume2,
     X,
 } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -27,6 +28,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import {
     Select,
     SelectContent,
@@ -40,7 +42,7 @@ import { update as folderWordUpdate } from '@/routes/folders/words';
 import { importMethod as importFromWord } from '@/routes/flashcards/cards';
 import { index, status, update as updateWord } from '@/routes/words';
 
-type WordStatus = 'known' | 'learning' | 'saved' | 'pronunciation' | null;
+type WordStatus = 'known' | 'learning' | 'saved' | 'pronunciation' | 'practice' | null;
 
 interface Word {
     id: number;
@@ -99,7 +101,7 @@ interface CustomWord {
     part_of_speech: string | null;
     example_en: string | null;
     example_hu: string | null;
-    status: 'known' | 'learning' | 'saved' | 'pronunciation' | null;
+    status: 'known' | 'learning' | 'saved' | 'pronunciation' | 'practice' | null;
     form_base: string | null;
     verb_past: string | null;
     verb_past_participle: string | null;
@@ -154,9 +156,10 @@ interface Props {
         learning: number;
         saved: number;
         pronunciation: number;
+        practice: number;
     };
     customWords: CustomWord[];
-    customStats: { total: number; known: number; learning: number };
+    customStats: { total: number; known: number; learning: number; practice: number };
     markedPages: number[];
     completedPages: number[];
     markedLetters: string[];
@@ -214,6 +217,13 @@ export default function WordsIndex({
     const [customWordForm, setCustomWordForm] = useState<CustomWordFormData>(EMPTY_CUSTOM_WORD_FORM);
     const [customWordErrors, setCustomWordErrors] = useState<Record<string, string>>({});
     const [geminiLoading, setGeminiLoading] = useState(false);
+    const [insightLoading, setInsightLoading] = useState(false);
+    const [insightData, setInsightData] = useState<{
+        areas: { name_hu: string; description_hu: string; example_en: string; example_hu: string }[];
+        register_hu: string;
+        tip_hu: string;
+    } | null>(null);
+    const [insightError, setInsightError] = useState<string | null>(null);
     const [selectedCustomWordId, setSelectedCustomWordId] = useState<number | null>(null);
     const [editCustomWordId, setEditCustomWordId] = useState<number | null>(null);
     const [editCustomWordForm, setEditCustomWordForm] = useState<CustomWordFormData>(EMPTY_CUSTOM_WORD_FORM);
@@ -222,9 +232,16 @@ export default function WordsIndex({
     const [selectedDeckId, setSelectedDeckId] = useState<string>('');
     const [importingFlashcard, setImportingFlashcard] = useState(false);
     const [customImportSuccess, setCustomImportSuccess] = useState(false);
+    const [customFilter, setCustomFilter] = useState<'all' | 'custom'>('all');
+    const [practiceModalWord, setPracticeModalWord] = useState<{ word: string; meaning_hu: string | null } | null>(null);
+    const [practiceText, setPracticeText] = useState('');
+    const [practiceLoading, setPracticeLoading] = useState(false);
+    const [practiceResult, setPracticeResult] = useState<{ used: boolean; correct: boolean; feedback_hu: string; grammar_issues: string[]; overall_hu: string; corrected_text: string | null } | null>(null);
+    const [practiceError, setPracticeError] = useState<string | null>(null);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { auth } = usePage<{ auth: { isAdmin: boolean } }>().props as any;
+    const { auth } = usePage<{ auth: { isAdmin: boolean; subscription: { hasAiAccess: boolean } | null } }>().props as any;
     const isAdmin: boolean = auth?.isAdmin ?? false;
+    const hasAiAccess: boolean = isAdmin || (auth?.subscription?.hasAiAccess ?? false);
     const selectedWord =
         selectedWordId !== null
             ? (words.data.find((w) => w.id === selectedWordId) ?? null)
@@ -232,6 +249,27 @@ export default function WordsIndex({
     const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
     const progressPercent =
         stats.total > 0 ? Math.round((stats.known / stats.total) * 100) : 0;
+
+    type UnifiedItem = { type: 'custom'; data: CustomWord } | { type: 'regular'; data: Word };
+
+    const unifiedList = useMemo((): UnifiedItem[] => {
+        if (customFilter === 'custom') {
+            return customWords.map((w) => ({ type: 'custom', data: w }));
+        }
+        const pageFirst = words.data[0]?.word ?? '';
+        const pageLast = words.data[words.data.length - 1]?.word ?? '';
+        const customForPage = pageFirst === ''
+            ? customWords
+            : customWords.filter((cw) => {
+                const afterFirst = cw.word.localeCompare(pageFirst, 'en', { sensitivity: 'base' }) >= 0;
+                const beforeLast = cw.word.localeCompare(pageLast, 'en', { sensitivity: 'base' }) <= 0;
+                return afterFirst && beforeLast;
+            });
+        return [
+            ...customForPage.map((w): UnifiedItem => ({ type: 'custom', data: w })),
+            ...words.data.map((w): UnifiedItem => ({ type: 'regular', data: w })),
+        ].sort((a, b) => a.data.word.localeCompare(b.data.word, 'en', { sensitivity: 'base' }));
+    }, [customFilter, customWords, words.data]);
 
     const STORAGE_KEY = 'words_filters';
 
@@ -553,7 +591,7 @@ export default function WordsIndex({
         });
     }
 
-    function handleCustomWordStatus(wordId: number, newStatus: 'known' | 'learning' | 'saved' | 'pronunciation', _currentStatus: string | null) {
+    function handleCustomWordStatus(wordId: number, newStatus: 'known' | 'learning' | 'saved' | 'pronunciation' | 'practice', _currentStatus: string | null) {
         router.post(customWordStatus(wordId), { status: newStatus }, {
             preserveScroll: true,
             only: ['customWords', 'customStats', 'stats', 'flash'],
@@ -577,6 +615,40 @@ export default function WordsIndex({
         });
     }
 
+    function openPracticeModal(word: string, meaning_hu: string | null) {
+        setPracticeModalWord({ word, meaning_hu });
+        setPracticeText('');
+        setPracticeResult(null);
+        setPracticeError(null);
+    }
+
+    async function handlePracticeCheck() {
+        if (!practiceModalWord || practiceText.trim().length < 5) return;
+        setPracticeLoading(true);
+        setPracticeError(null);
+        setPracticeResult(null);
+        const cookie = document.cookie.split('; ').find((r) => r.startsWith('XSRF-TOKEN='));
+        const xsrf = cookie ? decodeURIComponent(cookie.substring('XSRF-TOKEN='.length)) : '';
+        try {
+            const res = await fetch('/words/practice/check', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-XSRF-TOKEN': xsrf },
+                body: JSON.stringify({ words: [practiceModalWord], text: practiceText.trim() }),
+            });
+            const data = await res.json();
+            if (!res.ok || data.error) {
+                setPracticeError(data.error ?? 'Ismeretlen hiba.');
+            } else {
+                const wordResult = data.words?.[0];
+                setPracticeResult({ ...wordResult, grammar_issues: data.grammar_issues ?? [], overall_hu: data.overall_hu ?? '', corrected_text: data.corrected_text ?? null });
+            }
+        } catch {
+            setPracticeError('Kapcsolódási hiba.');
+        } finally {
+            setPracticeLoading(false);
+        }
+    }
+
     function handleSaveEditWord(wordId: number) {
         router.patch(updateWord(wordId), editWordForm, {
             preserveScroll: true,
@@ -590,6 +662,76 @@ export default function WordsIndex({
     return (
         <>
             <Head title="Top 10 000 angol szó" />
+
+            {/* Practice modal */}
+            <Dialog open={practiceModalWord !== null} onOpenChange={(open) => { if (!open) setPracticeModalWord(null); }}>
+                <DialogContent className="sm:max-w-lg">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <Sparkles className="size-4 text-violet-500" />
+                            Gyakorlás: <span className="text-violet-600 dark:text-violet-400">{practiceModalWord?.word}</span>
+                        </DialogTitle>
+                        {practiceModalWord?.meaning_hu && (
+                            <p className="text-sm text-muted-foreground">{practiceModalWord.meaning_hu}</p>
+                        )}
+                    </DialogHeader>
+                    <div className="space-y-3 pt-1">
+                        <Textarea
+                            autoFocus
+                            value={practiceText}
+                            onChange={(e) => { setPracticeText(e.target.value); setPracticeResult(null); }}
+                            placeholder={`Írj mondatokat a "${practiceModalWord?.word}" szóval...`}
+                            className="min-h-32 resize-none text-base leading-relaxed"
+                        />
+                        <Button
+                            onClick={handlePracticeCheck}
+                            disabled={practiceText.trim().length < 5 || practiceLoading}
+                            className="w-full gap-2 bg-violet-600 hover:bg-violet-700 text-white"
+                        >
+                            {practiceLoading ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+                            {practiceLoading ? 'Ellenőrzés...' : 'Ellenőrzés'}
+                        </Button>
+
+                        {practiceError && (
+                            <p className="text-sm text-destructive">{practiceError}</p>
+                        )}
+
+                        {practiceResult && (
+                            <div className="space-y-2 animate-in fade-in duration-200">
+                                {/* Word usage */}
+                                <div className={`rounded-lg border px-3 py-2.5 text-sm ${practiceResult.correct ? 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950/30' : practiceResult.used ? 'border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30' : 'border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950/30'}`}>
+                                    <span className="font-medium">{practiceResult.correct ? '✅' : practiceResult.used ? '⚠️' : '❌'} </span>
+                                    {practiceResult.feedback_hu}
+                                </div>
+                                {/* Overall */}
+                                {practiceResult.overall_hu && (
+                                    <div className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2.5 text-sm text-violet-800 dark:border-violet-800 dark:bg-violet-950/30 dark:text-violet-300">
+                                        {practiceResult.overall_hu}
+                                    </div>
+                                )}
+                                {/* Grammar issues */}
+                                {practiceResult.grammar_issues.length > 0 && (
+                                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 dark:border-amber-800 dark:bg-amber-950/30">
+                                        <p className="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400 mb-1">Grammatika</p>
+                                        <ul className="space-y-0.5">
+                                            {practiceResult.grammar_issues.map((issue, i) => (
+                                                <li key={i} className="text-sm text-amber-700 dark:text-amber-400">• {typeof issue === 'string' ? issue : ((issue as any).explanation_hu ?? (issue as any).issue ?? JSON.stringify(issue))}</li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+                                {/* Corrected text */}
+                                {practiceResult.corrected_text && (
+                                    <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5 dark:border-blue-800 dark:bg-blue-950/30">
+                                        <p className="text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-400 mb-1">Javított változat</p>
+                                        <p className="text-sm text-blue-700 dark:text-blue-300 leading-relaxed">{practiceResult.corrected_text}</p>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </DialogContent>
+            </Dialog>
 
             <div className="flex h-full flex-1 flex-col gap-4 p-4 pb-24 md:px-6 md:pt-6 md:pb-28">
                 {/* Header */}
@@ -636,7 +778,7 @@ export default function WordsIndex({
                                         </SelectContent>
                                     </Select>
                                 </div>
-                                {isAdmin && (
+                                {hasAiAccess && (
                                     <Button
                                         type="button"
                                         variant="outline"
@@ -821,6 +963,32 @@ export default function WordsIndex({
                     </div>
                 )}
 
+                {/* Folder filter */}
+                {folders.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                        <Button
+                            size="sm"
+                            variant={filters.folder === null ? 'default' : 'outline'}
+                            onClick={() => handleFolderFilter(null)}
+                        >
+                            <FolderOpen className="size-3.5" />
+                            Minden mappa
+                        </Button>
+                        {folders.map((f) => (
+                            <Button
+                                key={f.id}
+                                size="sm"
+                                variant={filters.folder === f.id ? 'default' : 'outline'}
+                                onClick={() => handleFolderFilter(f.id)}
+                            >
+                                <FolderOpen className="size-3.5" />
+                                {f.name}
+                                <span className="text-xs font-normal opacity-75">{f.words_count}</span>
+                            </Button>
+                        ))}
+                    </div>
+                )}
+
                 {/* Status filter */}
                 <div className="flex flex-wrap gap-2">
                     <Button
@@ -870,23 +1038,37 @@ export default function WordsIndex({
                         Kiejtés
                         <span className="text-xs font-normal opacity-75">{stats.pronunciation.toLocaleString()}</span>
                     </Button>
+                    <Button
+                        size="sm"
+                        variant={filters.status === 'practice' ? 'default' : 'outline'}
+                        className={filters.status === 'practice' ? 'bg-rose-600 hover:bg-rose-700' : 'hover:border-rose-500 hover:text-rose-700'}
+                        onClick={() => handleStatusFilter('practice')}
+                    >
+                        <PenLine className="size-3.5" />
+                        Gyakorlásra
+                        <span className="text-xs font-normal opacity-75">{stats.practice.toLocaleString()}</span>
+                    </Button>
                 </div>
 
-                {/* Active folder chip */}
-                {filters.folder && (
-                    <div className="flex items-center gap-2">
-                        <span className="text-sm text-muted-foreground">Mappa:</span>
-                        <span className="flex items-center gap-1.5 rounded-full bg-primary px-3 py-1 text-sm font-medium text-primary-foreground">
-                            <FolderOpen className="size-3.5" />
-                            {folders.find((f) => f.id === filters.folder)?.name ?? 'Mappa'}
-                            <button
-                                onClick={() => handleFolderFilter(null)}
-                                className="ml-0.5 rounded-full hover:opacity-70"
-                                title="Szűrő törlése"
-                            >
-                                <X className="size-3.5" />
-                            </button>
-                        </span>
+                {/* Custom words filter */}
+                {customStats.total > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                        <Button
+                            size="sm"
+                            variant={customFilter === 'all' ? 'default' : 'outline'}
+                            onClick={() => setCustomFilter('all')}
+                        >
+                            Minden szó
+                        </Button>
+                        <Button
+                            size="sm"
+                            variant={customFilter === 'custom' ? 'default' : 'outline'}
+                            onClick={() => setCustomFilter('custom')}
+                        >
+                            <Plus className="size-3.5" />
+                            Saját szavak
+                            <span className="text-xs font-normal opacity-75">{customStats.total}</span>
+                        </Button>
                     </div>
                 )}
 
@@ -1066,7 +1248,7 @@ export default function WordsIndex({
                 </div>
 
                 {/* Word list */}
-                {words.data.length === 0 && customWords.length === 0 ? (
+                {unifiedList.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-16 text-center text-muted-foreground">
                         <Search className="mb-3 size-10 opacity-30" />
                         <p className="font-medium">Nincs találat</p>
@@ -1077,199 +1259,185 @@ export default function WordsIndex({
                 ) : (
                     <div className="rounded-xl border">
                         <ul className="divide-y">
-                            {customWords.length > 0 && (
-                                <>
-                                    <li className="px-3 py-1.5 text-xs font-medium text-muted-foreground bg-muted/30">Saját szavak</li>
-                                    {customWords.map((word) => (
-                                        <li
-                                            key={`custom-${word.id}`}
-                                            className={`flex items-center gap-3 px-3 py-2.5 transition-colors ${
-                                                word.status === 'known' ? 'bg-green-50 dark:bg-green-950/20'
-                                                : word.status === 'learning' ? 'bg-blue-50 dark:bg-blue-950/20'
-                                                : word.status === 'saved' ? 'bg-orange-50 dark:bg-orange-950/20'
-                                                : word.status === 'pronunciation' ? 'bg-violet-50 dark:bg-violet-950/20'
-                                                : ''
-                                            }`}
-                                        >
-                                            <button
-                                                onClick={() => setSelectedCustomWordId(word.id)}
-                                                className={`flex-1 text-left underline decoration-dotted underline-offset-2 transition-opacity hover:opacity-70 ${
-                                                    flipMode ? 'text-sm font-normal' : 'font-medium'
-                                                } ${
-                                                    word.status === 'known' ? 'text-green-700 decoration-green-400 dark:text-green-400'
-                                                    : word.status === 'learning' ? 'text-blue-700 decoration-blue-400 dark:text-blue-400'
-                                                    : word.status === 'saved' ? 'text-orange-700 decoration-orange-400 dark:text-orange-400'
-                                                    : word.status === 'pronunciation' ? 'text-violet-700 decoration-violet-400 dark:text-violet-400'
-                                                    : 'decoration-muted-foreground/40'
-                                                }`}
-                                            >
-                                                {flipMode
-                                                    ? (word.meaning_hu ?? <span className="italic text-muted-foreground">(nincs fordítás)</span>)
-                                                    : word.word}
-                                                <Info className="mb-0.5 ml-1 inline size-3 opacity-40" />
-                                            </button>
-                                            <button
-                                                onClick={() => speak(word.word)}
-                                                title="Felolvasás"
-                                                className="shrink-0 cursor-pointer rounded p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                                            >
-                                                <Volume2 className="size-3.5" />
-                                            </button>
-                                            <div className="flex shrink-0 gap-1">
-                                                {([
-                                                    { s: 'known' as const, Icon: CheckCheck, active: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400', hover: 'hover:bg-green-100 hover:text-green-700', label: 'Tudom' },
-                                                    { s: 'learning' as const, Icon: Clock, active: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400', hover: 'hover:bg-blue-100 hover:text-blue-700', label: 'Tanulom' },
-                                                    { s: 'saved' as const, Icon: BookMarked, active: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400', hover: 'hover:bg-orange-100 hover:text-orange-700', label: 'Később' },
-                                                    { s: 'pronunciation' as const, Icon: Mic, active: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-400', hover: 'hover:bg-violet-100 hover:text-violet-700', label: 'Kiejtés' },
-                                                ]).map(({ s, Icon, active, hover, label }) => (
-                                                    <button
-                                                        key={s}
-                                                        onClick={() => handleCustomWordStatus(word.id, s, word.status ?? null)}
-                                                        title={label}
-                                                        className={`flex cursor-pointer items-center gap-1.5 rounded-full px-3.5 py-2.5 text-xs font-medium transition-all ${word.status === s ? active : `bg-secondary text-muted-foreground ${hover}`}`}
-                                                    >
-                                                        <Icon className="size-4" />
-                                                        <span className="hidden sm:inline">{label}</span>
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </li>
-                                    ))}
-                                    {words.data.length > 0 && (
-                                        <li className="px-3 py-1.5 text-xs font-medium text-muted-foreground bg-muted/30">Top 10 000 szó</li>
-                                    )}
-                                </>
-                            )}
-                            {words.data.map((word) => (
-                                <li
-                                    key={word.id}
-                                    className={`flex items-center gap-3 px-3 py-2.5 transition-colors ${
-                                        word.status === 'known'
-                                            ? 'bg-green-50 dark:bg-green-950/20'
-                                            : word.status === 'learning'
-                                              ? 'bg-blue-50 dark:bg-blue-950/20'
-                                              : word.status === 'saved'
-                                                ? 'bg-orange-50 dark:bg-orange-950/20'
-                                                : word.status ===
-                                                    'pronunciation'
-                                                  ? 'bg-violet-50 dark:bg-violet-950/20'
-                                                  : ''
-                                    }`}
-                                >
-                                    <button
-                                        onClick={() =>
-                                            setSelectedWordId(word.id)
-                                        }
-                                        className={`flex-1 text-left underline decoration-dotted underline-offset-2 transition-opacity hover:opacity-70 ${
-                                            flipMode
-                                                ? 'text-sm font-normal'
-                                                : 'font-medium'
-                                        } ${
-                                            word.status === 'known'
-                                                ? 'text-green-700 decoration-green-400 dark:text-green-400'
-                                                : word.status === 'learning'
-                                                  ? 'text-blue-700 decoration-blue-400 dark:text-blue-400'
-                                                  : word.status === 'saved'
-                                                    ? 'text-orange-700 decoration-orange-400 dark:text-orange-400'
-                                                    : word.status ===
-                                                        'pronunciation'
-                                                      ? 'text-violet-700 decoration-violet-400 dark:text-violet-400'
-                                                      : 'decoration-muted-foreground/40'
+                            {unifiedList.map((item) =>
+                                item.type === 'custom' ? (
+                                    <li
+                                        key={`custom-${item.data.id}`}
+                                        className={`flex items-center gap-3 px-3 py-2.5 transition-colors ${
+                                            item.data.status === 'known' ? 'bg-green-50 dark:bg-green-950/20'
+                                            : item.data.status === 'learning' ? 'bg-blue-50 dark:bg-blue-950/20'
+                                            : item.data.status === 'saved' ? 'bg-orange-50 dark:bg-orange-950/20'
+                                            : item.data.status === 'pronunciation' ? 'bg-violet-50 dark:bg-violet-950/20'
+                                            : item.data.status === 'practice' ? 'bg-rose-50 dark:bg-rose-950/20'
+                                            : ''
                                         }`}
                                     >
-                                        {flipMode
-                                            ? (word.meaning_hu ?? (
-                                                  <span className="text-muted-foreground italic">
-                                                      (nincs fordítás)
-                                                  </span>
-                                              ))
-                                            : word.word}
-                                        <Info className="mb-0.5 ml-1 inline size-3 opacity-40" />
-                                    </button>
-                                    <button
-                                        onClick={() => speak(word.word)}
-                                        title="Felolvasás"
-                                        className="shrink-0 cursor-pointer rounded p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                                        <button
+                                            onClick={() => setSelectedCustomWordId(item.data.id)}
+                                            className={`flex-1 text-left underline decoration-dotted underline-offset-2 transition-opacity hover:opacity-70 ${
+                                                flipMode ? 'text-sm font-normal' : 'font-medium'
+                                            } ${
+                                                item.data.status === 'known' ? 'text-green-700 decoration-green-400 dark:text-green-400'
+                                                : item.data.status === 'learning' ? 'text-blue-700 decoration-blue-400 dark:text-blue-400'
+                                                : item.data.status === 'saved' ? 'text-orange-700 decoration-orange-400 dark:text-orange-400'
+                                                : item.data.status === 'pronunciation' ? 'text-violet-700 decoration-violet-400 dark:text-violet-400'
+                                                : item.data.status === 'practice' ? 'text-rose-700 decoration-rose-400 dark:text-rose-400'
+                                                : 'decoration-muted-foreground/40'
+                                            }`}
+                                        >
+                                            {flipMode
+                                                ? (item.data.meaning_hu ?? <span className="italic text-muted-foreground">(nincs fordítás)</span>)
+                                                : item.data.word}
+                                            <Info className="mb-0.5 ml-1 inline size-3 opacity-40" />
+                                            <span className="ml-1.5 rounded-full bg-primary/12 px-1.5 py-0.5 text-[10px] font-medium text-primary">saját</span>
+                                        </button>
+                                        <button
+                                            onClick={() => speak(item.data.word)}
+                                            title="Felolvasás"
+                                            className="hidden sm:block shrink-0 cursor-pointer rounded p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                                        >
+                                            <Volume2 className="size-3.5" />
+                                        </button>
+                                        {isAdmin && (
+                                            <button
+                                                onClick={() => openPracticeModal(item.data.word, item.data.meaning_hu ?? null)}
+                                                title="Gyakorlás"
+                                                className="shrink-0 cursor-pointer rounded p-1 text-violet-500 transition-colors hover:bg-violet-50 hover:text-violet-700 dark:hover:bg-violet-950/30"
+                                            >
+                                                <Sparkles className="size-3.5" />
+                                            </button>
+                                        )}
+                                        <div className="flex shrink-0 gap-1 overflow-x-auto scrollbar-none">
+                                            {([
+                                                { s: 'known' as const, Icon: CheckCheck, active: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400', hover: 'hover:bg-green-100 hover:text-green-700', label: 'Tudom' },
+                                                { s: 'learning' as const, Icon: Clock, active: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400', hover: 'hover:bg-blue-100 hover:text-blue-700', label: 'Tanulom' },
+                                                { s: 'saved' as const, Icon: BookMarked, active: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400', hover: 'hover:bg-orange-100 hover:text-orange-700', label: 'Később' },
+                                                { s: 'pronunciation' as const, Icon: Mic, active: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-400', hover: 'hover:bg-violet-100 hover:text-violet-700', label: 'Kiejtés' },
+                                                { s: 'practice' as const, Icon: PenLine, active: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-400', hover: 'hover:bg-rose-100 hover:text-rose-700', label: 'Gyakorlásra' },
+                                            ]).map(({ s, Icon, active, hover, label }) => (
+                                                <button
+                                                    key={s}
+                                                    onClick={() => handleCustomWordStatus(item.data.id, s, item.data.status ?? null)}
+                                                    title={label}
+                                                    className={`flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full px-2 py-1.5 sm:px-3 sm:py-2 text-xs font-medium transition-all ${item.data.status === s ? active : `bg-secondary text-muted-foreground ${hover}`}`}
+                                                >
+                                                    <Icon className="size-3.5 sm:size-4" />
+                                                    <span className="hidden sm:inline">{label}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </li>
+                                ) : (
+                                    <li
+                                        key={item.data.id}
+                                        className={`flex items-center gap-3 px-3 py-2.5 transition-colors ${
+                                            item.data.status === 'known'
+                                                ? 'bg-green-50 dark:bg-green-950/20'
+                                                : item.data.status === 'learning'
+                                                  ? 'bg-blue-50 dark:bg-blue-950/20'
+                                                  : item.data.status === 'saved'
+                                                    ? 'bg-orange-50 dark:bg-orange-950/20'
+                                                    : item.data.status === 'pronunciation'
+                                                      ? 'bg-violet-50 dark:bg-violet-950/20'
+                                                      : item.data.status === 'practice'
+                                                        ? 'bg-rose-50 dark:bg-rose-950/20'
+                                                        : ''
+                                        }`}
                                     >
-                                        <Volume2 className="size-3.5" />
-                                    </button>
-                                    <div className="flex shrink-0 gap-1">
                                         <button
-                                            onClick={() =>
-                                                handleStatus(word, 'known')
-                                            }
-                                            title="Tudom"
-                                            className={`flex cursor-pointer items-center gap-1.5 rounded-full px-3.5 py-2.5 text-xs font-medium transition-all ${
-                                                word.status === 'known'
-                                                    ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400'
-                                                    : 'bg-secondary text-muted-foreground hover:bg-green-100 hover:text-green-700'
+                                            onClick={() => setSelectedWordId(item.data.id)}
+                                            className={`flex-1 text-left underline decoration-dotted underline-offset-2 transition-opacity hover:opacity-70 ${
+                                                flipMode ? 'text-sm font-normal' : 'font-medium'
+                                            } ${
+                                                item.data.status === 'known'
+                                                    ? 'text-green-700 decoration-green-400 dark:text-green-400'
+                                                    : item.data.status === 'learning'
+                                                      ? 'text-blue-700 decoration-blue-400 dark:text-blue-400'
+                                                      : item.data.status === 'saved'
+                                                        ? 'text-orange-700 decoration-orange-400 dark:text-orange-400'
+                                                        : item.data.status === 'pronunciation'
+                                                          ? 'text-violet-700 decoration-violet-400 dark:text-violet-400'
+                                                          : item.data.status === 'practice'
+                                                            ? 'text-rose-700 decoration-rose-400 dark:text-rose-400'
+                                                            : 'decoration-muted-foreground/40'
                                             }`}
                                         >
-                                            <CheckCheck className="size-4" />
-                                            <span className="hidden sm:inline">
-                                                Tudom
-                                            </span>
+                                            {flipMode
+                                                ? (item.data.meaning_hu ?? (
+                                                      <span className="text-muted-foreground italic">
+                                                          (nincs fordítás)
+                                                      </span>
+                                                  ))
+                                                : item.data.word}
+                                            <Info className="mb-0.5 ml-1 inline size-3 opacity-40" />
                                         </button>
                                         <button
-                                            onClick={() =>
-                                                handleStatus(word, 'learning')
-                                            }
-                                            title="Folyamatban"
-                                            className={`flex cursor-pointer items-center gap-1.5 rounded-full px-3.5 py-2.5 text-xs font-medium transition-all ${
-                                                word.status === 'learning'
-                                                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400'
-                                                    : 'bg-secondary text-muted-foreground hover:bg-blue-100 hover:text-blue-700'
-                                            }`}
+                                            onClick={() => speak(item.data.word)}
+                                            title="Felolvasás"
+                                            className="hidden sm:block shrink-0 cursor-pointer rounded p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                                         >
-                                            <Clock className="size-4" />
-                                            <span className="hidden sm:inline">
-                                                Tanulom
-                                            </span>
+                                            <Volume2 className="size-3.5" />
                                         </button>
-                                        <button
-                                            onClick={() =>
-                                                handleStatus(word, 'saved')
-                                            }
-                                            title="Mentés későbbre"
-                                            className={`flex cursor-pointer items-center gap-1.5 rounded-full px-3.5 py-2.5 text-xs font-medium transition-all ${
-                                                word.status === 'saved'
-                                                    ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400'
-                                                    : 'bg-secondary text-muted-foreground hover:bg-orange-100 hover:text-orange-700'
-                                            }`}
-                                        >
-                                            <BookMarked className="size-4" />
-                                            <span className="hidden sm:inline">
-                                                Később
-                                            </span>
-                                        </button>
-                                        <button
-                                            onClick={() =>
-                                                handleStatus(
-                                                    word,
-                                                    'pronunciation',
-                                                )
-                                            }
-                                            title="Kiejtési nehézség"
-                                            className={`flex cursor-pointer items-center gap-1.5 rounded-full px-3.5 py-2.5 text-xs font-medium transition-all ${
-                                                word.status === 'pronunciation'
-                                                    ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-400'
-                                                    : 'bg-secondary text-muted-foreground hover:bg-violet-100 hover:text-violet-700'
-                                            }`}
-                                        >
-                                            <Mic className="size-4" />
-                                            <span className="hidden sm:inline">
-                                                Kiejtés
-                                            </span>
-                                        </button>
-                                    </div>
-                                </li>
-                            ))}
+                                        {isAdmin && (
+                                            <button
+                                                onClick={() => openPracticeModal(item.data.word, item.data.meaning_hu ?? null)}
+                                                title="Gyakorlás"
+                                                className="shrink-0 cursor-pointer rounded p-1 text-violet-500 transition-colors hover:bg-violet-50 hover:text-violet-700 dark:hover:bg-violet-950/30"
+                                            >
+                                                <Sparkles className="size-3.5" />
+                                            </button>
+                                        )}
+                                        <div className="flex shrink-0 gap-1 overflow-x-auto scrollbar-none">
+                                            <button
+                                                onClick={() => handleStatus(item.data, 'known')}
+                                                title="Tudom"
+                                                className={`flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full px-2 py-1.5 sm:px-3 sm:py-2 text-xs font-medium transition-all ${item.data.status === 'known' ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400' : 'bg-secondary text-muted-foreground hover:bg-green-100 hover:text-green-700'}`}
+                                            >
+                                                <CheckCheck className="size-3.5 sm:size-4" />
+                                                <span className="hidden sm:inline">Tudom</span>
+                                            </button>
+                                            <button
+                                                onClick={() => handleStatus(item.data, 'learning')}
+                                                title="Tanulom"
+                                                className={`flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full px-2 py-1.5 sm:px-3 sm:py-2 text-xs font-medium transition-all ${item.data.status === 'learning' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400' : 'bg-secondary text-muted-foreground hover:bg-blue-100 hover:text-blue-700'}`}
+                                            >
+                                                <Clock className="size-3.5 sm:size-4" />
+                                                <span className="hidden sm:inline">Tanulom</span>
+                                            </button>
+                                            <button
+                                                onClick={() => handleStatus(item.data, 'saved')}
+                                                title="Később"
+                                                className={`flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full px-2 py-1.5 sm:px-3 sm:py-2 text-xs font-medium transition-all ${item.data.status === 'saved' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400' : 'bg-secondary text-muted-foreground hover:bg-orange-100 hover:text-orange-700'}`}
+                                            >
+                                                <BookMarked className="size-3.5 sm:size-4" />
+                                                <span className="hidden sm:inline">Később</span>
+                                            </button>
+                                            <button
+                                                onClick={() => handleStatus(item.data, 'pronunciation')}
+                                                title="Kiejtés"
+                                                className={`flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full px-2 py-1.5 sm:px-3 sm:py-2 text-xs font-medium transition-all ${item.data.status === 'pronunciation' ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-400' : 'bg-secondary text-muted-foreground hover:bg-violet-100 hover:text-violet-700'}`}
+                                            >
+                                                <Mic className="size-3.5 sm:size-4" />
+                                                <span className="hidden sm:inline">Kiejtés</span>
+                                            </button>
+                                            <button
+                                                onClick={() => handleStatus(item.data, 'practice')}
+                                                title="Gyakorlásra"
+                                                className={`flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full px-2 py-1.5 sm:px-3 sm:py-2 text-xs font-medium transition-all ${item.data.status === 'practice' ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-400' : 'bg-secondary text-muted-foreground hover:bg-rose-100 hover:text-rose-700'}`}
+                                            >
+                                                <PenLine className="size-3.5 sm:size-4" />
+                                                <span className="hidden sm:inline">Gyakorlásra</span>
+                                            </button>
+                                        </div>
+                                    </li>
+                                )
+                            )}
                         </ul>
                     </div>
                 )}
 
                 {/* Pagination */}
-                {words.last_page > 1 && (
+                {words.last_page > 1 && customFilter !== 'custom' && (
                     <div className="flex flex-wrap justify-center gap-1">
                         {words.links.map((link, i) => {
                             const pageNum = link.url
@@ -1325,7 +1493,7 @@ export default function WordsIndex({
             </button>
 
             {/* Custom word detail modal */}
-            <Dialog open={selectedCustomWordId !== null} onOpenChange={(open) => { if (!open) setSelectedCustomWordId(null); }}>
+            <Dialog open={selectedCustomWordId !== null} onOpenChange={(open) => { if (!open) { setSelectedCustomWordId(null); setInsightData(null); setInsightError(null); } }}>
                 <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-md">
                     {(() => {
                         const cw = customWords.find((w) => w.id === selectedCustomWordId);
@@ -1429,15 +1597,16 @@ export default function WordsIndex({
                                             {cw.example_hu && <p className="mt-1 text-sm text-muted-foreground italic">"{cw.example_hu}"</p>}
                                         </div>
                                     )}
-                                    <div className="grid grid-cols-2 gap-2">
+                                    <div className="flex flex-wrap gap-2">
                                         {([
                                             { s: 'known' as const, label: 'Tudom', icon: CheckCheck, active: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400', hover: 'hover:bg-green-50 hover:text-green-700' },
                                             { s: 'learning' as const, label: 'Tanulom', icon: Clock, active: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400', hover: 'hover:bg-blue-50 hover:text-blue-700' },
                                             { s: 'saved' as const, label: 'Később', icon: BookMarked, active: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400', hover: 'hover:bg-orange-50 hover:text-orange-700' },
                                             { s: 'pronunciation' as const, label: 'Kiejtés', icon: Mic, active: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-400', hover: 'hover:bg-violet-50 hover:text-violet-700' },
+                                            { s: 'practice' as const, label: 'Gyakorlásra', icon: PenLine, active: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-400', hover: 'hover:bg-rose-50 hover:text-rose-700' },
                                         ] as const).map(({ s, label, icon: Icon, active, hover }) => (
                                             <button key={s} onClick={() => handleCustomWordStatus(cw.id, s, cw.status ?? null)}
-                                                className={`flex cursor-pointer items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${cw.status === s ? active : `bg-secondary text-muted-foreground ${hover}`}`}>
+                                                className={`flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${cw.status === s ? active : `bg-secondary text-muted-foreground ${hover}`}`}>
                                                 <Icon className="size-4" /> {label}
                                             </button>
                                         ))}
@@ -1486,6 +1655,60 @@ export default function WordsIndex({
                                             </div>
                                         </div>
                                     )}
+                                    {isAdmin && (
+                                        <div className="flex flex-col gap-3 border-t pt-4">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="w-full border-violet-300 text-violet-700 hover:bg-violet-50 hover:text-violet-800 dark:border-violet-700 dark:text-violet-400 dark:hover:bg-violet-950/30"
+                                                disabled={insightLoading}
+                                                onClick={async () => {
+                                                    setInsightData(null);
+                                                    setInsightError(null);
+                                                    setInsightLoading(true);
+                                                    try {
+                                                        const res = await fetch(`/text-analysis/word-insight?word=${encodeURIComponent(cw.word)}`, { headers: { Accept: 'application/json' } });
+                                                        const json = await res.json();
+                                                        if (!res.ok || json.error) { setInsightError(json.error ?? 'Hiba történt.'); } else { setInsightData(json); }
+                                                    } catch { setInsightError('Kapcsolódási hiba.'); } finally { setInsightLoading(false); }
+                                                }}
+                                            >
+                                                {insightLoading ? <Loader2 className="size-3.5 animate-spin" /> : <Info className="size-3.5" />}
+                                                Szó infók (AI)
+                                            </Button>
+
+                                            {insightError && (
+                                                <p className="text-xs text-red-500">{insightError}</p>
+                                            )}
+
+                                            {insightData && (
+                                                <div className="rounded-xl border bg-violet-50/50 dark:bg-violet-950/10 px-4 py-3.5 flex flex-col gap-3">
+                                                    <p className="text-[10px] font-semibold uppercase tracking-wider text-violet-600 dark:text-violet-400">Szó a valóságban</p>
+                                                    {insightData.areas.map((area, i) => (
+                                                        <div key={i} className="flex flex-col gap-1">
+                                                            <p className="text-xs font-semibold text-foreground">{area.name_hu}</p>
+                                                            <p className="text-xs text-muted-foreground">{area.description_hu}</p>
+                                                            <p className="text-xs italic">"{area.example_en}"</p>
+                                                            <p className="text-xs text-muted-foreground">"{area.example_hu}"</p>
+                                                        </div>
+                                                    ))}
+                                                    {insightData.register_hu && (
+                                                        <div className="rounded-lg bg-background/70 px-3 py-2">
+                                                            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-0.5">Stílus / regiszter</p>
+                                                            <p className="text-xs">{insightData.register_hu}</p>
+                                                        </div>
+                                                    )}
+                                                    {insightData.tip_hu && (
+                                                        <div className="rounded-lg bg-amber-50 dark:bg-amber-950/20 px-3 py-2">
+                                                            <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400 mb-0.5">Tipp</p>
+                                                            <p className="text-xs">{insightData.tip_hu}</p>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
                                     <div className="flex gap-2 border-t pt-4">
                                         <Button
                                             variant="outline"
@@ -1638,7 +1861,7 @@ export default function WordsIndex({
             <Dialog
                 open={selectedWord !== null}
                 onOpenChange={(open) => {
-                    if (!open) setSelectedWordId(null);
+                    if (!open) { setSelectedWordId(null); setInsightData(null); setInsightError(null); }
                 }}
             >
                 <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-lg">
@@ -1802,17 +2025,18 @@ export default function WordsIndex({
                                 )}
 
                                 {/* Státusz */}
-                                <div className="grid grid-cols-2 gap-2">
+                                <div className="flex flex-wrap gap-2">
                                     {([
                                         { s: 'known' as WordStatus, label: 'Tudom', icon: CheckCheck, active: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400', hover: 'hover:bg-green-50 hover:text-green-700' },
                                         { s: 'learning' as WordStatus, label: 'Tanulom', icon: Clock, active: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400', hover: 'hover:bg-blue-50 hover:text-blue-700' },
                                         { s: 'saved' as WordStatus, label: 'Később', icon: BookMarked, active: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400', hover: 'hover:bg-orange-50 hover:text-orange-700' },
                                         { s: 'pronunciation' as WordStatus, label: 'Kiejtés', icon: Mic, active: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-400', hover: 'hover:bg-violet-50 hover:text-violet-700' },
+                                        { s: 'practice' as WordStatus, label: 'Gyakorlásra', icon: PenLine, active: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-400', hover: 'hover:bg-rose-50 hover:text-rose-700' },
                                     ] as const).map(({ s, label, icon: Icon, active, hover }) => (
                                         <button
                                             key={s}
                                             onClick={() => handleStatus(selectedWord, s)}
-                                            className={`flex cursor-pointer items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${
+                                            className={`flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${
                                                 selectedWord.status === s
                                                     ? active
                                                     : `bg-secondary text-muted-foreground ${hover}`
@@ -1882,7 +2106,60 @@ export default function WordsIndex({
 
                                 {/* Admin szerkesztés */}
                                 {isAdmin && (
-                                    <div className="border-t pt-4">
+                                    <div className="border-t pt-4 flex flex-col gap-3">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="w-full border-violet-300 text-violet-700 hover:bg-violet-50 hover:text-violet-800 dark:border-violet-700 dark:text-violet-400 dark:hover:bg-violet-950/30"
+                                            disabled={insightLoading}
+                                            onClick={async () => {
+                                                setInsightData(null);
+                                                setInsightError(null);
+                                                setInsightLoading(true);
+                                                try {
+                                                    const res = await fetch(`/text-analysis/word-insight?word=${encodeURIComponent(selectedWord.word)}`, { headers: { Accept: 'application/json' } });
+                                                    const json = await res.json();
+                                                    if (!res.ok || json.error) { setInsightError(json.error ?? 'Hiba történt.'); } else { setInsightData(json); }
+                                                } catch { setInsightError('Kapcsolódási hiba.'); } finally { setInsightLoading(false); }
+                                            }}
+                                        >
+                                            {insightLoading ? <Loader2 className="size-3.5 animate-spin" /> : <Info className="size-3.5" />}
+                                            Szó infók (AI)
+                                        </Button>
+
+                                        {insightError && (
+                                            <p className="text-xs text-red-500">{insightError}</p>
+                                        )}
+
+                                        {insightData && (
+                                            <div className="rounded-xl border bg-violet-50/50 dark:bg-violet-950/10 px-4 py-3.5 flex flex-col gap-3">
+                                                <p className="text-[10px] font-semibold uppercase tracking-wider text-violet-600 dark:text-violet-400">Szó a valóságban</p>
+
+                                                {insightData.areas.map((area, i) => (
+                                                    <div key={i} className="flex flex-col gap-1">
+                                                        <p className="text-xs font-semibold text-foreground">{area.name_hu}</p>
+                                                        <p className="text-xs text-muted-foreground">{area.description_hu}</p>
+                                                        <p className="text-xs italic">"{area.example_en}"</p>
+                                                        <p className="text-xs text-muted-foreground">"{area.example_hu}"</p>
+                                                    </div>
+                                                ))}
+
+                                                {insightData.register_hu && (
+                                                    <div className="rounded-lg bg-background/70 px-3 py-2">
+                                                        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-0.5">Stílus / regiszter</p>
+                                                        <p className="text-xs">{insightData.register_hu}</p>
+                                                    </div>
+                                                )}
+
+                                                {insightData.tip_hu && (
+                                                    <div className="rounded-lg bg-amber-50 dark:bg-amber-950/20 px-3 py-2">
+                                                        <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400 mb-0.5">Tipp</p>
+                                                        <p className="text-xs">{insightData.tip_hu}</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
                                         <Button
                                             variant="outline"
                                             size="sm"

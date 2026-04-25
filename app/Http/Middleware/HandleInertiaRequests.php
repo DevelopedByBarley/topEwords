@@ -42,12 +42,17 @@ class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => $request->user(),
                 'isAdmin' => $request->user() ? Gate::check('admin', $request->user()) : false,
-                'subscription' => $request->user() ? [
-                    'hasActiveAccess' => $request->user()->hasActiveAccess(),
-                    'isSubscribed' => $request->user()->subscribed('default'),
-                    'hasLifetime' => (bool) $request->user()->lifetime_access,
-                    'isOnTrial' => $request->user()->onTrial(),
-                ] : null,
+                'subscription' => $request->user() ? (function () use ($request) {
+                    $isPremium = $request->user()->subscribed('premium');
+
+                    return [
+                        'hasActiveAccess' => $request->user()->hasActiveAccess(),
+                        'isSubscribed' => $request->user()->subscribed('default') || $isPremium,
+                        'isPremium' => $isPremium,
+                        'hasAiAccess' => $request->user()->ai_access || $isPremium,
+                        'isOnTrial' => $request->user()->onTrial(),
+                    ];
+                })() : null,
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'flash' => [
@@ -55,6 +60,8 @@ class HandleInertiaRequests extends Middleware
                 'success' => session('success'),
                 'achievements' => session('achievements', []),
                 'calibrationPrompt' => session('calibration_prompt'),
+                'showTour' => session('show_tour', false),
+                'importedCardId' => session('imported_card_id'),
             ],
         ];
     }

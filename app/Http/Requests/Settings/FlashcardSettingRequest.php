@@ -31,6 +31,12 @@ class FlashcardSettingRequest extends FormRequest
             'lapse_new_interval' => ['required', 'integer', 'min:0', 'max:100'],
             'leech_threshold' => ['required', 'integer', 'min:1', 'max:99'],
             'shuffle_cards' => ['boolean'],
+            'calib_somewhat_min' => ['sometimes', 'integer', 'min:1', 'max:365'],
+            'calib_somewhat_max' => ['sometimes', 'integer', 'min:1', 'max:365'],
+            'calib_know_min' => ['sometimes', 'integer', 'min:1', 'max:365'],
+            'calib_know_max' => ['sometimes', 'integer', 'min:1', 'max:365'],
+            'calib_well_min' => ['sometimes', 'integer', 'min:1', 'max:365'],
+            'calib_well_max' => ['sometimes', 'integer', 'min:1', 'max:365'],
         ];
     }
 }

@@ -40,25 +40,27 @@ class FlashcardCardController extends Controller
                 ->where('user_id', $request->user()->id)
                 ->firstOrFail();
 
-            $deck->flashcards()->create([
+            $flashcard = $deck->flashcards()->create([
                 'front' => $customWord->word,
                 'back' => $customWord->meaning_hu ?? '',
                 'direction' => 'both',
             ]);
 
-            session()->flash('flash', ['type' => 'success', 'message' => '"'.$customWord->word.'" hozzáadva a "'.$deck->name.'" deckhez.']);
+            session()->flash('imported_card_id', $flashcard->id);
 
-            return back();
+            return to_route('flashcards.show', $deck);
         }
 
         $word = Word::findOrFail($data['word_id']);
 
-        $deck->flashcards()->create([
+        $flashcard = $deck->flashcards()->create([
             'word_id' => $word->id,
             'front' => $word->word,
             'back' => $word->meaning_hu ?? '',
             'direction' => 'both',
         ]);
+
+        session()->flash('imported_card_id', $flashcard->id);
 
         return to_route('flashcards.show', $deck);
     }

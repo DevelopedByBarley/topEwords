@@ -52,13 +52,22 @@ class FlashcardSrsService
         if ($isLearning) {
             $step = min($review->learning_step ?? 0, count($steps) - 1);
             $nextStep = $step + 1;
+            $isRelearning = $review->state === 'relearning';
 
             $again = $this->formatMinutes($steps[0]);
             $hard = $this->formatMinutes(max($steps[0] + 1, (int) round($steps[$step] * 1.5)));
-            $good = $nextStep < count($steps)
-                ? $this->formatMinutes($steps[$nextStep])
-                : $this->formatDays($settings->graduating_interval);
-            $easy = $this->formatDays($settings->easy_interval);
+
+            if ($nextStep < count($steps)) {
+                $good = $this->formatMinutes($steps[$nextStep]);
+            } elseif ($isRelearning) {
+                $good = $this->formatDays(max(1, $review->interval));
+            } else {
+                $good = $this->formatDays($settings->graduating_interval);
+            }
+
+            $easy = $isRelearning
+                ? $this->formatDays(max(1, $review->interval))
+                : $this->formatDays($settings->easy_interval);
         } else {
             $interval = $review->interval;
             $ease = $review->ease_factor;
@@ -90,6 +99,10 @@ class FlashcardSrsService
     {
         if ($minutes < 60) {
             return $minutes.' perc';
+        }
+
+        if ($minutes >= 1440) {
+            return $this->formatDays((int) round($minutes / 1440));
         }
 
         $hours = round($minutes / 60, 1);
@@ -215,6 +228,10 @@ class FlashcardSrsService
                 $review = $card->reviews->firstWhere('direction', $direction);
 
                 if (! $review || $review->state === 'new') {
+                    // Imported cards with no review are pending calibration — exclude from new queue
+                    if ($card->is_imported && ! $review) {
+                        continue;
+                    }
                     $newItems->push(['card' => $card, 'direction' => $direction, 'review' => $review]);
                 } elseif (in_array($review->state, ['learning', 'relearning'])) {
                     if (! $review->due_at || $review->due_at->lte($now)) {
@@ -352,13 +369,21 @@ class FlashcardSrsService
         $nextStep = $review->learning_step + 1;
 
         if ($nextStep >= count($steps)) {
-            // Graduate to review
+            $isRelearning = $review->state === 'relearning';
+
             $review->state = 'review';
-            $review->interval = $settings->graduating_interval;
-            $review->repetitions = 1;
-            $review->ease_factor = $settings->starting_ease;
             $review->learning_step = 0;
-            $review->due_at = Carbon::now()->addDays($settings->graduating_interval);
+            $review->repetitions = max(1, $review->repetitions);
+
+            if ($isRelearning) {
+                // Relearning card: interval and ease were already set by reviewAgain — just reschedule.
+                $review->due_at = Carbon::now()->addDays(max(1, $review->interval));
+            } else {
+                // New card graduating for the first time.
+                $review->interval = $settings->graduating_interval;
+                $review->ease_factor = $settings->starting_ease;
+                $review->due_at = Carbon::now()->addDays($settings->graduating_interval);
+            }
         } else {
             $review->state = 'learning';
             $review->learning_step = $nextStep;
@@ -368,12 +393,21 @@ class FlashcardSrsService
 
     private function learningEasy(FlashcardReview $review, FlashcardSetting|FlashcardDeckSetting $settings): void
     {
+        $isRelearning = $review->state === 'relearning';
+
         $review->state = 'review';
-        $review->interval = $settings->easy_interval;
-        $review->repetitions = 1;
-        $review->ease_factor = $settings->starting_ease;
         $review->learning_step = 0;
-        $review->due_at = Carbon::now()->addDays($settings->easy_interval);
+        $review->repetitions = max(1, $review->repetitions);
+
+        if ($isRelearning) {
+            // Relearning card: schedule with current interval (set by reviewAgain), ease stays.
+            $review->due_at = Carbon::now()->addDays(max(1, $review->interval));
+        } else {
+            // New card graduating easy.
+            $review->interval = $settings->easy_interval;
+            $review->ease_factor = $settings->starting_ease;
+            $review->due_at = Carbon::now()->addDays($settings->easy_interval);
+        }
     }
 
     private function processReview_(FlashcardReview $review, int $rating, FlashcardSetting|FlashcardDeckSetting $settings): void

@@ -15,7 +15,10 @@ class FlashcardCsvController extends Controller
 
         $request->validate([
             'csv_file' => ['required', 'file', 'mimes:csv,txt', 'max:2048'],
+            'direction' => ['nullable', 'in:front_to_back,back_to_front,both'],
         ]);
+
+        $direction = $request->input('direction', 'front_to_back');
 
         $path = $request->file('csv_file')->getRealPath();
         $handle = fopen($path, 'r');
@@ -48,7 +51,7 @@ class FlashcardCsvController extends Controller
             $deck->flashcards()->create([
                 'front' => $this->textToHtml($front),
                 'back' => $this->textToHtml($back),
-                'direction' => 'both',
+                'direction' => $direction,
                 'is_imported' => true,
             ]);
 

@@ -140,6 +140,7 @@ class WordController extends Controller
         $customLearning = $customStatusCounts['learning'] ?? 0;
         $customSaved = $customStatusCounts['saved'] ?? 0;
         $customPronunciation = $customStatusCounts['pronunciation'] ?? 0;
+        $customPractice = $customStatusCounts['practice'] ?? 0;
 
         // Filter custom words to match current active filters so they appear inline
         $customWords = $allCustomWords->filter(function ($cw) use ($search, $letter, $statusFilter, $folderId, $level) {
@@ -171,6 +172,7 @@ class WordController extends Controller
                 'learning' => ($statusCounts['learning'] ?? 0) + $customLearning,
                 'saved' => ($statusCounts['saved'] ?? 0) + $customSaved,
                 'pronunciation' => ($statusCounts['pronunciation'] ?? 0) + $customPronunciation,
+                'practice' => ($statusCounts['practice'] ?? 0) + $customPractice,
             ],
             'customWords' => $customWords,
             'customStats' => [
@@ -179,6 +181,7 @@ class WordController extends Controller
                 'learning' => $customLearning,
                 'saved' => $customSaved,
                 'pronunciation' => $customPronunciation,
+                'practice' => $customPractice,
             ],
             'markedPages' => $markedPages,
             'completedPages' => $completedPages,
@@ -214,6 +217,35 @@ class WordController extends Controller
             ->map(fn ($w) => ['id' => $w->id, 'word' => $w->word, 'meaning_hu' => $w->meaning_hu, 'is_custom' => true]);
 
         return response()->json($customWords->concat($words)->values());
+    }
+
+    public function practice(Request $request): Response
+    {
+        abort_unless(Gate::check('admin'), 403);
+
+        $user = $request->user();
+        $preWords = array_slice((array) $request->input('words', []), 0, 10);
+
+        $practiceWordIds = $user->knownWords()->wherePivot('status', 'practice')->pluck('words.id');
+        $regularPracticeWords = Word::whereIn('id', $practiceWordIds)
+            ->select('id', 'word', 'meaning_hu')
+            ->orderBy('word')
+            ->get()
+            ->map(fn (Word $w) => ['id' => $w->id, 'word' => $w->word, 'meaning_hu' => $w->meaning_hu, 'is_custom' => false]);
+
+        $customPracticeWords = UserCustomWord::where('user_id', $user->id)
+            ->where('status', 'practice')
+            ->select('id', 'word', 'meaning_hu')
+            ->orderBy('word')
+            ->get()
+            ->map(fn (UserCustomWord $w) => ['id' => $w->id, 'word' => $w->word, 'meaning_hu' => $w->meaning_hu, 'is_custom' => true]);
+
+        $practiceWords = $regularPracticeWords->concat($customPracticeWords)->sortBy('word')->values();
+
+        return Inertia::render('words/practice', [
+            'preWords' => array_values(array_filter(array_map('strval', $preWords))),
+            'practiceWords' => $practiceWords,
+        ]);
     }
 
     public function quiz(Request $request): Response
@@ -256,7 +288,7 @@ class WordController extends Controller
 
         $query = Word::whereNotNull('meaning_hu');
 
-        if (in_array($status, ['known', 'learning', 'saved', 'pronunciation'])) {
+        if (in_array($status, ['known', 'learning', 'saved', 'pronunciation', 'practice'])) {
             $ids = array_keys(array_filter($wordStatuses, fn ($s) => $s === $status));
             $query->whereIn('id', $ids);
         } elseif ($status === 'marked') {
@@ -281,7 +313,7 @@ class WordController extends Controller
             ? UserCustomWord::where('user_id', $user->id)->whereNotNull('meaning_hu')
             : null;
 
-        if ($customWordQuery && in_array($status, ['known', 'learning', 'saved', 'pronunciation'])) {
+        if ($customWordQuery && in_array($status, ['known', 'learning', 'saved', 'pronunciation', 'practice'])) {
             $customWordQuery->where('status', $status);
         } elseif ($customWordQuery && $status === 'marked') {
             // all custom words count as marked
@@ -466,7 +498,7 @@ class WordController extends Controller
 
     public function status(Request $request, Word $word): RedirectResponse|JsonResponse
     {
-        $status = $request->validate(['status' => 'required|in:known,learning,saved,pronunciation'])['status'];
+        $status = $request->validate(['status' => 'required|in:known,learning,saved,pronunciation,practice'])['status'];
 
         $existing = $request->user()->knownWords()->wherePivot('word_id', $word->id)->first();
 

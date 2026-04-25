@@ -28,6 +28,7 @@ interface HistoryEntry {
 
 const HISTORY_KEY = 'text_analysis_history';
 const MAX_HISTORY = 10;
+const SESSION_KEY = 'text_analysis_session';
 
 function loadHistory(): HistoryEntry[] {
     try {
@@ -39,6 +40,17 @@ function loadHistory(): HistoryEntry[] {
 
 function saveHistory(entries: HistoryEntry[]) {
     localStorage.setItem(HISTORY_KEY, JSON.stringify(entries));
+}
+
+function loadSession(): Partial<{ mode: InputMode; text: string; urlInput: string; fetchedSource: string | null; result: AnalysisResult | null }> {
+    try {
+        if (typeof window === 'undefined') return {};
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('url')) return {};
+        return JSON.parse(sessionStorage.getItem(SESSION_KEY) ?? '{}');
+    } catch {
+        return {};
+    }
 }
 
 function addHistoryEntry(entry: Omit<HistoryEntry, 'id' | 'date'>) {
@@ -113,9 +125,13 @@ function HighlightedParagraph({
 }: {
     para: string;
     tokenStatuses: Record<string, TokenStatus>;
-    onWordClick?: (word: string) => void;
+    onWordClick?: (word: string, context: string) => void;
 }) {
     const parts = para.split(/([a-zA-Z]+)/);
+    const extractSentence = (word: string) => {
+        const sentences = para.split(/(?<=[.!?])\s+/);
+        return sentences.find((s) => s.toLowerCase().includes(word.toLowerCase()))?.trim() ?? para.slice(0, 300);
+    };
     return (
         <p className="wrap-break-word leading-7">
             {parts.map((part, i) => {
@@ -126,7 +142,7 @@ function HighlightedParagraph({
                 return (
                     <span
                         key={i}
-                        onClick={() => onWordClick?.(part)}
+                        onClick={() => onWordClick?.(part, extractSentence(part))}
                         className={`cursor-pointer rounded px-0.5 transition-opacity hover:opacity-70 ${className}`}
                     >
                         {part}
@@ -144,7 +160,7 @@ function HighlightedText({
 }: {
     text: string;
     tokenStatuses: Record<string, TokenStatus>;
-    onWordClick?: (word: string) => void;
+    onWordClick?: (word: string, context: string) => void;
 }) {
     const paragraphs = text.split(/\n+/).filter((p) => p.trim());
 
@@ -164,6 +180,10 @@ function HighlightedText({
     }
 
     const parts = text.split(/([a-zA-Z]+)/);
+    const extractSentence = (word: string) => {
+        const sentences = text.split(/(?<=[.!?])\s+/);
+        return sentences.find((s) => s.toLowerCase().includes(word.toLowerCase()))?.trim() ?? text.slice(0, 300);
+    };
     return (
         <p className="whitespace-pre-wrap wrap-break-word text-sm leading-7">
             {parts.map((part, i) => {
@@ -177,7 +197,7 @@ function HighlightedText({
                 return (
                     <span
                         key={i}
-                        onClick={() => onWordClick?.(part)}
+                        onClick={() => onWordClick?.(part, extractSentence(part))}
                         className={`cursor-pointer rounded px-0.5 transition-opacity hover:opacity-70 ${className}`}
                     >
                         {part}
@@ -200,11 +220,12 @@ async function postJson(path: string, body: object): Promise<{ ok: boolean; data
 }
 
 export default function TextAnalysis() {
-    const [mode, setMode] = useState<InputMode>('text');
-    const [text, setText] = useState('');
-    const [urlInput, setUrlInput] = useState('');
-    const [fetchedSource, setFetchedSource] = useState<string | null>(null);
-    const [result, setResult] = useState<AnalysisResult | null>(null);
+    const [sessionData] = useState(() => loadSession());
+    const [mode, setMode] = useState<InputMode>(sessionData.mode ?? 'text');
+    const [text, setText] = useState(sessionData.text ?? '');
+    const [urlInput, setUrlInput] = useState(sessionData.urlInput ?? '');
+    const [fetchedSource, setFetchedSource] = useState<string | null>(sessionData.fetchedSource ?? null);
+    const [result, setResult] = useState<AnalysisResult | null>(sessionData.result ?? null);
     const [isFetching, setIsFetching] = useState(false);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -212,6 +233,8 @@ export default function TextAnalysis() {
     const [showHistory, setShowHistory] = useState(false);
 
     const [books, setBooks] = useState<UserBook[]>([]);
+    const [bookLimit, setBookLimit] = useState<number>(1);
+    const [usedStorage, setUsedStorage] = useState<number>(0);
     const [booksLoaded, setBooksLoaded] = useState(false);
     const [activeBook, setActiveBook] = useState<UserBook | null>(null);
     const [bookPage, setBookPage] = useState(1);
@@ -220,16 +243,19 @@ export default function TextAnalysis() {
     const bookFileInputRef = useRef<HTMLInputElement>(null);
 
     const [lookupWord, setLookupWord] = useState<string | null>(null);
+    const [lookupContext, setLookupContext] = useState<string | null>(null);
     const [lookupResult, setLookupResult] = useState<LookupResult | null>(null);
     const [lookupLoading, setLookupLoading] = useState(false);
     const [lookupStatus, setLookupStatus] = useState<string | null>(null);
+    const [contextExplanation, setContextExplanation] = useState<string | null>(null);
     const [customWordForm, setCustomWordForm] = useState<CustomWordForm>(EMPTY_CUSTOM_WORD_FORM);
     const [addingCustom, setAddingCustom] = useState(false);
     const [addedCustom, setAddedCustom] = useState(false);
     const [geminiLoading, setGeminiLoading] = useState(false);
 
-    const { auth } = usePage<{ auth: { isAdmin: boolean } }>().props as any;
+    const { auth } = usePage<{ auth: { isAdmin: boolean; subscription: { hasAiAccess: boolean } | null } }>().props as any;
     const isAdmin: boolean = auth?.isAdmin ?? false;
+    const hasAiAccess: boolean = isAdmin || (auth?.subscription?.hasAiAccess ?? false);
 
     const didAutoFetch = useRef(false);
     useEffect(() => {
@@ -262,6 +288,18 @@ export default function TextAnalysis() {
             .finally(() => setIsFetching(false));
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+    useEffect(() => {
+        try {
+            sessionStorage.setItem(SESSION_KEY, JSON.stringify({ mode, text, urlInput, fetchedSource, result }));
+        } catch {
+            try {
+                sessionStorage.setItem(SESSION_KEY, JSON.stringify({ mode, text, urlInput, fetchedSource, result: null }));
+            } catch {
+                // ignore quota errors
+            }
+        }
+    }, [mode, text, urlInput, fetchedSource, result]);
+
     const refreshHistory = () => setHistory(loadHistory());
 
     const getBookmarkKey = (bookId: number) => `book_bookmark_${bookId}`;
@@ -275,6 +313,8 @@ export default function TextAnalysis() {
         const res = await fetch('/text-analysis/books', { headers: { 'X-CSRF-TOKEN': csrfToken, Accept: 'application/json' } });
         const data = await res.json();
         setBooks(data.books ?? []);
+        setBookLimit(data.bookLimit ?? 1);
+        setUsedStorage(data.usedStorage ?? 0);
         setBooksLoaded(true);
     };
 
@@ -437,12 +477,14 @@ export default function TextAnalysis() {
         }
     };
 
-    const handleWordClick = async (word: string) => {
+    const handleWordClick = async (word: string, context?: string) => {
         const token = word.toLowerCase();
         setLookupWord(token);
+        setLookupContext(context ?? null);
         setLookupResult(null);
         setLookupLoading(true);
         setLookupStatus(null);
+        setContextExplanation(null);
         setCustomWordForm(EMPTY_CUSTOM_WORD_FORM);
         setAddedCustom(false);
 
@@ -519,7 +561,9 @@ export default function TextAnalysis() {
         setGeminiLoading(true);
         try {
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
-            const res = await fetch(`/text-analysis/gemini-lookup?word=${encodeURIComponent(lookupResult.word)}`, {
+            const params = new URLSearchParams({ word: lookupResult.word });
+            if (lookupContext) params.set('context', lookupContext);
+            const res = await fetch(`/text-analysis/gemini-lookup?${params.toString()}`, {
                 headers: { 'X-CSRF-TOKEN': csrfToken, Accept: 'application/json' },
             });
             const data = await res.json();
@@ -541,6 +585,9 @@ export default function TextAnalysis() {
                 adj_comparative: data.adj_comparative || prev.adj_comparative,
                 adj_superlative: data.adj_superlative || prev.adj_superlative,
             }));
+            if (data.context_explanation) {
+                setContextExplanation(data.context_explanation);
+            }
         } finally {
             setGeminiLoading(false);
         }
@@ -765,13 +812,14 @@ export default function TextAnalysis() {
                                     <div className="flex flex-col gap-3">
                                         <div className="flex items-center justify-between">
                                             <p className="text-sm text-muted-foreground">
-                                                {booksLoaded && books.length === 0 ? 'Még nincs feltöltött könyved.' : `${books.length} könyv`}
+                                                {booksLoaded ? `${books.length} / ${bookLimit} könyv · ${(usedStorage / 1024 / 1024).toFixed(1)} / 30 MB` : ''}
                                             </p>
                                             <Button
                                                 variant="outline"
                                                 size="sm"
                                                 onClick={() => bookFileInputRef.current?.click()}
-                                                disabled={isUploadingBook}
+                                                disabled={isUploadingBook || (booksLoaded && (books.length >= bookLimit || usedStorage >= 30 * 1024 * 1024))}
+                                                title={booksLoaded && books.length >= bookLimit ? `Elérted a maximális könyvszámot (${bookLimit})` : booksLoaded && usedStorage >= 30 * 1024 * 1024 ? 'Elérted a 30 MB-os tárhelylimitet' : undefined}
                                             >
                                                 {isUploadingBook ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
                                                 {isUploadingBook ? 'Feldolgozás...' : 'PDF / EPUB feltöltése'}
@@ -1156,7 +1204,7 @@ export default function TextAnalysis() {
                                                 <div className="max-h-[55vh] overflow-y-auto px-5 py-4 flex flex-col gap-3">
                                                     {/* Action buttons */}
                                                     <div className="flex gap-2">
-                                                        {isAdmin && (
+                                                        {hasAiAccess && (
                                                             <Button
                                                                 variant="outline"
                                                                 onClick={handleGeminiAutofill}
@@ -1275,6 +1323,27 @@ export default function TextAnalysis() {
                                                         </div>
                                                     )}
                                                 </div>
+
+                                                {/* Context explanation */}
+                                                {(lookupContext || contextExplanation) && (
+                                                    <div className="rounded-lg border border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/30 p-3 space-y-2">
+                                                        {lookupContext && (
+                                                            <p className="text-xs text-blue-700 dark:text-blue-300">
+                                                                <span className="font-semibold">Kontextus: </span>
+                                                                {lookupContext.replace(new RegExp(`\\b${lookupResult?.word}\\b`, 'gi'), (m) => `「${m}」`)}
+                                                            </p>
+                                                        )}
+                                                        {contextExplanation && (
+                                                            <p className="text-xs text-blue-800 dark:text-blue-200">
+                                                                <span className="font-semibold">Jelentés ebben a mondatban: </span>
+                                                                {contextExplanation}
+                                                            </p>
+                                                        )}
+                                                        {!contextExplanation && lookupContext && (
+                                                            <p className="text-xs text-blue-500 dark:text-blue-400 italic">Nyomj Gemini AI-ra a kontextuális magyarázathoz.</p>
+                                                        )}
+                                                    </div>
+                                                )}
 
                                                 {/* Footer */}
                                                 <div className="flex gap-2 border-t px-5 py-4">

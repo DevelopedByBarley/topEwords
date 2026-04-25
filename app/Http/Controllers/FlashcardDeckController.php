@@ -10,6 +10,7 @@ use App\Services\AchievementService;
 use App\Services\FlashcardSrsService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -33,7 +34,30 @@ class FlashcardDeckController extends Controller
 
         $deckIds = $decks->pluck('id')->all();
 
-        $deckFolderIds = \DB::table('flashcard_deck_folder')
+        // Due counts per deck: new cards (no review) + cards with due_at <= now
+        $dueCounts = [];
+        if (! empty($deckIds)) {
+            $newCounts = DB::table('flashcards')
+                ->whereIn('flashcards.deck_id', $deckIds)
+                ->whereNotExists(fn ($q) => $q->from('flashcard_reviews')->whereColumn('flashcard_reviews.flashcard_id', 'flashcards.id'))
+                ->selectRaw('deck_id, COUNT(*) as cnt')
+                ->groupBy('deck_id')
+                ->pluck('cnt', 'deck_id');
+
+            $reviewCounts = DB::table('flashcard_reviews')
+                ->join('flashcards', 'flashcards.id', '=', 'flashcard_reviews.flashcard_id')
+                ->whereIn('flashcards.deck_id', $deckIds)
+                ->where('flashcard_reviews.due_at', '<=', now())
+                ->selectRaw('flashcards.deck_id, COUNT(*) as cnt')
+                ->groupBy('flashcards.deck_id')
+                ->pluck('cnt', 'deck_id');
+
+            foreach ($deckIds as $id) {
+                $dueCounts[$id] = ($newCounts[$id] ?? 0) + ($reviewCounts[$id] ?? 0);
+            }
+        }
+
+        $deckFolderIds = DB::table('flashcard_deck_folder')
             ->join('flashcard_folders', 'flashcard_folders.id', '=', 'flashcard_deck_folder.flashcard_folder_id')
             ->where('flashcard_folders.user_id', $user->id)
             ->whereIn('flashcard_deck_folder.flashcard_deck_id', $deckIds)
@@ -46,6 +70,7 @@ class FlashcardDeckController extends Controller
             'decks' => $decks,
             'folders' => $folders,
             'deckFolderIds' => $deckFolderIds,
+            'dueCounts' => $dueCounts,
         ]);
     }
 
@@ -81,21 +106,29 @@ class FlashcardDeckController extends Controller
     {
         abort_unless($deck->user_id === $request->user()->id, 403);
 
-        $effectiveSettings = $deck->deckSettings ?? $request->user()->flashcardSettings ?? $srs->defaultSettings();
-        $dueItems = $srs->getDueCards($deck->id, $effectiveSettings);
+        // For deferred-prop XHR requests only the `flashcards` closure is evaluated,
+        // so skip the expensive SRS computation (loads all cards + reviews again).
+        $isPartial = $request->hasHeader('X-Inertia-Partial-Data');
 
-        $newDueCount = $dueItems->filter(
+        session()->save();
+
+        if (! $isPartial) {
+            $effectiveSettings = $deck->deckSettings ?? $request->user()->flashcardSettings ?? $srs->defaultSettings();
+            $dueItems = $srs->getDueCards($deck->id, $effectiveSettings);
+        }
+
+        $newDueCount = $isPartial ? 0 : $dueItems->filter(
             fn (array $item) => ! $item['review'] || $item['review']->state === 'new'
         )->count();
 
-        $reviewDueCount = $dueItems->filter(
+        $reviewDueCount = $isPartial ? 0 : $dueItems->filter(
             fn (array $item) => $item['review'] && in_array($item['review']->state, ['learning', 'relearning', 'review'])
         )->count();
 
         return Inertia::render('flashcards/show', [
             'deck' => $deck,
             'flashcards' => Inertia::defer(function () use ($deck) {
-                return $deck->flashcards()->with('reviews', 'word')->get()->map(fn ($card) => [
+                return $deck->flashcards()->with('reviews')->get()->map(fn ($card) => [
                     'id' => $card->id,
                     'front' => $card->front,
                     'front_notes' => $card->front_notes,
@@ -118,6 +151,27 @@ class FlashcardDeckController extends Controller
             }),
             'newDueCount' => $newDueCount,
             'reviewDueCount' => $reviewDueCount,
+            'uncalibratedCount' => $isPartial ? 0 : (function () use ($deck) {
+                $activeStates = ['learning', 'review', 'relearning'];
+                $cards = $deck->flashcards()
+                    ->where('is_imported', true)
+                    ->where(function ($q) use ($activeStates) {
+                        $q->where(function ($q2) use ($activeStates) {
+                            $q2->where('direction', '!=', 'both')
+                                ->whereDoesntHave('reviews', fn ($r) => $r->whereIn('state', $activeStates));
+                        })->orWhere(function ($q2) use ($activeStates) {
+                            $q2->where('direction', 'both')
+                                ->whereRaw(
+                                    '(SELECT COUNT(*) FROM flashcard_reviews WHERE flashcard_reviews.flashcard_id = flashcards.id AND flashcard_reviews.state IN (?, ?, ?)) < 2',
+                                    $activeStates
+                                );
+                        });
+                    })
+                    ->selectRaw('direction, (SELECT COUNT(*) FROM flashcard_reviews WHERE flashcard_reviews.flashcard_id = flashcards.id AND flashcard_reviews.state IN (?, ?, ?)) as rated_count', $activeStates)
+                    ->get();
+
+                return $cards->sum(fn ($c) => $c->direction === 'both' ? 2 - $c->rated_count : 1);
+            })(),
             'deckSettings' => $deck->deckSettings,
             'otherDecks' => $request->user()->flashcardDecks()
                 ->where('id', '!=', $deck->id)

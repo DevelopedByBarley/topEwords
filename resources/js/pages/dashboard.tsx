@@ -1,7 +1,7 @@
 import { Head, Link } from '@inertiajs/react';
-import { BookMarked, CheckCheck, Clock, ExternalLink, Flame, Mic, NotebookPen, RefreshCw, Trophy } from 'lucide-react';
+import { BookMarked, CheckCheck, Clock, ExternalLink, Flame, Mic, NotebookPen, Trophy } from 'lucide-react';
+import { ExtensionBanner } from '@/components/extension-banner';
 import { dashboard } from '@/routes';
-import { index as reviewIndex } from '@/routes/review';
 import { index as wordsIndex } from '@/routes/words';
 
 interface LevelStat {
@@ -31,7 +31,6 @@ interface Props {
     totalPercent: number;
     streak: number;
     customStats: CustomStats;
-    reviewDueCount: number;
 }
 
 const LEVEL_COLORS: Record<string, { bar: string; bg: string; text: string; border: string }> = {
@@ -43,7 +42,7 @@ const LEVEL_COLORS: Record<string, { bar: string; bg: string; text: string; bord
     red:    { bar: 'bg-red-500',    bg: 'bg-red-50 dark:bg-red-950/20',      text: 'text-red-700 dark:text-red-400',      border: 'border-red-200 dark:border-red-800' },
 };
 
-export default function Dashboard({ levelStats, totalKnown, totalWords, totalPercent, streak, customStats, reviewDueCount }: Props) {
+export default function Dashboard({ levelStats, totalKnown, totalWords, totalPercent, streak, customStats }: Props) {
     return (
         <>
             <Head title="Haladás" />
@@ -54,26 +53,8 @@ export default function Dashboard({ levelStats, totalKnown, totalWords, totalPer
                     <p className="text-muted-foreground text-sm">Kövesd nyomon, hány szót ismersz szintenként.</p>
                 </div>
 
-                {/* Review due */}
-                {reviewDueCount > 0 && (
-                    <Link
-                        href={reviewIndex()}
-                        className="flex items-center justify-between gap-4 rounded-xl border border-blue-200 bg-blue-50 p-5 transition-colors hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950/20 dark:hover:bg-blue-950/30"
-                    >
-                        <div className="flex items-center gap-3">
-                            <RefreshCw className="size-5 text-blue-500" />
-                            <div>
-                                <p className="font-semibold text-blue-900 dark:text-blue-200">Napi ismétlés</p>
-                                <p className="text-sm text-blue-700 dark:text-blue-400">
-                                    {reviewDueCount} szó vár ismétlésre ma
-                                </p>
-                            </div>
-                        </div>
-                        <span className="rounded-full bg-blue-500 px-3 py-1 text-sm font-bold text-white tabular-nums">
-                            {reviewDueCount}
-                        </span>
-                    </Link>
-                )}
+
+                <ExtensionBanner />
 
                 {/* Streak */}
                 <div className={`rounded-xl border p-5 ${streak > 0 ? 'bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-800' : 'bg-card'}`}>

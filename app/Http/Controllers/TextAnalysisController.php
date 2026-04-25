@@ -673,7 +673,9 @@ class TextAnalysisController extends Controller
 
     public function listBooks(Request $request): JsonResponse
     {
-        $books = $request->user()
+        $user = $request->user();
+
+        $books = $user
             ->hasMany(UserBook::class, 'user_id')
             ->orderByDesc('created_at')
             ->get(['id', 'title', 'file_type', 'total_pages', 'created_at'])
@@ -684,12 +686,25 @@ class TextAnalysisController extends Controller
                 'total_pages' => $b->total_pages,
             ]);
 
-        return response()->json(['books' => $books]);
+        $bookLimit = match (true) {
+            $user->subscribed('premium') || $user->ai_access => 5,
+            $user->subscribed('default') => 3,
+            default => 1,
+        };
+
+        $usedStorage = UserBook::where('user_id', $user->id)->sum('text_size');
+
+        return response()->json([
+            'books' => $books,
+            'bookLimit' => $bookLimit,
+            'usedStorage' => $usedStorage,
+            'storageLimit' => 30 * 1024 * 1024,
+        ]);
     }
 
     public function geminiFlashcard(Request $request): JsonResponse
     {
-        Gate::authorize('admin');
+        abort_unless(Gate::check('admin') || request()->user()?->hasAiAccess(), 403);
 
         $word = $request->string('word')->trim()->value();
 
@@ -704,9 +719,9 @@ You are an English vocabulary flashcard generator for Hungarian learners. Genera
 Return ONLY valid JSON with this exact structure:
 {
   "cloze_sentences": [
-    {"sentence": "sentence with _______ replacing the word", "hints": ["hungarian_synonym1", "hungarian_synonym2"]}
+    {"sentence": "sentence with _______ replacing the word", "hints": ["hungarian_meaning_in_this_context_1", "hungarian_meaning_in_this_context_2"]}
   ],
-  "answer_options": ["hungarian translation 1", "hungarian translation 2", "hungarian translation 3", "hungarian translation 4", "hungarian translation 5"],
+  "answer_options": ["most common hungarian translation", "second most common", "third", "fourth", "fifth"],
   "negative_meaning_hu": ["opposite in hungarian 1", "opposite in hungarian 2", "opposite in hungarian 3"],
   "collocations": [
     {"pattern": "phrase with _______ replacing the word", "meaning_hu": "hungarian meaning", "example": "example with _______ or null"}
@@ -718,11 +733,12 @@ Return ONLY valid JSON with this exact structure:
 }
 
 Rules:
-- Generate 4 cloze sentences. Each hint array has 2 Hungarian synonyms for the word in that context.
-- answer_options: 4-6 Hungarian translations/synonyms of the word
-- negative_meaning_hu: 3 Hungarian antonym translations
-- collocations: 4-5 common phrases/patterns using the word
-- word_forms: only include forms that actually exist (set null for non-existent)
+- Generate 4 cloze sentences covering diverse registers: everyday, formal, academic/professional, and written/literary. Each sentence should show the word in a clearly different context.
+- hints: each hint must reflect the meaning of the word specifically in THAT sentence's context, not just a generic synonym. For example, "bear" in "bear the cost" → hints: ["visel", "fizet"], not generic ["medve", "elvisel"].
+- answer_options: 4-6 Hungarian translations/synonyms, STRICTLY ORDERED from most frequently used in everyday Hungarian to least common. The first item must be the single most natural Hungarian equivalent a native speaker would use by default.
+- negative_meaning_hu: 3 Hungarian antonym translations that are true semantic opposites in meaning, not just grammatical negations.
+- collocations: 4-5 common phrases/patterns using the word, ordered by frequency of use in English (most common first). Only include collocations that genuinely exist and are widely used.
+- word_forms: only include forms that actually exist as real, established English words (set null for non-existent or rarely used forms — do not invent forms).
 - Respond ONLY with valid JSON, no markdown.
 PROMPT;
 
@@ -792,6 +808,10 @@ PROMPT;
         $html = '';
 
         $forms = $d['word_forms'] ?? [];
+
+        if (! empty($forms['base'])) {
+            $html .= '<p><strong>'.htmlspecialchars($forms['base']).'</strong></p>';
+        }
         foreach (['adjective' => 'adjective', 'adverb' => 'adverb', 'noun' => 'noun', 'verb' => 'verb'] as $key => $label) {
             if (! empty($forms[$key])) {
                 $html .= '<p>'.$label.': <strong>'.htmlspecialchars($forms[$key]).'</strong></p>';
@@ -816,9 +836,232 @@ PROMPT;
         return $html;
     }
 
+    public function practiceCheck(Request $request): JsonResponse
+    {
+        abort_unless(Gate::check('admin'), 403);
+
+        $validated = $request->validate([
+            'words' => ['required', 'array', 'min:1', 'max:10'],
+            'words.*.word' => ['required', 'string', 'max:100'],
+            'words.*.meaning_hu' => ['nullable', 'string', 'max:200'],
+            'text' => ['required', 'string', 'min:5', 'max:3000'],
+        ]);
+
+        $text = trim($validated['text']);
+
+        $wordList = collect($validated['words'])->map(function ($w) {
+            $meaning = ! empty($w['meaning_hu']) ? " (jelentése: \"{$w['meaning_hu']}\")" : '';
+
+            return "- {$w['word']}{$meaning}";
+        })->implode("\n");
+
+        $prompt = <<<PROMPT
+You are an English writing coach for Hungarian learners.
+
+The learner is practicing these target words:
+{$wordList}
+
+The learner wrote this text:
+"{$text}"
+
+Carefully analyze the text. For EACH target word:
+1. Did the learner use it (or a grammatical form of it)?
+2. If used: was it correct? (right meaning, natural collocation, correct grammar for that word)
+3. Give brief, specific, encouraging feedback in Hungarian.
+
+Also provide:
+- grammar_issues: array of plain strings, each string is one grammar issue explained in Hungarian (empty array if none). Each element MUST be a plain string, NOT an object.
+- overall_hu: 1-2 sentences of overall encouraging feedback in Hungarian
+- corrected_text: a corrected version of the full text if there are errors, or null if the text is perfect
+
+Return ONLY valid JSON:
+{
+  "words": [
+    {
+      "word": "exactWordFromList",
+      "used": true,
+      "correct": true,
+      "feedback_hu": "Hungarian feedback"
+    }
+  ],
+  "grammar_issues": ["First grammar issue explained in Hungarian", "Second issue"],
+  "overall_hu": "Overall comment in Hungarian",
+  "corrected_text": null
+}
+
+Respond ONLY with valid JSON, no markdown.
+PROMPT;
+
+        $apiKey = env('GEMINI_API_KEY') ?: config('services.gemini.api_key');
+
+        try {
+            $response = Http::timeout(20)
+                ->withHeaders(['Content-Type' => 'application/json'])
+                ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key={$apiKey}", [
+                    'contents' => [['parts' => [['text' => $prompt]]]],
+                    'generationConfig' => ['temperature' => 0.3, 'maxOutputTokens' => 800],
+                ]);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Kapcsolódási hiba: '.$e->getMessage()], 502);
+        }
+
+        if (! $response->successful()) {
+            return response()->json(['error' => 'Gemini API hiba ('.$response->status().')'], 502);
+        }
+
+        $raw = $response->json('candidates.0.content.parts.0.text') ?? '';
+        $raw = preg_replace('/^```json\s*|\s*```$/s', '', trim($raw));
+        $data = json_decode($raw, true);
+
+        if (! is_array($data)) {
+            return response()->json(['error' => 'Érvénytelen válasz.'], 502);
+        }
+
+        return response()->json($data);
+    }
+
+    public function sentenceCheck(Request $request): JsonResponse
+    {
+        abort_unless(Gate::check('admin') || $request->user()?->hasAiAccess(), 403);
+
+        $validated = $request->validate([
+            'word' => ['required', 'string', 'max:100'],
+            'meaning_hu' => ['nullable', 'string', 'max:200'],
+            'sentence' => ['required', 'string', 'min:3', 'max:500'],
+        ]);
+
+        $word = trim($validated['word']);
+        $meaning = trim($validated['meaning_hu'] ?? '');
+        $sentence = trim($validated['sentence']);
+
+        $meaningBlock = $meaning ? "\nThe word's primary Hungarian meaning is: \"{$meaning}\"." : '';
+
+        $prompt = <<<PROMPT
+You are an English language tutor for Hungarian learners. Evaluate whether the English word "{$word}" is used correctly in this sentence written by a learner:{$meaningBlock}
+
+Learner's sentence: "{$sentence}"
+
+Evaluate on two dimensions:
+1. **usage_ok**: Is "{$word}" used with the correct meaning and in a grammatically/collocationally appropriate way?
+2. **grammar_ok**: Is the overall sentence grammatically correct (ignoring the word itself)?
+
+Return ONLY valid JSON with this exact structure:
+{{
+  "usage_ok": true or false,
+  "grammar_ok": true or false,
+  "feedback_hu": "1-3 sentences in Hungarian: explain what is good or wrong about how the word is used. Be specific and encouraging.",
+  "grammar_note_hu": "1-2 sentences in Hungarian about any grammar issues, or null if grammar is correct",
+  "corrected_sentence": "A corrected version of the sentence if there are any errors, or null if the sentence is fully correct",
+  "example_sentence": "One natural, simple example sentence using '{$word}' correctly (different from the learner's sentence)"
+}}
+
+Be encouraging and educational. If the sentence is correct, celebrate it. Respond ONLY with valid JSON, no markdown.
+PROMPT;
+
+        $apiKey = env('GEMINI_API_KEY') ?: config('services.gemini.api_key');
+
+        try {
+            $response = Http::timeout(15)
+                ->withHeaders(['Content-Type' => 'application/json'])
+                ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key={$apiKey}", [
+                    'contents' => [['parts' => [['text' => $prompt]]]],
+                    'generationConfig' => ['temperature' => 0.3, 'maxOutputTokens' => 400],
+                ]);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Kapcsolódási hiba: '.$e->getMessage()], 502);
+        }
+
+        if (! $response->successful()) {
+            return response()->json(['error' => 'Gemini API hiba ('.$response->status().')'], 502);
+        }
+
+        $text = $response->json('candidates.0.content.parts.0.text') ?? '';
+        $text = preg_replace('/^```json\s*|\s*```$/s', '', trim($text));
+        $data = json_decode($text, true);
+
+        if (! is_array($data)) {
+            return response()->json(['error' => 'Érvénytelen válasz.'], 502);
+        }
+
+        return response()->json([
+            'usage_ok' => (bool) ($data['usage_ok'] ?? false),
+            'grammar_ok' => (bool) ($data['grammar_ok'] ?? true),
+            'feedback_hu' => $data['feedback_hu'] ?? '',
+            'grammar_note_hu' => $data['grammar_note_hu'] ?? null,
+            'corrected_sentence' => $data['corrected_sentence'] ?? null,
+            'example_sentence' => $data['example_sentence'] ?? null,
+        ]);
+    }
+
+    public function wordInsight(Request $request): JsonResponse
+    {
+        abort_unless(Gate::check('admin'), 403);
+
+        $word = $request->string('word')->trim()->value();
+
+        if (strlen($word) < 1) {
+            return response()->json(['error' => 'Hiányzó szó.'], 422);
+        }
+
+        $apiKey = env('GEMINI_API_KEY') ?: config('services.gemini.api_key');
+
+        $prompt = <<<PROMPT
+You are an English vocabulary educator for Hungarian learners. For the English word "{$word}", explain where and how it is used in real life.
+
+Return ONLY valid JSON with this exact structure:
+{
+  "areas": [
+    {
+      "name_hu": "Terület neve magyarul (pl. Üzleti élet, Orvostudomány, Hétköznapi élet)",
+      "description_hu": "1-2 sentences in Hungarian: why/how the word is used in this area",
+      "example_en": "A natural example sentence in this context",
+      "example_hu": "Hungarian translation of the example"
+    }
+  ],
+  "register_hu": "1 sentence in Hungarian: is the word formal, informal, neutral, or context-dependent?",
+  "tip_hu": "1 short learning tip in Hungarian: e.g. a common mistake, a memorable phrase, or a useful pattern"
+}
+
+Rules:
+- Include 3 distinct real-life areas where this word is genuinely and commonly used.
+- Keep descriptions concise — 1-2 sentences max per area.
+- Example sentences must be natural, varied across registers/contexts.
+- Respond ONLY with valid JSON, no markdown.
+PROMPT;
+
+        try {
+            $response = Http::timeout(20)
+                ->withHeaders(['Content-Type' => 'application/json'])
+                ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key={$apiKey}", [
+                    'contents' => [['parts' => [['text' => $prompt]]]],
+                    'generationConfig' => ['temperature' => 0.3, 'maxOutputTokens' => 600],
+                ]);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Kapcsolódási hiba: '.$e->getMessage()], 502);
+        }
+
+        if (! $response->successful()) {
+            return response()->json(['error' => 'Gemini API hiba ('.$response->status().')'], 502);
+        }
+
+        $text = $response->json('candidates.0.content.parts.0.text') ?? '';
+        $text = preg_replace('/^```json\s*|\s*```$/s', '', trim($text));
+        $data = json_decode($text, true);
+
+        if (! is_array($data)) {
+            return response()->json(['error' => 'Érvénytelen válasz.'], 502);
+        }
+
+        return response()->json([
+            'areas' => $data['areas'] ?? [],
+            'register_hu' => $data['register_hu'] ?? '',
+            'tip_hu' => $data['tip_hu'] ?? '',
+        ]);
+    }
+
     public function geminiListModels(): JsonResponse
     {
-        Gate::authorize('admin');
+        abort_unless(Gate::check('admin') || request()->user()?->hasAiAccess(), 403);
         $apiKey = env('GEMINI_API_KEY') ?: config('services.gemini.api_key');
         $response = Http::get("https://generativelanguage.googleapis.com/v1beta/models?key={$apiKey}");
 
@@ -827,15 +1070,21 @@ PROMPT;
 
     public function geminiWordLookup(Request $request): JsonResponse
     {
-        Gate::authorize('admin');
+        abort_unless(Gate::check('admin') || request()->user()?->hasAiAccess(), 403);
 
         $word = $request->string('word')->trim()->lower()->value();
+        $context = $request->string('context')->trim()->value();
 
         if (strlen($word) < 1) {
             return response()->json(['error' => 'Hiányzó szó.'], 422);
         }
 
         $apiKey = env('GEMINI_API_KEY') ?: config('services.gemini.api_key');
+
+        $contextBlock = $context
+            ? "\nThe word appears in this sentence: \"{$context}\"\nAlso add a field:\n- context_explanation: 1-2 sentences in Hungarian explaining what \"{$word}\" specifically means in that sentence and how it is used in that context."
+            : "\n- context_explanation: empty string";
+
         $prompt = <<<PROMPT
 You are a Hungarian-English dictionary assistant. For the English word "{$word}", return a JSON object with EXACTLY these fields:
 - meaning_hu: concise primary Hungarian translation (1-5 words)
@@ -852,6 +1101,7 @@ You are a Hungarian-English dictionary assistant. For the English word "{$word}"
 - noun_plural: plural form if noun, else empty string
 - adj_comparative: comparative if adjective, else empty string
 - adj_superlative: superlative if adjective, else empty string
+{$contextBlock}
 
 Respond ONLY with valid JSON, no markdown, no explanation.
 PROMPT;
@@ -895,6 +1145,7 @@ PROMPT;
             'noun_plural' => $data['noun_plural'] ?? null,
             'adj_comparative' => $data['adj_comparative'] ?? null,
             'adj_superlative' => $data['adj_superlative'] ?? null,
+            'context_explanation' => $data['context_explanation'] ?? null,
         ]);
     }
 
@@ -903,6 +1154,29 @@ PROMPT;
         $request->validate([
             'file' => 'required|file|mimetypes:application/pdf,application/epub+zip,application/zip|extensions:pdf,epub|max:102400',
         ]);
+
+        $user = $request->user();
+        $bookLimit = match (true) {
+            $user->subscribed('premium') || $user->ai_access => 5,
+            $user->subscribed('default') => 3,
+            default => 1,
+        };
+
+        $storageLimit = 30 * 1024 * 1024; // 30 MB in bytes
+
+        $bookCount = UserBook::where('user_id', $user->id)->count();
+        if ($bookCount >= $bookLimit) {
+            return response()->json([
+                'error' => "Elérted a könyvek maximális számát ({$bookLimit}). Töröld valamelyiket, vagy válts magasabb csomagra.",
+            ], 403);
+        }
+
+        $usedStorage = UserBook::where('user_id', $user->id)->sum('text_size');
+        if ($usedStorage >= $storageLimit) {
+            return response()->json([
+                'error' => 'Elérted a 30 MB-os tárhely limitet. Töröld valamelyik könyvet a feltöltéshez.',
+            ], 403);
+        }
 
         $file = $request->file('file');
         $extension = strtolower($file->getClientOriginalExtension());
@@ -924,11 +1198,12 @@ PROMPT;
         $compressed = gzencode($text, 6);
 
         $book = UserBook::create([
-            'user_id' => $request->user()->id,
+            'user_id' => $user->id,
             'title' => mb_substr($title, 0, 255),
             'file_type' => $extension,
             'compressed_text' => $compressed,
             'total_pages' => $totalPages,
+            'text_size' => mb_strlen($text, '8bit'),
         ]);
 
         return response()->json([

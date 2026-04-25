@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Word;
+use App\Services\AchievementService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -41,7 +42,7 @@ class OnboardingController extends Controller
         ]);
     }
 
-    public function complete(Request $request): RedirectResponse
+    public function complete(Request $request, AchievementService $achievements): RedirectResponse
     {
         $validated = $request->validate([
             'known_word_ids' => ['array'],
@@ -97,6 +98,13 @@ class OnboardingController extends Controller
         }
 
         $user->update(['onboarding_completed_at' => now()]);
+
+        $newAchievements = $achievements->checkAndAward($user, ['vocab', 'known', 'level']);
+        if (! empty($newAchievements)) {
+            session()->flash('achievements', $newAchievements);
+        }
+
+        session()->flash('show_tour', true);
 
         return redirect()->route('dashboard');
     }

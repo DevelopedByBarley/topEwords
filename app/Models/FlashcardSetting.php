@@ -23,11 +23,26 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'lapse_new_interval',
     'leech_threshold',
     'shuffle_cards',
+    'calib_somewhat_min',
+    'calib_somewhat_max',
+    'calib_know_min',
+    'calib_know_max',
+    'calib_well_min',
+    'calib_well_max',
 ])]
 class FlashcardSetting extends Model
 {
     /** @use HasFactory<FlashcardSettingFactory> */
     use HasFactory;
+
+    protected $attributes = [
+        'calib_somewhat_min' => 3,
+        'calib_somewhat_max' => 7,
+        'calib_know_min' => 8,
+        'calib_know_max' => 21,
+        'calib_well_min' => 22,
+        'calib_well_max' => 50,
+    ];
 
     public function user(): BelongsTo
     {

@@ -168,24 +168,7 @@ function ClozeSetup({ available, folders, filters, selectableWords, onStart, onS
                     </p>
                 </div>
 
-                <div className="grid gap-6 lg:grid-cols-4">
-                    {folders.length > 0 && (
-                        <div className="rounded-xl border bg-card p-5">
-                            <p className="mb-3 text-sm font-semibold">Mappa</p>
-                            <div className="flex flex-col gap-2">
-                                <button onClick={() => updateFilter({ folder: null })} className={`rounded-lg border px-4 py-2.5 text-left text-sm font-medium transition-colors ${folder === null ? 'border-primary bg-primary/5 text-primary' : 'bg-background hover:bg-muted'}`}>
-                                    Összes mappa
-                                </button>
-                                {folders.map((f) => (
-                                    <button key={f.id} onClick={() => updateFilter({ folder: f.id })} className={`flex items-center justify-between rounded-lg border px-4 py-2.5 text-left text-sm font-medium transition-colors ${folder === f.id ? 'border-primary bg-primary/5 text-primary' : 'bg-background hover:bg-muted'}`}>
-                                        <span className="truncate">{f.name}</span>
-                                        <span className="ml-2 shrink-0 text-xs text-muted-foreground">{f.words_count}</span>
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
+                <div className="grid gap-6 lg:grid-cols-3">
                     <div className="rounded-xl border bg-card p-5">
                         <p className="mb-3 text-sm font-semibold">Melyik szavakból?</p>
                         <div className="grid grid-cols-2 gap-2">

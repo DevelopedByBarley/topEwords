@@ -70,7 +70,7 @@ class UserCustomWordController extends Controller
     {
         Gate::authorize('update', $customWord);
 
-        $status = $request->validate(['status' => 'required|in:known,learning,saved,pronunciation'])['status'];
+        $status = $request->validate(['status' => 'required|in:known,learning,saved,pronunciation,practice'])['status'];
 
         if ($customWord->status === $status) {
             $customWord->update(['status' => null]);

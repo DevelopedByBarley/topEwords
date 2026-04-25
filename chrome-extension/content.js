@@ -227,7 +227,7 @@ document.addEventListener('mouseup', () => {
 
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') { hidePopup(); hideSearch(); }
-    if (e.altKey && e.code === 'KeyW') { e.preventDefault(); toggleSearch(); }
+    if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.code === 'KeyF') { e.preventDefault(); toggleSearch(); }
 
     // 1–4 státusz billentyűk nyitott popup-nál
     if (shadow && currentData?.found && currentData?.has_active_access) {
@@ -769,7 +769,7 @@ function showSearch() {
                     <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
                 </svg>
                 <input id="search-input" type="text" placeholder="Keress egy szót…" autocomplete="off" spellcheck="false" />
-                <span id="shortcut-hint">Alt+W</span>
+                <span id="shortcut-hint">${navigator.platform.includes('Mac') ? 'Cmd' : 'Ctrl'}+Shift+F</span>
             </div>
             <div id="results"><div id="empty" style="display:none">Nincs találat.</div></div>
             <div id="detail"></div>

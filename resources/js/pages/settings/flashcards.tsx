@@ -24,6 +24,12 @@ type Settings = {
     lapse_new_interval: number;
     leech_threshold: number;
     shuffle_cards: boolean;
+    calib_somewhat_min: number;
+    calib_somewhat_max: number;
+    calib_know_min: number;
+    calib_know_max: number;
+    calib_well_min: number;
+    calib_well_max: number;
 };
 
 function SettingField({
@@ -313,6 +319,35 @@ export default function FlashcardSettings({ settings }: { settings: Settings }) 
                                         </span>
                                     </div>
                                 </label>
+                            </div>
+
+                            <Separator />
+
+                            {/* Calibration intervals */}
+                            <div className="space-y-4">
+                                <div>
+                                    <h3 className="text-sm font-semibold">Kalibrálási intervallumok</h3>
+                                    <p className="text-xs text-muted-foreground mt-0.5">
+                                        Mennyi időre ütemezi be a kártyát az egyes kalibrálási értékelések
+                                    </p>
+                                </div>
+                                <div className="space-y-3">
+                                    {[
+                                        { label: 'Valamennyire', minName: 'calib_somewhat_min', maxName: 'calib_somewhat_max', minVal: settings.calib_somewhat_min, maxVal: settings.calib_somewhat_max },
+                                        { label: 'Tudom', minName: 'calib_know_min', maxName: 'calib_know_max', minVal: settings.calib_know_min, maxVal: settings.calib_know_max },
+                                        { label: 'Jól tudom', minName: 'calib_well_min', maxName: 'calib_well_max', minVal: settings.calib_well_min, maxVal: settings.calib_well_max },
+                                    ].map(({ label, minName, maxName, minVal, maxVal }) => (
+                                        <div key={label} className="flex items-center gap-3">
+                                            <span className="w-28 text-sm shrink-0">{label}</span>
+                                            <div className="flex items-center gap-2">
+                                                <Input type="number" name={minName} defaultValue={minVal} min={1} max={365} className="w-20" />
+                                                <span className="text-muted-foreground text-sm">–</span>
+                                                <Input type="number" name={maxName} defaultValue={maxVal} min={1} max={365} className="w-20" />
+                                                <span className="text-sm text-muted-foreground">nap</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
 
                             <div className="flex items-center gap-4">

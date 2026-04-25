@@ -16,7 +16,7 @@ use Illuminate\Support\Carbon;
 use Laravel\Cashier\Billable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 
-#[Fillable(['name', 'email', 'password', 'streak', 'last_activity_date', 'quiz_completions', 'text_analyses', 'lifetime_access', 'onboarding_completed_at'])]
+#[Fillable(['name', 'email', 'password', 'streak', 'last_activity_date', 'quiz_completions', 'text_analyses', 'lifetime_access', 'ai_access', 'onboarding_completed_at'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -62,9 +62,15 @@ class User extends Authenticatable
     {
         // Payment temporarily disabled — everyone has access
         return true;
-        // return $this->lifetime_access
-        //     || $this->onTrial()
-        //     || $this->subscribed('default');
+        // return $this->onTrial()
+        //     || $this->subscribed('default')
+        //     || $this->subscribed('premium');
+    }
+
+    public function hasAiAccess(): bool
+    {
+        return $this->ai_access
+            || $this->subscribed('premium');
     }
 
     public function isOnFreePlan(): bool
@@ -104,6 +110,7 @@ class User extends Authenticatable
             'last_activity_date' => 'date',
             'trial_ends_at' => 'datetime',
             'lifetime_access' => 'boolean',
+            'ai_access' => 'boolean',
             'onboarding_completed_at' => 'datetime',
         ];
     }

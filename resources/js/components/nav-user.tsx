@@ -16,7 +16,7 @@ import { UserMenuContent } from '@/components/user-menu-content';
 import { useIsMobile } from '@/hooks/use-mobile';
 
 export function NavUser() {
-    const { auth } = usePage<{ auth: { user: any; subscription: { hasActiveAccess: boolean; hasLifetime: boolean; isOnTrial: boolean } | null } }>().props;
+    const { auth } = usePage<{ auth: { user: any; subscription: { hasActiveAccess: boolean; isPremium: boolean; hasAiAccess: boolean; isOnTrial: boolean } | null } }>().props;
     const { state } = useSidebar();
     const isMobile = useIsMobile();
 
@@ -38,21 +38,21 @@ export function NavUser() {
                         >
                             <UserInfo user={auth.user} />
                             {/* Payment temporarily disabled — subscription badges hidden
-                            {sub?.hasLifetime && (
-                                <span className="ml-auto flex items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-900/40 dark:text-amber-400 group-data-[collapsible=icon]:hidden">
+                            {sub?.isPremium && (
+                                <span className="ml-auto flex items-center gap-1 rounded-full bg-violet-100 px-1.5 py-0.5 text-[10px] font-semibold text-violet-700 dark:bg-violet-900/40 dark:text-violet-400 group-data-[collapsible=icon]:hidden">
                                     <Crown className="size-3" />
-                                    Lifetime
+                                    Prémium
                                 </span>
                             )}
-                            {!sub?.hasLifetime && sub?.isOnTrial && (
+                            {!sub?.isPremium && sub?.isOnTrial && (
                                 <span className="ml-auto flex items-center gap-1 rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700 dark:bg-blue-900/40 dark:text-blue-400 group-data-[collapsible=icon]:hidden">
                                     <Zap className="size-3" />
                                     Trial
                                 </span>
                             )}
-                            {!sub?.hasLifetime && !sub?.isOnTrial && sub?.hasActiveAccess && (
+                            {!sub?.isPremium && !sub?.isOnTrial && sub?.hasActiveAccess && (
                                 <span className="ml-auto flex items-center gap-1 rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] font-semibold text-green-700 dark:bg-green-900/40 dark:text-green-400 group-data-[collapsible=icon]:hidden">
-                                    Prémium
+                                    Alap
                                 </span>
                             )}
                             */}

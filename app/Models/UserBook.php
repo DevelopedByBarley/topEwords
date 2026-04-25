@@ -9,7 +9,7 @@ class UserBook extends Model
 {
     public const PAGE_SIZE = 5000;
 
-    protected $fillable = ['user_id', 'title', 'file_type', 'compressed_text', 'total_pages'];
+    protected $fillable = ['user_id', 'title', 'file_type', 'compressed_text', 'total_pages', 'text_size'];
 
     public function user(): BelongsTo
     {

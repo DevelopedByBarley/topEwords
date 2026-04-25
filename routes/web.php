@@ -31,11 +31,14 @@ Route::inertia('/', 'welcome', [
     'canRegister' => Features::enabled(Features::registration()),
 ])->name('home');
 
+Route::inertia('/guide', 'guide')->name('guide');
 Route::inertia('/terms', 'legal/terms')->name('terms');
 Route::inertia('/privacy', 'legal/privacy')->name('privacy');
 Route::get('/pricing', [PricingController::class, 'index'])->name('pricing');
+Route::get('/pricing/success', [PricingController::class, 'success'])->name('pricing.success')->middleware('signed');
+
 Route::middleware('auth')->group(function () {
-    Route::post('/pricing/checkout/{plan}', [PricingController::class, 'checkout'])->name('pricing.checkout');
+    Route::post('/pricing/checkout/{plan}', [PricingController::class, 'checkout'])->name('pricing.checkout')->middleware('throttle:5,1');
     Route::post('/pricing/portal', [PricingController::class, 'portal'])->name('pricing.portal');
 });
 
@@ -43,7 +46,10 @@ Route::get('/sitemap.xml', function () {
     return response()->view('sitemap')->header('Content-Type', 'application/xml');
 })->name('sitemap');
 
-Route::middleware(['auth', 'can:admin'])->get('admin', [AdminController::class, 'index'])->name('admin');
+Route::middleware(['auth', 'can:admin'])->group(function () {
+    Route::get('admin', [AdminController::class, 'index'])->name('admin');
+    Route::post('admin/ai-access', [AdminController::class, 'toggleAiAccess'])->name('admin.ai-access.toggle');
+});
 
 // Extension routes — auth handled manually in controller (no middleware redirect)
 Route::get('extension/lookup', [ExtensionController::class, 'lookup'])->name('extension.lookup');
@@ -61,9 +67,15 @@ Route::middleware(['auth', 'verified', EnsureOnboardingComplete::class])->group(
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     Route::get('words', [WordController::class, 'index'])->name('words.index');
+    Route::get('words/practice', [WordController::class, 'practice'])->name('words.practice');
+    Route::post('words/practice/check', [TextAnalysisController::class, 'practiceCheck'])->name('words.practice.check');
     Route::get('words/cloze', [ClozeController::class, 'index'])->name('words.cloze');
     Route::get('words/quiz', [WordController::class, 'quiz'])->name('words.quiz');
     Route::post('words/quiz/complete', [QuizController::class, 'complete'])->name('words.quiz.complete');
+
+    Route::get('review', [ReviewController::class, 'index'])->name('review.index');
+    Route::post('review/complete', [ReviewController::class, 'complete'])->name('review.complete');
+
     Route::get('words/search', [WordController::class, 'search'])->name('words.search');
     Route::patch('words/{word}', [WordController::class, 'update'])->name('words.update')->middleware('can:admin');
     Route::post('words/{word}/status', [WordController::class, 'status'])->name('words.status');
@@ -97,6 +109,7 @@ Route::middleware(['auth', 'verified', EnsureOnboardingComplete::class])->group(
     // Calibration
     Route::get('flashcards/{deck}/calibrate', [FlashcardCalibrationController::class, 'show'])->name('flashcards.calibrate');
     Route::post('flashcards/{deck}/calibrate', [FlashcardCalibrationController::class, 'rate'])->name('flashcards.calibrate.rate');
+    Route::post('flashcards/{deck}/calibrate/skip', [FlashcardCalibrationController::class, 'skip'])->name('flashcards.calibrate.skip');
 
     // Study session
     Route::get('flashcards/{deck}/study', [FlashcardStudyController::class, 'show'])->name('flashcards.study');
@@ -109,9 +122,6 @@ Route::middleware(['auth', 'verified', EnsureOnboardingComplete::class])->group(
     Route::delete('flashcards/folders/{flashcardFolder}', [FlashcardFolderController::class, 'destroy'])->name('flashcards.folders.destroy');
     Route::patch('flashcards/folders/{flashcardFolder}/decks/{flashcardDeck}', [FlashcardFolderDeckController::class, 'update'])->name('flashcards.folders.decks.update');
 
-    Route::get('review', [ReviewController::class, 'index'])->name('review.index');
-    Route::post('review/complete', [ReviewController::class, 'complete'])->name('review.complete');
-
     Route::get('achievements', [AchievementController::class, 'index'])->name('achievements.index');
 
     Route::get('irregular-verbs', [IrregularVerbController::class, 'index'])->name('irregular-verbs.index');
@@ -123,6 +133,8 @@ Route::middleware(['auth', 'verified', EnsureOnboardingComplete::class])->group(
     Route::get('text-analysis/gemini-lookup', [TextAnalysisController::class, 'geminiWordLookup'])->name('text-analysis.gemini-lookup');
     Route::get('text-analysis/gemini-flashcard', [TextAnalysisController::class, 'geminiFlashcard'])->name('text-analysis.gemini-flashcard');
     Route::get('text-analysis/gemini-models', [TextAnalysisController::class, 'geminiListModels'])->name('text-analysis.gemini-models');
+    Route::get('text-analysis/word-insight', [TextAnalysisController::class, 'wordInsight'])->name('text-analysis.word-insight');
+    Route::post('words/sentence-check', [TextAnalysisController::class, 'sentenceCheck'])->name('words.sentence-check');
     Route::get('text-analysis/books', [TextAnalysisController::class, 'listBooks'])->name('text-analysis.books.index');
     Route::post('text-analysis/books', [TextAnalysisController::class, 'uploadBook'])->name('text-analysis.books.store');
     Route::get('text-analysis/books/{book}/page', [TextAnalysisController::class, 'getBookPage'])->name('text-analysis.books.page');

@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -46,6 +48,9 @@ class AdminController extends Controller
             ->orderBy('date')
             ->get();
 
+        $aiAccessUsers = User::where('ai_access', true)
+            ->get(['id', 'name', 'email']);
+
         return Inertia::render('admin/index', [
             'stats' => [
                 'totalUsers' => $totalUsers,
@@ -63,6 +68,20 @@ class AdminController extends Controller
             'recentUsers' => $recentUsers,
             'mostActive' => $mostActive,
             'registrationsByDay' => $registrationsByDay,
+            'aiAccessUsers' => $aiAccessUsers,
         ]);
+    }
+
+    public function toggleAiAccess(Request $request): RedirectResponse
+    {
+        $data = $request->validate(['email' => 'required|email|exists:users,email']);
+
+        $user = User::where('email', $data['email'])->firstOrFail();
+        $user->ai_access = ! $user->ai_access;
+        $user->save();
+
+        $status = $user->ai_access ? 'megkapta' : 'elvesztette';
+
+        return back()->with('success', "{$user->name} {$status} az AI hozzáférést.");
     }
 }

@@ -284,13 +284,15 @@ export default function FlashcardStudy({ deck, cards }: { deck: Deck; cards: Car
                                 </span>
                             )}
                         </div>
-                        <button
-                            onClick={(e) => { e.stopPropagation(); speak(sides!.question, sides!.questionSpeak); }}
-                            className="absolute top-3 left-3 rounded-full p-1.5 text-muted-foreground/50 hover:bg-muted hover:text-foreground transition-colors"
-                            title="Felolvasás"
-                        >
-                            <Volume2 className="size-4" />
-                        </button>
+                        {sides!.questionSpeak && (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); speak(sides!.question, sides!.questionSpeak); }}
+                                className="absolute top-3 left-3 rounded-full p-1.5 text-muted-foreground/50 hover:bg-muted hover:text-foreground transition-colors"
+                                title="Felolvasás"
+                            >
+                                <Volume2 className="size-4" />
+                            </button>
+                        )}
                         <span className="text-xs text-muted-foreground uppercase tracking-wide mb-3">
                             {current.review.state === 'new' ? 'Új kártya' :
                              current.review.state === 'learning' ? 'Tanulás' :
@@ -312,13 +314,15 @@ export default function FlashcardStudy({ deck, cards }: { deck: Deck; cards: Car
                     {/* Answer */}
                     {revealed && (
                         <div ref={answerRef} className="relative rounded-2xl border border-dashed bg-muted/30 p-6 text-center animate-in fade-in slide-in-from-bottom-2 duration-200">
-                            <button
-                                onClick={() => speak(sides!.answer, sides!.answerSpeak)}
-                                className="absolute top-3 left-3 rounded-full p-1.5 text-muted-foreground/50 hover:bg-muted hover:text-foreground transition-colors"
-                                title="Felolvasás"
-                            >
-                                <Volume2 className="size-4" />
-                            </button>
+                            {sides!.answerSpeak && (
+                                <button
+                                    onClick={() => speak(sides!.answer, sides!.answerSpeak)}
+                                    className="absolute top-3 left-3 rounded-full p-1.5 text-muted-foreground/50 hover:bg-muted hover:text-foreground transition-colors"
+                                    title="Felolvasás"
+                                >
+                                    <Volume2 className="size-4" />
+                                </button>
+                            )}
                             <RichTextContent html={sides!.answer} className="text-base" />
                             {sides!.answerNotes && (
                                 <RichTextContent html={sides!.answerNotes} className="mt-3 text-sm text-muted-foreground" />

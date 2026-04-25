@@ -6,6 +6,7 @@ use App\Models\UserCustomWord;
 use App\Models\Word;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 
 class ExtensionController extends Controller
 {
@@ -223,6 +224,7 @@ class ExtensionController extends Controller
         return response()->json([
             'results' => $results->concat($customResults)->values(),
             'has_active_access' => $hasActiveAccess,
+            'is_admin' => Gate::check('admin'),
             'csrf' => csrf_token(),
         ]);
     }
