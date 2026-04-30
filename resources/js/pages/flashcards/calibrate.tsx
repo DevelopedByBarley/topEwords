@@ -42,9 +42,9 @@ function IntervalInput({ label, min, max, onChangeMin, onChangeMax }: {
     onChangeMax: (v: number) => void;
 }) {
     return (
-        <div className="flex items-center gap-3">
-            <span className="w-28 text-sm font-medium shrink-0">{label}</span>
-            <div className="flex items-center gap-2 flex-1">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+            <span className="text-sm font-medium sm:w-28 sm:shrink-0">{label}</span>
+            <div className="flex items-center gap-2">
                 <input
                     type="number"
                     min={1}
@@ -405,7 +405,7 @@ export default function FlashcardCalibrate({ deck, cards, totalRemaining, calibI
                 {/* Rating buttons — only visible after flip */}
                 {showBack ? (
                     <>
-                        <div className="grid grid-cols-4 gap-2">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                             {ratings.map(({ rating, label, description, shortcut, className }) => (
                                 <button
                                     key={rating}
@@ -435,9 +435,10 @@ export default function FlashcardCalibrate({ deck, cards, totalRemaining, calibI
     );
 }
 
-FlashcardCalibrate.layout = {
+FlashcardCalibrate.layout = (props: { deck: Deck }) => ({
     breadcrumbs: [
         { title: 'Flashcard decks', href: index() },
+        { title: props.deck.name, href: show({ deck: props.deck.id }) },
         { title: 'Kalibráció', href: '#' },
     ],
-};
+});

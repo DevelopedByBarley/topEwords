@@ -166,7 +166,7 @@ function SetupScreen({ verbs, onStart }: { verbs: IrregularVerb[]; onStart: (sel
                                 <button
                                     key={verb.id}
                                     onClick={() => toggle(verb.id)}
-                                    className={`flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/40 ${selectedIds.has(verb.id) ? 'bg-primary/5' : ''}`}
+                                    className={`flex w-full items-center gap-2 sm:gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/40 ${selectedIds.has(verb.id) ? 'bg-primary/5' : ''}`}
                                 >
                                     <div className={`flex size-4 shrink-0 items-center justify-center rounded border transition-colors ${selectedIds.has(verb.id) ? 'border-primary bg-primary' : 'border-input'}`}>
                                         {selectedIds.has(verb.id) && (
@@ -175,11 +175,11 @@ function SetupScreen({ verbs, onStart }: { verbs: IrregularVerb[]; onStart: (sel
                                             </svg>
                                         )}
                                     </div>
-                                    <span className="w-28 font-semibold">{verb.infinitive}</span>
-                                    <span className="w-24 text-sm text-muted-foreground">{verb.past_simple}</span>
-                                    <span className="w-24 text-sm text-muted-foreground">{verb.past_participle}</span>
+                                    <span className="w-20 sm:w-28 font-semibold text-sm sm:text-base">{verb.infinitive}</span>
+                                    <span className="w-16 sm:w-24 text-sm text-muted-foreground">{verb.past_simple}</span>
+                                    <span className="w-16 sm:w-24 text-sm text-muted-foreground">{verb.past_participle}</span>
                                     {verb.meaning_hu && (
-                                        <span className="truncate text-xs text-muted-foreground/70">{verb.meaning_hu}</span>
+                                        <span className="hidden sm:inline truncate text-xs text-muted-foreground/70">{verb.meaning_hu}</span>
                                     )}
                                 </button>
                             ))}
@@ -370,8 +370,8 @@ export default function IrregularVerbsIndex({ verbs }: Props) {
                 </div>
 
                 {/* Card */}
-                <div className="rounded-2xl border bg-card px-8 py-10 text-center shadow-sm">
-                    <h2 className="text-4xl font-bold tracking-tight">to {card!.infinitive}</h2>
+                <div className="rounded-2xl border bg-card px-5 py-8 sm:px-8 sm:py-10 text-center shadow-sm">
+                    <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">to {card!.infinitive}</h2>
                     {card!.meaning_hu && (
                         <p className="mt-3 text-sm text-muted-foreground">{card!.meaning_hu}</p>
                     )}

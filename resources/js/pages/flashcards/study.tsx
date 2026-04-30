@@ -78,13 +78,27 @@ export default function FlashcardStudy({ deck, cards }: { deck: Deck; cards: Car
 
     const speak = useCallback((html: string, speakOverride?: string | null, lang = 'en-US') => {
         if (!window.speechSynthesis) return;
-        const text = speakOverride?.trim() || html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-        if (!text) return;
+        const raw = speakOverride?.trim() || html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+        if (!raw) return;
+
         window.speechSynthesis.cancel();
-        const u = new SpeechSynthesisUtterance(text);
-        u.lang = lang;
-        u.rate = 0.9;
-        window.speechSynthesis.speak(u);
+
+        const parts = raw.split('\n').map((p) => p.trim()).filter(Boolean);
+
+        const speakPart = (index: number) => {
+            if (index >= parts.length) return;
+            const u = new SpeechSynthesisUtterance(parts[index]);
+            u.lang = lang;
+            u.rate = 0.9;
+            u.onend = () => {
+                if (index < parts.length - 1) {
+                    setTimeout(() => speakPart(index + 1), 700);
+                }
+            };
+            window.speechSynthesis.speak(u);
+        };
+
+        speakPart(0);
     }, []);
 
     const handleReveal = useCallback(() => {
@@ -270,7 +284,7 @@ export default function FlashcardStudy({ deck, cards }: { deck: Deck; cards: Car
                 <div className="flex-1 flex flex-col gap-4">
                     {/* Question */}
                     <div
-                        className="relative flex-1 flex flex-col items-center justify-center rounded-2xl border bg-card shadow-sm p-8 text-center min-h-48 cursor-pointer select-none"
+                        className="relative flex-1 flex flex-col items-center justify-center rounded-2xl border bg-card shadow-sm p-5 sm:p-8 text-center min-h-48 cursor-pointer select-none"
                         style={current.color ? { borderColor: current.color, borderWidth: 2 } : {}}
                         onClick={handleReveal}
                     >
@@ -332,7 +346,7 @@ export default function FlashcardStudy({ deck, cards }: { deck: Deck; cards: Car
 
                     {/* Rating buttons */}
                     {revealed && (
-                        <div className="grid grid-cols-4 gap-2 mt-2 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2 animate-in fade-in slide-in-from-bottom-2 duration-200">
                             {RATING_BUTTONS.map(({ rating, label, previewKey, shortcut, className }) => (
                                 <button
                                     key={rating}
@@ -355,9 +369,10 @@ export default function FlashcardStudy({ deck, cards }: { deck: Deck; cards: Car
     );
 }
 
-FlashcardStudy.layout = {
+FlashcardStudy.layout = (props: { deck: Deck }) => ({
     breadcrumbs: [
         { title: 'Flashcard decks', href: index() },
+        { title: props.deck.name, href: show(props.deck.id) },
         { title: 'Tanulás', href: '#' },
     ],
-};
+});

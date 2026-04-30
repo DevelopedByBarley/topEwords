@@ -744,6 +744,7 @@ let searchShadow = null;
 let searchDebounce = null;
 let searchCsrf = null;
 let searchHasAccess = false;
+let searchIsAdmin = false;
 
 function toggleSearch() {
     if (searchHost) { hideSearch(); return; }
@@ -790,6 +791,7 @@ function showSearch() {
                 if (!searchShadow) return;
                 searchCsrf = resp?.csrf ?? null;
                 searchHasAccess = resp?.has_active_access ?? false;
+                searchIsAdmin = resp?.is_admin ?? false;
                 renderSearchResults(resp?.results ?? [], resp?.error);
             });
         }, 250);
@@ -900,10 +902,13 @@ function showSearchDetail(data) {
         detail.innerHTML = `
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
                 <span style="font-size:14px;font-weight:700;color:#0f172a">${esc(data.word)}</span>
-                <a class="google-ai-link" href="${googleUrl}" target="_blank">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-                    Google AI
-                </a>
+                <div style="display:flex;gap:6px;align-items:center">
+                    ${searchIsAdmin ? `<button id="gemini-fill-btn" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500;color:#7c3aed;border:1px solid #ede9fe;border-radius:20px;background:#faf5ff;padding:3px 10px;cursor:pointer;font-family:inherit;white-space:nowrap;transition:all 0.15s">✨ AI kitöltés</button>` : ''}
+                    <a class="google-ai-link" href="${googleUrl}" target="_blank">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                        Google AI
+                    </a>
+                </div>
             </div>
             <div class="form-fields">
                 <select class="form-input" id="add-pos">
@@ -968,6 +973,48 @@ function showSearchDetail(data) {
             detail.querySelector('#noun-fields').style.display = pos === 'noun' ? 'flex' : 'none';
             detail.querySelector('#adj-fields').style.display = pos === 'adj' ? 'flex' : 'none';
         });
+
+        const geminiBtn = detail.querySelector('#gemini-fill-btn');
+        if (geminiBtn) {
+            geminiBtn.addEventListener('click', () => {
+                geminiBtn.disabled = true;
+                geminiBtn.textContent = '⏳ Töltés…';
+
+                sendMsg({ type: 'GEMINI_LOOKUP', word: data.word }, (resp) => {
+                    geminiBtn.disabled = false;
+                    geminiBtn.innerHTML = '✨ AI kitöltés';
+
+                    if (!resp || resp.error) { return; }
+
+                    const pos = resp.part_of_speech ?? '';
+                    if (pos) {
+                        posSelect.value = pos;
+                        posSelect.dispatchEvent(new Event('change'));
+                    }
+
+                    if (resp.meaning_hu) { detail.querySelector('#add-meaning').value = resp.meaning_hu; }
+                    if (resp.extra_meanings) { detail.querySelector('#add-extra').value = resp.extra_meanings; }
+                    if (resp.synonyms) { detail.querySelector('#add-synonyms').value = resp.synonyms; }
+                    if (resp.example_en) { detail.querySelector('#add-example-en').value = resp.example_en; }
+                    if (resp.example_hu) { detail.querySelector('#add-example-hu').value = resp.example_hu; }
+
+                    if (pos === 'verb') {
+                        if (resp.verb_past) { detail.querySelector('#add-verb-past').value = resp.verb_past; }
+                        if (resp.verb_past_participle) { detail.querySelector('#add-verb-pp').value = resp.verb_past_participle; }
+                        if (resp.verb_present_participle) { detail.querySelector('#add-verb-prog').value = resp.verb_present_participle; }
+                        if (resp.verb_third_person) { detail.querySelector('#add-verb-3rd').value = resp.verb_third_person; }
+                        if (resp.is_irregular) { detail.querySelector('#add-irregular').checked = true; }
+                    }
+                    if (pos === 'noun' && resp.noun_plural) {
+                        detail.querySelector('#add-noun-plural').value = resp.noun_plural;
+                    }
+                    if (pos === 'adj') {
+                        if (resp.adj_comparative) { detail.querySelector('#add-adj-comp').value = resp.adj_comparative; }
+                        if (resp.adj_superlative) { detail.querySelector('#add-adj-super').value = resp.adj_superlative; }
+                    }
+                });
+            });
+        }
 
         detail.querySelector('#add-btn').addEventListener('click', () => {
             const pos = posSelect.value;

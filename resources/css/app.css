@@ -164,4 +164,14 @@
     body {
         @apply bg-background text-foreground;
     }
+
+    /* Prevent iOS auto-zoom on input focus (requires >= 16px font-size) */
+    @media (max-width: 767px) {
+        input:not([type="hidden"]),
+        textarea,
+        select,
+        [contenteditable] {
+            font-size: 1rem;
+        }
+    }
 }

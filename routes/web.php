@@ -101,6 +101,7 @@ Route::middleware(['auth', 'verified', EnsureOnboardingComplete::class])->group(
     Route::post('flashcards/{deck}/cards/bulk-reset', [FlashcardCardController::class, 'bulkReset'])->name('flashcards.cards.bulk-reset');
     Route::post('flashcards/{deck}/cards/bulk-move', [FlashcardCardController::class, 'bulkMove'])->name('flashcards.cards.bulk-move');
     Route::post('flashcards/{deck}/cards/bulk-reverse', [FlashcardCardController::class, 'bulkReverse'])->name('flashcards.cards.bulk-reverse');
+    Route::post('flashcards/{deck}/cards/bulk-direction', [FlashcardCardController::class, 'bulkDirection'])->name('flashcards.cards.bulk-direction');
 
     // CSV import / export
     Route::post('flashcards/{deck}/csv-import', [FlashcardCsvController::class, 'import'])->name('flashcards.csv.import');

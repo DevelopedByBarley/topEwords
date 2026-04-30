@@ -123,4 +123,6 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    'onboarding_enabled' => (bool) env('ONBOARDING_ENABLED', true),
+
 ];

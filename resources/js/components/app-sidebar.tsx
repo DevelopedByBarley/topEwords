@@ -1,5 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
-import { BookOpen, FolderOpen, Globe, LayoutGrid, Languages, Layers, Medal, NotebookPen, PenLine, Puzzle, ScanText, Shuffle, Sparkles, Swords } from 'lucide-react';
+import { BookOpen, FolderOpen, Globe, LayoutGrid, Languages, Layers, Medal, NotebookPen, PenLine, Puzzle, RefreshCw, ScanText, Shuffle, Sparkles, Swords } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
@@ -20,6 +20,7 @@ import { useCurrentUrl } from '@/hooks/use-current-url';
 import { dashboard } from '@/routes';
 import { index as achievementsIndex } from '@/routes/achievements';
 import { index as irregularVerbsIndex } from '@/routes/irregular-verbs';
+import { index as reviewIndex } from '@/routes/review';
 import { cloze as wordsCloze, practice as wordsPractice } from '@/routes/words';
 import { show as textAnalysisShow } from '@/routes/text-analysis';
 import { index as flashcardsIndex } from '@/routes/flashcards';
@@ -72,6 +73,12 @@ const navGroups: { label?: string; items: NavItem[] }[] = [
         label: 'Gyakorlás',
         items: [
             {
+                title: 'Szóismétlés',
+                href: reviewIndex().url,
+                icon: RefreshCw,
+                tourId: 'tour-review',
+            },
+            {
                 title: 'Kvíz',
                 href: wordsQuiz(),
                 icon: Swords,
@@ -122,7 +129,7 @@ export function AppSidebar() {
     const { isCurrentUrl } = useCurrentUrl();
     const isAdmin: boolean = (props as any)?.auth?.isAdmin ?? false;
     const extensionInstalled = useExtensionInstalled();
-    const isOnWordsPage = url.startsWith(wordsIndex.url()) && !url.startsWith(wordsQuiz.url()) && !url.startsWith(wordsCloze.url());
+    const isOnWordsPage = url.startsWith(wordsIndex.url()) && !url.startsWith(wordsQuiz.url()) && !url.startsWith(wordsCloze.url()) && !url.startsWith(wordsPractice.url());
 
     return (
         <Sidebar collapsible="icon" variant="inset">
@@ -209,7 +216,7 @@ export function AppSidebar() {
 
                 <NavMain label={navGroups[2].label} items={[
                     ...navGroups[2].items,
-                    ...(isAdmin ? [{ title: 'Szabad írás', href: wordsPractice(), icon: NotebookPen, isAi: true }] : []),
+                    ...(isAdmin ? [{ title: 'Szabad írás', href: wordsPractice(), icon: NotebookPen, isAi: true, tourId: 'tour-practice' }] : []),
                 ]} />
                 <NavMain label={navGroups[3].label} items={navGroups[3].items} />
 
@@ -223,9 +230,9 @@ export function AppSidebar() {
                                     className="text-violet-600 dark:text-violet-400 hover:text-violet-700 dark:hover:text-violet-300 hover:bg-violet-50 dark:hover:bg-violet-950/20"
                                 >
                                     <a href="https://chrome.google.com/webstore" target="_blank" rel="noopener noreferrer">
-                                        <Puzzle />
+                                        <Puzzle className="animate-pulse" />
                                         <span>Bővítmény telepítése</span>
-                                        <span className="ml-auto size-2 rounded-full bg-violet-500 group-data-[collapsible=icon]:hidden" />
+                                        <span className="ml-auto size-2 rounded-full bg-violet-500 animate-pulse group-data-[collapsible=icon]:hidden" />
                                     </a>
                                 </SidebarMenuButton>
                             </SidebarMenuItem>

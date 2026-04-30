@@ -14,8 +14,16 @@ class OnboardingController extends Controller
 {
     private const WORDS_PER_LEVEL = 20;
 
-    public function show(): Response
+    public function show(Request $request): Response|RedirectResponse
     {
+        if (config('app.onboarding_enabled', true) === false) {
+            $request->user()->update(['onboarding_completed_at' => now()]);
+
+            session()->flash('show_tour', true);
+
+            return redirect()->route('dashboard');
+        }
+
         $wordsByLevel = collect();
 
         $availableLevels = Word::selectRaw('level, COUNT(*) as count')

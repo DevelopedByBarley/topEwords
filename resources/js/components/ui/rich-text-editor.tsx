@@ -252,7 +252,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
                             onClick={() => {
                                 const selected = window.getSelection()?.toString().trim();
                                 if (selected) {
-                                    setSpeakText((prev) => prev ? `${prev} ${selected}` : selected);
+                                    setSpeakText((prev) => prev ? `${prev}\n${selected}` : selected);
                                 }
                             }}
                             active={!!speakText}
@@ -265,14 +265,30 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
             )}
 
             {speakName !== undefined && speakText && (
-                <div className="flex items-center gap-1.5 border-b px-3 py-1.5 bg-amber-50 dark:bg-amber-950/30">
-                    <span className="text-xs text-amber-700 dark:text-amber-400 font-medium shrink-0">Kimondandó:</span>
-                    <span className="text-xs text-amber-800 dark:text-amber-300 truncate flex-1">{speakText}</span>
+                <div className="flex items-start gap-1.5 border-b px-3 py-1.5 bg-amber-50 dark:bg-amber-950/30">
+                    <span className="text-xs text-amber-700 dark:text-amber-400 font-medium shrink-0 mt-0.5">Kimondandó:</span>
+                    <div className="flex flex-wrap gap-1 flex-1 min-w-0">
+                        {speakText.split('\n').filter(Boolean).map((part, i) => (
+                            <span key={i} className="inline-flex items-center gap-1 rounded-full bg-amber-100 dark:bg-amber-900/50 px-2 py-0.5 text-xs text-amber-800 dark:text-amber-300">
+                                {i + 1}. {part}
+                                <button
+                                    type="button"
+                                    onMouseDown={(e) => {
+                                        e.preventDefault();
+                                        setSpeakText((prev) => prev.split('\n').filter((_, idx) => idx !== i).join('\n'));
+                                    }}
+                                    className="rounded-full text-amber-500 hover:text-amber-700 dark:hover:text-amber-200"
+                                >
+                                    <X className="size-2.5" />
+                                </button>
+                            </span>
+                        ))}
+                    </div>
                     <button
                         type="button"
                         onMouseDown={(e) => { e.preventDefault(); setSpeakText(''); }}
                         className="shrink-0 rounded p-0.5 text-amber-600 hover:bg-amber-100 dark:hover:bg-amber-900"
-                        title="Törlés"
+                        title="Összes törlése"
                     >
                         <X className="size-3" />
                     </button>

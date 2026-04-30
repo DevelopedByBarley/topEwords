@@ -634,6 +634,7 @@ export default function TextAnalysis() {
                                 <button
                                     key={id}
                                     type="button"
+                                    title={label}
                                     onClick={() => switchMode(id)}
                                     className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
                                         mode === id
@@ -642,7 +643,7 @@ export default function TextAnalysis() {
                                     }`}
                                 >
                                     <Icon className="size-3.5" />
-                                    {label}
+                                    <span className="hidden sm:inline">{label}</span>
                                 </button>
                             ))}
                         </div>
@@ -893,7 +894,7 @@ export default function TextAnalysis() {
                                         </div>
 
                                         {/* Page navigation */}
-                                        <div className="flex items-center justify-between gap-2">
+                                        <div className="flex flex-wrap items-center justify-between gap-2">
                                             <Button
                                                 variant="outline"
                                                 size="sm"
@@ -1075,7 +1076,7 @@ export default function TextAnalysis() {
                     }
                 }}
             >
-                <DialogContent className={`gap-0 overflow-hidden p-0 ${lookupResult?.type === 'not_found' ? 'sm:max-w-lg' : 'sm:max-w-md'}`}>
+                <DialogContent className={`gap-0 overflow-hidden p-0 w-[calc(100vw-2rem)] ${lookupResult?.type === 'not_found' ? 'sm:max-w-lg' : 'sm:max-w-md'}`}>
                     {lookupLoading && (
                         <div className="flex items-center justify-center py-12">
                             <Loader2 className="size-6 animate-spin text-muted-foreground" />
@@ -1201,7 +1202,7 @@ export default function TextAnalysis() {
                                             </div>
                                         ) : (
                                             <>
-                                                <div className="max-h-[55vh] overflow-y-auto px-5 py-4 flex flex-col gap-3">
+                                                <div className="max-h-[60vh] overflow-y-auto px-5 py-4 flex flex-col gap-3">
                                                     {/* Action buttons */}
                                                     <div className="flex gap-2">
                                                         {hasAiAccess && (
@@ -1235,7 +1236,7 @@ export default function TextAnalysis() {
                                                             className="flex-1"
                                                         />
                                                         <Select value={customWordForm.part_of_speech} onValueChange={(v) => setCustomWordForm({ ...customWordForm, part_of_speech: v })}>
-                                                            <SelectTrigger className="w-36">
+                                                            <SelectTrigger className="w-28 sm:w-36">
                                                                 <SelectValue placeholder="Szófaj" />
                                                             </SelectTrigger>
                                                             <SelectContent>

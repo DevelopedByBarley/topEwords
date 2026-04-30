@@ -153,6 +153,18 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         return true;
     }
 
+    if (msg.type === 'GEMINI_LOOKUP') {
+        fetch(`${APP_URL}/text-analysis/gemini-lookup?word=${encodeURIComponent(msg.word)}`, {
+            credentials: 'include',
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+        })
+            .then((r) => r.json())
+            .then((data) => sendResponse(data))
+            .catch(() => sendResponse({ error: 'network' }));
+
+        return true;
+    }
+
     if (msg.type === 'REFRESH_BADGE') {
         refreshBadge();
     }

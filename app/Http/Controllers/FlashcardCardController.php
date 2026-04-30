@@ -188,6 +188,21 @@ class FlashcardCardController extends Controller
         return to_route('flashcards.show', $deck)->with('success', count($ids).' fordított másolat létrehozva.');
     }
 
+    public function bulkDirection(Request $request, FlashcardDeck $deck): RedirectResponse
+    {
+        abort_unless($deck->user_id === $request->user()->id, 403);
+
+        $validated = $request->validate([
+            'ids' => ['required', 'array'],
+            'ids.*' => ['integer'],
+            'direction' => ['required', 'in:front_to_back,back_to_front,both'],
+        ]);
+
+        $deck->flashcards()->whereIn('id', $validated['ids'])->update(['direction' => $validated['direction']]);
+
+        return to_route('flashcards.show', $deck)->with('success', count($validated['ids']).' kártya iránya frissítve.');
+    }
+
     public function bulkMove(Request $request, FlashcardDeck $deck): RedirectResponse
     {
         abort_unless($deck->user_id === $request->user()->id, 403);

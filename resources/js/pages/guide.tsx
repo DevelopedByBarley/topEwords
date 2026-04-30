@@ -3,18 +3,20 @@ import { useEffect, useRef, useState } from 'react';
 import {
     BookOpen, Zap, LayoutGrid, Chrome, Brain, Settings2,
     FileText, HelpCircle, GitBranch, Award, ChevronRight,
-    Lightbulb, AlertCircle, CheckCircle2, Star,
+    Lightbulb, AlertCircle, CheckCircle2, Star, RefreshCw, ListChecks, NotebookPen,
 } from 'lucide-react';
 
 const sections = [
     { id: 'attekintes',    label: 'Áttekintés',          icon: LayoutGrid },
     { id: 'szavak',        label: 'Szavak',               icon: BookOpen },
+    { id: 'szoismetles',   label: 'Szóismétlés',          icon: RefreshCw },
     { id: 'flashcards',    label: 'Flashcards',           icon: Brain },
     { id: 'srs',           label: 'SRS algoritmus',       icon: GitBranch },
     { id: 'deck-settings', label: 'Deck beállítások',     icon: Settings2 },
     { id: 'szovegelemzes', label: 'Szövegelemzés',        icon: FileText },
     { id: 'kviz',          label: 'Kvíz',                 icon: HelpCircle },
     { id: 'cloze',         label: 'Mondatkiegészítés',    icon: Zap },
+    { id: 'szabad-iras',   label: 'Szabad írás',          icon: NotebookPen },
     { id: 'irregular',     label: 'Rendhagyó igék',       icon: GitBranch },
     { id: 'teljesitmenyek',label: 'Teljesítmények',       icon: Award },
     { id: 'extension',     label: 'Chrome bővítmény',     icon: Chrome },
@@ -153,15 +155,17 @@ function CardGrid({ cards }: { cards: { icon: React.ElementType; title: string; 
 export default function Guide() {
     const [activeId, setActiveId] = useState('attekintes');
     const observerRef = useRef<IntersectionObserver | null>(null);
+    const scrollRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
+        const root = scrollRef.current;
         observerRef.current = new IntersectionObserver(
             (entries) => {
                 for (const entry of entries) {
                     if (entry.isIntersecting) setActiveId(entry.target.id);
                 }
             },
-            { rootMargin: '-20% 0px -70% 0px' },
+            { root, rootMargin: '-20% 0px -70% 0px' },
         );
         sections.forEach(({ id }) => {
             const el = document.getElementById(id);
@@ -174,15 +178,17 @@ export default function Guide() {
         <>
             <Head title="Kézikönyv" />
 
+            <div ref={scrollRef} className="overflow-y-auto" style={{ height: 'calc(100dvh - 64px)' }}>
             <div className="flex gap-0 px-4 py-6 md:px-6">
                 {/* Sticky TOC sidebar */}
-                <aside className="hidden lg:block w-56 shrink-0 mr-10">
-                    <div className="sticky top-6 space-y-0.5">
+                <aside className="hidden lg:block w-56 shrink-0 mr-10 self-start sticky top-6">
+                    <div className="max-h-[calc(100dvh-5rem)] overflow-y-auto space-y-0.5">
                         <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Tartalom</p>
                         {sections.map(({ id, label, icon: Icon }) => (
                             <a
                                 key={id}
                                 href={`#${id}`}
+                                onClick={(e) => { e.preventDefault(); document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}
                                 className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm transition-colors ${
                                     activeId === id
                                         ? 'bg-primary/10 font-medium text-primary'
@@ -213,12 +219,13 @@ export default function Guide() {
                         </P>
 
                         <CardGrid cards={[
-                            { icon: BookOpen,  title: 'Szavak',             desc: '8 000+ szó hat nehézségi szinten, saját mappákkal' },
-                            { icon: Brain,     title: 'Flashcards',         desc: 'Okos kártyás ismétlés SRS algoritmussal' },
-                            { icon: FileText,  title: 'Szövegelemzés',      desc: 'Könyv, web, YouTube — melyik szót nem ismered?' },
-                            { icon: HelpCircle,title: 'Kvíz',               desc: 'Gyors fordításteszt bármely szintből' },
-                            { icon: Zap,       title: 'Mondatkiegészítés',  desc: 'Valós mondatokban kell megtalálni a szót' },
-                            { icon: Chrome,    title: 'Chrome bővítmény',   desc: 'Azonnali fordítás bármely weboldalon' },
+                            { icon: BookOpen,   title: 'Szavak',             desc: '8 000+ szó hat nehézségi szinten, saját mappákkal' },
+                            { icon: Brain,      title: 'Flashcards',         desc: 'Okos kártyás ismétlés SRS algoritmussal' },
+                            { icon: RefreshCw,  title: 'Szóismétlés',        desc: 'Státuszalapú szóismétlő kvíz, 1–14 napos intervallumon' },
+                            { icon: FileText,   title: 'Szövegelemzés',      desc: 'Könyv, web, YouTube — melyik szót nem ismered?' },
+                            { icon: HelpCircle, title: 'Kvíz',               desc: 'Gyors fordításteszt bármely szintből' },
+                            { icon: Zap,        title: 'Mondatkiegészítés',  desc: 'Valós mondatokban kell megtalálni a szót' },
+                            { icon: Chrome,     title: 'Chrome bővítmény',   desc: 'Azonnali fordítás bármely weboldalon' },
                         ]} />
 
                         <Sub title="Első lépések — hol kezdjem?">
@@ -288,7 +295,7 @@ export default function Guide() {
                                 példamondatot, ragozási alakokat — ugyanúgy működik, mint a beépített szavak.
                             </P>
                             <InfoBox type="tip">
-                                A Chrome bővítménnyel az Alt+W keresőből közvetlenül hozzáadhatod az ismeretlen szavakat,
+                                A Chrome bővítménnyel a Ctrl+Shift+F keresőből közvetlenül hozzáadhatod az ismeretlen szavakat,
                                 az AI-os automatikus kitöltéssel.
                             </InfoBox>
                         </Sub>
@@ -302,6 +309,42 @@ export default function Guide() {
                         </Sub>
                     </Section>
 
+                    {/* ── Szóismétlés ── */}
+                    <Section id="szoismetles" title="Szóismétlés" icon={RefreshCw}>
+                        <P>
+                            A Szóismétlés egy egyszerűsített kvízrendszer, amely automatikusan ismételteti
+                            veled az esedékes szavakat státuszuk alapján. Ez a flashcard SRS-szel párhuzamosan
+                            működik — a szótárban megjelölt szavakat tartja frissen, visszahívással erősítve a memóriát.
+                        </P>
+
+                        <Sub title="Ismétlési intervallumok">
+                            <P>Minden státuszhoz más ismétlési időköz tartozik. Ha egy szót sikeresen felismersz a munkamenetben, az ismétlési ideje újraindul.</P>
+                            <Table
+                                headers={['Státusz', 'Ismétlési időköz']}
+                                rows={[
+                                    [<Badge color="blue">Tanulom</Badge>,   '1 nap'],
+                                    [<Badge color="orange">Mentett</Badge>, '3 nap'],
+                                    [<Badge color="purple">Kiejtés</Badge>, '7 nap'],
+                                    [<Badge color="green">Tudom</Badge>,    '14 nap'],
+                                ]}
+                            />
+                        </Sub>
+
+                        <Sub title="Hogyan működik?">
+                            <Steps items={[
+                                'Nyisd meg a Szóismétlés oldalt — látod, mennyi szó esedékes státuszok szerint.',
+                                'Kattints a "Kezdés" gombra — legfeljebb 50 szó kerül be egy munkamenetbe.',
+                                'Megjelenik a szó angolul, és négy magyar fordítás közül kell a helyeset választani.',
+                                'Helyes válasz esetén a szó megkapja a mai dátumot, és az intervallum újraindul.',
+                                'A munkamenet végén látod az eredményedet és az elrontott szavakat.',
+                            ]} />
+                            <InfoBox type="tip">
+                                A szóismétlés nem befolyásolja a flashcard SRS állapotát — a két rendszer egymástól
+                                függetlenül működik, de egymást kiegészítve erőteljesebb bevésést adnak.
+                            </InfoBox>
+                        </Sub>
+                    </Section>
+
                     {/* ── Flashcards ── */}
                     <Section id="flashcards" title="Flashcards" icon={Brain}>
                         <P>
@@ -309,12 +352,16 @@ export default function Guide() {
                             minden kártya két oldalból áll, és az SRS algoritmus automatikusan ütemezi az ismétléseket.
                         </P>
 
-                        <Sub title="Deck létrehozása">
+                        <Sub title="Deck létrehozása és mappák">
                             <Steps items={[
                                 'A Flashcards főoldalán kattints az "Új deck" gombra.',
                                 'Adj meg nevet (kötelező) és opcionálisan leírást.',
                                 'Hozzárendelheted egy mappához is — ez segít az átláthatóságban, ha sok decked van.',
                             ]} />
+                            <P>
+                                A mappákat a <strong>"Mappák kezelése"</strong> gombbal kezelheted (átnevezés, törlés, új mappa).
+                                Egy deck több mappához is rendelhető — a kártyákon a mappa ikon jelzi ezt.
+                            </P>
                         </Sub>
 
                         <Sub title="Kártyák hozzáadása">
@@ -360,6 +407,43 @@ export default function Guide() {
                                 Írd be az angol szót az előlapra, majd kattints a lila "Generálás" gombra.
                                 A Gemini AI kitölti a hátlapot (magyar fordítás, példamondat) — az előlap
                                 változatlan marad, így a saját szövegedet nem írja felül. Prémium funkció.
+                            </P>
+                        </Sub>
+
+                        <Sub title="Egyedi kártya-műveletek">
+                            <P>Minden kártya sorában (deck nézetben) elérhető néhány gyorsművelet:</P>
+                            <Table
+                                headers={['Művelet', 'Mit csinál?']}
+                                rows={[
+                                    ['Másolás', 'Készít egy azonos tartalmú kártyát ugyanabban a deckben'],
+                                    ['Áthelyezés', 'Átmozgatja a kártyát egy másik deckbe'],
+                                    ['Haladás törlése', 'Az SRS állapotot nullázza — a kártya újként kerül a sorba'],
+                                ]}
+                            />
+                        </Sub>
+
+                        <Sub title={<span className="flex items-center gap-2">Tömeges műveletek <ListChecks className="size-4 text-muted-foreground" /></span> as unknown as string}>
+                            <P>
+                                A deck kártyalistájában a bal oldali jelölőnégyzetekkel több kártyát is kijelölhetsz egyszerre
+                                (vagy az "összes kijelölése" gombbal mindegyiket). A megjelenő műveletsávban:
+                            </P>
+                            <Table
+                                headers={['Művelet', 'Magyarázat']}
+                                rows={[
+                                    ['Törlés', 'A kijelölt kártyák végleg törlődnek'],
+                                    ['Irány módosítása', 'Egyszerre állítod front→back / back→front / mindkét irányra'],
+                                    ['Megfordítás', 'Az előlap és hátlap tartalma felcserélődik minden kijelölt kártyán'],
+                                    ['Áthelyezés', 'A kijelölt kártyák egy másik deckbe kerülnek'],
+                                    ['Haladás törlése', 'Minden kijelölt kártya SRS állapota nullázódik'],
+                                ]}
+                            />
+                        </Sub>
+
+                        <Sub title="CSV export">
+                            <P>
+                                A deck oldalán a <strong>"CSV export"</strong> gombbal letöltheted az összes kártyát
+                                CSV formátumban. Az első oszlop az előlap, a második a hátlap — kompatibilis
+                                az Anki importálási formátumával.
                             </P>
                         </Sub>
 
@@ -608,6 +692,38 @@ export default function Guide() {
                         ]} />
                     </Section>
 
+                    {/* ── Szabad írás ── */}
+                    <Section id="szabad-iras" title="Szabad írás" icon={NotebookPen}>
+                        <P>
+                            A szabad írás gyakorlóban angol szöveget írhatsz szabadon, miközben az AI ellenőrzi,
+                            hogy a megadott célszavakat helyesen és természetesen használtad-e,
+                            és visszajelzést ad a grammatikáról is.
+                        </P>
+                        <Sub title="Hogyan működik?">
+                            <Steps items={[
+                                'Adj hozzá célszavakat (max. 10) a szólistádból kereséssel, vagy gépeld be kézzel.',
+                                'Írj szabadon angol szöveget — próbáld természetesen beépíteni a célszavakat.',
+                                'Kattints az „Ellenőrzés" gombra — az AI feldolgozza a szöveget.',
+                                'Minden célszónál látod, hogy helyesen használtad-e, és miért.',
+                            ]} />
+                        </Sub>
+                        <Sub title="Mit kapsz vissza?">
+                            <Ul items={[
+                                'Szavanként: helyes / helytelen / nem használt jelzés, magyarázattal',
+                                'Grammatikai megjegyzések: szintaktikai vagy idiomatikus hibák listája',
+                                'Javított változat: az AI átírja a szöveget, ha volt hiba',
+                                'Összefoglaló értékelés magyarul a teljes szövegről',
+                            ]} />
+                        </Sub>
+                        <Sub title="Tipp">
+                            <P>
+                                A szólistában a „Gyakorlásra" státuszú szavak automatikusan megjelennek a célszavak között —
+                                ezeket könnyedén hozzáadhatod egyetlen kattintással.
+                                A funkció AI-t (Claude) használ, ezért internet-kapcsolat szükséges.
+                            </P>
+                        </Sub>
+                    </Section>
+
                     {/* ── Rendhagyó igék ── */}
                     <Section id="irregular" title="Rendhagyó igék" icon={GitBranch}>
                         <P>
@@ -656,15 +772,18 @@ export default function Guide() {
                                 'Kész — a bővítmény automatikusan felismeri, hogy be vagy-e jelentkezve a TopWords-be.',
                             ]} />
                             <div className="mt-3">
-                                <a
-                                    href="https://chrome.google.com/webstore"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
-                                >
-                                    <Chrome className="size-4" />
-                                    Megnyitás Chrome Web Store-ban
-                                </a>
+                                <div className="relative inline-flex">
+                                    <span className="absolute inset-0 animate-ping rounded-lg bg-primary opacity-40 pointer-events-none" />
+                                    <a
+                                        href="https://chrome.google.com/webstore"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="relative inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+                                    >
+                                        <Chrome className="size-4" />
+                                        Megnyitás Chrome Web Store-ban
+                                    </a>
+                                </div>
                             </div>
                         </Sub>
 
@@ -681,9 +800,9 @@ export default function Guide() {
                             ]} />
                         </Sub>
 
-                        <Sub title="Alt+W keresőpaletta">
+                        <Sub title="Ctrl+Shift+F keresőpaletta">
                             <P>
-                                Az <kbd className="rounded border px-1.5 py-0.5 text-xs font-mono">Alt+W</kbd> billentyűkombinációval
+                                A <kbd className="rounded border px-1.5 py-0.5 text-xs font-mono">Ctrl+Shift+F</kbd> (Mac: <kbd className="rounded border px-1.5 py-0.5 text-xs font-mono">Cmd+Shift+F</kbd>) billentyűkombinációval
                                 bármikor megnyílik egy gyors keresőablak.
                             </P>
                             <Ul items={[
@@ -693,7 +812,7 @@ export default function Guide() {
                                 'Státuszokat közvetlenül innen is kezelhetsz',
                             ]} />
                             <InfoBox type="tip">
-                                Ha egy szót kijelölsz az oldalon, majd megnyomod az Alt+W-t, a keresőbe
+                                Ha egy szót kijelölsz az oldalon, majd megnyomod a Ctrl+Shift+F-et, a keresőbe
                                 automatikusan bekerül a kijelölt szó.
                             </InfoBox>
                         </Sub>
@@ -730,6 +849,7 @@ export default function Guide() {
                     </Section>
 
                 </div>
+            </div>
             </div>
         </>
     );

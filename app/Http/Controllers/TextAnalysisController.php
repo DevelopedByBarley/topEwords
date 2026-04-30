@@ -1098,7 +1098,7 @@ You are a Hungarian-English dictionary assistant. For the English word "{$word}"
 - verb_present_participle: present participle (-ing) if verb, else empty string
 - verb_third_person: third person singular if verb, else empty string
 - is_irregular: true if irregular verb, else false
-- noun_plural: plural form if noun, else empty string
+- noun_plural: correct standard plural form if noun and one genuinely exists (e.g. "book" → "books", "peppermint" → "peppermints"); empty string only if the noun is truly uncountable with no accepted plural
 - adj_comparative: comparative if adjective, else empty string
 - adj_superlative: superlative if adjective, else empty string
 {$contextBlock}

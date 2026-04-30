@@ -12,19 +12,13 @@ export default function OnboardingTour() {
             return;
         }
 
-        const driverObj = driver({
-            showProgress: true,
-            progressText: '{{current}} / {{total}}',
-            nextBtnText: 'Következő →',
-            prevBtnText: '← Vissza',
-            doneBtnText: 'Kész!',
-            steps: [
+        const allSteps = [
                 {
                     element: '#tour-dashboard',
                     popover: {
                         title: '🏠 Dashboard',
                         description:
-                            'A főoldalon látod a napi haladásodat: szóstatisztikák, streak, és gyors hozzáférés a főbb funkciókhoz.',
+                            'A főoldalon egy pillantásra látod a teljes haladásodat: hány szót ismersz, hány van folyamatban, mennyi az aktuális streak, és mikor volt az utolsó tanulás. Innen gyorsan eléred a legfontosabb funkciókat.',
                         side: 'right',
                         align: 'start',
                     },
@@ -34,27 +28,7 @@ export default function OnboardingTour() {
                     popover: {
                         title: '📚 Angol szavak',
                         description:
-                            'Itt találod az összes szót a szótárban. Szűrhetsz szintekre, státuszra, mappákra. Minden szóhoz be tudod állítani, hogy ismered-e, tanulod, vagy ismeretlen.',
-                        side: 'right',
-                        align: 'start',
-                    },
-                },
-                {
-                    element: '#tour-quiz',
-                    popover: {
-                        title: '⚔️ Kvíz',
-                        description:
-                            'Teszteld le a szókincsed! A kvíz véletlenszerűen választ szavakat, és magyar-angol fordítást kér. Mentsd el az eredményt a statisztikákhoz.',
-                        side: 'right',
-                        align: 'start',
-                    },
-                },
-                {
-                    element: '#tour-cloze',
-                    popover: {
-                        title: '✏️ Mondatkiegészítés',
-                        description:
-                            'Valós példamondatokban kell kitalálni a hiányzó szót. Ez az egyik legjobb módja az összefüggésben való tanulásnak.',
+                            'A szótárban böngészheted az összes angol szót szint, státusz és mappa szerint szűrve. Minden szóhoz beállíthatod az állapotát (Ismeretlen / Tanulom / Mentett / Kiejtés / Tudom), mappákba rendezheted őket, és AI-segítséggel generálhatsz példamondatokat vagy kiejtést. Tömegesen is módosíthatod a státuszokat, exportálhatsz CSV-be, és törölhetsz szavakat.',
                         side: 'right',
                         align: 'start',
                     },
@@ -64,7 +38,7 @@ export default function OnboardingTour() {
                     popover: {
                         title: '🃏 Flashcards',
                         description:
-                            'Hozz létre saját flashcard paklikat! Gazdag formázással, képekkel, hanganyaggal. Az okos ismétlési rendszer (SRS) automatikusan ütemezi a kártyák ismétlését.',
+                            'Hozz létre saját flashcard paklikat tetszőleges témában. Minden kártyán gazdag szövegszerkesztő áll rendelkezésre: formázás, képek, listák. Az okos ismétlési rendszer (SRS) automatikusan ütemezi, mikor kerüljön ismét elő egy kártya a teljesítményed alapján. A paklikat mappákba rendezheted, és egyenként is szerkesztheted vagy törölheted a kártyákat.',
                         side: 'right',
                         align: 'start',
                     },
@@ -74,7 +48,37 @@ export default function OnboardingTour() {
                     popover: {
                         title: '🔍 Szövegelemzés',
                         description:
-                            'Tölts fel könyvet vagy illessz be szöveget, és az alkalmazás megmutatja, melyik szavakat ismered már és melyeket nem. Közvetlenül innen adhatsz hozzá szavakat a szótárhoz.',
+                            'Illessz be bármilyen angol szöveget vagy tölts fel fájlt, és az alkalmazás azonnal megmutatja, melyik szavakat ismered már és melyeket nem. Az ismeretlen szavakra kattintva egyből hozzáadhatod őket a szótárhoz a megfelelő státusszal. Kiváló módszer könyvek, cikkek vagy dalszövegek feldolgozásához.',
+                        side: 'right',
+                        align: 'start',
+                    },
+                },
+                {
+                    element: '#tour-review',
+                    popover: {
+                        title: '🔄 Szóismétlés',
+                        description:
+                            'A megjelölt szavakat az alkalmazás automatikusan ismételteti a státuszuk alapján beállított időközönként: Tanulom = naponta, Mentett = 3 naponta, Kiejtés = hetente, Tudom = 2 hetente. Minden körben 4 lehetséges válasz közül kell kiválasztani a helyeset. Az ismétlés végén összefoglalót kapsz az eredményekről.',
+                        side: 'right',
+                        align: 'start',
+                    },
+                },
+                {
+                    element: '#tour-quiz',
+                    popover: {
+                        title: '⚔️ Kvíz',
+                        description:
+                            'Teszteld le a szókincsed szabadon! A kvíz véletlenszerűen választ szavakat az általad megadott szintekről és státuszokból, majd feleletválasztós kérdéseket tesz fel magyar–angol és angol–magyar irányban egyaránt. A végén elmentheted az eredményt a statisztikáidhoz.',
+                        side: 'right',
+                        align: 'start',
+                    },
+                },
+                {
+                    element: '#tour-cloze',
+                    popover: {
+                        title: '✏️ Mondatkiegészítés',
+                        description:
+                            'Valós példamondatokban kell beírni a hiányzó szót. A kontextusból kell kitalálni a helyes választ – ez az egyik leghatékonyabb módszer arra, hogy a szavak valóban bevésődjenek. A feladatok az általad tanuló szavakból generálódnak.',
                         side: 'right',
                         align: 'start',
                     },
@@ -84,7 +88,17 @@ export default function OnboardingTour() {
                     popover: {
                         title: '🔀 Rendhagyó igék',
                         description:
-                            'Gyakorold a leggyakoribb rendhagyó igék három alakját (infinitive → past simple → past participle) interaktív kvízzel.',
+                            'Gyakorold a leggyakoribb angol rendhagyó igék mindhárom alakját: infinitive → past simple → past participle. Az interaktív kvíz véletlenszerű sorrendben kérdez, és azonnal visszajelzést ad. Szűrhetsz nehézségi szint szerint is.',
+                        side: 'right',
+                        align: 'start',
+                    },
+                },
+                {
+                    element: '#tour-practice',
+                    popover: {
+                        title: '✍️ Szabad írás',
+                        description:
+                            'Adj meg célszavakat, írj szabadon angolul, majd az AI ellenőrzi, hogy helyesen és természetesen használtad-e őket. Visszajelzést kapsz szavanként és a teljes szöveg grammatikájáról is, sőt javított változatot is mutat.',
                         side: 'right',
                         align: 'start',
                     },
@@ -94,7 +108,7 @@ export default function OnboardingTour() {
                     popover: {
                         title: '🏅 Teljesítmények',
                         description:
-                            'Gyűjts érmeket és kövesd a haladásodat! A teljesítmények motiválnak és jelzik, hogy mennyit fejlődtél.',
+                            'Gyűjts érmeket a tanulásért! Teljesítményeket kaphatsz szókincsed növeléséért, streak megőrzéséért, kvíz eredményekért és sok minden másért. A teljesítmények motiválnak és megmutatják, mennyit fejlődtél az idő során.',
                         side: 'right',
                         align: 'start',
                     },
@@ -103,10 +117,22 @@ export default function OnboardingTour() {
                     popover: {
                         title: '🌐 Chrome bővítmény',
                         description:
-                            'Telepítsd a Chrome bővítményt, és bármely weboldalon rámutatva egy szóra azonnal megjelenik a fordítása és a státusza. Egyenesen a böngészőből adhatsz hozzá szavakat a szótárhoz!',
+                            'Telepítsd a Chrome bővítményt, és bármely weboldalon egyetlen kattintással vagy a Ctrl+Shift+F (Mac: ⌘⇧F) gyorsbillentyűvel kereshetsz szavakat. Azonnal látod a fordítást, a státuszt, és közvetlenül a böngészőből adhatod hozzá a szót a szótárhoz. Tökéletes olvasáshoz és böngészés közbeni tanuláshoz!',
                     },
                 },
-            ],
+        ];
+
+        const steps = allSteps.filter(
+            (step) => !('element' in step) || !!document.querySelector(step.element as string),
+        );
+
+        const driverObj = driver({
+            showProgress: true,
+            progressText: '{{current}} / {{total}}',
+            nextBtnText: 'Következő →',
+            prevBtnText: '← Vissza',
+            doneBtnText: 'Kész!',
+            steps,
         });
 
         driverObj.drive();
