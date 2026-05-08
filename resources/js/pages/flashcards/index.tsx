@@ -46,7 +46,7 @@ export default function FlashcardsIndex({
     decks: Deck[];
     folders: Folder[];
     deckFolderIds: Record<number, number[]>;
-    dueCounts: Record<number, number>;
+    dueCounts: Record<number, number> | undefined;
 }) {
     const [activeFolderId, setActiveFolderId] = useState<number | null>(() => {
         if (typeof window === 'undefined') return null;
@@ -159,7 +159,7 @@ export default function FlashcardsIndex({
                 </Link>
 
                 <div className="flex items-center gap-1.5 border-t bg-muted/30 px-3 py-2.5">
-                    {(dueCounts[deck.id] ?? 0) > 0 ? (
+                    {(dueCounts?.[deck.id] ?? 0) > 0 ? (
                         <Link
                             href={study({ deck: deck.id })}
                             className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90"

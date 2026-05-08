@@ -735,7 +735,7 @@ Return ONLY valid JSON with this exact structure:
 Rules:
 - Generate 4 cloze sentences covering diverse registers: everyday, formal, academic/professional, and written/literary. Each sentence should show the word in a clearly different context.
 - hints: each hint must reflect the meaning of the word specifically in THAT sentence's context, not just a generic synonym. For example, "bear" in "bear the cost" → hints: ["visel", "fizet"], not generic ["medve", "elvisel"].
-- answer_options: 4-6 Hungarian translations/synonyms, STRICTLY ORDERED from most frequently used in everyday Hungarian to least common. The first item must be the single most natural Hungarian equivalent a native speaker would use by default.
+- answer_options: exactly 3 core Hungarian translations, no more. Identify the word's PRIMARY grammatical role in everyday English (verb/noun/adj/etc.). List the 2-3 most frequent translations for THAT primary role first. If and only if the word has a single very well-known meaning in a DIFFERENT part of speech, add just ONE entry for it at the end. Hard rules: (a) maximum ONE entry per secondary part of speech — if "bátorság" is secondary, do NOT also add "kitartás"; (b) no near-duplicates — "tép" covers "kitép/letép/tépi le", pick only the bare, most natural form; (c) first item = most natural default translation. Example — "pluck" is primarily a VERB, so correct output is ["tép", "leszakít", "bátorság"], NOT ["bátorság", "kitartás", "penget"].
 - negative_meaning_hu: 3 Hungarian antonym translations that are true semantic opposites in meaning, not just grammatical negations.
 - collocations: 4-5 common phrases/patterns using the word, ordered by frequency of use in English (most common first). Only include collocations that genuinely exist and are widely used.
 - word_forms: only include forms that actually exist as real, established English words (set null for non-existent or rarely used forms — do not invent forms).
@@ -745,9 +745,9 @@ PROMPT;
         try {
             $response = Http::timeout(20)
                 ->withHeaders(['Content-Type' => 'application/json'])
-                ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key={$apiKey}", [
+                ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={$apiKey}", [
                     'contents' => [['parts' => [['text' => $prompt]]]],
-                    'generationConfig' => ['temperature' => 0.3, 'maxOutputTokens' => 800],
+                    'generationConfig' => ['temperature' => 0.3, 'maxOutputTokens' => 800, 'thinkingConfig' => ['thinkingBudget' => 0]],
                 ]);
         } catch (\Exception $e) {
             return response()->json(['error' => 'Kapcsolódási hiba: '.$e->getMessage()], 502);
@@ -757,7 +757,8 @@ PROMPT;
             return response()->json(['error' => 'Gemini API hiba ('.$response->status().')'], 502);
         }
 
-        $text = $response->json('candidates.0.content.parts.0.text') ?? '';
+        $parts = $response->json('candidates.0.content.parts') ?? [];
+        $text = collect($parts)->firstWhere(fn ($p) => empty($p['thought']))['text'] ?? '';
         $text = preg_replace('/^```json\s*|\s*```$/s', '', trim($text));
         $data = json_decode($text, true);
 
