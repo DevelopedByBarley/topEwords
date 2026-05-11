@@ -6,6 +6,7 @@ use App\Models\UserCustomWord;
 use App\Models\Word;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 
 class ExtensionController extends Controller
@@ -24,11 +25,19 @@ class ExtensionController extends Controller
             return response()->json(['found' => false, 'word' => $word]);
         }
 
-        // Try exact match first, then case-insensitive
-        $match = Word::where('word', $word)
-            ->orWhere('word', strtolower($word))
-            ->orWhere('word', ucfirst(strtolower($word)))
-            ->first(['id', 'word', 'meaning_hu', 'extra_meanings', 'part_of_speech', 'rank']);
+        $lower = strtolower($word);
+
+        $match = Word::where(function ($q) use ($lower) {
+            $q->whereRaw('LOWER(word) = ?', [$lower])
+                ->orWhereRaw('LOWER(form_base) = ?', [$lower])
+                ->orWhereRaw('LOWER(verb_past) = ?', [$lower])
+                ->orWhereRaw('LOWER(verb_past_participle) = ?', [$lower])
+                ->orWhereRaw('LOWER(verb_present_participle) = ?', [$lower])
+                ->orWhereRaw('LOWER(verb_third_person) = ?', [$lower])
+                ->orWhereRaw('LOWER(noun_plural) = ?', [$lower])
+                ->orWhereRaw('LOWER(adj_comparative) = ?', [$lower])
+                ->orWhereRaw('LOWER(adj_superlative) = ?', [$lower]);
+        })->first(['id', 'word', 'meaning_hu', 'extra_meanings', 'part_of_speech', 'rank']);
 
         if ($match) {
             $status = $request->user()->knownWords()
@@ -51,12 +60,18 @@ class ExtensionController extends Controller
             ]);
         }
 
-        // Try custom words
+        // Try custom words (all forms)
         $custom = UserCustomWord::where('user_id', $request->user()->id)
-            ->where('word', $word)
-            ->orWhere(function ($q) use ($word, $request) {
-                $q->where('user_id', $request->user()->id)
-                    ->where('word', strtolower($word));
+            ->where(function ($q) use ($lower) {
+                $q->whereRaw('LOWER(word) = ?', [$lower])
+                    ->orWhereRaw('LOWER(form_base) = ?', [$lower])
+                    ->orWhereRaw('LOWER(verb_past) = ?', [$lower])
+                    ->orWhereRaw('LOWER(verb_past_participle) = ?', [$lower])
+                    ->orWhereRaw('LOWER(verb_present_participle) = ?', [$lower])
+                    ->orWhereRaw('LOWER(verb_third_person) = ?', [$lower])
+                    ->orWhereRaw('LOWER(noun_plural) = ?', [$lower])
+                    ->orWhereRaw('LOWER(adj_comparative) = ?', [$lower])
+                    ->orWhereRaw('LOWER(adj_superlative) = ?', [$lower]);
             })
             ->first(['id', 'word', 'meaning_hu', 'extra_meanings', 'part_of_speech', 'status']);
 
@@ -132,7 +147,7 @@ class ExtensionController extends Controller
 
         $userId = $request->user()->id;
 
-        $wordStatuses = \DB::table('user_word')
+        $wordStatuses = DB::table('user_word')
             ->join('words', 'words.id', '=', 'user_word.word_id')
             ->where('user_word.user_id', $userId)
             ->whereNotNull('user_word.status')
@@ -155,7 +170,7 @@ class ExtensionController extends Controller
             return response()->json(['count' => 0]);
         }
 
-        $count = \DB::table('user_word')
+        $count = DB::table('user_word')
             ->where('user_id', $request->user()->id)
             ->where('status', 'learning')
             ->count();
@@ -182,14 +197,26 @@ class ExtensionController extends Controller
         $hasActiveAccess = $request->user()->hasActiveAccess();
         $userId = $request->user()->id;
 
+        $lower = strtolower($q);
+
         $words = Word::where('word', 'LIKE', $q.'%')
+            ->orWhere(function ($query) use ($lower) {
+                $query->whereRaw('LOWER(form_base) = ?', [$lower])
+                    ->orWhereRaw('LOWER(verb_past) = ?', [$lower])
+                    ->orWhereRaw('LOWER(verb_past_participle) = ?', [$lower])
+                    ->orWhereRaw('LOWER(verb_present_participle) = ?', [$lower])
+                    ->orWhereRaw('LOWER(verb_third_person) = ?', [$lower])
+                    ->orWhereRaw('LOWER(noun_plural) = ?', [$lower])
+                    ->orWhereRaw('LOWER(adj_comparative) = ?', [$lower])
+                    ->orWhereRaw('LOWER(adj_superlative) = ?', [$lower]);
+            })
             ->orderBy('rank')
             ->limit(10)
             ->get(['id', 'word', 'meaning_hu', 'extra_meanings', 'part_of_speech', 'rank']);
 
         $wordIds = $words->pluck('id');
 
-        $statuses = \DB::table('user_word')
+        $statuses = DB::table('user_word')
             ->where('user_id', $userId)
             ->whereIn('word_id', $wordIds)
             ->pluck('status', 'word_id');
@@ -206,7 +233,17 @@ class ExtensionController extends Controller
         ]);
 
         $customs = UserCustomWord::where('user_id', $userId)
-            ->where('word', 'LIKE', $q.'%')
+            ->where(function ($q2) use ($q, $lower) {
+                $q2->where('word', 'LIKE', $q.'%')
+                    ->orWhereRaw('LOWER(form_base) = ?', [$lower])
+                    ->orWhereRaw('LOWER(verb_past) = ?', [$lower])
+                    ->orWhereRaw('LOWER(verb_past_participle) = ?', [$lower])
+                    ->orWhereRaw('LOWER(verb_present_participle) = ?', [$lower])
+                    ->orWhereRaw('LOWER(verb_third_person) = ?', [$lower])
+                    ->orWhereRaw('LOWER(noun_plural) = ?', [$lower])
+                    ->orWhereRaw('LOWER(adj_comparative) = ?', [$lower])
+                    ->orWhereRaw('LOWER(adj_superlative) = ?', [$lower]);
+            })
             ->limit(5)
             ->get(['id', 'word', 'meaning_hu', 'extra_meanings', 'part_of_speech', 'status']);
 

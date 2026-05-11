@@ -146,6 +146,11 @@ class FlashcardDeckController extends Controller
             }),
             'newDueCount' => $newDueCount,
             'reviewDueCount' => $reviewDueCount,
+            'nextDueAt' => DB::table('flashcard_reviews')
+                ->join('flashcards', 'flashcards.id', '=', 'flashcard_reviews.flashcard_id')
+                ->where('flashcards.deck_id', $deck->id)
+                ->where('flashcard_reviews.due_at', '>', now())
+                ->min('flashcard_reviews.due_at'),
             'uncalibratedCount' => (function () use ($deck) {
                 $activeStates = ['learning', 'review', 'relearning'];
                 $cards = $deck->flashcards()

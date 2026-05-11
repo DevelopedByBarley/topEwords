@@ -414,10 +414,10 @@ const STATE_COLORS: Record<string, string> = {
     relearning: 'text-orange-500',
 };
 
-function formatDue(dueAt: string | null, state: string): string {
+function formatDue(dueAt: string | null, state: string, now: number): string {
     if (state === 'new' || dueAt === null) return 'most esedékes';
 
-    const diff = Math.round((new Date(dueAt).getTime() - Date.now()) / 1000);
+    const diff = Math.round((new Date(dueAt).getTime() - now) / 1000);
 
     if (diff <= 0) return 'most esedékes';
     if (diff < 60) return `${diff} mp múlva`;
@@ -427,7 +427,7 @@ function formatDue(dueAt: string | null, state: string): string {
     return `${days} nap múlva`;
 }
 
-function CardRow({ card, deck, otherDecks, onEdit, onPreview, onPractice, selected, onSelect }: {
+function CardRow({ card, deck, otherDecks, onEdit, onPreview, onPractice, selected, onSelect, now }: {
     card: Flashcard;
     deck: Deck;
     otherDecks: OtherDeck[];
@@ -436,6 +436,7 @@ function CardRow({ card, deck, otherDecks, onEdit, onPreview, onPractice, select
     onPractice?: (card: Flashcard) => void;
     selected: boolean;
     onSelect: (id: number, checked: boolean) => void;
+    now: number;
 }) {
     return (
         <div
@@ -476,7 +477,7 @@ function CardRow({ card, deck, otherDecks, onEdit, onPreview, onPractice, select
                                 {STATE_LABELS[card.review.state]}
                             </span>
                             <span className={`text-xs ${STATE_COLORS[card.review.state]} opacity-70`}>
-                                {formatDue(card.review.due_at, card.review.state)}
+                                {formatDue(card.review.due_at, card.review.state, now)}
                             </span>
                         </>
                     ) : (
@@ -602,10 +603,11 @@ function CardRow({ card, deck, otherDecks, onEdit, onPreview, onPractice, select
     );
 }
 
-function CardPreviewDialog({ card, onClose, onEdit }: {
+function CardPreviewDialog({ card, onClose, onEdit, now }: {
     card: Flashcard;
     onClose: () => void;
     onEdit: () => void;
+    now: number;
 }) {
     return (
         <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
@@ -1158,6 +1160,7 @@ export default function FlashcardShow({
     uncalibratedCount,
     deckSettings,
     otherDecks,
+    nextDueAt,
 }: {
     deck: Deck;
     flashcards: Flashcard[] | undefined;
@@ -1166,6 +1169,7 @@ export default function FlashcardShow({
     uncalibratedCount: number;
     deckSettings: DeckSettings;
     otherDecks: OtherDeck[];
+    nextDueAt: string | null;
 }) {
     const { flash, auth } = usePage<{ flash: { success?: string | null; calibrationPrompt?: number | null; importedCardId?: number | null }; auth: { isAdmin: boolean } }>().props as any;
     const isAdmin: boolean = (auth as any)?.isAdmin ?? false;
@@ -1232,6 +1236,29 @@ export default function FlashcardShow({
             setEditingCard(card);
         }
     }, [flash?.importedCardId, flashcards]);
+    const [now, setNow] = useState(() => Date.now());
+    const [secondsUntilDue, setSecondsUntilDue] = useState<number | null>(() => {
+        if (!nextDueAt) return null;
+        return Math.max(0, Math.round((new Date(nextDueAt).getTime() - Date.now()) / 1000));
+    });
+
+    useEffect(() => {
+        const tick = () => {
+            const ts = Date.now();
+            setNow(ts);
+            if (!nextDueAt) return;
+            const remaining = Math.round((new Date(nextDueAt).getTime() - ts) / 1000);
+            if (remaining <= 0) {
+                setSecondsUntilDue(0);
+                router.reload({ only: ['newDueCount', 'reviewDueCount', 'nextDueAt'] });
+            } else {
+                setSecondsUntilDue(remaining);
+            }
+        };
+        const id = setInterval(tick, 5000);
+        return () => clearInterval(id);
+    }, [nextDueAt]);
+
     const [showSettings, setShowSettings] = useState(false);
     const [search, setSearch] = useState('');
     const [stateFilter, setStateFilter] = useState('');
@@ -1337,6 +1364,9 @@ export default function FlashcardShow({
                 {/* Study banner */}
                 {(flashcards?.length ?? 0) > 0 && (() => {
                     const dueCount = newDueCount + reviewDueCount;
+                    const hasCountdown = dueCount === 0 && secondsUntilDue !== null && secondsUntilDue > 0;
+                    const mins = hasCountdown ? Math.floor(secondsUntilDue! / 60) : 0;
+                    const secs = hasCountdown ? secondsUntilDue! % 60 : 0;
                     return (
                         <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border px-4 py-4 sm:px-5 ${dueCount > 0 ? 'border-primary/30 bg-primary/5' : 'bg-muted/40'}`}>
                             <div>
@@ -1349,6 +1379,17 @@ export default function FlashcardShow({
                                             <span className="text-muted-foreground ml-1.5">esedékes</span>
                                         </p>
                                         <p className="text-xs text-muted-foreground mt-0.5">Folytathatod a tanulást!</p>
+                                    </>
+                                ) : hasCountdown ? (
+                                    <>
+                                        <p className="font-semibold text-sm text-muted-foreground">
+                                            Következő kártya{' '}
+                                            <span className="tabular-nums text-foreground">
+                                                {mins > 0 ? `${mins}p ` : ''}{String(secs).padStart(2, '0')}mp
+                                            </span>{' '}
+                                            múlva esedékes
+                                        </p>
+                                        <p className="text-xs text-muted-foreground mt-0.5">A gomb automatikusan aktiválódik.</p>
                                     </>
                                 ) : (
                                     <>
@@ -1594,6 +1635,7 @@ export default function FlashcardShow({
                                         onPractice={isAdmin ? openPracticeModal : undefined}
                                         selected={selectedIds.has(card.id)}
                                         onSelect={handleSelect}
+                                        now={now}
                                     />
                             </div>
                         ))}
@@ -1618,6 +1660,7 @@ export default function FlashcardShow({
                     card={previewCard}
                     onClose={() => setPreviewCard(null)}
                     onEdit={() => { setEditingCard(previewCard); setShowNewForm(false); }}
+                    now={now}
                 />
             )}
 

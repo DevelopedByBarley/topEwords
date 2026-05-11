@@ -292,13 +292,18 @@ function positionHost(el, rect) {
     const scrollX = window.scrollX;
     const scrollY = window.scrollY;
     const viewportW = window.innerWidth;
+    const viewportH = window.innerHeight;
+    const popupH = 200;
 
     let left = rect.left + scrollX;
-    let top = rect.bottom + scrollY + 8;
-
     if (left + 275 > viewportW + scrollX) {
         left = Math.max(0, viewportW + scrollX - 275);
     }
+
+    const spaceBelow = viewportH - rect.bottom;
+    const top = spaceBelow >= popupH || rect.top < popupH
+        ? rect.bottom + scrollY + 8
+        : rect.top + scrollY - popupH - 16;
 
     el.style.left = `${left}px`;
     el.style.top = `${top}px`;
@@ -1366,5 +1371,164 @@ function sendMsg(msg, callback) {
         });
     } catch (_) {
         callback?.({ error: 'network' });
+    }
+}
+
+// ── YouTube Subtitle Integration ──────────────────────────────────────────────
+
+let ytStatusMap = null;
+let ytObserver = null;
+let ytBarHost = null;
+
+function isYouTubePage() {
+    return location.hostname === 'www.youtube.com' && location.pathname === '/watch';
+}
+
+function injectYtBar() {
+    if (ytBarHost) { return; }
+
+    const player = document.querySelector('#movie_player');
+    if (!player) { return; }
+
+    ytBarHost = document.createElement('div');
+    ytBarHost.id = 'tw-yt-bar-host';
+    Object.assign(ytBarHost.style, {
+        position: 'absolute',
+        bottom: '60px',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        zIndex: '2147483646',
+        pointerEvents: 'none',
+        width: 'max-content',
+        maxWidth: '90%',
+    });
+
+    const shadow = ytBarHost.attachShadow({ mode: 'open' });
+    shadow.innerHTML = `
+        <style>
+            #bar {
+                background: rgba(8,8,8,0.85);
+                backdrop-filter: blur(4px);
+                border-radius: 6px;
+                padding: 8px 14px;
+                font-family: 'YouTube Noto', Roboto, Arial, sans-serif;
+                font-size: 20px;
+                line-height: 1.5;
+                color: #fff;
+                text-align: center;
+                word-break: break-word;
+                pointer-events: auto;
+                min-height: 2.2em;
+                transition: opacity 0.15s;
+            }
+            .tw-word {
+                cursor: pointer;
+                border-radius: 3px;
+                padding: 0 1px;
+                transition: opacity 0.1s;
+            }
+            .tw-word:hover { opacity: 0.8; }
+        </style>
+        <div id="bar"></div>
+    `;
+
+    shadow.getElementById('bar').addEventListener('click', (e) => {
+        const span = e.target.closest('.tw-word');
+        if (!span) { return; }
+        const word = span.dataset.ytWord?.replace(/^'|'$/g, '') ?? '';
+        if (!word) { return; }
+        const rect = span.getBoundingClientRect();
+        showPopup(word, rect);
+    });
+
+    player.appendChild(ytBarHost);
+}
+
+function renderYtBar(text) {
+    if (!ytBarHost) { return; }
+    const bar = ytBarHost.shadowRoot.getElementById('bar');
+    if (!bar) { return; }
+
+    if (!text.trim()) {
+        bar.innerHTML = '';
+        return;
+    }
+
+    const regex = /([a-zA-Z']+|[^a-zA-Z']+)/g;
+    let html = '';
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+        const token = match[0];
+        const clean = token.replace(/^'|'$/g, '');
+        const isWord = /^[a-zA-Z]/.test(clean) && clean.length > 0;
+        if (isWord) {
+            const status = ytStatusMap?.get(clean.toLowerCase());
+            const color = status ? STATUS_COLORS[status] : null;
+            const escaped = token.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const attr = token.replace(/"/g, '&quot;');
+            const style = color
+                ? `style="color:${color};text-shadow:0 0 8px ${color}66"`
+                : '';
+            html += `<span class="tw-word" data-yt-word="${attr}" ${style}>${escaped}</span>`;
+        } else {
+            html += esc(token);
+        }
+    }
+    bar.innerHTML = html;
+}
+
+function startYtObserver() {
+    if (ytObserver) { return; }
+
+    let lastText = '';
+
+    ytObserver = new MutationObserver(() => {
+        const segments = document.querySelectorAll('.ytp-caption-segment');
+        const text = Array.from(segments).map((s) => s.textContent).join(' ').trim();
+        if (text === lastText) { return; }
+        lastText = text;
+        renderYtBar(text);
+    });
+
+    const captionContainer = document.querySelector('#movie_player') ?? document.documentElement;
+    ytObserver.observe(captionContainer, { childList: true, subtree: true, characterData: true });
+}
+
+function destroyYtSubtitles() {
+    ytObserver?.disconnect();
+    ytObserver = null;
+    ytBarHost?.remove();
+    ytBarHost = null;
+    ytStatusMap = null;
+}
+
+function initYtSubtitles() {
+    if (!isYouTubePage()) { return; }
+    injectYtBar();
+    sendMsg({ type: 'GET_STATUSES' }, (resp) => {
+        if (!resp || resp.error || !resp.statuses) { return; }
+        ytStatusMap = new Map(Object.entries(resp.statuses).map(([w, s]) => [w.toLowerCase(), s]));
+        startYtObserver();
+    });
+}
+
+function handleYtNavigation() {
+    if (isYouTubePage()) {
+        setTimeout(initYtSubtitles, 1500);
+    } else {
+        destroyYtSubtitles();
+    }
+}
+
+if (location.hostname === 'www.youtube.com') {
+    window.addEventListener('yt-navigate-finish', handleYtNavigation);
+    window.addEventListener('popstate', handleYtNavigation);
+
+    if (isYouTubePage()) {
+        if (document.readyState === 'complete') {
+            initYtSubtitles();
+        } else {
+            window.addEventListener('load', initYtSubtitles, { once: true });
+        }
     }
 }
