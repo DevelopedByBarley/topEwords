@@ -1,6 +1,6 @@
 import { Head, usePage } from '@inertiajs/react';
 import { BookMarked, BookOpen, ChevronLeft, ChevronRight, CheckCheck, Clock, FileText, Globe, HelpCircle, History, Loader2, Mic, Plus, ScanText, Sparkles, Trash2, Upload, Volume2, X, Youtube } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -115,6 +115,15 @@ const EMPTY_CUSTOM_WORD_FORM: CustomWordForm = {
     verb_present_participle: '', verb_third_person: '', is_irregular: false,
     noun_plural: '', adj_comparative: '', adj_superlative: '',
 };
+
+function computeTokenFrequencies(text: string): Record<string, number> {
+    const frequencies: Record<string, number> = {};
+    for (const match of text.match(/[a-zA-Z]+/g) ?? []) {
+        const token = match.toLowerCase();
+        frequencies[token] = (frequencies[token] ?? 0) + 1;
+    }
+    return frequencies;
+}
 
 const EXAMPLE_TEXT = `The quick brown fox jumps over the lazy dog. Learning new words every day is one of the best investments you can make in your language skills. Reading books, articles, and other written materials helps you encounter words in context, which makes them much easier to remember.`;
 
@@ -506,18 +515,30 @@ export default function TextAnalysis() {
                 : `/custom-words/${lookupResult.id}/status`;
         const sameStatus = lookupStatus === newStatus;
         const nextStatus = sameStatus ? null : (newStatus as TokenStatus);
+        const prevStatus = lookupStatus;
 
-        // Update modal button highlight
         setLookupStatus(nextStatus);
 
-        // Update highlighted text colors in the result
         if (lookupWord) {
             const tokenStatus: TokenStatus = nextStatus ?? (lookupResult.type === 'word' ? 'in_list' : 'not_in_list');
+            const freq = tokenFrequencies[lookupWord] ?? 0;
             setResult((prev) => {
                 if (!prev) return prev;
+                let knownDelta = 0;
+                let learningDelta = 0;
+                if (prevStatus === 'known') knownDelta -= freq;
+                if (prevStatus === 'learning') learningDelta -= freq;
+                if (nextStatus === 'known') knownDelta += freq;
+                if (nextStatus === 'learning') learningDelta += freq;
+                const newKnownCount = prev.knownCount + knownDelta;
+                const newLearningCount = prev.learningCount + learningDelta;
+                const newComprehension = prev.totalWords > 0 ? Math.round((newKnownCount / prev.totalWords) * 100) : 0;
                 return {
                     ...prev,
                     tokenStatuses: { ...prev.tokenStatuses, [lookupWord]: tokenStatus },
+                    knownCount: newKnownCount,
+                    learningCount: newLearningCount,
+                    comprehension: newComprehension,
                 };
             });
         }
@@ -594,6 +615,7 @@ export default function TextAnalysis() {
     };
 
     const activeText = mode === 'text' ? text : (fetchedSource ?? '');
+    const tokenFrequencies = useMemo(() => (result ? computeTokenFrequencies(activeText) : {}), [result, activeText]);
 
     const comprehensionColor =
         !result ? ''

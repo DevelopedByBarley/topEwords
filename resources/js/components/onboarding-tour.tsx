@@ -53,17 +53,7 @@ export default function OnboardingTour() {
                         align: 'start',
                     },
                 },
-                {
-                    element: '#tour-review',
-                    popover: {
-                        title: '🔄 Szóismétlés',
-                        description:
-                            'A megjelölt szavakat az alkalmazás automatikusan ismételteti a státuszuk alapján beállított időközönként: Tanulom = naponta, Mentett = 3 naponta, Kiejtés = hetente, Tudom = 2 hetente. Minden körben 4 lehetséges válasz közül kell kiválasztani a helyeset. Az ismétlés végén összefoglalót kapsz az eredményekről.',
-                        side: 'right',
-                        align: 'start',
-                    },
-                },
-                {
+{
                     element: '#tour-quiz',
                     popover: {
                         title: '⚔️ Kvíz',

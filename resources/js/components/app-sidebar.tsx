@@ -1,5 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
-import { BookOpen, FolderOpen, Globe, LayoutGrid, Languages, Layers, Medal, NotebookPen, PenLine, Puzzle, RefreshCw, ScanText, Shuffle, Sparkles, Swords } from 'lucide-react';
+import { BookOpen, FolderOpen, Globe, LayoutGrid, Languages, Layers, Medal, NotebookPen, PenLine, Puzzle, ScanText, Shuffle, Sparkles, Swords } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
@@ -20,7 +20,6 @@ import { useCurrentUrl } from '@/hooks/use-current-url';
 import { dashboard } from '@/routes';
 import { index as achievementsIndex } from '@/routes/achievements';
 import { index as irregularVerbsIndex } from '@/routes/irregular-verbs';
-import { index as reviewIndex } from '@/routes/review';
 import { cloze as wordsCloze, practice as wordsPractice } from '@/routes/words';
 import { show as textAnalysisShow } from '@/routes/text-analysis';
 import { index as flashcardsIndex } from '@/routes/flashcards';
@@ -72,13 +71,7 @@ const navGroups: { label?: string; items: NavItem[] }[] = [
     {
         label: 'Gyakorlás',
         items: [
-            {
-                title: 'Szóismétlés',
-                href: reviewIndex().url,
-                icon: RefreshCw,
-                tourId: 'tour-review',
-            },
-            {
+{
                 title: 'Kvíz',
                 href: wordsQuiz(),
                 icon: Swords,
