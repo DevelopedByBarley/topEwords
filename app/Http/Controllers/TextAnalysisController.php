@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\User;
 use App\Models\UserBook;
 use App\Models\UserCustomWord;
 use App\Models\Word;
@@ -91,16 +92,22 @@ class TextAnalysisController extends Controller
 
     public function fetchSource(Request $request): JsonResponse
     {
-        $url = $request->validate(['url' => 'required|url|max:2000'])['url'];
+        $url = $request->validate(['url' => 'required|url:http,https|max:2000'])['url'];
 
         $videoId = $this->extractYouTubeId($url);
 
         try {
+            if ($videoId === null) {
+                $this->assertPublicHost($url);
+            }
+
             $text = $videoId !== null
                 ? $this->fetchYouTubeCaptions($videoId)
                 : $this->fetchWebpageText($url);
-        } catch (\Throwable $e) {
+        } catch (\RuntimeException $e) {
             return response()->json(['error' => $e->getMessage()], 422);
+        } catch (\Throwable) {
+            return response()->json(['error' => 'A forrás nem érhető el. Próbáld újra később.'], 422);
         }
 
         $text = mb_substr($text, 0, 15000);
@@ -108,8 +115,29 @@ class TextAnalysisController extends Controller
         return response()->json(['text' => $text]);
     }
 
+    /**
+     * Block requests to private/reserved IP ranges (SSRF guard).
+     */
+    private function assertPublicHost(string $url): void
+    {
+        $host = parse_url($url, PHP_URL_HOST);
+
+        if (! is_string($host) || $host === '') {
+            throw new \RuntimeException('Érvénytelen URL.');
+        }
+
+        $ip = filter_var($host, FILTER_VALIDATE_IP) ? $host : gethostbyname($host);
+
+        if (filter_var($ip, FILTER_VALIDATE_IP) &&
+            ! filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+            throw new \RuntimeException('Ez a cím nem érhető el.');
+        }
+    }
+
     public function analyze(Request $request): JsonResponse
     {
+        $text = $request->validate(['text' => 'required|string|max:15000'])['text'];
+
         $user = $request->user();
 
         if ($user->isOnFreePlan()) {
@@ -126,8 +154,6 @@ class TextAnalysisController extends Controller
 
             Cache::put($cacheKey, $dailyCount + 1, now()->endOfDay());
         }
-
-        $text = $request->validate(['text' => 'required|string|max:15000'])['text'];
 
         $tokens = $this->tokenize($text);
 
@@ -160,7 +186,6 @@ class TextAnalysisController extends Controller
             })
             ->get(['id', 'word', 'rank', 'meaning_hu', 'form_base', 'verb_past', 'verb_past_participle', 'verb_present_participle', 'verb_third_person', 'noun_plural', 'adj_comparative', 'adj_superlative']);
 
-        $user = $request->user();
         $userWordStatuses = $user->knownWords()
             ->whereIn('words.id', $words->pluck('id'))
             ->pluck('user_word.status', 'words.id')
@@ -671,14 +696,24 @@ class TextAnalysisController extends Controller
         return null;
     }
 
+    private const BOOK_STORAGE_LIMIT = 30 * 1024 * 1024;
+
+    private function bookLimitFor(User $user): int
+    {
+        return match (true) {
+            $user->subscribed('premium') || $user->ai_access => 5,
+            $user->subscribed('default') => 3,
+            default => 1,
+        };
+    }
+
     public function listBooks(Request $request): JsonResponse
     {
         $user = $request->user();
 
-        $books = $user
-            ->hasMany(UserBook::class, 'user_id')
+        $books = UserBook::where('user_id', $user->id)
             ->orderByDesc('created_at')
-            ->get(['id', 'title', 'file_type', 'total_pages', 'created_at'])
+            ->get(['id', 'title', 'file_type', 'total_pages'])
             ->map(fn ($b) => [
                 'id' => $b->id,
                 'title' => $b->title,
@@ -686,33 +721,34 @@ class TextAnalysisController extends Controller
                 'total_pages' => $b->total_pages,
             ]);
 
-        $bookLimit = match (true) {
-            $user->subscribed('premium') || $user->ai_access => 5,
-            $user->subscribed('default') => 3,
-            default => 1,
-        };
-
-        $usedStorage = UserBook::where('user_id', $user->id)->sum('text_size');
-
         return response()->json([
             'books' => $books,
-            'bookLimit' => $bookLimit,
-            'usedStorage' => $usedStorage,
-            'storageLimit' => 30 * 1024 * 1024,
+            'bookLimit' => $this->bookLimitFor($user),
+            'usedStorage' => UserBook::where('user_id', $user->id)->sum('text_size'),
+            'storageLimit' => self::BOOK_STORAGE_LIMIT,
         ]);
+    }
+
+    /**
+     * Csak valódi szóalak kerülhet az AI promptokba (prompt injection ellen):
+     * betűk, aposztróf, kötőjel, szóköz, max 100 karakter.
+     */
+    private function sanitizeWordForPrompt(string $word): ?string
+    {
+        return preg_match("/^[\pL][\pL'\\- ]{0,99}$/u", $word) === 1 ? $word : null;
     }
 
     public function geminiFlashcard(Request $request): JsonResponse
     {
-        abort_unless(Gate::check('admin') || request()->user()?->hasAiAccess(), 403);
+        abort_unless(Gate::check('admin') || $request->user()?->hasAiAccess(), 403);
 
-        $word = $request->string('word')->trim()->value();
+        $word = $this->sanitizeWordForPrompt($request->string('word')->trim()->value());
 
-        if (strlen($word) < 1) {
-            return response()->json(['error' => 'Hiányzó szó.'], 422);
+        if ($word === null) {
+            return response()->json(['error' => 'Érvénytelen szó.'], 422);
         }
 
-        $apiKey = env('GEMINI_API_KEY') ?: config('services.gemini.api_key');
+        $apiKey = config('services.gemini.api_key');
         $prompt = <<<PROMPT
 You are an English vocabulary flashcard generator for Hungarian learners. Generate rich flashcard content for the English word "{$word}".
 
@@ -742,25 +778,13 @@ Rules:
 - Respond ONLY with valid JSON, no markdown.
 PROMPT;
 
-        try {
-            $response = Http::timeout(20)
-                ->withHeaders(['Content-Type' => 'application/json'])
-                ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={$apiKey}", [
-                    'contents' => [['parts' => [['text' => $prompt]]]],
-                    'generationConfig' => ['temperature' => 0.3, 'maxOutputTokens' => 800, 'thinkingConfig' => ['thinkingBudget' => 0]],
-                ]);
-        } catch (\Exception $e) {
-            return response()->json(['error' => 'Kapcsolódási hiba: '.$e->getMessage()], 502);
+        $result = $this->callGemini($apiKey, $prompt, 800, 'gemini-2.5-flash');
+
+        if (! $result['ok']) {
+            return response()->json(['error' => $result['error']], 502);
         }
 
-        if (! $response->successful()) {
-            return response()->json(['error' => 'Gemini API hiba ('.$response->status().')'], 502);
-        }
-
-        $parts = $response->json('candidates.0.content.parts') ?? [];
-        $text = collect($parts)->firstWhere(fn ($p) => empty($p['thought']))['text'] ?? '';
-        $text = preg_replace('/^```json\s*|\s*```$/s', '', trim($text));
-        $data = json_decode($text, true);
+        $data = $result['data'];
 
         if (! is_array($data)) {
             return response()->json(['error' => 'Érvénytelen válasz.'], 502);
@@ -843,7 +867,7 @@ PROMPT;
 
         $validated = $request->validate([
             'words' => ['required', 'array', 'min:1', 'max:10'],
-            'words.*.word' => ['required', 'string', 'max:100'],
+            'words.*.word' => ['required', 'string', 'max:100', "regex:/^[\pL][\pL'\\- ]*$/u"],
             'words.*.meaning_hu' => ['nullable', 'string', 'max:200'],
             'text' => ['required', 'string', 'min:5', 'max:3000'],
         ]);
@@ -851,7 +875,9 @@ PROMPT;
         $text = trim($validated['text']);
 
         $wordList = collect($validated['words'])->map(function ($w) {
-            $meaning = ! empty($w['meaning_hu']) ? " (jelentése: \"{$w['meaning_hu']}\")" : '';
+            // Idézőjelek és sortörések nélkül kerül a promptba (prompt injection ellen)
+            $cleanMeaning = str_replace(["\n", "\r", '"'], [' ', ' ', "'"], $w['meaning_hu'] ?? '');
+            $meaning = $cleanMeaning !== '' ? " (jelentése: \"{$cleanMeaning}\")" : '';
 
             return "- {$w['word']}{$meaning}";
         })->implode("\n");
@@ -893,30 +919,29 @@ Return ONLY valid JSON:
 Respond ONLY with valid JSON, no markdown.
 PROMPT;
 
-        $apiKey = env('GEMINI_API_KEY') ?: config('services.gemini.api_key');
+        $apiKey = config('services.gemini.api_key');
 
-        try {
-            $response = Http::timeout(20)
-                ->withHeaders(['Content-Type' => 'application/json'])
-                ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key={$apiKey}", [
-                    'contents' => [['parts' => [['text' => $prompt]]]],
-                    'generationConfig' => ['temperature' => 0.3, 'maxOutputTokens' => 800],
-                ]);
-        } catch (\Exception $e) {
-            return response()->json(['error' => 'Kapcsolódási hiba: '.$e->getMessage()], 502);
+        $response = $this->callGemini($apiKey, $prompt, 800);
+
+        if (! $response['ok']) {
+            return response()->json(['error' => $response['error']], 502);
         }
 
-        if (! $response->successful()) {
-            return response()->json(['error' => 'Gemini API hiba ('.$response->status().')'], 502);
-        }
-
-        $raw = $response->json('candidates.0.content.parts.0.text') ?? '';
-        $raw = preg_replace('/^```json\s*|\s*```$/s', '', trim($raw));
-        $data = json_decode($raw, true);
+        $data = $response['data'];
 
         if (! is_array($data)) {
             return response()->json(['error' => 'Érvénytelen válasz.'], 502);
         }
+
+        // A modell a kért formátum ellenére néha objektumokat ad vissza
+        // a grammar_issues-ban — itt normalizáljuk stringekké.
+        $data['grammar_issues'] = collect($data['grammar_issues'] ?? [])
+            ->map(fn ($issue) => is_string($issue)
+                ? $issue
+                : ($issue['explanation_hu'] ?? $issue['issue'] ?? json_encode($issue, JSON_UNESCAPED_UNICODE)))
+            ->filter()
+            ->values()
+            ->all();
 
         return response()->json($data);
     }
@@ -926,7 +951,7 @@ PROMPT;
         abort_unless(Gate::check('admin') || $request->user()?->hasAiAccess(), 403);
 
         $validated = $request->validate([
-            'word' => ['required', 'string', 'max:100'],
+            'word' => ['required', 'string', 'max:100', "regex:/^[\pL][\pL'\\- ]*$/u"],
             'meaning_hu' => ['nullable', 'string', 'max:200'],
             'sentence' => ['required', 'string', 'min:3', 'max:500'],
         ]);
@@ -959,26 +984,15 @@ Return ONLY valid JSON with this exact structure:
 Be encouraging and educational. If the sentence is correct, celebrate it. Respond ONLY with valid JSON, no markdown.
 PROMPT;
 
-        $apiKey = env('GEMINI_API_KEY') ?: config('services.gemini.api_key');
+        $apiKey = config('services.gemini.api_key');
 
-        try {
-            $response = Http::timeout(15)
-                ->withHeaders(['Content-Type' => 'application/json'])
-                ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key={$apiKey}", [
-                    'contents' => [['parts' => [['text' => $prompt]]]],
-                    'generationConfig' => ['temperature' => 0.3, 'maxOutputTokens' => 400],
-                ]);
-        } catch (\Exception $e) {
-            return response()->json(['error' => 'Kapcsolódási hiba: '.$e->getMessage()], 502);
+        $response = $this->callGemini($apiKey, $prompt, 400);
+
+        if (! $response['ok']) {
+            return response()->json(['error' => $response['error']], 502);
         }
 
-        if (! $response->successful()) {
-            return response()->json(['error' => 'Gemini API hiba ('.$response->status().')'], 502);
-        }
-
-        $text = $response->json('candidates.0.content.parts.0.text') ?? '';
-        $text = preg_replace('/^```json\s*|\s*```$/s', '', trim($text));
-        $data = json_decode($text, true);
+        $data = $response['data'];
 
         if (! is_array($data)) {
             return response()->json(['error' => 'Érvénytelen válasz.'], 502);
@@ -998,13 +1012,13 @@ PROMPT;
     {
         abort_unless(Gate::check('admin'), 403);
 
-        $word = $request->string('word')->trim()->value();
+        $word = $this->sanitizeWordForPrompt($request->string('word')->trim()->value());
 
-        if (strlen($word) < 1) {
-            return response()->json(['error' => 'Hiányzó szó.'], 422);
+        if ($word === null) {
+            return response()->json(['error' => 'Érvénytelen szó.'], 422);
         }
 
-        $apiKey = env('GEMINI_API_KEY') ?: config('services.gemini.api_key');
+        $apiKey = config('services.gemini.api_key');
 
         $prompt = <<<PROMPT
 You are an English vocabulary educator for Hungarian learners. For the English word "{$word}", explain where and how it is used in real life.
@@ -1030,24 +1044,13 @@ Rules:
 - Respond ONLY with valid JSON, no markdown.
 PROMPT;
 
-        try {
-            $response = Http::timeout(20)
-                ->withHeaders(['Content-Type' => 'application/json'])
-                ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key={$apiKey}", [
-                    'contents' => [['parts' => [['text' => $prompt]]]],
-                    'generationConfig' => ['temperature' => 0.3, 'maxOutputTokens' => 600],
-                ]);
-        } catch (\Exception $e) {
-            return response()->json(['error' => 'Kapcsolódási hiba: '.$e->getMessage()], 502);
+        $result = $this->callGemini($apiKey, $prompt, 600);
+
+        if (! $result['ok']) {
+            return response()->json(['error' => $result['error']], 502);
         }
 
-        if (! $response->successful()) {
-            return response()->json(['error' => 'Gemini API hiba ('.$response->status().')'], 502);
-        }
-
-        $text = $response->json('candidates.0.content.parts.0.text') ?? '';
-        $text = preg_replace('/^```json\s*|\s*```$/s', '', trim($text));
-        $data = json_decode($text, true);
+        $data = $result['data'];
 
         if (! is_array($data)) {
             return response()->json(['error' => 'Érvénytelen válasz.'], 502);
@@ -1063,8 +1066,9 @@ PROMPT;
     public function geminiListModels(): JsonResponse
     {
         abort_unless(Gate::check('admin') || request()->user()?->hasAiAccess(), 403);
-        $apiKey = env('GEMINI_API_KEY') ?: config('services.gemini.api_key');
-        $response = Http::get("https://generativelanguage.googleapis.com/v1beta/models?key={$apiKey}");
+        $apiKey = config('services.gemini.api_key');
+        $response = Http::withHeaders(['x-goog-api-key' => $apiKey])
+            ->get('https://generativelanguage.googleapis.com/v1beta/models');
 
         return response()->json($response->json());
     }
@@ -1073,14 +1077,14 @@ PROMPT;
     {
         abort_unless(Gate::check('admin') || request()->user()?->hasAiAccess(), 403);
 
-        $word = $request->string('word')->trim()->lower()->value();
+        $word = $this->sanitizeWordForPrompt($request->string('word')->trim()->lower()->value());
         $context = $request->string('context')->trim()->value();
 
-        if (strlen($word) < 1) {
-            return response()->json(['error' => 'Hiányzó szó.'], 422);
+        if ($word === null) {
+            return response()->json(['error' => 'Érvénytelen szó.'], 422);
         }
 
-        $apiKey = env('GEMINI_API_KEY') ?: config('services.gemini.api_key');
+        $apiKey = config('services.gemini.api_key');
 
         $contextBlock = $context
             ? "\nThe word appears in this sentence: \"{$context}\"\nAlso add a field:\n- context_explanation: 1-2 sentences in Hungarian explaining what \"{$word}\" specifically means in that sentence and how it is used in that context."
@@ -1107,28 +1111,16 @@ You are a Hungarian-English dictionary assistant. For the English word "{$word}"
 Respond ONLY with valid JSON, no markdown, no explanation.
 PROMPT;
 
-        try {
-            $response = Http::timeout(15)
-                ->withHeaders(['Content-Type' => 'application/json'])
-                ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key={$apiKey}", [
-                    'contents' => [['parts' => [['text' => $prompt]]]],
-                    'generationConfig' => ['temperature' => 0.2, 'maxOutputTokens' => 400],
-                ]);
-        } catch (\Exception $e) {
-            return response()->json(['error' => 'Kapcsolódási hiba a Gemini API-hoz: '.$e->getMessage()], 502);
+        $result = $this->callGemini($apiKey, $prompt, 400, temperature: 0.2);
+
+        if (! $result['ok']) {
+            return response()->json(['error' => $result['error']], 502);
         }
 
-        if (! $response->successful()) {
-            return response()->json(['error' => 'Gemini API hiba ('.$response->status().'): '.$response->body()], 502);
-        }
-
-        $text = $response->json('candidates.0.content.parts.0.text') ?? '';
-        $text = preg_replace('/^```json\s*|\s*```$/s', '', trim($text));
-
-        $data = json_decode($text, true);
+        $data = $result['data'];
 
         if (! is_array($data)) {
-            return response()->json(['error' => 'Érvénytelen válasz: '.$text], 502);
+            return response()->json(['error' => 'Érvénytelen válasz.'], 502);
         }
 
         return response()->json([
@@ -1157,13 +1149,7 @@ PROMPT;
         ]);
 
         $user = $request->user();
-        $bookLimit = match (true) {
-            $user->subscribed('premium') || $user->ai_access => 5,
-            $user->subscribed('default') => 3,
-            default => 1,
-        };
-
-        $storageLimit = 30 * 1024 * 1024; // 30 MB in bytes
+        $bookLimit = $this->bookLimitFor($user);
 
         $bookCount = UserBook::where('user_id', $user->id)->count();
         if ($bookCount >= $bookLimit) {
@@ -1173,7 +1159,7 @@ PROMPT;
         }
 
         $usedStorage = UserBook::where('user_id', $user->id)->sum('text_size');
-        if ($usedStorage >= $storageLimit) {
+        if ($usedStorage >= self::BOOK_STORAGE_LIMIT) {
             return response()->json([
                 'error' => 'Elérted a 30 MB-os tárhely limitet. Töröld valamelyik könyvet a feltöltéshez.',
             ], 403);
@@ -1183,11 +1169,17 @@ PROMPT;
         $extension = strtolower($file->getClientOriginalExtension());
         $title = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
 
-        $text = match ($extension) {
-            'pdf' => $this->extractPdfText($file->getRealPath()),
-            'epub' => $this->extractEpubText($file->getRealPath()),
-            default => throw new \RuntimeException('Nem támogatott formátum.'),
-        };
+        try {
+            $text = match ($extension) {
+                'pdf' => $this->extractPdfText($file->getRealPath()),
+                'epub' => $this->extractEpubText($file->getRealPath()),
+                default => throw new \RuntimeException('Nem támogatott formátum.'),
+            };
+        } catch (\RuntimeException $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
+        } catch (\Throwable) {
+            return response()->json(['error' => 'A fájl nem dolgozható fel. Lehet, hogy sérült vagy titkosított.'], 422);
+        }
 
         $text = preg_replace('/\s+/', ' ', trim($text)) ?? '';
 
@@ -1517,10 +1509,68 @@ PROMPT;
         return null;
     }
 
+    /**
+     * Call Gemini with retry logic and thinking disabled.
+     *
+     * @return array{ok: bool, data: mixed, error: string}
+     */
+    private function callGemini(string $apiKey, string $prompt, int $maxTokens, string $model = 'gemini-2.5-flash-lite', float $temperature = 0.3): array
+    {
+        $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent";
+        $payload = [
+            'contents' => [['parts' => [['text' => $prompt]]]],
+            'generationConfig' => [
+                'temperature' => $temperature,
+                'maxOutputTokens' => $maxTokens,
+                'thinkingConfig' => ['thinkingBudget' => 0],
+            ],
+        ];
+
+        $lastError = 'Ismeretlen hiba.';
+
+        for ($attempt = 1; $attempt <= 2; $attempt++) {
+            try {
+                $response = Http::timeout(30)
+                    ->withHeaders([
+                        'Content-Type' => 'application/json',
+                        'x-goog-api-key' => $apiKey,
+                    ])
+                    ->post($url, $payload);
+            } catch (\Exception $e) {
+                $lastError = 'Kapcsolódási hiba: '.$e->getMessage();
+
+                continue;
+            }
+
+            if (! $response->successful()) {
+                $lastError = 'Gemini API hiba ('.$response->status().')';
+
+                continue;
+            }
+
+            $parts = $response->json('candidates.0.content.parts') ?? [];
+            $text = collect($parts)->firstWhere(fn ($p) => empty($p['thought']))['text']
+                ?? ($response->json('candidates.0.content.parts.0.text') ?? '');
+
+            $text = preg_replace('/^```json\s*|\s*```$/s', '', trim($text));
+            $data = json_decode($text, true);
+
+            if ($data === null) {
+                $lastError = 'Érvénytelen AI válasz (nem JSON).';
+
+                continue;
+            }
+
+            return ['ok' => true, 'data' => $data, 'error' => ''];
+        }
+
+        return ['ok' => false, 'data' => null, 'error' => $lastError];
+    }
+
     /** @return string[] */
     private function tokenize(string $text): array
     {
-        $cleaned = str_replace(['\u{2018}', '\u{2019}', '\u{2032}', "'"], ' ', $text);
+        $cleaned = str_replace(["\u{2018}", "\u{2019}", "\u{2032}", "'"], ' ', $text);
         $cleaned = preg_replace('/[^a-zA-Z ]+/', ' ', $cleaned) ?? '';
         $words = preg_split('/\s+/', mb_strtolower(trim($cleaned))) ?: [];
 

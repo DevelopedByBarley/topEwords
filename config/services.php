@@ -39,4 +39,11 @@ return [
         'api_key' => env('GEMINI_API_KEY'),
     ],
 
+    'stripe' => [
+        // Fizetés be/ki kapcsolása — élesítéskor STRIPE_ENABLED=true a .env-ben
+        'enabled' => env('STRIPE_ENABLED', false),
+        'basic_price_id' => env('STRIPE_STARTER_PRICE_ID'),
+        'premium_price_id' => env('STRIPE_PRO_PRICE_ID'),
+    ],
+
 ];

@@ -29,12 +29,12 @@ test('words index page is accessible', function () {
 });
 
 test('words include meaning in response', function () {
-    Word::where('word', 'apple')->update(['meaning' => 'alma']);
+    Word::where('word', 'apple')->update(['meaning_hu' => 'alma']);
 
     $this->get(route('words.index', ['letter' => 'A']))
         ->assertInertia(fn ($page) => $page
             ->where('words.data.0.word', 'apple')
-            ->where('words.data.0.meaning', 'alma')
+            ->where('words.data.0.meaning_hu', 'alma')
         );
 });
 
@@ -114,27 +114,26 @@ test('words index shows correct status counts', function () {
         );
 });
 
-test('words can be filtered by difficulty beginner', function () {
-    $this->get(route('words.index', ['difficulty' => 'beginner']))
-        ->assertInertia(fn ($page) => $page
-            ->where('words.total', 4)
-            ->where('filters.difficulty', 'beginner')
-        );
-});
+test('words can be filtered by level', function () {
+    Word::where('word', 'moderate')->update(['level' => 3]);
+    Word::where('word', 'elaborate')->update(['level' => 6]);
 
-test('words can be filtered by difficulty intermediate', function () {
-    $this->get(route('words.index', ['difficulty' => 'intermediate']))
+    $this->get(route('words.index', ['level' => 3]))
         ->assertInertia(fn ($page) => $page
             ->where('words.total', 1)
             ->where('words.data.0.word', 'moderate')
+            ->where('filters.level', 3)
         );
 });
 
-test('words can be filtered by difficulty advanced', function () {
-    $this->get(route('words.index', ['difficulty' => 'advanced']))
+test('level filter excludes other levels', function () {
+    Word::where('word', 'moderate')->update(['level' => 3]);
+    Word::where('word', 'elaborate')->update(['level' => 6]);
+
+    $this->get(route('words.index', ['level' => 1]))
         ->assertInertia(fn ($page) => $page
-            ->where('words.total', 1)
-            ->where('words.data.0.word', 'elaborate')
+            ->where('words.total', 4)
+            ->where('filters.level', 1)
         );
 });
 
@@ -188,16 +187,19 @@ test('marked pages are returned correctly', function () {
     $rows = array_map(fn ($i) => ['word' => 'word'.$i, 'rank' => $i, 'created_at' => now(), 'updated_at' => now()], range(1, 101));
     Word::insert($rows);
 
-    // Mark a word on page 1 (rank 1) and page 2 (rank 101)
-    $page1Word = Word::where('rank', 1)->first();
-    $page2Word = Word::where('rank', 101)->first();
-    $this->user->knownWords()->attach($page1Word->id, ['status' => 'known']);
-    $this->user->knownWords()->attach($page2Word->id, ['status' => 'learning']);
+    // Mark the first word (page 1) and the last word by rank (last page)
+    $firstWord = Word::orderBy('rank')->first();
+    $lastWord = Word::orderByDesc('rank')->first();
+    $this->user->knownWords()->attach($firstWord->id, ['status' => 'known']);
+    $this->user->knownWords()->attach($lastWord->id, ['status' => 'learning']);
 
-    $this->get(route('words.index'))
+    $totalWords = Word::count();
+    $lastPage = (int) ceil($totalWords / 100);
+
+    $this->get(route('words.index', ['per_page' => 100]))
         ->assertInertia(fn ($page) => $page
             ->has('markedPages')
-            ->where('markedPages', [1, 2])
+            ->where('markedPages', [1, $lastPage])
         );
 });
 

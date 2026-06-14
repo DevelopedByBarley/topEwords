@@ -21,5 +21,6 @@ test('new users can register', function () {
     ]);
 
     $this->assertAuthenticated();
-    $response->assertRedirect(route('dashboard', absolute: false));
+    // Friss regisztráció után az onboarding oldalra irányítunk
+    $response->assertRedirect(route('onboarding', absolute: false));
 });

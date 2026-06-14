@@ -49,7 +49,7 @@ export default function Privacy() {
                                 </p>
                                 <p className="mt-2 text-xs">
                                     A jelen tájékoztató a <strong className="text-foreground">TopWords</strong> alkalmazás
-                                    (topwords.hu) felhasználóinak személyes adatai kezelésére vonatkozik, összhangban az Európai
+                                    (topwords.eu) és böngészőbővítményének felhasználói személyes adatai kezelésére vonatkozik, összhangban az Európai
                                     Unió Általános Adatvédelmi Rendeletével (GDPR – 2016/679/EU rendelet) és a hatályos magyar
                                     adatvédelmi jogszabályokkal.
                                 </p>
@@ -133,7 +133,42 @@ export default function Privacy() {
                         </section>
 
                         <section>
-                            <h2 className="mb-3 text-lg font-semibold">6. Sütik (cookie-k)</h2>
+                            <h2 className="mb-3 text-lg font-semibold">6. Böngészőbővítmény (Chrome extension)</h2>
+                            <p className="mb-2 text-muted-foreground">
+                                A TopWords ingyenes Chrome böngészőbővítményt is kínál, amely lehetővé teszi az angol szavak
+                                azonnali keresését és a haladás követését bármely weboldalon. A bővítmény adatkezelése:
+                            </p>
+                            <ul className="list-disc space-y-2 pl-5 text-muted-foreground">
+                                <li>
+                                    <strong className="text-foreground">Oldalak tartalma:</strong> a meglátogatott weboldalak
+                                    szövegét a bővítmény kizárólag a böngésződben, helyben dolgozza fel (az ismert szavak
+                                    kiemeléséhez és az oldal-statisztikához). Az oldalak teljes tartalmát{' '}
+                                    <strong className="text-foreground">nem küldjük el</strong> és nem tároljuk szervereinken.
+                                </li>
+                                <li>
+                                    <strong className="text-foreground">Keresett szavak:</strong> amikor egy szóra rákeresel
+                                    vagy státuszt állítasz be, kizárólag az adott angol szót és a választott státuszt küldi el
+                                    a bővítmény a topwords.eu szervernek a jelentés lekéréséhez és a haladásod mentéséhez.
+                                </li>
+                                <li>
+                                    <strong className="text-foreground">Bejelentkezés:</strong> a bővítmény a meglévő,
+                                    bejelentkezett munkamenetedet (session cookie) használja a topwords.eu felé. Külön
+                                    jelszót vagy hozzáférést nem tárol.
+                                </li>
+                                <li>
+                                    <strong className="text-foreground">Helyi beállítások:</strong> a bővítmény a böngésződ
+                                    helyi tárolójában (<code>chrome.storage.local</code>) kizárólag a saját beállításaidat
+                                    őrzi (pl. kiemelés be/ki, YouTube-felirat be/ki). Ezek nem hagyják el az eszközödet.
+                                </li>
+                                <li>
+                                    <strong className="text-foreground">Nincs követés:</strong> a bővítmény nem tartalmaz
+                                    hirdetést, analitikát vagy nyomkövetőt, és az adatokat nem adja el harmadik félnek.
+                                </li>
+                            </ul>
+                        </section>
+
+                        <section>
+                            <h2 className="mb-3 text-lg font-semibold">7. Sütik (cookie-k)</h2>
                             <p className="mb-2 text-muted-foreground">
                                 Az alkalmazás kizárólag a működéshez szükséges munkamenet-sütit (session cookie) használ,
                                 amely a bejelentkezési állapot fenntartásához szükséges. Ez a süti a böngésző bezárásakor
@@ -145,7 +180,7 @@ export default function Privacy() {
                         </section>
 
                         <section>
-                            <h2 className="mb-3 text-lg font-semibold">7. A Felhasználó jogai (GDPR)</h2>
+                            <h2 className="mb-3 text-lg font-semibold">8. A Felhasználó jogai (GDPR)</h2>
                             <p className="mb-2 text-muted-foreground">A Felhasználót az alábbi jogok illetik meg:</p>
                             <ul className="list-disc space-y-2 pl-5 text-muted-foreground">
                                 <li>
@@ -188,7 +223,7 @@ export default function Privacy() {
                         </section>
 
                         <section>
-                            <h2 className="mb-3 text-lg font-semibold">8. Kapcsolat</h2>
+                            <h2 className="mb-3 text-lg font-semibold">9. Kapcsolat</h2>
                             <p className="text-muted-foreground">
                                 Adatkezeléssel kapcsolatos kérdéseivel, kérelmeivel forduljon az Adatkezelőhöz a{' '}
                                 <a

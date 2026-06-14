@@ -29,5 +29,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('settings/subscription', [SubscriptionController::class, 'edit'])->name('subscription.edit');
     Route::post('settings/subscription/cancel', [SubscriptionController::class, 'cancel'])->name('subscription.cancel');
+    Route::post('settings/subscription/resume', [SubscriptionController::class, 'resume'])->name('subscription.resume');
     Route::post('settings/subscription/portal', [SubscriptionController::class, 'portal'])->name('subscription.portal');
 });

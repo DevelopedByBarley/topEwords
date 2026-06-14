@@ -105,6 +105,15 @@ export default [
         },
     },
     {
+        files: ['chrome-extension/**/*.js'],
+        languageOptions: {
+            globals: {
+                ...globals.browser,
+                ...globals.webextensions,
+            },
+        },
+    },
+    {
         ignores: [
             'vendor',
             'node_modules',

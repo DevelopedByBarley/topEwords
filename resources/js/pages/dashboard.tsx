@@ -33,13 +33,13 @@ interface Props {
     customStats: CustomStats;
 }
 
-const LEVEL_COLORS: Record<string, { bar: string; bg: string; text: string; border: string }> = {
-    green:  { bar: 'bg-green-500',  bg: 'bg-green-50 dark:bg-green-950/20',  text: 'text-green-700 dark:text-green-400',  border: 'border-green-200 dark:border-green-800' },
-    blue:   { bar: 'bg-blue-500',   bg: 'bg-blue-50 dark:bg-blue-950/20',    text: 'text-blue-700 dark:text-blue-400',    border: 'border-blue-200 dark:border-blue-800' },
-    yellow: { bar: 'bg-yellow-500', bg: 'bg-yellow-50 dark:bg-yellow-950/20',text: 'text-yellow-700 dark:text-yellow-400',border: 'border-yellow-200 dark:border-yellow-800' },
-    orange: { bar: 'bg-orange-500', bg: 'bg-orange-50 dark:bg-orange-950/20',text: 'text-orange-700 dark:text-orange-400',border: 'border-orange-200 dark:border-orange-800' },
-    purple: { bar: 'bg-purple-500', bg: 'bg-purple-50 dark:bg-purple-950/20',text: 'text-purple-700 dark:text-purple-400',border: 'border-purple-200 dark:border-purple-800' },
-    red:    { bar: 'bg-red-500',    bg: 'bg-red-50 dark:bg-red-950/20',      text: 'text-red-700 dark:text-red-400',      border: 'border-red-200 dark:border-red-800' },
+const LEVEL_COLORS: Record<string, { bar: string; bg: string; text: string }> = {
+    green:  { bar: 'bg-green-500',  bg: 'bg-green-50 dark:bg-green-950/20',  text: 'text-green-700 dark:text-green-400' },
+    blue:   { bar: 'bg-blue-500',   bg: 'bg-blue-50 dark:bg-blue-950/20',    text: 'text-blue-700 dark:text-blue-400' },
+    yellow: { bar: 'bg-yellow-500', bg: 'bg-yellow-50 dark:bg-yellow-950/20',text: 'text-yellow-700 dark:text-yellow-400' },
+    orange: { bar: 'bg-orange-500', bg: 'bg-orange-50 dark:bg-orange-950/20',text: 'text-orange-700 dark:text-orange-400' },
+    purple: { bar: 'bg-purple-500', bg: 'bg-purple-50 dark:bg-purple-950/20',text: 'text-purple-700 dark:text-purple-400' },
+    red:    { bar: 'bg-red-500',    bg: 'bg-red-50 dark:bg-red-950/20',      text: 'text-red-700 dark:text-red-400' },
 };
 
 export default function Dashboard({ levelStats, totalKnown, totalWords, totalPercent, streak, customStats }: Props) {
@@ -48,19 +48,39 @@ export default function Dashboard({ levelStats, totalKnown, totalWords, totalPer
             <Head title="Haladás" />
 
             <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
-                <div className="flex flex-col gap-1">
-                    <h1 className="text-2xl font-bold tracking-tight">Haladás</h1>
-                    <p className="text-muted-foreground text-sm">Kövesd nyomon, hány szót ismersz szintenként.</p>
+                {/* Hero */}
+                <div className="relative overflow-hidden rounded-3xl bg-linear-to-br from-primary to-(--color-primary-shade) p-6 md:p-8">
+                    <div className="pointer-events-none absolute -top-16 -right-16 size-64 rounded-full bg-white/15 blur-2xl" />
+                    <div className="pointer-events-none absolute -bottom-24 right-28 size-48 rounded-full bg-white/10 blur-2xl" />
+                    <div className="relative flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+                        <div className="max-w-xl">
+                            <h1 className="text-2xl font-bold tracking-tight text-white md:text-3xl">Haladás</h1>
+                            <p className="mt-1.5 text-sm text-white/85 md:text-base">
+                                Kövesd nyomon, hány szót ismersz szintenként — és folytasd ott, ahol abbahagytad.
+                            </p>
+                            <Link
+                                href={wordsIndex()}
+                                className="mt-5 inline-flex items-center gap-2 rounded-xl bg-white px-6 py-3 text-sm font-bold text-primary shadow-[0_4px_0_0_var(--color-primary-shade)] transition-all hover:brightness-95 active:translate-y-0.75 active:shadow-[0_1px_0_0_var(--color-primary-shade)]"
+                            >
+                                Szavak böngészése
+                            </Link>
+                        </div>
+                        <div className="flex shrink-0 items-baseline gap-2 rounded-2xl bg-white/15 px-5 py-4 backdrop-blur-sm ring-1 ring-white/20">
+                            <span className="text-4xl font-bold tabular-nums text-white">{totalPercent}%</span>
+                            <span className="text-sm font-medium text-white/80">kész</span>
+                        </div>
+                    </div>
                 </div>
-
 
                 <ExtensionBanner />
 
                 {/* Streak */}
-                <div className={`rounded-xl border p-5 ${streak > 0 ? 'bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-800' : 'bg-card'}`}>
+                <div className={`rounded-3xl p-5 shadow-sm ring-1 ${streak > 0 ? 'bg-orange-50 ring-orange-200/60 dark:bg-orange-950/20 dark:ring-orange-900/40' : 'bg-card ring-border/60'}`}>
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                            <Flame className={`size-5 ${streak > 0 ? 'text-orange-500' : 'text-muted-foreground'}`} />
+                            <span className={`flex size-9 items-center justify-center rounded-xl ${streak > 0 ? 'bg-orange-500/15' : 'bg-muted'}`}>
+                                <Flame className={`size-5 ${streak > 0 ? 'text-orange-500' : 'text-muted-foreground'}`} />
+                            </span>
                             <span className="font-semibold">Napi sorozat</span>
                         </div>
                         <div className="flex items-baseline gap-1">
@@ -80,39 +100,56 @@ export default function Dashboard({ levelStats, totalKnown, totalWords, totalPer
                 </div>
 
                 {/* Összesített */}
-                <div className="rounded-xl border bg-card p-5">
-                    <div className="mb-3 flex items-center justify-between">
+                <div className="rounded-3xl bg-card p-5 shadow-sm ring-1 ring-border/60">
+                    <div className="mb-4 flex items-center justify-between">
                         <span className="font-semibold">Összesen</span>
-                        <span className="text-muted-foreground text-sm">
-                            {totalKnown.toLocaleString()} / {totalWords.toLocaleString()} szó
+                        <span className="text-sm font-bold tabular-nums text-muted-foreground">
+                            {totalKnown.toLocaleString()} / {totalWords.toLocaleString()}
                         </span>
                     </div>
-                    <div className="bg-secondary mb-2 h-3 w-full overflow-hidden rounded-full">
+                    <div className="bg-secondary mb-5 h-3 w-full overflow-hidden rounded-full">
                         <div
-                            className="h-3 rounded-full bg-primary transition-all duration-500"
+                            className="h-3 rounded-full bg-linear-to-r from-primary to-(--color-primary-shade) transition-all duration-500"
                             style={{ width: `${totalPercent}%` }}
                         />
                     </div>
-                    <div className="flex items-center justify-between">
-                        <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
-                            <span className="flex items-center gap-1">
-                                <CheckCheck className="size-3 text-green-500" />
-                                Tudom: {totalKnown.toLocaleString()}
-                            </span>
-                            <span className="flex items-center gap-1">
-                                <Clock className="size-3 text-blue-500" />
-                                Tanulom: {levelStats.reduce((s, l) => s + l.learning, 0).toLocaleString()}
-                            </span>
-                            <span className="flex items-center gap-1">
-                                <BookMarked className="size-3 text-orange-500" />
-                                Később: {levelStats.reduce((s, l) => s + l.saved, 0).toLocaleString()}
-                            </span>
-                            <span className="flex items-center gap-1">
-                                <Mic className="size-3 text-violet-500" />
-                                Kiejtés: {levelStats.reduce((s, l) => s + l.pronunciation, 0).toLocaleString()}
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                        <div className="flex flex-col gap-1 rounded-2xl bg-green-100 p-3 ring-1 ring-inset ring-green-300 dark:bg-green-950 dark:ring-green-800">
+                            <div className="flex items-center gap-1.5">
+                                <CheckCheck className="size-3.5 text-green-600 dark:text-green-400" />
+                                <span className="text-xs font-medium text-green-700 dark:text-green-300">Tudom</span>
+                            </div>
+                            <span className="text-2xl font-bold tabular-nums text-green-600 dark:text-green-400">
+                                {totalKnown.toLocaleString()}
                             </span>
                         </div>
-                        <span className="text-sm font-semibold">{totalPercent}%</span>
+                        <div className="flex flex-col gap-1 rounded-2xl bg-blue-100 p-3 ring-1 ring-inset ring-blue-300 dark:bg-blue-950 dark:ring-blue-800">
+                            <div className="flex items-center gap-1.5">
+                                <Clock className="size-3.5 text-blue-600 dark:text-blue-400" />
+                                <span className="text-xs font-medium text-blue-700 dark:text-blue-300">Tanulom</span>
+                            </div>
+                            <span className="text-2xl font-bold tabular-nums text-blue-600 dark:text-blue-400">
+                                {levelStats.reduce((s, l) => s + l.learning, 0).toLocaleString()}
+                            </span>
+                        </div>
+                        <div className="flex flex-col gap-1 rounded-2xl bg-orange-100 p-3 ring-1 ring-inset ring-orange-300 dark:bg-orange-950 dark:ring-orange-800">
+                            <div className="flex items-center gap-1.5">
+                                <BookMarked className="size-3.5 text-orange-600 dark:text-orange-400" />
+                                <span className="text-xs font-medium text-orange-700 dark:text-orange-300">Később</span>
+                            </div>
+                            <span className="text-2xl font-bold tabular-nums text-orange-600 dark:text-orange-400">
+                                {levelStats.reduce((s, l) => s + l.saved, 0).toLocaleString()}
+                            </span>
+                        </div>
+                        <div className="flex flex-col gap-1 rounded-2xl bg-violet-100 p-3 ring-1 ring-inset ring-violet-300 dark:bg-violet-950 dark:ring-violet-800">
+                            <div className="flex items-center gap-1.5">
+                                <Mic className="size-3.5 text-violet-600 dark:text-violet-400" />
+                                <span className="text-xs font-medium text-violet-700 dark:text-violet-300">Kiejtés</span>
+                            </div>
+                            <span className="text-2xl font-bold tabular-nums text-violet-600 dark:text-violet-400">
+                                {levelStats.reduce((s, l) => s + l.pronunciation, 0).toLocaleString()}
+                            </span>
+                        </div>
                     </div>
                 </div>
 
@@ -126,7 +163,7 @@ export default function Dashboard({ levelStats, totalKnown, totalWords, totalPer
                         return (
                             <div
                                 key={level.level}
-                                className={`rounded-xl border p-5 transition-colors ${isComplete ? `${colors.bg} ${colors.border}` : 'bg-card'} ${isEmpty ? 'opacity-50' : ''}`}
+                                className={`rounded-3xl p-5 shadow-sm ring-1 ring-border/60 transition-all ${isComplete ? colors.bg : 'bg-card'} ${isEmpty ? 'opacity-50' : 'hover:-translate-y-0.5 hover:shadow-md'}`}
                             >
                                 <div className="mb-1 flex items-start justify-between gap-2">
                                     <div>
@@ -154,30 +191,35 @@ export default function Dashboard({ levelStats, totalKnown, totalWords, totalPer
                                     <p className="text-xs text-muted-foreground">Hamarosan elérhető</p>
                                 ) : (
                                     <>
-                                        <div className="mb-3 flex flex-col gap-1 text-xs text-muted-foreground">
-                                            <div className="flex justify-between">
-                                                <span className="flex items-center gap-1">
+                                        <div className="mb-3 grid grid-cols-2 gap-2">
+                                            <div className="flex flex-col gap-0.5">
+                                                <span className="flex items-center gap-1 text-xs text-muted-foreground">
                                                     <CheckCheck className="size-3 text-green-500" /> Tudom
                                                 </span>
-                                                <span>{level.known.toLocaleString()} / {level.total.toLocaleString()}</span>
+                                                <span className="text-base font-bold tabular-nums">
+                                                    {level.known.toLocaleString()}
+                                                    <span className="text-xs font-normal text-muted-foreground">
+                                                        /{level.total.toLocaleString()}
+                                                    </span>
+                                                </span>
                                             </div>
-                                            <div className="flex justify-between">
-                                                <span className="flex items-center gap-1">
+                                            <div className="flex flex-col gap-0.5">
+                                                <span className="flex items-center gap-1 text-xs text-muted-foreground">
                                                     <Clock className="size-3 text-blue-500" /> Tanulom
                                                 </span>
-                                                <span>{level.learning.toLocaleString()}</span>
+                                                <span className="text-base font-bold tabular-nums">{level.learning.toLocaleString()}</span>
                                             </div>
-                                            <div className="flex justify-between">
-                                                <span className="flex items-center gap-1">
+                                            <div className="flex flex-col gap-0.5">
+                                                <span className="flex items-center gap-1 text-xs text-muted-foreground">
                                                     <BookMarked className="size-3 text-orange-500" /> Később
                                                 </span>
-                                                <span>{level.saved.toLocaleString()}</span>
+                                                <span className="text-base font-bold tabular-nums">{level.saved.toLocaleString()}</span>
                                             </div>
-                                            <div className="flex justify-between">
-                                                <span className="flex items-center gap-1">
+                                            <div className="flex flex-col gap-0.5">
+                                                <span className="flex items-center gap-1 text-xs text-muted-foreground">
                                                     <Mic className="size-3 text-violet-500" /> Kiejtés
                                                 </span>
-                                                <span>{level.pronunciation.toLocaleString()}</span>
+                                                <span className="text-base font-bold tabular-nums">{level.pronunciation.toLocaleString()}</span>
                                             </div>
                                         </div>
 
@@ -195,10 +237,12 @@ export default function Dashboard({ levelStats, totalKnown, totalWords, totalPer
                 </div>
 
                 {/* Saját szavak */}
-                <div className="rounded-xl border bg-card p-5">
+                <div className="rounded-3xl bg-card p-5 shadow-sm ring-1 ring-border/60">
                     <div className="mb-3 flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                            <NotebookPen className="size-4 text-muted-foreground" />
+                            <span className="flex size-9 items-center justify-center rounded-xl bg-muted">
+                                <NotebookPen className="size-4 text-muted-foreground" />
+                            </span>
                             <span className="font-semibold">Saját szavak</span>
                         </div>
                         <Link
@@ -251,7 +295,7 @@ export default function Dashboard({ levelStats, totalKnown, totalWords, totalPer
                     href="https://codebarley.hu"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="group flex items-center justify-between gap-4 rounded-xl border bg-card p-5 transition-colors hover:bg-accent"
+                    className="group flex items-center justify-between gap-4 rounded-3xl bg-card p-5 shadow-sm ring-1 ring-border/60 transition-colors hover:bg-accent"
                 >
                     <div>
                         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Készítette</p>

@@ -14,6 +14,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
 use Laravel\Cashier\Billable;
+use Laravel\Cashier\Subscription;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 
 #[Fillable(['name', 'email', 'password', 'streak', 'last_activity_date', 'quiz_completions', 'text_analyses', 'lifetime_access', 'ai_access', 'onboarding_completed_at'])]
@@ -50,7 +51,7 @@ class User extends Authenticatable
 
     public function knownWords(): BelongsToMany
     {
-        return $this->belongsToMany(Word::class, 'user_word')->withPivot('status')->withTimestamps();
+        return $this->belongsToMany(Word::class, 'user_word')->withPivot('status', 'importance')->withTimestamps();
     }
 
     public function achievements(): HasMany
@@ -58,26 +59,92 @@ class User extends Authenticatable
         return $this->hasMany(UserAchievement::class);
     }
 
+    /**
+     * The user's active Stripe subscription, regardless of its type name.
+     */
+    public function activeSubscription(): ?Subscription
+    {
+        foreach (['premium', 'default'] as $type) {
+            $subscription = $this->subscription($type);
+
+            if ($subscription && $subscription->valid()) {
+                return $subscription;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * The paid plan from Stripe ('basic' | 'premium'), or null without subscription.
+     *
+     * A csomagot az előfizetés ára dönti el (nem a típusneve), így a
+     * csomagváltás (swap) után is helyes marad.
+     */
+    public function subscriptionPlan(): ?string
+    {
+        $subscription = $this->activeSubscription();
+
+        if ($subscription === null) {
+            return null;
+        }
+
+        return $subscription->stripe_price === config('services.stripe.premium_price_id')
+            ? 'premium'
+            : 'basic';
+    }
+
+    /**
+     * The user's effective plan: 'free' | 'basic' | 'premium'.
+     *
+     * Priority: admin override > lifetime access > Stripe subscription > trial.
+     */
+    public function currentPlan(): string
+    {
+        if (in_array($this->plan_override, ['basic', 'premium'], true)) {
+            return $this->plan_override;
+        }
+
+        if ($this->lifetime_access) {
+            return 'premium';
+        }
+
+        if ($plan = $this->subscriptionPlan()) {
+            return $plan;
+        }
+
+        if ($this->onTrial()) {
+            return 'basic';
+        }
+
+        return 'free';
+    }
+
     public function hasActiveAccess(): bool
     {
-        // Payment temporarily disabled — everyone has access
-        return true;
-        // return $this->onTrial()
-        //     || $this->subscribed('default')
-        //     || $this->subscribed('premium');
+        return $this->currentPlan() !== 'free';
     }
 
     public function hasAiAccess(): bool
     {
         return $this->ai_access
-            || $this->subscribed('premium');
+            || $this->currentPlan() === 'premium';
     }
 
     public function isOnFreePlan(): bool
     {
-        // Payment temporarily disabled
-        return false;
-        // return ! $this->hasActiveAccess();
+        return ! $this->hasActiveAccess();
+    }
+
+    public const FREE_FLASHCARD_LIMIT = 20;
+
+    /**
+     * Whether the user may add $count more cards to the deck under their plan.
+     */
+    public function canAddFlashcardsTo(FlashcardDeck $deck, int $count = 1): bool
+    {
+        return ! $this->isOnFreePlan()
+            || $deck->flashcards()->count() + $count <= self::FREE_FLASHCARD_LIMIT;
     }
 
     public function updateStreak(): bool

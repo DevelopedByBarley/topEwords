@@ -59,12 +59,12 @@ class AchievementService
         'analysis_comprehension_90' => ['title' => 'Folyékony olvasó', 'description' => 'Elértél 90%+ érthetőséget egy elemzésen.', 'icon' => '🌟', 'group' => 'analysis'],
 
         // Level completion
-        'level_1_complete' => ['title' => 'Kezdő – teljesítve', 'description' => 'Az összes Kezdő szintű szót megtanultad.', 'icon' => '🟢', 'group' => 'level'],
-        'level_2_complete' => ['title' => 'Alapszint – teljesítve', 'description' => 'Az összes Alapszintű szót megtanultad.', 'icon' => '🔵', 'group' => 'level'],
-        'level_3_complete' => ['title' => 'Középszint – teljesítve', 'description' => 'Az összes Középszintű szót megtanultad.', 'icon' => '🟡', 'group' => 'level'],
-        'level_4_complete' => ['title' => 'Haladó – teljesítve', 'description' => 'Az összes Haladó szintű szót megtanultad.', 'icon' => '🟠', 'group' => 'level'],
-        'level_5_complete' => ['title' => 'Szakértő – teljesítve', 'description' => 'Az összes Szakértő szintű szót megtanultad.', 'icon' => '🟣', 'group' => 'level'],
-        'level_6_complete' => ['title' => 'Mester – teljesítve', 'description' => 'Az összes Mester szintű szót megtanultad.', 'icon' => '🏆', 'group' => 'level'],
+        'level_1_complete' => ['title' => 'Top 1 000 – teljesítve', 'description' => 'A leggyakoribb 1 000 szót mind megtanultad.', 'icon' => '🟢', 'group' => 'level'],
+        'level_2_complete' => ['title' => '1 001 – 2 000 – teljesítve', 'description' => 'Az 1 001–2 000. leggyakoribb szót mind megtanultad.', 'icon' => '🔵', 'group' => 'level'],
+        'level_3_complete' => ['title' => '2 001 – 4 000 – teljesítve', 'description' => 'A 2 001–4 000. leggyakoribb szót mind megtanultad.', 'icon' => '🟡', 'group' => 'level'],
+        'level_4_complete' => ['title' => '4 001 – 6 000 – teljesítve', 'description' => 'A 4 001–6 000. leggyakoribb szót mind megtanultad.', 'icon' => '🟠', 'group' => 'level'],
+        'level_5_complete' => ['title' => '6 001 – 8 000 – teljesítve', 'description' => 'A 6 001–8 000. leggyakoribb szót mind megtanultad.', 'icon' => '🟣', 'group' => 'level'],
+        'level_6_complete' => ['title' => '8 001 – 10 000 – teljesítve', 'description' => 'A 8 001–10 000. leggyakoribb szót mind megtanultad.', 'icon' => '🏆', 'group' => 'level'],
     ];
 
     /**
@@ -160,20 +160,24 @@ class AchievementService
         };
     }
 
+    /**
+     * Kérésen belüli memoizálás — egy achievement-ellenőrzés több feltétele
+     * is ugyanazokat a darabszámokat kérdezné le.
+     *
+     * @var array<string, int|bool>
+     */
+    private array $memo = [];
+
     private function totalMarkedWords(User $user): int
     {
-        $main = $user->knownWords()->count();
-        $custom = $user->customWords()->whereNotNull('status')->count();
-
-        return $main + $custom;
+        return $this->memo["marked.{$user->id}"] ??= $user->knownWords()->count()
+            + $user->customWords()->whereNotNull('status')->count();
     }
 
     private function totalKnownWords(User $user): int
     {
-        $main = $user->knownWords()->wherePivot('status', 'known')->count();
-        $custom = $user->customWords()->where('status', 'known')->count();
-
-        return $main + $custom;
+        return $this->memo["known.{$user->id}"] ??= $user->knownWords()->wherePivot('status', 'known')->count()
+            + $user->customWords()->where('status', 'known')->count();
     }
 
     /**
@@ -226,23 +230,25 @@ class AchievementService
 
     private function isLevelComplete(User $user, int $level): bool
     {
-        $total = Word::where('level', $level)->count();
+        return (bool) ($this->memo["level.{$user->id}.{$level}"] ??= (function () use ($user, $level): bool {
+            $total = Word::where('level', $level)->count();
 
-        if ($total === 0) {
-            return false;
-        }
+            if ($total === 0) {
+                return false;
+            }
 
-        $known = $user->knownWords()
-            ->wherePivot('status', 'known')
-            ->where('level', $level)
-            ->count();
+            $known = $user->knownWords()
+                ->wherePivot('status', 'known')
+                ->where('level', $level)
+                ->count();
 
-        return $known >= $total;
+            return $known >= $total;
+        })());
     }
 
     private function totalFlashcardReviews(User $user): int
     {
-        return FlashcardReview::whereHas(
+        return $this->memo["fc_reviews.{$user->id}"] ??= FlashcardReview::whereHas(
             'flashcard.deck',
             fn ($q) => $q->where('user_id', $user->id)
         )->count();

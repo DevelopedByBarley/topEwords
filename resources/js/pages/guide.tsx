@@ -240,7 +240,7 @@ export default function Guide() {
 
                         <Sub title="Dashboard">
                             <P>
-                                A főoldalon látod az összesített haladásodat szintenként (Kezdő → Mester),
+                                A főoldalon látod az összesített haladásodat szintenként (Top 1 000 → 8 001–10 000),
                                 a napi sorozatodat (streak) és az aktuális statisztikáidat.
                                 Minden szinthez tartozik egy sáv: hány szót jelöltél meg abból a szintből.
                             </P>
@@ -257,14 +257,14 @@ export default function Guide() {
 
                         <Sub title="Szintek">
                             <Table
-                                headers={['Szint', 'Megnevezés', 'Mikor érdemes?']}
+                                headers={['Szint', 'Gyakorisági rang', 'Mikor érdemes?']}
                                 rows={[
-                                    ['1', 'Kezdő',     'Alapvető szavak — ezeket mindenképp érdemes elsőre megtanulni'],
-                                    ['2', 'Alapszint', 'Hétköznapi kommunikációhoz elegendő'],
-                                    ['3', 'Középszint','Folyékony olvasáshoz és halláshoz szükséges'],
-                                    ['4', 'Haladó',    'Szakmai szövegek és irodalom megértéséhez'],
-                                    ['5', 'Szakértő',  'Ritka szavak, közel anyanyelvi szint'],
-                                    ['6', 'Mester',    'Nagyon ritka, speciális szókincs'],
+                                    ['1', 'Top 1 000',      'Alapvető szavak — ezeket mindenképp érdemes elsőre megtanulni'],
+                                    ['2', '1 001 – 2 000',  'Hétköznapi kommunikációhoz elegendő'],
+                                    ['3', '2 001 – 4 000',  'Folyékony olvasáshoz és halláshoz szükséges'],
+                                    ['4', '4 001 – 6 000',  'Szakmai szövegek és irodalom megértéséhez'],
+                                    ['5', '6 001 – 8 000',  'Ritka szavak, közel anyanyelvi szint'],
+                                    ['6', '8 001 – 10 000', 'Nagyon ritka, speciális szókincs'],
                                 ]}
                             />
                         </Sub>

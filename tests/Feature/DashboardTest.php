@@ -21,10 +21,10 @@ test('dashboard returns level stats and totals', function () {
     $this->actingAs($user);
 
     Word::insert([
-        ['word' => 'the', 'rank' => 1, 'created_at' => now(), 'updated_at' => now()],
-        ['word' => 'of', 'rank' => 500, 'created_at' => now(), 'updated_at' => now()],
-        ['word' => 'moderate', 'rank' => 3000, 'created_at' => now(), 'updated_at' => now()],
-        ['word' => 'elaborate', 'rank' => 7500, 'created_at' => now(), 'updated_at' => now()],
+        ['word' => 'the', 'rank' => 1, 'level' => 1, 'created_at' => now(), 'updated_at' => now()],
+        ['word' => 'of', 'rank' => 500, 'level' => 1, 'created_at' => now(), 'updated_at' => now()],
+        ['word' => 'moderate', 'rank' => 3000, 'level' => 3, 'created_at' => now(), 'updated_at' => now()],
+        ['word' => 'elaborate', 'rank' => 7500, 'level' => 4, 'created_at' => now(), 'updated_at' => now()],
     ]);
 
     $beginner = Word::where('rank', 1)->first();
@@ -35,14 +35,14 @@ test('dashboard returns level stats and totals', function () {
     $this->get(route('dashboard'))
         ->assertInertia(fn ($page) => $page
             ->component('dashboard')
-            ->has('levelStats', 3)
+            ->has('levelStats', 6)
             ->where('totalKnown', 1)
             ->where('levelStats.0.label', 'Kezdő')
             ->where('levelStats.0.known', 1)
             ->where('levelStats.0.learning', 0)
-            ->where('levelStats.1.label', 'Középhaladó')
-            ->where('levelStats.1.learning', 1)
-            ->where('levelStats.2.label', 'Haladó')
-            ->where('levelStats.2.known', 0)
+            ->where('levelStats.2.label', 'Középszint')
+            ->where('levelStats.2.learning', 1)
+            ->where('levelStats.3.label', 'Haladó')
+            ->where('levelStats.3.known', 0)
         );
 });

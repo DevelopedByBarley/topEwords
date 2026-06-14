@@ -1,8 +1,10 @@
 {
     "manifest_version": 3,
-    "name": "TopEwords",
-    "version": "1.4",
+    "name": "TopWords",
+    "version": "1.5",
     "description": "Look up English words instantly on any webpage and track your vocabulary progress with spaced repetition.",
+    "homepage_url": "https://topwords.eu",
+    "minimum_chrome_version": "110",
     "permissions": ["activeTab", "contextMenus", "storage"],
     "host_permissions": ["https://topwords.eu/*"],
     "icons": {
@@ -11,10 +13,11 @@
         "128": "icon128.png"
     },
     "action": {
-        "default_title": "TopEwords",
+        "default_title": "TopWords",
         "default_icon": {
             "16": "icon16.png",
-            "48": "icon48.png"
+            "48": "icon48.png",
+            "128": "icon128.png"
         },
         "default_popup": "popup.html"
     },
@@ -25,7 +28,7 @@
         {
             "matches": ["<all_urls>"],
             "js": ["content.js"],
-            "css": ["content.css"]
+            "run_at": "document_idle"
         }
     ]
 }

@@ -39,7 +39,9 @@ class AppServiceProvider extends ServiceProvider
         $this->configureDefaults();
 
         Gate::define('admin', function (User $user): bool {
-            return $user->email === env('ADMIN_EMAIL');
+            $adminEmail = config('app.admin_email');
+
+            return $adminEmail !== null && $user->email === $adminEmail;
         });
     }
 

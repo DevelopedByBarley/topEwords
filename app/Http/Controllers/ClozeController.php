@@ -208,6 +208,7 @@ class ClozeController extends Controller
                 'difficulty' => $difficulty,
                 'folder' => $folderId,
                 'count' => $count,
+                'ids' => $idsParam,
             ],
             'freeClozeLimit' => $user->hasActiveAccess() ? null : $freeClozeLimit,
         ]);

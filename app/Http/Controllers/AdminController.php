@@ -48,8 +48,19 @@ class AdminController extends Controller
             ->orderBy('date')
             ->get();
 
-        $aiAccessUsers = User::where('ai_access', true)
-            ->get(['id', 'name', 'email']);
+        // Teljes userlista a hozzáférés-kezelőhöz — az effektív csomaggal
+        $accessUsers = User::with('subscriptions')
+            ->orderBy('name')
+            ->get(['id', 'name', 'email', 'plan_override', 'ai_access', 'lifetime_access', 'trial_ends_at'])
+            ->map(fn (User $u) => [
+                'id' => $u->id,
+                'name' => $u->name,
+                'email' => $u->email,
+                'plan' => $u->currentPlan(),
+                'plan_override' => $u->plan_override,
+                'ai_access' => $u->ai_access,
+                'has_ai' => $u->hasAiAccess(),
+            ]);
 
         return Inertia::render('admin/index', [
             'stats' => [
@@ -68,8 +79,32 @@ class AdminController extends Controller
             'recentUsers' => $recentUsers,
             'mostActive' => $mostActive,
             'registrationsByDay' => $registrationsByDay,
-            'aiAccessUsers' => $aiAccessUsers,
+            'accessUsers' => $accessUsers,
         ]);
+    }
+
+    /**
+     * Csomag-felülírás kiosztása vagy visszavonása email alapján.
+     * 'none' visszaállítja az alapértelmezettre (Stripe előfizetés dönt).
+     */
+    public function setAccess(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'email' => ['required', 'email', 'exists:users,email'],
+            'plan' => ['required', 'in:none,basic,premium'],
+        ]);
+
+        $user = User::where('email', $data['email'])->firstOrFail();
+        $user->plan_override = $data['plan'] === 'none' ? null : $data['plan'];
+        $user->save();
+
+        $message = match ($data['plan']) {
+            'basic' => "{$user->name} Basic hozzáférést kapott.",
+            'premium' => "{$user->name} Premium hozzáférést kapott.",
+            default => "{$user->name} felülírása törölve, az előfizetése dönt.",
+        };
+
+        return back()->with('success', $message);
     }
 
     public function toggleAiAccess(Request $request): RedirectResponse

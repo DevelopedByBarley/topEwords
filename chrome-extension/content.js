@@ -117,6 +117,35 @@ const POPUP_CSS = `
         margin-bottom: 10px;
     }
 
+    .synonyms {
+        display: block;
+        font-size: 12px;
+        color: #64748b;
+        margin-bottom: 8px;
+    }
+
+    .example {
+        display: block;
+        font-size: 12px;
+        font-style: italic;
+        color: #64748b;
+        margin-bottom: 10px;
+        padding-left: 8px;
+        border-left: 2px solid #e2e8f0;
+    }
+
+    .example-hu {
+        color: #94a3b8;
+    }
+
+    .error-feedback {
+        display: block;
+        font-size: 12px;
+        color: #ef4444;
+        font-weight: 500;
+        margin-bottom: 6px;
+    }
+
     .statuses {
         display: flex;
         flex-wrap: wrap;
@@ -202,7 +231,10 @@ let holdTimer = null;
 // ── Selection detection ───────────────────────────────────────────────────────
 
 document.addEventListener('mousedown', (e) => {
-    if (host && host.contains(e.target)) return;
+    if (host && host.contains(e.target)) {
+        return;
+    }
+
     clearTimeout(holdTimer);
 
     if (e.detail === 2) {
@@ -210,10 +242,21 @@ document.addEventListener('mousedown', (e) => {
         holdTimer = setTimeout(() => {
             const selection = window.getSelection();
             const text = selection?.toString().trim();
-            if (!text) return;
+
+            if (!text) {
+                return;
+            }
+
             const word = text.replace(/[^a-zA-Z'-]/g, '').trim();
-            if (!word || word.length < 2 || text.split(/\s+/).length > 1) return;
-            if (word === currentWord && host) return;
+
+            if (!word || word.length < 2 || text.split(/\s+/).length > 1) {
+                return;
+            }
+
+            if (word === currentWord && host) {
+                return;
+            }
+
             const range = selection.getRangeAt(0);
             const rect = range.getBoundingClientRect();
             showPopup(word, rect);
@@ -225,17 +268,60 @@ document.addEventListener('mouseup', () => {
     clearTimeout(holdTimer);
 });
 
-document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') { hidePopup(); hideSearch(); }
-    if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.code === 'KeyF') { e.preventDefault(); toggleSearch(); }
+function isTypingTarget() {
+    const el = document.activeElement;
 
-    // 1–4 státusz billentyűk nyitott popup-nál
-    if (shadow && currentData?.found && currentData?.has_active_access) {
-        const statusByKey = { '1': 'learning', '2': 'saved', '3': 'known', '4': 'pronunciation' };
+    return (
+        el &&
+        (el.tagName === 'INPUT' ||
+            el.tagName === 'TEXTAREA' ||
+            el.isContentEditable)
+    );
+}
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        hidePopup();
+        hideSearch();
+
+        return;
+    }
+
+    // Option+W (Alt+W) vagy Cmd/Ctrl+Shift+F → keresőmodal
+    if (
+        (e.altKey && !e.metaKey && !e.ctrlKey && e.code === 'KeyW') ||
+        ((e.metaKey || e.ctrlKey) && e.shiftKey && e.code === 'KeyF')
+    ) {
+        e.preventDefault();
+        toggleSearch();
+
+        return;
+    }
+
+    // 1–4 státusz billentyűk nyitott popup-nál — gépelés közben nem
+    if (
+        shadow &&
+        currentData?.found &&
+        currentData?.has_active_access &&
+        !isTypingTarget()
+    ) {
+        const statusByKey = {
+            1: 'learning',
+            2: 'saved',
+            3: 'known',
+            4: 'pronunciation',
+        };
         const status = statusByKey[e.key];
-        if (status) {
-            const btn = shadow.querySelector(`.status-btn[data-status="${status}"]`);
-            if (btn) { e.preventDefault(); handleStatusClick(btn, currentData); }
+
+        if (status && !e.metaKey && !e.ctrlKey && !e.altKey) {
+            const btn = shadow.querySelector(
+                `.status-btn[data-status="${status}"]`,
+            );
+
+            if (btn) {
+                e.preventDefault();
+                handleStatusClick(btn, currentData);
+            }
         }
     }
 });
@@ -282,7 +368,10 @@ function showPopup(word, rect) {
     }, 0);
 
     sendMsg({ type: 'LOOKUP_WORD', word }, (response) => {
-        if (!shadow) return;
+        if (!shadow) {
+            return;
+        }
+
         currentData = response;
         renderBody(response);
     });
@@ -296,14 +385,16 @@ function positionHost(el, rect) {
     const popupH = 200;
 
     let left = rect.left + scrollX;
+
     if (left + 275 > viewportW + scrollX) {
         left = Math.max(0, viewportW + scrollX - 275);
     }
 
     const spaceBelow = viewportH - rect.bottom;
-    const top = spaceBelow >= popupH || rect.top < popupH
-        ? rect.bottom + scrollY + 8
-        : rect.top + scrollY - popupH - 16;
+    const top =
+        spaceBelow >= popupH || rect.top < popupH
+            ? rect.bottom + scrollY + 8
+            : rect.top + scrollY - popupH - 16;
 
     el.style.left = `${left}px`;
     el.style.top = `${top}px`;
@@ -321,17 +412,23 @@ function hidePopup() {
 }
 
 function onOutsideClick(e) {
-    if (host && !host.contains(e.target)) hidePopup();
+    if (host && !host.contains(e.target)) {
+        hidePopup();
+    }
 }
 
 // ── Render ────────────────────────────────────────────────────────────────────
 
 function renderBody(data) {
-    if (!shadow) return;
+    if (!shadow) {
+        return;
+    }
+
     const body = shadow.querySelector('.body');
 
     if (!data || data.error === 'unauthenticated' || data.error === 'network') {
-        body.innerHTML = `<span class="msg">${data?.error === 'network' ? 'Nincs kapcsolat a TopEwords-szel.' : 'Jelentkezz be a TopEwords-be a szókereséshez.'}</span>`;
+        body.innerHTML = `<span class="msg">${data?.error === 'network' ? 'Nincs kapcsolat a TopWords-szel.' : 'Jelentkezz be a TopWords-be a szókereséshez.'}</span>`;
+
         return;
     }
 
@@ -348,10 +445,19 @@ function renderBody(data) {
                 </a>
             </div>
         `;
+
         return;
     }
 
-    const { word, meaning_hu, extra_meanings, part_of_speech, rank, status, is_custom } = data;
+    const {
+        word,
+        meaning_hu,
+        extra_meanings,
+        part_of_speech,
+        rank,
+        status,
+        is_custom,
+    } = data;
 
     // Update header
     const header = shadow.querySelector('.header');
@@ -365,13 +471,19 @@ function renderBody(data) {
     header.querySelector('.close').addEventListener('click', hidePopup);
 
     let statusSection;
+
     if (data.has_active_access) {
-        const statusBtns = Object.entries(STATUS_LABELS).map(([key, label]) => {
-            const isActive = status === key;
-            const color = STATUS_COLORS[key];
-            const activeStyle = isActive ? `background:${color};border-color:${color};color:#fff` : '';
-            return `<button class="status-btn${isActive ? ' active' : ''}" data-status="${key}" style="${activeStyle}">${label}</button>`;
-        }).join('');
+        const statusBtns = Object.entries(STATUS_LABELS)
+            .map(([key, label]) => {
+                const isActive = status === key;
+                const color = STATUS_COLORS[key];
+                const activeStyle = isActive
+                    ? `background:${color};border-color:${color};color:#fff`
+                    : '';
+
+                return `<button class="status-btn${isActive ? ' active' : ''}" data-status="${key}" style="${activeStyle}">${label}</button>`;
+            })
+            .join('');
         statusSection = `<div class="statuses">${statusBtns}</div>`;
     } else {
         statusSection = `<a class="link" href="${APP_URL}/pricing" target="_blank" style="display:block;margin-bottom:10px;">⭐ Prémiumra váltva státuszokat is menthetsz</a>`;
@@ -380,6 +492,8 @@ function renderBody(data) {
     body.innerHTML = `
         <span class="meaning">${esc(meaning_hu)}</span>
         ${extra_meanings ? `<span class="extra">${esc(extra_meanings)}</span>` : ''}
+        ${data.synonyms ? `<span class="synonyms">≈ ${esc(data.synonyms)}</span>` : ''}
+        ${data.example_en ? `<span class="example">"${esc(data.example_en)}"${data.example_hu ? `<br><span class="example-hu">"${esc(data.example_hu)}"</span>` : ''}</span>` : ''}
         ${statusSection}
         <div class="footer">
             <a class="link" href="${APP_URL}/words?search=${encodeURIComponent(word)}" target="_blank">Megnyitás →</a>
@@ -393,7 +507,9 @@ function renderBody(data) {
         });
     }
 
-    body.querySelector('.tts-btn')?.addEventListener('click', () => speakWord(word));
+    body.querySelector('.tts-btn')?.addEventListener('click', () =>
+        speakWord(word),
+    );
 }
 
 function handleStatusClick(btn, data) {
@@ -419,13 +535,33 @@ function handleStatusClick(btn, data) {
     // Update local data so toggling works correctly
     currentData = { ...data, status: isSame ? null : newStatus };
 
-    sendMsg({
-        type: 'UPDATE_STATUS',
-        id: data.id,
-        is_custom: data.is_custom,
-        status: isSame ? null : newStatus,
-        csrf: data.csrf,
-    });
+    sendMsg(
+        {
+            type: 'UPDATE_STATUS',
+            id: data.id,
+            is_custom: data.is_custom,
+            status: isSame ? null : newStatus,
+            csrf: data.csrf,
+        },
+        (resp) => {
+            if (resp?.ok || !shadow) {
+                return;
+            }
+
+            // Sikertelen mentés → visszaállítás + hibajelzés
+            currentData = data;
+            renderBody(data);
+
+            const body = shadow.querySelector('.body');
+
+            if (body) {
+                const err = document.createElement('span');
+                err.className = 'error-feedback';
+                err.textContent = 'Nem sikerült menteni — próbáld újra.';
+                body.prepend(err);
+            }
+        },
+    );
 }
 
 // ── Search modal ──────────────────────────────────────────────────────────────
@@ -505,6 +641,7 @@ const SEARCH_CSS = `
     }
 
     .result-item:hover { background: #f8fafc; }
+    .result-item.selected { background: #eef2ff; }
     .result-item:last-child { border-bottom: none; }
 
     .result-main { flex: 1; min-width: 0; }
@@ -750,16 +887,24 @@ let searchDebounce = null;
 let searchCsrf = null;
 let searchHasAccess = false;
 let searchIsAdmin = false;
+let searchResultsData = [];
+let searchSelIdx = -1;
 
 function toggleSearch() {
-    if (searchHost) { hideSearch(); return; }
+    if (searchHost) {
+        hideSearch();
+
+        return;
+    }
+
     showSearch();
 }
 
 function showSearch() {
     hidePopup();
     searchHost = document.createElement('div');
-    searchHost.style.cssText = 'position:fixed;inset:0;z-index:2147483647;pointer-events:auto;';
+    searchHost.style.cssText =
+        'position:fixed;inset:0;z-index:2147483647;pointer-events:auto;';
     document.body.appendChild(searchHost);
 
     searchShadow = searchHost.attachShadow({ mode: 'open' });
@@ -775,11 +920,11 @@ function showSearch() {
                     <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
                 </svg>
                 <input id="search-input" type="text" placeholder="Keress egy szót…" autocomplete="off" spellcheck="false" />
-                <span id="shortcut-hint">${navigator.platform.includes('Mac') ? 'Cmd' : 'Ctrl'}+Shift+F</span>
+                <span id="shortcut-hint">${navigator.platform.includes('Mac') ? 'Option' : 'Alt'}+W</span>
             </div>
             <div id="results"><div id="empty" style="display:none">Nincs találat.</div></div>
             <div id="detail"></div>
-            <div id="footer-hint">Enter · kattintás = részletek &nbsp;·&nbsp; Esc = bezár</div>
+            <div id="footer-hint">↑↓ = választás &nbsp;·&nbsp; Enter = részletek &nbsp;·&nbsp; Esc = bezár</div>
         </div>
     `;
 
@@ -789,11 +934,20 @@ function showSearch() {
     input.addEventListener('input', () => {
         clearTimeout(searchDebounce);
         const q = input.value.trim();
-        if (!q) { renderSearchResults([]); return; }
+
+        if (!q) {
+            renderSearchResults([]);
+
+            return;
+        }
+
         showSearchLoading();
         searchDebounce = setTimeout(() => {
             sendMsg({ type: 'SEARCH_WORD', q }, (resp) => {
-                if (!searchShadow) return;
+                if (!searchShadow) {
+                    return;
+                }
+
                 searchCsrf = resp?.csrf ?? null;
                 searchHasAccess = resp?.has_active_access ?? false;
                 searchIsAdmin = resp?.is_admin ?? false;
@@ -802,9 +956,56 @@ function showSearch() {
         }, 250);
     });
 
+    // Billentyű-navigáció: ↑↓ a találatok között, Enter = részletek
+    input.addEventListener('keydown', (e) => {
+        if (!searchShadow) {
+            return;
+        }
+
+        const items = Array.from(
+            searchShadow.querySelectorAll('.result-item[data-index]'),
+        );
+
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault();
+
+            if (!items.length) {
+                return;
+            }
+
+            searchSelIdx =
+                e.key === 'ArrowDown'
+                    ? Math.min(searchSelIdx + 1, items.length - 1)
+                    : Math.max(searchSelIdx - 1, 0);
+            items.forEach((el, i) =>
+                el.classList.toggle('selected', i === searchSelIdx),
+            );
+            items[searchSelIdx]?.scrollIntoView({ block: 'nearest' });
+
+            return;
+        }
+
+        if (e.key === 'Enter') {
+            e.preventDefault();
+
+            if (searchSelIdx >= 0 && searchResultsData[searchSelIdx]) {
+                showSearchDetail(searchResultsData[searchSelIdx]);
+            } else if (searchResultsData.length > 0) {
+                searchSelIdx = 0;
+                items[0]?.classList.add('selected');
+                showSearchDetail(searchResultsData[0]);
+            } else {
+                searchShadow.getElementById('add-notfound')?.click();
+            }
+        }
+    });
+
     searchHost.addEventListener('mousedown', (e) => {
         const modal = searchShadow.getElementById('modal');
-        if (!e.composedPath().includes(modal)) hideSearch();
+
+        if (!e.composedPath().includes(modal)) {
+            hideSearch();
+        }
     });
 }
 
@@ -813,32 +1014,46 @@ function hideSearch() {
         searchHost.remove();
         searchHost = null;
         searchShadow = null;
+        searchResultsData = [];
+        searchSelIdx = -1;
         clearTimeout(searchDebounce);
     }
 }
 
 function showSearchLoading() {
-    if (!searchShadow) return;
-    searchShadow.getElementById('results').innerHTML = '<div id="loading">Keresés…</div>';
+    if (!searchShadow) {
+        return;
+    }
+
+    searchShadow.getElementById('results').innerHTML =
+        '<div id="loading">Keresés…</div>';
     const detail = searchShadow.getElementById('detail');
     detail.classList.remove('visible');
     detail.innerHTML = '';
 }
 
 function renderSearchResults(results, error) {
-    if (!searchShadow) return;
+    if (!searchShadow) {
+        return;
+    }
+
+    searchResultsData = results ?? [];
+    searchSelIdx = -1;
     const container = searchShadow.getElementById('results');
     const detail = searchShadow.getElementById('detail');
     detail.classList.remove('visible');
     detail.innerHTML = '';
 
     if (error === 'unauthenticated' || error === 'network') {
-        container.innerHTML = `<div id="empty">${error === 'network' ? 'Nincs kapcsolat a TopEwords-szel.' : 'Jelentkezz be a TopEwords-be a kereséshez.'}</div>`;
+        container.innerHTML = `<div id="empty">${error === 'network' ? 'Nincs kapcsolat a TopWords-szel.' : 'Jelentkezz be a TopWords-be a kereséshez.'}</div>`;
+
         return;
     }
 
     if (!results.length) {
-        const q = searchShadow.getElementById('search-input')?.value.trim() ?? '';
+        const q =
+            searchShadow.getElementById('search-input')?.value.trim() ?? '';
+
         if (q) {
             container.innerHTML = `
                 <div class="result-item" id="add-notfound">
@@ -851,19 +1066,24 @@ function renderSearchResults(results, error) {
                     </div>
                 </div>
             `;
-            container.querySelector('#add-notfound').addEventListener('click', () => {
-                showSearchDetail({ word: q, _notFound: true });
-            });
+            container
+                .querySelector('#add-notfound')
+                .addEventListener('click', () => {
+                    showSearchDetail({ word: q, _notFound: true });
+                });
         } else {
             container.innerHTML = '<div id="empty">Nincs találat.</div>';
         }
+
         return;
     }
 
-    container.innerHTML = results.map((r, i) => {
-        const statusColor = r.status ? STATUS_COLORS[r.status] : null;
-        const statusLabel = r.status ? STATUS_LABELS[r.status] : null;
-        return `
+    container.innerHTML = results
+        .map((r, i) => {
+            const statusColor = r.status ? STATUS_COLORS[r.status] : null;
+            const statusLabel = r.status ? STATUS_LABELS[r.status] : null;
+
+            return `
             <div class="result-item" data-index="${i}">
                 <div class="result-main">
                     <div class="result-word">${esc(r.word)}</div>
@@ -876,7 +1096,8 @@ function renderSearchResults(results, error) {
                 </div>
             </div>
         `;
-    }).join('');
+        })
+        .join('');
 
     container.querySelectorAll('.result-item').forEach((el) => {
         el.addEventListener('click', () => {
@@ -887,17 +1108,26 @@ function renderSearchResults(results, error) {
 }
 
 function showSearchDetail(data) {
-    if (!searchShadow) return;
+    if (!searchShadow) {
+        return;
+    }
+
     const detail = searchShadow.getElementById('detail');
 
     let statusSection = '';
+
     if (searchHasAccess) {
-        const btns = Object.entries(STATUS_LABELS).map(([key, label]) => {
-            const isActive = data.status === key;
-            const color = STATUS_COLORS[key];
-            const activeStyle = isActive ? `background:${color};border-color:${color};color:#fff` : '';
-            return `<button class="status-btn${isActive ? ' active' : ''}" data-status="${key}" style="${activeStyle}">${label}</button>`;
-        }).join('');
+        const btns = Object.entries(STATUS_LABELS)
+            .map(([key, label]) => {
+                const isActive = data.status === key;
+                const color = STATUS_COLORS[key];
+                const activeStyle = isActive
+                    ? `background:${color};border-color:${color};color:#fff`
+                    : '';
+
+                return `<button class="status-btn${isActive ? ' active' : ''}" data-status="${key}" style="${activeStyle}">${label}</button>`;
+            })
+            .join('');
         statusSection = `<div class="detail-statuses">${btns}</div>`;
     }
 
@@ -974,12 +1204,16 @@ function showSearchDetail(data) {
         const posSelect = detail.querySelector('#add-pos');
         posSelect.addEventListener('change', () => {
             const pos = posSelect.value;
-            detail.querySelector('#verb-fields').style.display = pos === 'verb' ? 'flex' : 'none';
-            detail.querySelector('#noun-fields').style.display = pos === 'noun' ? 'flex' : 'none';
-            detail.querySelector('#adj-fields').style.display = pos === 'adj' ? 'flex' : 'none';
+            detail.querySelector('#verb-fields').style.display =
+                pos === 'verb' ? 'flex' : 'none';
+            detail.querySelector('#noun-fields').style.display =
+                pos === 'noun' ? 'flex' : 'none';
+            detail.querySelector('#adj-fields').style.display =
+                pos === 'adj' ? 'flex' : 'none';
         });
 
         const geminiBtn = detail.querySelector('#gemini-fill-btn');
+
         if (geminiBtn) {
             geminiBtn.addEventListener('click', () => {
                 geminiBtn.disabled = true;
@@ -989,33 +1223,84 @@ function showSearchDetail(data) {
                     geminiBtn.disabled = false;
                     geminiBtn.innerHTML = '✨ AI kitöltés';
 
-                    if (!resp || resp.error) { return; }
+                    if (!resp || resp.error) {
+                        return;
+                    }
 
                     const pos = resp.part_of_speech ?? '';
+
                     if (pos) {
                         posSelect.value = pos;
                         posSelect.dispatchEvent(new Event('change'));
                     }
 
-                    if (resp.meaning_hu) { detail.querySelector('#add-meaning').value = resp.meaning_hu; }
-                    if (resp.extra_meanings) { detail.querySelector('#add-extra').value = resp.extra_meanings; }
-                    if (resp.synonyms) { detail.querySelector('#add-synonyms').value = resp.synonyms; }
-                    if (resp.example_en) { detail.querySelector('#add-example-en').value = resp.example_en; }
-                    if (resp.example_hu) { detail.querySelector('#add-example-hu').value = resp.example_hu; }
+                    if (resp.meaning_hu) {
+                        detail.querySelector('#add-meaning').value =
+                            resp.meaning_hu;
+                    }
+
+                    if (resp.extra_meanings) {
+                        detail.querySelector('#add-extra').value =
+                            resp.extra_meanings;
+                    }
+
+                    if (resp.synonyms) {
+                        detail.querySelector('#add-synonyms').value =
+                            resp.synonyms;
+                    }
+
+                    if (resp.example_en) {
+                        detail.querySelector('#add-example-en').value =
+                            resp.example_en;
+                    }
+
+                    if (resp.example_hu) {
+                        detail.querySelector('#add-example-hu').value =
+                            resp.example_hu;
+                    }
 
                     if (pos === 'verb') {
-                        if (resp.verb_past) { detail.querySelector('#add-verb-past').value = resp.verb_past; }
-                        if (resp.verb_past_participle) { detail.querySelector('#add-verb-pp').value = resp.verb_past_participle; }
-                        if (resp.verb_present_participle) { detail.querySelector('#add-verb-prog').value = resp.verb_present_participle; }
-                        if (resp.verb_third_person) { detail.querySelector('#add-verb-3rd').value = resp.verb_third_person; }
-                        if (resp.is_irregular) { detail.querySelector('#add-irregular').checked = true; }
+                        if (resp.verb_past) {
+                            detail.querySelector('#add-verb-past').value =
+                                resp.verb_past;
+                        }
+
+                        if (resp.verb_past_participle) {
+                            detail.querySelector('#add-verb-pp').value =
+                                resp.verb_past_participle;
+                        }
+
+                        if (resp.verb_present_participle) {
+                            detail.querySelector('#add-verb-prog').value =
+                                resp.verb_present_participle;
+                        }
+
+                        if (resp.verb_third_person) {
+                            detail.querySelector('#add-verb-3rd').value =
+                                resp.verb_third_person;
+                        }
+
+                        if (resp.is_irregular) {
+                            detail.querySelector('#add-irregular').checked =
+                                true;
+                        }
                     }
+
                     if (pos === 'noun' && resp.noun_plural) {
-                        detail.querySelector('#add-noun-plural').value = resp.noun_plural;
+                        detail.querySelector('#add-noun-plural').value =
+                            resp.noun_plural;
                     }
+
                     if (pos === 'adj') {
-                        if (resp.adj_comparative) { detail.querySelector('#add-adj-comp').value = resp.adj_comparative; }
-                        if (resp.adj_superlative) { detail.querySelector('#add-adj-super').value = resp.adj_superlative; }
+                        if (resp.adj_comparative) {
+                            detail.querySelector('#add-adj-comp').value =
+                                resp.adj_comparative;
+                        }
+
+                        if (resp.adj_superlative) {
+                            detail.querySelector('#add-adj-super').value =
+                                resp.adj_superlative;
+                        }
                     }
                 });
             });
@@ -1031,35 +1316,55 @@ function showSearchDetail(data) {
                 type: 'ADD_WORD',
                 csrf: searchCsrf,
                 word: data.word,
-                meaning_hu: detail.querySelector('#add-meaning').value.trim() || null,
-                extra_meanings: detail.querySelector('#add-extra').value.trim() || null,
-                synonyms: detail.querySelector('#add-synonyms').value.trim() || null,
+                meaning_hu:
+                    detail.querySelector('#add-meaning').value.trim() || null,
+                extra_meanings:
+                    detail.querySelector('#add-extra').value.trim() || null,
+                synonyms:
+                    detail.querySelector('#add-synonyms').value.trim() || null,
                 part_of_speech: pos || null,
-                example_en: detail.querySelector('#add-example-en').value.trim() || null,
-                example_hu: detail.querySelector('#add-example-hu').value.trim() || null,
+                example_en:
+                    detail.querySelector('#add-example-en').value.trim() ||
+                    null,
+                example_hu:
+                    detail.querySelector('#add-example-hu').value.trim() ||
+                    null,
             };
 
             if (pos === 'verb') {
-                payload.form_base = detail.querySelector('#add-form-base').value.trim() || null;
-                payload.verb_past = detail.querySelector('#add-verb-past').value.trim() || null;
-                payload.verb_past_participle = detail.querySelector('#add-verb-pp').value.trim() || null;
-                payload.verb_present_participle = detail.querySelector('#add-verb-prog').value.trim() || null;
-                payload.verb_third_person = detail.querySelector('#add-verb-3rd').value.trim() || null;
-                payload.is_irregular = detail.querySelector('#add-irregular').checked;
+                payload.form_base =
+                    detail.querySelector('#add-form-base').value.trim() || null;
+                payload.verb_past =
+                    detail.querySelector('#add-verb-past').value.trim() || null;
+                payload.verb_past_participle =
+                    detail.querySelector('#add-verb-pp').value.trim() || null;
+                payload.verb_present_participle =
+                    detail.querySelector('#add-verb-prog').value.trim() || null;
+                payload.verb_third_person =
+                    detail.querySelector('#add-verb-3rd').value.trim() || null;
+                payload.is_irregular =
+                    detail.querySelector('#add-irregular').checked;
             }
+
             if (pos === 'noun') {
-                payload.noun_plural = detail.querySelector('#add-noun-plural').value.trim() || null;
+                payload.noun_plural =
+                    detail.querySelector('#add-noun-plural').value.trim() ||
+                    null;
             }
+
             if (pos === 'adj') {
-                payload.adj_comparative = detail.querySelector('#add-adj-comp').value.trim() || null;
-                payload.adj_superlative = detail.querySelector('#add-adj-super').value.trim() || null;
+                payload.adj_comparative =
+                    detail.querySelector('#add-adj-comp').value.trim() || null;
+                payload.adj_superlative =
+                    detail.querySelector('#add-adj-super').value.trim() || null;
             }
 
             sendMsg(payload, (resp) => {
                 const fb = detail.querySelector('#add-feedback');
+
                 if (resp?.ok) {
                     btn.style.display = 'none';
-                    fb.textContent = `„${esc(data.word)}" hozzáadva!`;
+                    fb.textContent = `„${data.word}" hozzáadva!`;
                     fb.style.color = '#22c55e';
                     fb.style.display = 'block';
                 } else if (resp?.error === 'duplicate') {
@@ -1077,9 +1382,13 @@ function showSearchDetail(data) {
                 } else {
                     btn.disabled = false;
                     btn.textContent = 'Hozzáadás';
+                    fb.textContent = 'Nem sikerült menteni — próbáld újra.';
+                    fb.style.color = '#ef4444';
+                    fb.style.display = 'block';
                 }
             });
         });
+
         return;
     }
 
@@ -1094,19 +1403,22 @@ function showSearchDetail(data) {
         ${data.extra_meanings ? `<div class="detail-extra">${esc(data.extra_meanings)}</div>` : ''}
         ${statusSection}
         <div style="display:flex;align-items:center;gap:4px">
-            <a class="detail-link" href="${APP_URL}/words?search=${encodeURIComponent(data.word)}" target="_blank">Megnyitás a TopEwords-ben →</a>
+            <a class="detail-link" href="${APP_URL}/words?search=${encodeURIComponent(data.word)}" target="_blank">Megnyitás a TopWords-ben →</a>
             <button class="detail-tts-btn" title="Kiejtés angolul">🔊</button>
         </div>
     `;
     detail.classList.add('visible');
 
-    detail.querySelector('.detail-tts-btn')?.addEventListener('click', () => speakWord(data.word));
+    detail
+        .querySelector('.detail-tts-btn')
+        ?.addEventListener('click', () => speakWord(data.word));
 
     if (searchHasAccess) {
         detail.querySelectorAll('.status-btn').forEach((btn) => {
             btn.addEventListener('click', () => {
                 const newStatus = btn.dataset.status;
                 const isSame = btn.classList.contains('active');
+                const prev = data;
 
                 detail.querySelectorAll('.status-btn').forEach((b) => {
                     b.classList.remove('active');
@@ -1125,13 +1437,24 @@ function showSearchDetail(data) {
 
                 data = { ...data, status: isSame ? null : newStatus };
 
-                sendMsg({
-                    type: 'UPDATE_STATUS',
-                    id: data.id,
-                    is_custom: data.is_custom,
-                    status: isSame ? null : newStatus,
-                    csrf: searchCsrf,
-                });
+                sendMsg(
+                    {
+                        type: 'UPDATE_STATUS',
+                        id: data.id,
+                        is_custom: data.is_custom,
+                        status: isSame ? null : newStatus,
+                        csrf: searchCsrf,
+                    },
+                    (resp) => {
+                        if (resp?.ok || !searchShadow) {
+                            return;
+                        }
+
+                        // Sikertelen mentés → előző állapot visszaállítása
+                        data = prev;
+                        showSearchDetail(prev);
+                    },
+                );
             });
         });
     }
@@ -1142,16 +1465,31 @@ function showSearchDetail(data) {
 let highlightEnabled = false;
 let hlWordMap = null;
 
-const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'TEXTAREA', 'INPUT', 'SELECT', 'NOSCRIPT', 'CODE', 'PRE', 'BUTTON']);
+const SKIP_TAGS = new Set([
+    'SCRIPT',
+    'STYLE',
+    'TEXTAREA',
+    'INPUT',
+    'SELECT',
+    'NOSCRIPT',
+    'CODE',
+    'PRE',
+    'BUTTON',
+]);
 
 function initHighlight() {
     chrome.storage.local.get('hlEnabled', ({ hlEnabled }) => {
         if (hlEnabled) {
             highlightEnabled = true;
+
             if (document.readyState === 'complete') {
                 loadAndApplyHighlights();
             } else {
-                window.addEventListener('load', () => loadAndApplyHighlights(), { once: true });
+                window.addEventListener(
+                    'load',
+                    () => loadAndApplyHighlights(),
+                    { once: true },
+                );
             }
         }
     });
@@ -1161,19 +1499,31 @@ function loadAndApplyHighlights(attempt = 0) {
     sendMsg({ type: 'GET_STATUSES' }, (resp) => {
         if (!resp || resp.error || !resp.statuses) {
             if (attempt < 3) {
-                setTimeout(() => loadAndApplyHighlights(attempt + 1), 1500 * (attempt + 1));
+                setTimeout(
+                    () => loadAndApplyHighlights(attempt + 1),
+                    1500 * (attempt + 1),
+                );
             }
+
             return;
         }
+
         const entries = Object.entries(resp.statuses);
-        if (!entries.length) { return; }
+
+        if (!entries.length) {
+            return;
+        }
+
         hlWordMap = new Map(entries.map(([w, s]) => [w.toLowerCase(), s]));
         applyHighlights();
     });
 }
 
 function applyHighlights() {
-    if (!hlWordMap?.size) { return; }
+    if (!hlWordMap?.size) {
+        return;
+    }
+
     removeHighlights();
 
     const walker = document.createTreeWalker(
@@ -1182,20 +1532,42 @@ function applyHighlights() {
         {
             acceptNode(node) {
                 const el = node.parentElement;
-                if (!el) { return NodeFilter.FILTER_REJECT; }
-                if ('twHl' in el.dataset) { return NodeFilter.FILTER_REJECT; }
-                if (el.isContentEditable) { return NodeFilter.FILTER_REJECT; }
-                if (SKIP_TAGS.has(el.tagName)) { return NodeFilter.FILTER_REJECT; }
-                if (el.closest('a, button, [role="button"], [role="link"], [role="combobox"], [role="search"], [role="listbox"], [role="option"], [role="navigation"], ytd-searchbox, ytd-masthead, #search-form')) {
+
+                if (!el) {
                     return NodeFilter.FILTER_REJECT;
                 }
+
+                if ('twHl' in el.dataset) {
+                    return NodeFilter.FILTER_REJECT;
+                }
+
+                if (el.isContentEditable) {
+                    return NodeFilter.FILTER_REJECT;
+                }
+
+                if (SKIP_TAGS.has(el.tagName)) {
+                    return NodeFilter.FILTER_REJECT;
+                }
+
+                if (
+                    el.closest(
+                        'a, button, [role="button"], [role="link"], [role="combobox"], [role="search"], [role="listbox"], [role="option"], [role="navigation"], ytd-searchbox, ytd-masthead, #search-form',
+                    )
+                ) {
+                    return NodeFilter.FILTER_REJECT;
+                }
+
                 return NodeFilter.FILTER_ACCEPT;
             },
-        }
+        },
     );
 
     const nodes = [];
-    while (walker.nextNode()) { nodes.push(walker.currentNode); }
+
+    while (walker.nextNode()) {
+        nodes.push(walker.currentNode);
+    }
+
     nodes.forEach(highlightTextNode);
 
     document.addEventListener('click', handleHlClick, { capture: true });
@@ -1203,9 +1575,13 @@ function applyHighlights() {
 
 function highlightTextNode(node) {
     const parentEl = node.parentElement;
+
     if (parentEl) {
         const display = window.getComputedStyle(parentEl).display;
-        if (display.includes('flex') || display.includes('grid')) { return; }
+
+        if (display.includes('flex') || display.includes('grid')) {
+            return;
+        }
     }
 
     const text = node.textContent;
@@ -1217,11 +1593,17 @@ function highlightTextNode(node) {
 
     while ((match = regex.exec(text)) !== null) {
         const status = hlWordMap.get(match[1].toLowerCase());
-        if (!status) { continue; }
+
+        if (!status) {
+            continue;
+        }
 
         hasMatch = true;
+
         if (match.index > lastIndex) {
-            parts.push(document.createTextNode(text.slice(lastIndex, match.index)));
+            parts.push(
+                document.createTextNode(text.slice(lastIndex, match.index)),
+            );
         }
 
         const span = document.createElement('span');
@@ -1230,8 +1612,16 @@ function highlightTextNode(node) {
         span.style.setProperty('display', 'inline', 'important');
         span.style.setProperty('position', 'static', 'important');
         span.style.setProperty('float', 'none', 'important');
-        span.style.setProperty('text-decoration-line', 'underline', 'important');
-        span.style.setProperty('text-decoration-color', STATUS_COLORS[status], 'important');
+        span.style.setProperty(
+            'text-decoration-line',
+            'underline',
+            'important',
+        );
+        span.style.setProperty(
+            'text-decoration-color',
+            STATUS_COLORS[status],
+            'important',
+        );
         span.style.setProperty('text-decoration-thickness', '2px', 'important');
         span.style.setProperty('cursor', 'pointer', 'important');
         span.textContent = match[1];
@@ -1239,13 +1629,19 @@ function highlightTextNode(node) {
         lastIndex = match.index + match[1].length;
     }
 
-    if (!hasMatch) { return; }
+    if (!hasMatch) {
+        return;
+    }
+
     if (lastIndex < text.length) {
         parts.push(document.createTextNode(text.slice(lastIndex)));
     }
 
     const parent = node.parentNode;
-    if (!parent) { return; }
+
+    if (!parent) {
+        return;
+    }
 
     const fragment = document.createDocumentFragment();
     parts.forEach((p) => fragment.appendChild(p));
@@ -1257,8 +1653,12 @@ function removeHighlights() {
     const parents = new Set();
     document.querySelectorAll('[data-tw-hl]').forEach((span) => {
         const parent = span.parentNode;
+
         if (parent) {
-            parent.replaceChild(document.createTextNode(span.textContent), span);
+            parent.replaceChild(
+                document.createTextNode(span.textContent),
+                span,
+            );
             parents.add(parent);
         }
     });
@@ -1267,8 +1667,15 @@ function removeHighlights() {
 
 function handleHlClick(e) {
     const span = e.target?.closest?.('[data-tw-hl]');
-    if (!span) { return; }
-    if (e.target?.closest?.('a, button, [role="button"], [role="link"]')) { return; }
+
+    if (!span) {
+        return;
+    }
+
+    if (e.target?.closest?.('a, button, [role="button"], [role="link"]')) {
+        return;
+    }
+
     e.preventDefault();
     e.stopPropagation();
     const rect = span.getBoundingClientRect();
@@ -1278,12 +1685,14 @@ function handleHlClick(e) {
 function toggleHighlight() {
     highlightEnabled = !highlightEnabled;
     chrome.storage.local.set({ hlEnabled: highlightEnabled });
+
     if (highlightEnabled) {
         loadAndApplyHighlights();
     } else {
         hlWordMap = null;
         removeHighlights();
     }
+
     return highlightEnabled;
 }
 
@@ -1291,9 +1700,11 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     if (msg.type === 'TOGGLE_HIGHLIGHT') {
         sendResponse({ enabled: toggleHighlight() });
     }
+
     if (msg.type === 'GET_HL_STATE') {
         sendResponse({ enabled: highlightEnabled });
     }
+
     if (msg.type === 'GET_PAGE_STATS') {
         if (hlWordMap) {
             sendResponse({ stats: getPageStats(hlWordMap) });
@@ -1301,11 +1712,19 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
             sendMsg({ type: 'GET_STATUSES' }, (resp) => {
                 if (!resp || resp.error || !resp.statuses) {
                     sendResponse({ error: resp?.error ?? 'unknown' });
+
                     return;
                 }
-                const map = new Map(Object.entries(resp.statuses).map(([w, s]) => [w.toLowerCase(), s]));
+
+                const map = new Map(
+                    Object.entries(resp.statuses).map(([w, s]) => [
+                        w.toLowerCase(),
+                        s,
+                    ]),
+                );
                 sendResponse({ stats: getPageStats(map) });
             });
+
             return true;
         }
     }
@@ -1316,7 +1735,10 @@ initHighlight();
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function speakWord(word) {
-    if (!window.speechSynthesis) { return; }
+    if (!window.speechSynthesis) {
+        return;
+    }
+
     window.speechSynthesis.cancel();
     const utt = new window.SpeechSynthesisUtterance(word);
     utt.lang = 'en-US';
@@ -1332,32 +1754,55 @@ function getPageStats(wordMap) {
         {
             acceptNode(node) {
                 const el = node.parentElement;
-                if (!el) { return NodeFilter.FILTER_REJECT; }
-                if (SKIP_TAGS.has(el.tagName)) { return NodeFilter.FILTER_REJECT; }
+
+                if (!el) {
+                    return NodeFilter.FILTER_REJECT;
+                }
+
+                if (SKIP_TAGS.has(el.tagName)) {
+                    return NodeFilter.FILTER_REJECT;
+                }
+
                 return NodeFilter.FILTER_ACCEPT;
             },
-        }
+        },
     );
 
     const regex = /\b([a-zA-Z]{2,})\b/g;
+
     while (walker.nextNode()) {
         const text = walker.currentNode.textContent;
         let match;
+
         while ((match = regex.exec(text)) !== null) {
             seen.add(match[1].toLowerCase());
         }
     }
 
-    const counts = { learning: 0, saved: 0, known: 0, pronunciation: 0, total: seen.size };
+    const counts = {
+        learning: 0,
+        saved: 0,
+        known: 0,
+        pronunciation: 0,
+        total: seen.size,
+    };
+
     for (const word of seen) {
         const status = wordMap.get(word);
-        if (status && status in counts) { counts[status]++; }
+
+        if (status && status in counts) {
+            counts[status]++;
+        }
     }
+
     return counts;
 }
 
 function esc(str) {
-    return String(str ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return String(str ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
 }
 
 function sendMsg(msg, callback) {
@@ -1365,30 +1810,182 @@ function sendMsg(msg, callback) {
         chrome.runtime.sendMessage(msg, (response) => {
             if (chrome.runtime.lastError) {
                 callback?.({ error: 'network' });
+
                 return;
             }
+
             callback?.(response);
         });
-    } catch (_) {
+    } catch {
         callback?.({ error: 'network' });
     }
 }
 
 // ── YouTube Subtitle Integration ──────────────────────────────────────────────
+//
+// A TopWords felirat-sáv a natív YouTube felirat DOM-jából olvas, de önállóan
+// kapcsolható: bekapcsoláskor magától aktiválja a natív feliratot (CC), és
+// CSS-sel elrejti az eredeti megjelenítését, így csak a mi sávunk látszik.
 
+let ytEnabled = false; // chrome.storage.local: ytLyricsEnabled (alapból kikapcsolva)
+let ytWeEnabledCC = false;
 let ytStatusMap = null;
 let ytObserver = null;
 let ytBarHost = null;
 
+const YT_HIDE_STYLE_ID = 'tw-yt-hide-native-captions';
+
 function isYouTubePage() {
-    return location.hostname === 'www.youtube.com' && location.pathname === '/watch';
+    return (
+        location.hostname === 'www.youtube.com' &&
+        location.pathname === '/watch'
+    );
 }
 
-function injectYtBar() {
-    if (ytBarHost) { return; }
+// ── Natív felirat kezelése ──
+
+function hideNativeCaptions() {
+    if (document.getElementById(YT_HIDE_STYLE_ID)) {
+        return;
+    }
+
+    const style = document.createElement('style');
+    style.id = YT_HIDE_STYLE_ID;
+    // opacity + visibility: a DOM frissül tovább, csak nem látszik
+    style.textContent =
+        '#movie_player .caption-window { opacity: 0 !important; pointer-events: none !important; }';
+    document.head.appendChild(style);
+}
+
+function showNativeCaptions() {
+    document.getElementById(YT_HIDE_STYLE_ID)?.remove();
+}
+
+function ytCaptionButton() {
+    return document.querySelector('.ytp-subtitles-button');
+}
+
+function ensureNativeCaptionsOn() {
+    const btn = ytCaptionButton();
+
+    if (!btn || btn.getAttribute('aria-disabled') === 'true') {
+        return;
+    }
+
+    if (btn.getAttribute('aria-pressed') === 'false') {
+        btn.click();
+        ytWeEnabledCC = true;
+    }
+}
+
+function restoreNativeCaptionState() {
+    if (!ytWeEnabledCC) {
+        return;
+    }
+
+    ytWeEnabledCC = false;
+    const btn = ytCaptionButton();
+
+    if (btn && btn.getAttribute('aria-pressed') === 'true') {
+        btn.click();
+    }
+}
+
+// ── TW kapcsoló a lejátszó vezérlősorában ──
+
+function injectYtToggle() {
+    const controls = document.querySelector('.ytp-right-controls');
+
+    if (!controls || controls.querySelector('.tw-yt-toggle')) {
+        return;
+    }
+
+    const btn = document.createElement('button');
+    btn.className = 'ytp-button tw-yt-toggle';
+    // A natív CC ikon stílusát követi: telt, lekerekített badge sötét
+    // felirattal; bekapcsolva piros aláhúzás (mint a YouTube CC gombján).
+    // display:block az svg-n, különben a baseline-ra ülve lejjebb csúszik.
+    btn.innerHTML = `
+        <svg width="100%" height="100%" viewBox="0 0 36 36" style="display:block;pointer-events:none">
+            <rect x="1" y="5" width="22" height="14" rx="3" fill="#fff"/>
+            <text x="12" y="15.5" text-anchor="middle" font-family="Roboto, Arial, sans-serif" font-size="9" font-weight="800" fill="#0f0f0f">TW</text>
+            <rect class="tw-underline" x="5" y="22" width="14" height="2.5" rx="1.25" fill="#f00"/>
+        </svg>
+    `;
+    btn.addEventListener('click', toggleYtLyrics);
+
+    // A natív felirat (CC) gomb mellé tesszük, oda illik leginkább.
+    // A saját szülőjén keresztül illesztjük be, mert az új YouTube UI-ban
+    // a CC gomb nem közvetlen gyereke a .ytp-right-controls-nak.
+    const ccBtn = controls.querySelector('.ytp-subtitles-button');
+
+    if (ccBtn?.parentElement) {
+        ccBtn.parentElement.insertBefore(btn, ccBtn);
+    } else {
+        controls.prepend(btn);
+    }
+
+    updateYtToggleState();
+}
+
+function updateYtToggleState() {
+    const btn = document.querySelector('.tw-yt-toggle');
+
+    if (!btn) {
+        return;
+    }
+
+    const underline = btn.querySelector('.tw-underline');
+
+    if (underline) {
+        underline.style.display = ytEnabled ? '' : 'none';
+    }
+
+    btn.title = ytEnabled
+        ? 'TopWords felirat kikapcsolása'
+        : 'TopWords felirat bekapcsolása';
+}
+
+function toggleYtLyrics() {
+    ytEnabled = !ytEnabled;
+    chrome.storage.local.set({ ytLyricsEnabled: ytEnabled });
+
+    if (ytEnabled) {
+        enableYtLyrics();
+    } else {
+        disableYtLyrics();
+    }
+
+    updateYtToggleState();
+}
+
+// ── Videó vezérlés ──
+
+function pauseVideoIfPlaying() {
+    // Közvetlenül a video elemet állítjuk meg — a play gombnak nincs
+    // megbízható állapot-attribútuma.
+    const video = document.querySelector('#movie_player video');
+
+    if (video && !video.paused) {
+        video.pause();
+    }
+}
+
+// ── Felirat-sáv ──
+
+function ensureYtBar() {
+    if (ytBarHost?.isConnected) {
+        return;
+    }
+
+    ytBarHost?.remove();
+    ytBarHost = null;
 
     const player = document.querySelector('#movie_player');
-    if (!player) { return; }
+
+    if (!player) {
+        return;
+    }
 
     ytBarHost = document.createElement('div');
     ytBarHost.id = 'tw-yt-bar-host';
@@ -1407,6 +2004,7 @@ function injectYtBar() {
     shadow.innerHTML = `
         <style>
             #bar {
+                display: none;
                 background: rgba(8,8,8,0.85);
                 backdrop-filter: blur(4px);
                 border-radius: 6px;
@@ -1418,7 +2016,6 @@ function injectYtBar() {
                 text-align: center;
                 word-break: break-word;
                 pointer-events: auto;
-                min-height: 2.2em;
                 transition: opacity 0.15s;
             }
             .tw-word {
@@ -1434,9 +2031,19 @@ function injectYtBar() {
 
     shadow.getElementById('bar').addEventListener('click', (e) => {
         const span = e.target.closest('.tw-word');
-        if (!span) { return; }
+
+        if (!span) {
+            return;
+        }
+
         const word = span.dataset.ytWord?.replace(/^'|'$/g, '') ?? '';
-        if (!word) { return; }
+
+        if (!word) {
+            return;
+        }
+
+        pauseVideoIfPlaying();
+        speakWord(word);
         const rect = span.getBoundingClientRect();
         showPopup(word, rect);
     });
@@ -1445,26 +2052,35 @@ function injectYtBar() {
 }
 
 function renderYtBar(text) {
-    if (!ytBarHost) { return; }
-    const bar = ytBarHost.shadowRoot.getElementById('bar');
-    if (!bar) { return; }
+    const bar = ytBarHost?.shadowRoot?.getElementById('bar');
+
+    if (!bar) {
+        return;
+    }
 
     if (!text.trim()) {
         bar.innerHTML = '';
+        bar.style.display = 'none';
+
         return;
     }
 
     const regex = /([a-zA-Z']+|[^a-zA-Z']+)/g;
     let html = '';
     let match;
+
     while ((match = regex.exec(text)) !== null) {
         const token = match[0];
         const clean = token.replace(/^'|'$/g, '');
         const isWord = /^[a-zA-Z]/.test(clean) && clean.length > 0;
+
         if (isWord) {
             const status = ytStatusMap?.get(clean.toLowerCase());
             const color = status ? STATUS_COLORS[status] : null;
-            const escaped = token.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const escaped = token
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
             const attr = token.replace(/"/g, '&quot;');
             const style = color
                 ? `style="color:${color};text-shadow:0 0 8px ${color}66"`
@@ -1474,24 +2090,77 @@ function renderYtBar(text) {
             html += esc(token);
         }
     }
+
     bar.innerHTML = html;
+    bar.style.display = 'block';
 }
 
 function startYtObserver() {
-    if (ytObserver) { return; }
+    ytObserver?.disconnect();
 
     let lastText = '';
 
     ytObserver = new MutationObserver(() => {
+        // A lejátszó újrarenderelésekor a sáv és a gomb is eltűnhet —
+        // olcsó guard-okkal visszatesszük.
+        ensureYtBar();
+        injectYtToggle();
+
         const segments = document.querySelectorAll('.ytp-caption-segment');
-        const text = Array.from(segments).map((s) => s.textContent).join(' ').trim();
-        if (text === lastText) { return; }
+        const text = Array.from(segments)
+            .map((s) => s.textContent)
+            .join(' ')
+            .trim();
+
+        if (text === lastText) {
+            return;
+        }
+
         lastText = text;
         renderYtBar(text);
     });
 
-    const captionContainer = document.querySelector('#movie_player') ?? document.documentElement;
-    ytObserver.observe(captionContainer, { childList: true, subtree: true, characterData: true });
+    const player =
+        document.querySelector('#movie_player') ?? document.documentElement;
+    ytObserver.observe(player, {
+        childList: true,
+        subtree: true,
+        characterData: true,
+    });
+}
+
+// ── Be/ki kapcsolás ──
+
+function enableYtLyrics() {
+    ensureYtBar();
+    ensureNativeCaptionsOn();
+    hideNativeCaptions();
+
+    if (ytStatusMap) {
+        startYtObserver();
+
+        return;
+    }
+
+    sendMsg({ type: 'GET_STATUSES' }, (resp) => {
+        if (!resp || resp.error || !resp.statuses) {
+            return;
+        }
+
+        ytStatusMap = new Map(
+            Object.entries(resp.statuses).map(([w, s]) => [w.toLowerCase(), s]),
+        );
+        startYtObserver();
+    });
+}
+
+function disableYtLyrics() {
+    ytObserver?.disconnect();
+    ytObserver = null;
+    ytBarHost?.remove();
+    ytBarHost = null;
+    showNativeCaptions();
+    restoreNativeCaptionState();
 }
 
 function destroyYtSubtitles() {
@@ -1500,23 +2169,47 @@ function destroyYtSubtitles() {
     ytBarHost?.remove();
     ytBarHost = null;
     ytStatusMap = null;
+    // Navigációnál nem kattintunk a CC gombra (már másik videóra mutatna),
+    // csak a flag-et és a rejtő CSS-t takarítjuk.
+    ytWeEnabledCC = false;
+    showNativeCaptions();
 }
 
-function initYtSubtitles() {
-    if (!isYouTubePage()) { return; }
-    injectYtBar();
-    sendMsg({ type: 'GET_STATUSES' }, (resp) => {
-        if (!resp || resp.error || !resp.statuses) { return; }
-        ytStatusMap = new Map(Object.entries(resp.statuses).map(([w, s]) => [w.toLowerCase(), s]));
-        startYtObserver();
-    });
+function initYtSubtitles(attempt = 0) {
+    if (!isYouTubePage()) {
+        return;
+    }
+
+    if (!document.querySelector('#movie_player')) {
+        if (attempt < 8) {
+            setTimeout(() => initYtSubtitles(attempt + 1), 1000);
+        }
+
+        return;
+    }
+
+    chrome.storage.local.get(
+        { ytLyricsEnabled: false },
+        ({ ytLyricsEnabled }) => {
+            if (!isYouTubePage()) {
+                return;
+            }
+
+            ytEnabled = ytLyricsEnabled;
+            injectYtToggle();
+
+            if (ytEnabled) {
+                enableYtLyrics();
+            }
+        },
+    );
 }
 
 function handleYtNavigation() {
+    destroyYtSubtitles();
+
     if (isYouTubePage()) {
-        setTimeout(initYtSubtitles, 1500);
-    } else {
-        destroyYtSubtitles();
+        setTimeout(initYtSubtitles, 1000);
     }
 }
 
@@ -1528,7 +2221,9 @@ if (location.hostname === 'www.youtube.com') {
         if (document.readyState === 'complete') {
             initYtSubtitles();
         } else {
-            window.addEventListener('load', initYtSubtitles, { once: true });
+            window.addEventListener('load', () => initYtSubtitles(), {
+                once: true,
+            });
         }
     }
 }

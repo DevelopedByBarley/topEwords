@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\Billing;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Middleware;
@@ -43,21 +44,26 @@ class HandleInertiaRequests extends Middleware
                 'user' => $request->user(),
                 'isAdmin' => $request->user() ? Gate::check('admin', $request->user()) : false,
                 'subscription' => $request->user() ? (function () use ($request) {
-                    $isPremium = $request->user()->subscribed('premium');
+                    $user = $request->user();
+                    $plan = $user->currentPlan();
 
                     return [
-                        'hasActiveAccess' => $request->user()->hasActiveAccess(),
-                        'isSubscribed' => $request->user()->subscribed('default') || $isPremium,
-                        'isPremium' => $isPremium,
-                        'hasAiAccess' => $request->user()->ai_access || $isPremium,
-                        'isOnTrial' => $request->user()->onTrial(),
+                        'plan' => $plan,
+                        'hasActiveAccess' => $plan !== 'free',
+                        'isSubscribed' => $user->subscribed('default') || $user->subscribed('premium'),
+                        'isPremium' => $plan === 'premium',
+                        'hasAiAccess' => $user->hasAiAccess(),
+                        'isOnTrial' => $user->onTrial(),
                     ];
                 })() : null,
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
+            'billingEnabled' => Billing::enabled(),
             'flash' => [
                 'streakTriggered' => session('streak_triggered'),
                 'success' => session('success'),
+                'error' => session('error'),
+                'info' => session('info'),
                 'achievements' => session('achievements', []),
                 'calibrationPrompt' => session('calibration_prompt'),
                 'showTour' => session('show_tour', false),
