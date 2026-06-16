@@ -319,6 +319,7 @@ class ExtensionController extends Controller
         return response()->json([
             'results' => $results->concat($customResults)->values(),
             'has_active_access' => $hasActiveAccess,
+            'has_ai_access' => $request->user()->hasAiAccess(),
             'is_admin' => Gate::check('admin'),
             'csrf' => csrf_token(),
         ]);

@@ -926,6 +926,7 @@ let searchDebounce = null;
 let searchCsrf = null;
 let searchHasAccess = false;
 let searchIsAdmin = false;
+let searchHasAi = false;
 let searchResultsData = [];
 let searchSelIdx = -1;
 
@@ -997,6 +998,7 @@ function showSearch() {
                 searchCsrf = resp?.csrf ?? null;
                 searchHasAccess = resp?.has_active_access ?? false;
                 searchIsAdmin = resp?.is_admin ?? false;
+                searchHasAi = resp?.has_ai_access ?? false;
                 renderSearchResults(resp?.results ?? [], resp?.error);
             });
         }, 250);
@@ -1089,6 +1091,7 @@ function openAddWordForm(word) {
         searchCsrf = resp?.csrf ?? null;
         searchHasAccess = resp?.has_active_access ?? false;
         searchIsAdmin = resp?.is_admin ?? false;
+        searchHasAi = resp?.has_ai_access ?? false;
 
         const results = resp?.results ?? [];
         const exact = results.find(
@@ -1223,7 +1226,7 @@ function showSearchDetail(data) {
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
                 <span style="font-size:14px;font-weight:700;color:#0f172a">${esc(data.word)}</span>
                 <div style="display:flex;gap:6px;align-items:center">
-                    ${searchIsAdmin ? `<button id="gemini-fill-btn" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500;color:#7c3aed;border:1px solid #ede9fe;border-radius:20px;background:#faf5ff;padding:3px 10px;cursor:pointer;font-family:inherit;white-space:nowrap;transition:all 0.15s">✨ AI kitöltés</button>` : ''}
+                    ${searchIsAdmin || searchHasAi ? `<button id="gemini-fill-btn" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500;color:#7c3aed;border:1px solid #ede9fe;border-radius:20px;background:#faf5ff;padding:3px 10px;cursor:pointer;font-family:inherit;white-space:nowrap;transition:all 0.15s">✨ AI kitöltés</button>` : ''}
                     <a class="google-ai-link" href="${googleUrl}" target="_blank">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
                         Google AI
