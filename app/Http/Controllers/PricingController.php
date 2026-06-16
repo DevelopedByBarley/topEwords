@@ -73,7 +73,9 @@ class PricingController extends Controller
             return redirect()->route('pricing')->with('success', $message);
         }
 
-        $successUrl = URL::temporarySignedRoute('pricing.success', now()->addMinutes(10));
+        // 60 perc: a Stripe Checkout sokáig nyitva maradhat — rövidebb lejárat
+        // esetén a sikeres fizetés UTÁN 403-at kapna a visszairányításkor.
+        $successUrl = URL::temporarySignedRoute('pricing.success', now()->addHour());
 
         $checkout = $user->newSubscription($plan === 'premium' ? 'premium' : 'default', $priceId)
             ->checkout([
