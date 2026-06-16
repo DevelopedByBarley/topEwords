@@ -1833,6 +1833,16 @@ let ytStatusMap = null;
 let ytObserver = null;
 let ytBarHost = null;
 
+// Transcript-oldalsáv (külön kapcsolható: ytTranscriptEnabled)
+let ytPanelEnabled = false;
+let ytPanelHost = null;
+let ytPanelSegments = [];
+let ytPanelActiveIdx = -1;
+let ytPanelVideo = null;
+let ytPanelTimeHandler = null;
+let ytPanelLastUserScroll = 0;
+let ytControlsObserver = null;
+
 const YT_HIDE_STYLE_ID = 'tw-yt-hide-native-captions';
 
 function isYouTubePage() {
@@ -2030,41 +2040,17 @@ function ensureYtBar() {
     `;
 
     shadow.getElementById('bar').addEventListener('click', (e) => {
-        const span = e.target.closest('.tw-word');
-
-        if (!span) {
-            return;
-        }
-
-        const word = span.dataset.ytWord?.replace(/^'|'$/g, '') ?? '';
-
-        if (!word) {
-            return;
-        }
-
-        pauseVideoIfPlaying();
-        speakWord(word);
-        const rect = span.getBoundingClientRect();
-        showPopup(word, rect);
+        handleYtWordClick(e.target.closest('.tw-word'));
     });
 
     player.appendChild(ytBarHost);
 }
 
-function renderYtBar(text) {
-    const bar = ytBarHost?.shadowRoot?.getElementById('bar');
-
-    if (!bar) {
-        return;
-    }
-
-    if (!text.trim()) {
-        bar.innerHTML = '';
-        bar.style.display = 'none';
-
-        return;
-    }
-
+/**
+ * Felirat-szöveg → HTML, ahol a szó-tokenek `.tw-word` span-ek, a megjelölt
+ * szavak (és ragozott alakjaik) a státuszuk színével. A sáv és az oldalsáv is ezt használja.
+ */
+function ytWordsToHtml(text) {
     const regex = /([a-zA-Z']+|[^a-zA-Z']+)/g;
     let html = '';
     let match;
@@ -2093,7 +2079,41 @@ function renderYtBar(text) {
         }
     }
 
-    bar.innerHTML = html;
+    return html;
+}
+
+/** Egy felirat-szóra kattintás: videó megállítása, kiejtés, popup. */
+function handleYtWordClick(span) {
+    if (!span) {
+        return;
+    }
+
+    const word = span.dataset.ytWord?.replace(/^'|'$/g, '') ?? '';
+
+    if (!word) {
+        return;
+    }
+
+    pauseVideoIfPlaying();
+    speakWord(word);
+    showPopup(word, span.getBoundingClientRect());
+}
+
+function renderYtBar(text) {
+    const bar = ytBarHost?.shadowRoot?.getElementById('bar');
+
+    if (!bar) {
+        return;
+    }
+
+    if (!text.trim()) {
+        bar.innerHTML = '';
+        bar.style.display = 'none';
+
+        return;
+    }
+
+    bar.innerHTML = ytWordsToHtml(text);
     bar.style.display = 'block';
 }
 
@@ -2133,27 +2153,33 @@ function startYtObserver() {
 
 // ── Be/ki kapcsolás ──
 
-function enableYtLyrics() {
-    ensureYtBar();
-    ensureNativeCaptionsOn();
-    hideNativeCaptions();
-
+/** A szó→státusz térképet egyszer kéri le és cache-eli; a sáv és az oldalsáv is ezt hívja. */
+function ensureYtStatusMap(callback) {
     if (ytStatusMap) {
-        startYtObserver();
+        callback();
 
         return;
     }
 
     sendMsg({ type: 'GET_STATUSES' }, (resp) => {
-        if (!resp || resp.error || !resp.statuses) {
-            return;
+        if (resp && !resp.error && resp.statuses) {
+            ytStatusMap = new Map(
+                Object.entries(resp.statuses).map(([w, s]) => [
+                    w.toLowerCase(),
+                    s,
+                ]),
+            );
         }
 
-        ytStatusMap = new Map(
-            Object.entries(resp.statuses).map(([w, s]) => [w.toLowerCase(), s]),
-        );
-        startYtObserver();
+        callback();
     });
+}
+
+function enableYtLyrics() {
+    ensureYtBar();
+    ensureNativeCaptionsOn();
+    hideNativeCaptions();
+    ensureYtStatusMap(() => startYtObserver());
 }
 
 function disableYtLyrics() {
@@ -2165,11 +2191,391 @@ function disableYtLyrics() {
     restoreNativeCaptionState();
 }
 
+// ── Transcript-oldalsáv ─────────────────────────────────────────────────────
+
+function currentYtVideoId() {
+    return new URLSearchParams(location.search).get('v');
+}
+
+function formatYtTime(sec) {
+    const s = Math.max(0, Math.floor(sec));
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const ss = String(s % 60).padStart(2, '0');
+
+    return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`;
+}
+
+function ensureYtPanel() {
+    if (ytPanelHost?.isConnected) {
+        return;
+    }
+
+    ytPanelHost?.remove();
+    ytPanelHost = document.createElement('div');
+    ytPanelHost.id = 'tw-yt-panel-host';
+    Object.assign(ytPanelHost.style, {
+        position: 'fixed',
+        top: '64px',
+        right: '12px',
+        bottom: '12px',
+        width: '360px',
+        maxWidth: '40vw',
+        zIndex: '2147483645',
+    });
+
+    const shadow = ytPanelHost.attachShadow({ mode: 'open' });
+    shadow.innerHTML = `
+        <style>
+            #panel {
+                display: flex;
+                flex-direction: column;
+                height: 100%;
+                background: rgba(15,15,15,0.96);
+                color: #f1f1f1;
+                border: 1px solid rgba(255,255,255,0.12);
+                border-radius: 12px;
+                font-family: Roboto, Arial, sans-serif;
+                overflow: hidden;
+                box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+            }
+            #head {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 8px;
+                padding: 10px 12px;
+                border-bottom: 1px solid rgba(255,255,255,0.1);
+            }
+            #title { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+            #close { background: none; border: none; color: #aaa; font-size: 20px; line-height: 1; cursor: pointer; padding: 0 4px; }
+            #close:hover { color: #fff; }
+            #body { flex: 1; overflow-y: auto; padding: 6px; scrollbar-width: thin; }
+            .msg { padding: 16px; color: #aaa; font-size: 13px; text-align: center; line-height: 1.5; }
+            .msg a { color: #3ea6ff; }
+            .seg { display: flex; gap: 8px; padding: 6px 8px; border-radius: 8px; cursor: pointer; font-size: 14px; line-height: 1.45; }
+            .seg:hover { background: rgba(255,255,255,0.07); }
+            .seg.active { background: rgba(62,166,255,0.16); }
+            .ts { flex: 0 0 auto; min-width: 40px; padding-top: 2px; color: #3ea6ff; font-size: 12px; font-variant-numeric: tabular-nums; }
+            .txt { flex: 1; }
+            .tw-word { cursor: pointer; border-radius: 3px; }
+            .tw-word:hover { opacity: 0.8; text-decoration: underline; }
+        </style>
+        <div id="panel">
+            <div id="head">
+                <span id="title">Átirat</span>
+                <button id="close" title="Bezárás">×</button>
+            </div>
+            <div id="body"><div class="msg">Betöltés…</div></div>
+        </div>
+    `;
+
+    shadow.getElementById('close').addEventListener('click', toggleYtPanel);
+
+    const body = shadow.getElementById('body');
+    body.addEventListener('click', (e) => {
+        const wordSpan = e.target.closest('.tw-word');
+
+        if (wordSpan) {
+            handleYtWordClick(wordSpan);
+
+            return;
+        }
+
+        const row = e.target.closest('.seg');
+
+        if (row) {
+            seekYtTo(Number(row.dataset.t));
+        }
+    });
+    body.addEventListener('scroll', () => {
+        ytPanelLastUserScroll = Date.now();
+    });
+
+    document.body.appendChild(ytPanelHost);
+}
+
+function seekYtTo(t) {
+    const video = document.querySelector('#movie_player video');
+
+    if (video && Number.isFinite(t)) {
+        video.currentTime = t;
+        video.play?.();
+    }
+}
+
+function setYtPanelMessage(html) {
+    const body = ytPanelHost?.shadowRoot?.getElementById('body');
+
+    if (body) {
+        body.innerHTML = `<div class="msg">${html}</div>`;
+    }
+}
+
+function renderYtPanelSegments() {
+    const body = ytPanelHost?.shadowRoot?.getElementById('body');
+
+    if (!body) {
+        return;
+    }
+
+    if (!ytPanelSegments.length) {
+        setYtPanelMessage('Ehhez a videóhoz nincs elérhető átirat.');
+
+        return;
+    }
+
+    body.innerHTML = ytPanelSegments
+        .map(
+            (seg, i) =>
+                `<div class="seg" data-idx="${i}" data-t="${seg.t}">` +
+                `<span class="ts">${formatYtTime(seg.t)}</span>` +
+                `<span class="txt">${ytWordsToHtml(seg.x)}</span>` +
+                `</div>`,
+        )
+        .join('');
+    ytPanelActiveIdx = -1;
+}
+
+function attachYtPanelTimeTracking() {
+    detachYtPanelTimeTracking();
+    ytPanelVideo = document.querySelector('#movie_player video');
+
+    if (!ytPanelVideo) {
+        return;
+    }
+
+    ytPanelTimeHandler = () =>
+        updateYtPanelActiveSegment(ytPanelVideo.currentTime);
+    ytPanelVideo.addEventListener('timeupdate', ytPanelTimeHandler);
+}
+
+function detachYtPanelTimeTracking() {
+    if (ytPanelVideo && ytPanelTimeHandler) {
+        ytPanelVideo.removeEventListener('timeupdate', ytPanelTimeHandler);
+    }
+
+    ytPanelVideo = null;
+    ytPanelTimeHandler = null;
+}
+
+function updateYtPanelActiveSegment(time) {
+    if (!ytPanelSegments.length) {
+        return;
+    }
+
+    let idx = ytPanelActiveIdx;
+
+    // Csak akkor keressük újra, ha a jelenlegi index már nem stimmel (tekerés is OK).
+    const stale =
+        idx < 0 ||
+        idx >= ytPanelSegments.length ||
+        ytPanelSegments[idx].t > time ||
+        (idx + 1 < ytPanelSegments.length &&
+            ytPanelSegments[idx + 1].t <= time);
+
+    if (stale) {
+        idx = 0;
+        for (let i = 0; i < ytPanelSegments.length; i++) {
+            if (ytPanelSegments[i].t <= time) {
+                idx = i;
+            } else {
+                break;
+            }
+        }
+    }
+
+    if (idx === ytPanelActiveIdx) {
+        return;
+    }
+
+    ytPanelActiveIdx = idx;
+    const shadow = ytPanelHost?.shadowRoot;
+
+    if (!shadow) {
+        return;
+    }
+
+    shadow
+        .querySelectorAll('.seg.active')
+        .forEach((el) => el.classList.remove('active'));
+    const row = shadow.querySelector(`.seg[data-idx="${idx}"]`);
+
+    if (!row) {
+        return;
+    }
+
+    row.classList.add('active');
+
+    // Auto-görgetés, kivéve ha a felhasználó nemrég maga görgetett.
+    if (Date.now() - ytPanelLastUserScroll > 4000) {
+        const body = shadow.getElementById('body');
+        body.scrollTop =
+            row.offsetTop - body.clientHeight / 2 + row.clientHeight / 2;
+    }
+}
+
+function enableYtPanel() {
+    ensureYtPanel();
+
+    const videoId = currentYtVideoId();
+
+    if (!videoId) {
+        setYtPanelMessage('Nincs videó.');
+
+        return;
+    }
+
+    setYtPanelMessage('Betöltés…');
+
+    ensureYtStatusMap(() => {
+        sendMsg({ type: 'GET_YT_TRANSCRIPT', videoId }, (resp) => {
+            if (!ytPanelEnabled || !ytPanelHost) {
+                return;
+            }
+
+            if (!resp || resp.error === 'network') {
+                setYtPanelMessage('Nincs kapcsolat a TopWords-szel.');
+
+                return;
+            }
+
+            if (resp.error === 'unauthenticated') {
+                setYtPanelMessage(
+                    `Jelentkezz be a <a href="${APP_URL}" target="_blank">TopWords</a>-be.`,
+                );
+
+                return;
+            }
+
+            if (resp.error === 'premium') {
+                setYtPanelMessage(
+                    `Az átirat prémium funkció. <a href="${APP_URL}/pricing" target="_blank">Frissíts prémiumra →</a>`,
+                );
+
+                return;
+            }
+
+            if (resp.error || !Array.isArray(resp.segments)) {
+                setYtPanelMessage('Ehhez a videóhoz nem érhető el átirat.');
+
+                return;
+            }
+
+            ytPanelSegments = resp.segments;
+            const titleEl = ytPanelHost.shadowRoot?.getElementById('title');
+
+            if (titleEl && resp.title) {
+                titleEl.textContent = resp.title;
+            }
+
+            renderYtPanelSegments();
+            attachYtPanelTimeTracking();
+        });
+    });
+}
+
+function disableYtPanel() {
+    detachYtPanelTimeTracking();
+    ytPanelHost?.remove();
+    ytPanelHost = null;
+    ytPanelSegments = [];
+    ytPanelActiveIdx = -1;
+}
+
+function toggleYtPanel() {
+    ytPanelEnabled = !ytPanelEnabled;
+    chrome.storage.local.set({ ytTranscriptEnabled: ytPanelEnabled });
+
+    if (ytPanelEnabled) {
+        enableYtPanel();
+    } else {
+        disableYtPanel();
+    }
+
+    updateYtPanelToggleState();
+}
+
+function injectYtPanelToggle() {
+    const controls = document.querySelector('.ytp-right-controls');
+
+    if (!controls || controls.querySelector('.tw-yt-panel-toggle')) {
+        return;
+    }
+
+    const btn = document.createElement('button');
+    btn.className = 'ytp-button tw-yt-panel-toggle';
+    btn.innerHTML = `
+        <svg width="100%" height="100%" viewBox="0 0 36 36" style="display:block;pointer-events:none">
+            <rect x="9" y="9" width="18" height="2.6" rx="1.3" fill="#fff"/>
+            <rect x="9" y="15" width="18" height="2.6" rx="1.3" fill="#fff"/>
+            <rect x="9" y="21" width="12" height="2.6" rx="1.3" fill="#fff"/>
+            <rect class="tw-panel-underline" x="9" y="26.5" width="18" height="2.5" rx="1.25" fill="#f00"/>
+        </svg>
+    `;
+    btn.addEventListener('click', toggleYtPanel);
+
+    const ccBtn = controls.querySelector('.ytp-subtitles-button');
+
+    if (ccBtn?.parentElement) {
+        ccBtn.parentElement.insertBefore(btn, ccBtn);
+    } else {
+        controls.prepend(btn);
+    }
+
+    updateYtPanelToggleState();
+}
+
+function updateYtPanelToggleState() {
+    const btn = document.querySelector('.tw-yt-panel-toggle');
+
+    if (!btn) {
+        return;
+    }
+
+    const underline = btn.querySelector('.tw-panel-underline');
+
+    if (underline) {
+        underline.style.display = ytPanelEnabled ? '' : 'none';
+    }
+
+    btn.title = ytPanelEnabled
+        ? 'TopWords átirat kikapcsolása'
+        : 'TopWords átirat bekapcsolása';
+}
+
+// A lejátszó vezérlősora gyakran újrarenderelődik — egy könnyű, frame-enként
+// összevont observerrel tartjuk életben mindkét TW gombot.
+function startYtControlsObserver() {
+    ytControlsObserver?.disconnect();
+
+    let pending = false;
+    ytControlsObserver = new MutationObserver(() => {
+        if (pending) {
+            return;
+        }
+
+        pending = true;
+        requestAnimationFrame(() => {
+            pending = false;
+            injectYtToggle();
+            injectYtPanelToggle();
+        });
+    });
+
+    const player =
+        document.querySelector('#movie_player') ?? document.documentElement;
+    ytControlsObserver.observe(player, { childList: true, subtree: true });
+}
+
 function destroyYtSubtitles() {
     ytObserver?.disconnect();
     ytObserver = null;
+    ytControlsObserver?.disconnect();
+    ytControlsObserver = null;
     ytBarHost?.remove();
     ytBarHost = null;
+    disableYtPanel();
     ytStatusMap = null;
     // Navigációnál nem kattintunk a CC gombra (már másik videóra mutatna),
     // csak a flag-et és a rejtő CSS-t takarítjuk.
@@ -2191,17 +2597,24 @@ function initYtSubtitles(attempt = 0) {
     }
 
     chrome.storage.local.get(
-        { ytLyricsEnabled: false },
-        ({ ytLyricsEnabled }) => {
+        { ytLyricsEnabled: false, ytTranscriptEnabled: false },
+        ({ ytLyricsEnabled, ytTranscriptEnabled }) => {
             if (!isYouTubePage()) {
                 return;
             }
 
             ytEnabled = ytLyricsEnabled;
+            ytPanelEnabled = ytTranscriptEnabled;
             injectYtToggle();
+            injectYtPanelToggle();
+            startYtControlsObserver();
 
             if (ytEnabled) {
                 enableYtLyrics();
+            }
+
+            if (ytPanelEnabled) {
+                enableYtPanel();
             }
         },
     );

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\UserCustomWord;
 use App\Models\Word;
+use App\Services\YouTubeCaptionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -153,20 +154,70 @@ class ExtensionController extends Controller
 
         $userId = $request->user()->id;
 
-        $wordStatuses = DB::table('user_word')
+        $formColumns = [
+            'form_base', 'verb_past', 'verb_past_participle', 'verb_present_participle',
+            'verb_third_person', 'noun_plural', 'adj_comparative', 'adj_superlative',
+        ];
+
+        $markedWords = DB::table('user_word')
             ->join('words', 'words.id', '=', 'user_word.word_id')
             ->where('user_word.user_id', $userId)
             ->whereNotNull('user_word.status')
             ->where('user_word.status', '!=', '')
-            ->pluck('user_word.status', 'words.word');
+            ->get(['user_word.status', 'words.word', ...array_map(fn ($column) => "words.{$column}", $formColumns)]);
 
-        $customStatuses = UserCustomWord::where('user_id', $userId)
+        $customWords = UserCustomWord::where('user_id', $userId)
             ->whereNotNull('status')
             ->where('status', '!=', '')
-            ->pluck('status', 'word');
+            ->get(['status', 'word', ...$formColumns]);
+
+        // Map every marked word AND all of its inflected forms to the same status,
+        // so captions/pages match conjugations like "changed" → "change" or "has" → "have".
+        $statuses = [];
+        foreach ($markedWords->concat($customWords) as $row) {
+            foreach ([$row->word, ...array_map(fn ($column) => $row->{$column}, $formColumns)] as $form) {
+                if ($form !== null && $form !== '') {
+                    $statuses[mb_strtolower($form)] = $row->status;
+                }
+            }
+        }
 
         return response()->json([
-            'statuses' => $wordStatuses->merge($customStatuses),
+            'statuses' => $statuses,
+        ]);
+    }
+
+    /**
+     * Timestamped caption segments for the in-page YouTube transcript sidebar (premium).
+     */
+    public function youtubeTranscript(Request $request, YouTubeCaptionService $captions): JsonResponse
+    {
+        if (! $request->user()) {
+            return response()->json(['error' => 'unauthenticated'], 401);
+        }
+
+        if (! $request->user()->hasActiveAccess()) {
+            return response()->json([
+                'error' => 'premium',
+                'upgrade_url' => route('pricing'),
+            ], 403);
+        }
+
+        $videoId = $request->string('v')->trim()->value();
+
+        if (! preg_match('/^[a-zA-Z0-9_-]{11}$/', $videoId)) {
+            return response()->json(['error' => 'invalid_video_id'], 422);
+        }
+
+        try {
+            $segments = $captions->fetchCaptions($videoId);
+        } catch (\Throwable) {
+            return response()->json(['error' => 'no_captions'], 422);
+        }
+
+        return response()->json([
+            'title' => $captions->fetchTitle($videoId) ?? 'YouTube',
+            'segments' => $segments,
         ]);
     }
 

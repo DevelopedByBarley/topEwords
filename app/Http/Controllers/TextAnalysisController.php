@@ -8,6 +8,7 @@ use App\Models\UserCustomWord;
 use App\Models\Word;
 use App\Models\YoutubeTranscript;
 use App\Services\AchievementService;
+use App\Services\YouTubeCaptionService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -21,6 +22,8 @@ use Smalot\PdfParser\Parser as PdfParser;
 
 class TextAnalysisController extends Controller
 {
+    public function __construct(private YouTubeCaptionService $captions) {}
+
     public function show(): Response
     {
         return Inertia::render('text-analysis/index');
@@ -97,7 +100,7 @@ class TextAnalysisController extends Controller
     {
         $url = $request->validate(['url' => 'required|url:http,https|max:2000'])['url'];
 
-        $videoId = $this->extractYouTubeId($url);
+        $videoId = $this->captions->extractVideoId($url);
 
         try {
             if ($videoId === null) {
@@ -105,7 +108,7 @@ class TextAnalysisController extends Controller
             }
 
             $text = $videoId !== null
-                ? $this->segmentsToText($this->fetchYouTubeCaptions($videoId))
+                ? $this->captions->segmentsToText($this->captions->fetchCaptions($videoId))
                 : $this->fetchWebpageText($url);
         } catch (\RuntimeException $e) {
             return response()->json(['error' => $e->getMessage()], 422);
@@ -341,439 +344,6 @@ class TextAnalysisController extends Controller
             'tokenStatuses' => $tokenStatuses,
             'topUnknown' => array_values(array_slice($unknownInListWords, 0, 20, true)),
         ];
-    }
-
-    private function extractYouTubeId(string $url): ?string
-    {
-        $patterns = [
-            '/youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})/',
-            '/youtu\.be\/([a-zA-Z0-9_-]{11})/',
-            '/youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/',
-            '/youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/',
-        ];
-
-        foreach ($patterns as $pattern) {
-            if (preg_match($pattern, $url, $m)) {
-                return $m[1];
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * @return array<int, array{t: int, x: string}>
-     */
-    private function fetchYouTubeCaptions(string $videoId): array
-    {
-        // Strategy 1: InnerTube API with multiple clients
-        $segments = $this->fetchViaInnertube($videoId);
-        if (! empty($segments)) {
-            return $segments;
-        }
-
-        // Strategy 3: YouTube timedtext API
-        $segments = $this->fetchViaTimedtextApi($videoId);
-        if (! empty($segments)) {
-            return $segments;
-        }
-
-        // Strategy 4: Scrape the watch page for a signed caption URL
-        $segments = $this->fetchViaPageScraping($videoId);
-        if (! empty($segments)) {
-            return $segments;
-        }
-
-        throw new \RuntimeException('Ehhez a videóhoz nem érhetők el angol feliratok, vagy a felirat nem feldolgozható.');
-    }
-
-    /**
-     * @return array<int, array{t: int, x: string}>
-     */
-    private function fetchViaInnertube(string $videoId): array
-    {
-        $androidUa = 'com.google.android.youtube/20.10.38 (Linux; U; Android 11) gzip';
-
-        // Must extract the API key from the watch page — hardcoded keys return UNPLAYABLE
-        $pageResponse = Http::timeout(20)
-            ->withHeaders(['User-Agent' => $androidUa, 'Accept-Language' => 'en-US,en;q=0.9'])
-            ->get('https://www.youtube.com/watch?v='.$videoId);
-
-        if (! $pageResponse->ok()) {
-            return [];
-        }
-
-        if (! preg_match('/"INNERTUBE_API_KEY"\s*:\s*"([a-zA-Z0-9_-]+)"/', $pageResponse->body(), $keyMatch)) {
-            return [];
-        }
-
-        $apiKey = $keyMatch[1];
-
-        $playerResponse = Http::timeout(15)
-            ->withHeaders([
-                'Content-Type' => 'application/json',
-                'Accept-Language' => 'en-US',
-                'User-Agent' => $androidUa,
-            ])
-            ->post('https://www.youtube.com/youtubei/v1/player?key='.$apiKey, [
-                'context' => ['client' => ['clientName' => 'ANDROID', 'clientVersion' => '20.10.38']],
-                'videoId' => $videoId,
-            ]);
-
-        if (! $playerResponse->ok()) {
-            return [];
-        }
-
-        $tracks = $playerResponse->json('captions.playerCaptionsTracklistRenderer.captionTracks') ?? [];
-
-        if (empty($tracks)) {
-            return [];
-        }
-
-        $track = collect($tracks)->first(fn ($t) => str_starts_with($t['languageCode'] ?? '', 'en'))
-            ?? $tracks[0];
-
-        $captionUrl = $track['baseUrl'] ?? null;
-
-        if (! $captionUrl) {
-            return [];
-        }
-
-        // Try XML (default, no fmt) first — ANDROID returns timedtext XML with <p> tags
-        foreach ([$captionUrl, $captionUrl.'&fmt=json3'] as $url) {
-            $captionResponse = Http::timeout(15)->get($url);
-
-            if (! $captionResponse->ok() || mb_strlen($captionResponse->body()) < 20) {
-                continue;
-            }
-
-            $segments = $this->parseCaptionBody($captionResponse->body());
-            if (! empty($segments)) {
-                return $segments;
-            }
-        }
-
-        return [];
-    }
-
-    /**
-     * @return array<int, array{t: int, x: string}>
-     */
-    private function fetchViaTimedtextApi(string $videoId): array
-    {
-        $base = 'https://www.youtube.com/api/timedtext?v='.urlencode($videoId).'&lang=en';
-
-        foreach (['&fmt=json3', '&fmt=vtt', ''] as $fmtParam) {
-            $response = Http::timeout(10)
-                ->withHeaders(['User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'])
-                ->get($base.$fmtParam);
-
-            if (! $response->ok() || mb_strlen($response->body()) < 20) {
-                continue;
-            }
-
-            $segments = $this->parseCaptionBody($response->body());
-            if (! empty($segments)) {
-                return $segments;
-            }
-        }
-
-        return [];
-    }
-
-    /**
-     * @return array<int, array{t: int, x: string}>
-     */
-    private function fetchViaPageScraping(string $videoId): array
-    {
-        $pageResponse = Http::timeout(20)
-            ->withHeaders([
-                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-                'Accept-Language' => 'en-US,en;q=0.9',
-            ])
-            ->get('https://www.youtube.com/watch?v='.$videoId);
-
-        if (! $pageResponse->ok()) {
-            return [];
-        }
-
-        $captionUrl = $this->extractCaptionUrl($pageResponse->body());
-        if ($captionUrl === null) {
-            return [];
-        }
-
-        $json3Url = preg_replace('/([?&])fmt=[^&]*/', '$1fmt=json3', $captionUrl);
-        if (! str_contains($json3Url ?? '', 'fmt=')) {
-            $json3Url = $captionUrl.(str_contains($captionUrl, '?') ? '&' : '?').'fmt=json3';
-        }
-
-        foreach ([$json3Url, $captionUrl] as $url) {
-            $response = Http::timeout(15)->get($url);
-            if (! $response->ok() || mb_strlen($response->body()) < 20) {
-                continue;
-            }
-
-            $segments = $this->parseCaptionBody($response->body());
-            if (! empty($segments)) {
-                return $segments;
-            }
-        }
-
-        return [];
-    }
-
-    /**
-     * @return array<int, array{t: int, x: string}>
-     */
-    private function parseCaptionBody(string $body): array
-    {
-        $trimmed = ltrim($body);
-
-        if (str_starts_with($trimmed, '{')) {
-            $decoded = json_decode($body, true);
-            if (is_array($decoded)) {
-                return $this->parseJson3Captions($decoded);
-            }
-        }
-
-        if (str_starts_with($trimmed, 'WEBVTT')) {
-            return $this->parseVttCaptions($body);
-        }
-
-        if (str_starts_with($trimmed, '<') || str_contains($trimmed, '<?xml')) {
-            return $this->parseXmlCaptions($body);
-        }
-
-        return [];
-    }
-
-    /**
-     * Felirat-szegmensekből összefűzött, sima szöveg (a szóelemzéshez).
-     *
-     * @param  array<int, array{t: int, x: string}>  $segments
-     */
-    private function segmentsToText(array $segments): string
-    {
-        return implode(' ', array_map(fn ($s) => $s['x'], $segments));
-    }
-
-    /**
-     * Felirat-időbélyeg (HH:MM:SS.mmm vagy MM:SS.mmm) → egész másodperc.
-     */
-    private function captionTimestampToSeconds(string $ts): int
-    {
-        if (preg_match('/(?:(\d+):)?(\d{1,2}):(\d{2})(?:[.,]\d+)?/', $ts, $m)) {
-            return ((int) ($m[1] ?: 0)) * 3600 + ((int) $m[2]) * 60 + (int) $m[3];
-        }
-
-        return 0;
-    }
-
-    /**
-     * @return array<int, array{t: int, x: string}>
-     */
-    private function parseVttCaptions(string $body): array
-    {
-        $lines = preg_split('/\r?\n/', $body) ?: [];
-        $segments = [];
-        $prev = '';
-        $pastHeader = false;
-        $curStart = 0;
-        $curTexts = [];
-
-        $flush = function () use (&$segments, &$curTexts, &$prev, &$curStart): void {
-            if (empty($curTexts)) {
-                return;
-            }
-
-            $text = trim(preg_replace('/\s+/', ' ', implode(' ', $curTexts)) ?? '');
-            $curTexts = [];
-
-            if ($text === '' || $text === $prev) {
-                return;
-            }
-
-            $segments[] = ['t' => $curStart, 'x' => $text];
-            $prev = $text;
-        };
-
-        foreach ($lines as $line) {
-            $line = trim($line);
-
-            // The VTT header ends at the first blank line
-            if (! $pastHeader) {
-                if ($line === '') {
-                    $pastHeader = true;
-                }
-
-                continue;
-            }
-
-            // A timestamp line starts a new cue
-            if (str_contains($line, '-->')) {
-                $flush();
-                $curStart = $this->captionTimestampToSeconds(explode('-->', $line)[0]);
-
-                continue;
-            }
-
-            // Blank line ends the current cue; cue IDs (digits only) are skipped
-            if ($line === '') {
-                $flush();
-
-                continue;
-            }
-
-            if (preg_match('/^\d+$/', $line)) {
-                continue;
-            }
-
-            // Strip inline timing tags (<00:00:00.000>, <c>, <c.color_white>, etc.)
-            $text = preg_replace('/<[^>]+>/', '', $line) ?? $line;
-            $text = html_entity_decode(trim($text), ENT_QUOTES | ENT_HTML5, 'UTF-8');
-            $text = preg_replace('/\[[^\]]*\]/', '', $text) ?? $text;
-            $text = trim(preg_replace('/\s+/', ' ', $text) ?? $text);
-
-            if ($text !== '') {
-                $curTexts[] = $text;
-            }
-        }
-
-        $flush();
-
-        return $segments;
-    }
-
-    private function extractCaptionUrl(string $html): ?string
-    {
-        $key = '"captionTracks":';
-        $start = strpos($html, $key);
-
-        if ($start === false) {
-            return null;
-        }
-
-        // Walk through the JSON array character-by-character to find its true end
-        $depth = 0;
-        $inString = false;
-        $escape = false;
-        $jsonStart = $start + strlen($key);
-        $jsonEnd = null;
-
-        for ($i = $jsonStart; $i < min($jsonStart + 100000, strlen($html)); $i++) {
-            $c = $html[$i];
-
-            if ($escape) {
-                $escape = false;
-
-                continue;
-            }
-
-            if ($c === '\\' && $inString) {
-                $escape = true;
-
-                continue;
-            }
-
-            if ($c === '"') {
-                $inString = ! $inString;
-
-                continue;
-            }
-
-            if ($inString) {
-                continue;
-            }
-
-            if ($c === '[') {
-                $depth++;
-            } elseif ($c === ']') {
-                $depth--;
-                if ($depth === 0) {
-                    $jsonEnd = $i;
-                    break;
-                }
-            }
-        }
-
-        if ($jsonEnd === null) {
-            return null;
-        }
-
-        $tracks = json_decode(substr($html, $jsonStart, $jsonEnd - $jsonStart + 1), true);
-
-        if (empty($tracks)) {
-            return null;
-        }
-
-        $track = collect($tracks)->first(fn ($t) => str_starts_with($t['languageCode'] ?? '', 'en'))
-            ?? $tracks[0];
-
-        return $track['baseUrl'] ?? null;
-    }
-
-    /**
-     * @return array<int, array{t: int, x: string}>
-     */
-    private function parseJson3Captions(mixed $data): array
-    {
-        if (! is_array($data) || empty($data['events'])) {
-            return [];
-        }
-
-        $segments = [];
-        $prev = '';
-        foreach ($data['events'] as $event) {
-            if (! isset($event['segs'])) {
-                continue;
-            }
-            $text = implode('', array_column($event['segs'], 'utf8'));
-            // Remove sound annotations like [Music], [Applause], [Laughter], etc.
-            $text = preg_replace('/\[[^\]]*\]/', '', $text) ?? $text;
-            $text = trim(preg_replace('/\s+/', ' ', trim($text)) ?? '');
-            if ($text === '' || $text === $prev) {
-                continue;
-            }
-            $segments[] = ['t' => (int) round(((int) ($event['tStartMs'] ?? 0)) / 1000), 'x' => $text];
-            $prev = $text;
-        }
-
-        return $segments;
-    }
-
-    /**
-     * @return array<int, array{t: int, x: string}>
-     */
-    private function parseXmlCaptions(string $body): array
-    {
-        // YouTube returns either <text start="12.3"> (older) or <p t="12300"> (ANDROID InnerTube) tags
-        if (! preg_match_all('/<(?:text|p)([^>]*)>(.*?)<\/(?:text|p)>/s', $body, $matches, PREG_SET_ORDER)) {
-            return [];
-        }
-
-        $segments = [];
-        $prev = '';
-        foreach ($matches as $m) {
-            $text = trim(html_entity_decode(strip_tags($m[2]), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
-            $text = trim(preg_replace('/\[[^\]]*\]/', '', $text) ?? $text);
-            $text = trim(preg_replace('/\s+/', ' ', $text) ?? $text);
-
-            if ($text === '' || $text === $prev) {
-                continue;
-            }
-
-            $start = 0;
-            if (preg_match('/\bstart="([\d.]+)"/', $m[1], $sm)) {
-                $start = (int) round((float) $sm[1]);
-            } elseif (preg_match('/\bt="(\d+)"/', $m[1], $tm)) {
-                $start = (int) round(((int) $tm[1]) / 1000);
-            }
-
-            $segments[] = ['t' => $start, 'x' => $text];
-            $prev = $text;
-        }
-
-        return $segments;
     }
 
     private function fetchWebpageText(string $url): string
@@ -1309,7 +879,7 @@ PROMPT;
     {
         $url = $request->validate(['url' => 'required|url:http,https|max:2000'])['url'];
 
-        $videoId = $this->extractYouTubeId($url);
+        $videoId = $this->captions->extractVideoId($url);
 
         if ($videoId === null) {
             return response()->json(['error' => 'Érvénytelen YouTube link.'], 422);
@@ -1325,7 +895,7 @@ PROMPT;
         }
 
         try {
-            $segments = $this->fetchYouTubeCaptions($videoId);
+            $segments = $this->captions->fetchCaptions($videoId);
         } catch (\RuntimeException $e) {
             return response()->json(['error' => $e->getMessage()], 422);
         } catch (\Throwable) {
@@ -1336,7 +906,7 @@ PROMPT;
             return response()->json(['error' => 'Ehhez a videóhoz nem érhetők el angol feliratok.'], 422);
         }
 
-        $title = $this->fetchYouTubeTitle($videoId) ?? 'YouTube videó';
+        $title = $this->captions->fetchTitle($videoId) ?? 'YouTube videó';
         $json = json_encode(array_values($segments), JSON_UNESCAPED_UNICODE) ?: '[]';
         $totalPages = max(1, (int) ceil(count($segments) / YoutubeTranscript::SEGMENTS_PER_PAGE));
 
@@ -1393,36 +963,6 @@ PROMPT;
         $transcript->delete();
 
         return response()->json(['ok' => true]);
-    }
-
-    private function fetchYouTubeTitle(string $videoId): ?string
-    {
-        try {
-            $response = Http::timeout(10)
-                ->withHeaders([
-                    'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-                    'Accept-Language' => 'en-US,en;q=0.9',
-                ])
-                ->get('https://www.youtube.com/watch?v='.$videoId);
-
-            if (! $response->ok()) {
-                return null;
-            }
-
-            if (preg_match('/<meta\s+name="title"\s+content="([^"]+)"/', $response->body(), $m)) {
-                return html_entity_decode($m[1], ENT_QUOTES | ENT_HTML5, 'UTF-8');
-            }
-
-            if (preg_match('/<title>(.*?)<\/title>/s', $response->body(), $m)) {
-                $title = html_entity_decode(trim($m[1]), ENT_QUOTES | ENT_HTML5, 'UTF-8');
-
-                return trim(preg_replace('/\s*-\s*YouTube\s*$/', '', $title) ?? $title);
-            }
-        } catch (\Throwable) {
-            // Fallback to default title below.
-        }
-
-        return null;
     }
 
     public function uploadBook(Request $request): JsonResponse

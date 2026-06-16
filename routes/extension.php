@@ -13,3 +13,6 @@ Route::middleware('throttle:120,1')->group(function () {
 });
 
 Route::post('extension/add-word', [ExtensionController::class, 'addWord'])->name('extension.add-word')->middleware('throttle:20,1');
+
+// Felirat-letöltés (YouTube-ot ér el, ezért szigorúbb limit).
+Route::get('extension/youtube-transcript', [ExtensionController::class, 'youtubeTranscript'])->name('extension.youtube-transcript')->middleware('throttle:30,1');

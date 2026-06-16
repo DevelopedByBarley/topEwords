@@ -149,6 +149,24 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         return true;
     }
 
+    if (msg.type === 'GET_YT_TRANSCRIPT') {
+        fetch(
+            `${APP_URL}/extension/youtube-transcript?v=${encodeURIComponent(msg.videoId)}`,
+            {
+                credentials: 'include',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    Accept: 'application/json',
+                },
+            },
+        )
+            .then((r) => r.json())
+            .then((data) => sendResponse(data))
+            .catch(() => sendResponse({ error: 'network' }));
+
+        return true;
+    }
+
     if (msg.type === 'UPDATE_STATUS') {
         const url = msg.is_custom
             ? `${APP_URL}/custom-words/${msg.id}/status`

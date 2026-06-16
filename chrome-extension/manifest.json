@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "TopWords",
-    "version": "1.5",
+    "version": "1.6",
     "description": "Look up English words instantly on any webpage and track your vocabulary progress with spaced repetition.",
     "homepage_url": "https://topwords.eu",
     "minimum_chrome_version": "110",

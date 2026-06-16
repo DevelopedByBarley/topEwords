@@ -2,6 +2,7 @@
 
 use App\Models\User;
 use App\Models\Word;
+use Illuminate\Support\Facades\Http;
 
 beforeEach(function () {
     $this->user = User::factory()->create();
@@ -134,4 +135,43 @@ test('badge counts learning words including custom ones', function () {
         ->getJson(route('extension.badge'))
         ->assertSuccessful()
         ->assertJson(['count' => 2]);
+});
+
+test('youtube transcript is gated behind premium access', function () {
+    Http::fake();
+
+    $this->actingAs($this->user) // free plan
+        ->getJson(route('extension.youtube-transcript', ['v' => 'abcdefghijk']))
+        ->assertStatus(403)
+        ->assertJson(['error' => 'premium']);
+
+    Http::assertNothingSent();
+});
+
+test('youtube transcript validates the video id', function () {
+    Http::fake();
+
+    $this->actingAs(User::factory()->premium()->create())
+        ->getJson(route('extension.youtube-transcript', ['v' => 'too-short']))
+        ->assertStatus(422)
+        ->assertJson(['error' => 'invalid_video_id']);
+});
+
+test('youtube transcript returns timestamped segments for premium users', function () {
+    Http::fake([
+        '*api/timedtext*' => Http::response('{"events":[{"tStartMs":0,"segs":[{"utf8":"hello world"}]},{"tStartMs":2000,"segs":[{"utf8":"second line"}]}]}'),
+        '*youtube.com/watch*' => Http::response('<html><head><title>Test Video - YouTube</title></head></html>'),
+        '*' => Http::response(''),
+    ]);
+
+    $this->actingAs(User::factory()->premium()->create())
+        ->getJson(route('extension.youtube-transcript', ['v' => 'abcdefghijk']))
+        ->assertSuccessful()
+        ->assertJson([
+            'title' => 'Test Video',
+            'segments' => [
+                ['t' => 0, 'x' => 'hello world'],
+                ['t' => 2, 'x' => 'second line'],
+            ],
+        ]);
 });
