@@ -286,50 +286,69 @@ function isTypingTarget() {
     );
 }
 
-document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-        hidePopup();
-        hideSearch();
+// Capture fázisban figyelünk (true), hogy a gyorsbillentyűink akkor is működjenek,
+// ha az oldal saját billentyű-kezelője elnyelné az eseményt.
+document.addEventListener(
+    'keydown',
+    (e) => {
+        if (e.key === 'Escape') {
+            if (searchHost || host) {
+                e.stopPropagation();
+            }
 
-        return;
-    }
+            hidePopup();
+            hideSearch();
 
-    // Option+W (Alt+W) vagy Cmd/Ctrl+Shift+F → keresőmodal
-    if (
-        (e.altKey && !e.metaKey && !e.ctrlKey && e.code === 'KeyW') ||
-        ((e.metaKey || e.ctrlKey) && e.shiftKey && e.code === 'KeyF')
-    ) {
-        e.preventDefault();
-        toggleSearch();
+            return;
+        }
 
-        return;
-    }
+        // Option+W (Alt+W) vagy Cmd/Ctrl+Shift+F → keresőmodal
+        if (
+            (e.altKey && !e.metaKey && !e.ctrlKey && e.code === 'KeyW') ||
+            ((e.metaKey || e.ctrlKey) && e.shiftKey && e.code === 'KeyF')
+        ) {
+            e.preventDefault();
+            e.stopPropagation();
+            toggleSearch();
 
-    // 1–4 státusz billentyűk nyitott popup-nál — gépelés közben nem
-    if (
-        shadow &&
-        currentData?.found &&
-        currentData?.has_active_access &&
-        !isTypingTarget()
-    ) {
-        const statusByKey = {
-            1: 'learning',
-            2: 'saved',
-            3: 'known',
-            4: 'pronunciation',
-        };
-        const status = statusByKey[e.key];
+            return;
+        }
 
-        if (status && !e.metaKey && !e.ctrlKey && !e.altKey) {
-            const btn = shadow.querySelector(
-                `.status-btn[data-status="${status}"]`,
-            );
+        // 1–4 státusz billentyűk nyitott popup-nál — gépelés közben nem
+        if (
+            shadow &&
+            currentData?.found &&
+            currentData?.has_active_access &&
+            !isTypingTarget()
+        ) {
+            const statusByKey = {
+                1: 'learning',
+                2: 'saved',
+                3: 'known',
+                4: 'pronunciation',
+            };
+            const status = statusByKey[e.key];
 
-            if (btn) {
-                e.preventDefault();
-                handleStatusClick(btn, currentData);
+            if (status && !e.metaKey && !e.ctrlKey && !e.altKey) {
+                const btn = shadow.querySelector(
+                    `.status-btn[data-status="${status}"]`,
+                );
+
+                if (btn) {
+                    e.preventDefault();
+                    handleStatusClick(btn, currentData);
+                }
             }
         }
+    },
+    true,
+);
+
+// Ha a felhasználó máshol (appban / másik fülön) módosította a szavait, a fülre
+// visszatérve frissítjük a kiemeléseket, hogy ne maradjon elavult a szín.
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && (hlWordMap || ytStatusMap)) {
+        refreshVocabHighlights();
     }
 });
 
@@ -950,6 +969,13 @@ function showSearch() {
 
     const input = searchShadow.getElementById('search-input');
     input.focus();
+
+    // Az oldal saját billentyű-kezelői (egybetűs gyorsbillentyűk, letiltott
+    // karakterek) elnyelhetik a gépelést — a kereső eseményeit nem engedjük
+    // felbukkanni az oldalhoz, így minden karakter beírható.
+    ['keydown', 'keyup', 'keypress', 'input'].forEach((type) => {
+        input.addEventListener(type, (e) => e.stopPropagation());
+    });
 
     input.addEventListener('input', () => {
         clearTimeout(searchDebounce);
@@ -2348,20 +2374,68 @@ function formatYtTime(sec) {
     return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`;
 }
 
+// A lejátszó alsó vezérlősora kb. ennyi magas — ennyit hagyunk neki a panel alján.
+const YT_CONTROLS_GAP = 60;
+
 /**
- * Az alsó vezérlősor teljes képernyős / színházi módban végigér a videón, ezért
- * ilyenkor hagyunk neki helyet a panel alján, hogy ne takarjuk el. Normál módban
- * a kontrollok a bal oldali lejátszóban vannak, a panel mellettük lehet végig.
+ * A panel pozíciója módfüggő:
+ * - Teljes képernyő: a panel a viewport jobb oldalán, a kontrolloknak helyet hagyva.
+ * - Színházi mód: a lejátszó teljes szélességű, az alsó kontrollok a kép alján
+ *   (a viewport közepe táján) vannak — ezért a panelt a lejátszó dobozához
+ *   igazítjuk, és a kontrollok fölött zárjuk le, hogy ne lógjon beléjük.
+ * - Normál mód: a jobb oldali oszlopban, teljes magasságban (a kontrollok a bal
+ *   oldali lejátszóban vannak, nem fed át).
  */
 function positionYtPanel() {
     if (!ytPanelHost) {
         return;
     }
 
-    const wide =
-        !!document.fullscreenElement ||
-        !!document.querySelector('ytd-watch-flexy[theater]');
-    ytPanelHost.style.bottom = wide ? '80px' : '12px';
+    const style = ytPanelHost.style;
+
+    if (document.fullscreenElement) {
+        // Teljes képernyőn csak a fullscreen elem leszármazottai látszanak —
+        // ezért a panelt oda tesszük át (body-ban nem jelenne meg).
+        if (ytPanelHost.parentElement !== document.fullscreenElement) {
+            document.fullscreenElement.appendChild(ytPanelHost);
+        }
+
+        style.top = '12px';
+        style.bottom = `${YT_CONTROLS_GAP + 20}px`;
+
+        return;
+    }
+
+    // Nem teljes képernyő: a panel a body-ban él.
+    if (ytPanelHost.parentElement !== document.body) {
+        document.body.appendChild(ytPanelHost);
+    }
+
+    const theater = !!document.querySelector('ytd-watch-flexy[theater]');
+    const player = document.querySelector('#movie_player');
+
+    if (theater && player) {
+        const rect = player.getBoundingClientRect();
+        style.top = `${Math.max(12, rect.top + 8)}px`;
+        style.bottom = `${Math.max(12, window.innerHeight - rect.bottom + YT_CONTROLS_GAP)}px`;
+
+        return;
+    }
+
+    style.top = '64px';
+    style.bottom = '12px';
+}
+
+function attachYtPanelLayoutListeners() {
+    window.addEventListener('scroll', positionYtPanel, true);
+    window.addEventListener('resize', positionYtPanel);
+    document.addEventListener('fullscreenchange', positionYtPanel);
+}
+
+function detachYtPanelLayoutListeners() {
+    window.removeEventListener('scroll', positionYtPanel, true);
+    window.removeEventListener('resize', positionYtPanel);
+    document.removeEventListener('fullscreenchange', positionYtPanel);
 }
 
 function ensureYtPanel() {
@@ -2452,6 +2526,7 @@ function ensureYtPanel() {
     });
 
     document.body.appendChild(ytPanelHost);
+    attachYtPanelLayoutListeners();
 }
 
 function seekYtTo(t) {
@@ -2636,6 +2711,7 @@ function enableYtPanel() {
 
 function disableYtPanel() {
     detachYtPanelTimeTracking();
+    detachYtPanelLayoutListeners();
     ytPanelHost?.remove();
     ytPanelHost = null;
     ytPanelSegments = [];
@@ -2667,10 +2743,10 @@ function injectYtPanelToggle() {
     // A TW gomb ikonjának footprintjét követi (x≈1..23, y≈5..24), hogy egy vonalban legyen.
     btn.innerHTML = `
         <svg width="100%" height="100%" viewBox="0 0 36 36" style="display:block;pointer-events:none">
-            <rect x="2" y="7" width="21" height="2.4" rx="1.2" fill="#fff"/>
-            <rect x="2" y="12.3" width="21" height="2.4" rx="1.2" fill="#fff"/>
-            <rect x="2" y="17.6" width="14" height="2.4" rx="1.2" fill="#fff"/>
-            <rect class="tw-panel-underline" x="5" y="22" width="14" height="2.5" rx="1.25" fill="#f00"/>
+            <rect x="2" y="5.5" width="21" height="2.4" rx="1.2" fill="#fff"/>
+            <rect x="2" y="10.8" width="21" height="2.4" rx="1.2" fill="#fff"/>
+            <rect x="2" y="16.1" width="14" height="2.4" rx="1.2" fill="#fff"/>
+            <rect class="tw-panel-underline" x="5" y="20.5" width="14" height="2.5" rx="1.25" fill="#f00"/>
         </svg>
     `;
     btn.addEventListener('click', toggleYtPanel);
