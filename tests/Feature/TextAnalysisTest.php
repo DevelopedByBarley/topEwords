@@ -1,7 +1,10 @@
 <?php
 
 use App\Models\User;
+use App\Models\UserBook;
 use App\Models\Word;
+use App\Models\YoutubeTranscript;
+use Illuminate\Support\Facades\Http;
 
 beforeEach(function () {
     $this->user = User::factory()->create();
@@ -89,4 +92,102 @@ test('guests cannot access text analysis', function () {
 
     $this->get(route('text-analysis.show'))->assertRedirect(route('login'));
     $this->postJson(route('text-analysis.analyze'), ['text' => 'hello world'])->assertUnauthorized();
+});
+
+function fakeYoutubeCaptions(int $lines = 120): void
+{
+    $events = [];
+    for ($i = 0; $i < $lines; $i++) {
+        $events[] = ['tStartMs' => $i * 3000, 'segs' => [['utf8' => "the quick dog line {$i}"]]];
+    }
+
+    Http::fake([
+        'https://www.youtube.com/youtubei/v1/player*' => Http::response([
+            'captions' => ['playerCaptionsTracklistRenderer' => ['captionTracks' => [
+                ['languageCode' => 'en', 'baseUrl' => 'https://caption.test/track'],
+            ]]],
+        ]),
+        'https://caption.test/*' => Http::response(json_encode(['events' => $events]), 200),
+        'https://www.youtube.com/watch*' => Http::response(
+            '<html><head><title>My Video - YouTube</title></head><body>"INNERTUBE_API_KEY":"AIzaTest123"</body></html>'
+        ),
+    ]);
+}
+
+test('youtube captions are saved as a timestamped, paginated transcript', function () {
+    fakeYoutubeCaptions(120);
+
+    $response = $this->postJson(route('text-analysis.youtube.store'), [
+        'url' => 'https://www.youtube.com/watch?v=abcdefghijk',
+    ]);
+
+    $response->assertOk()
+        ->assertJsonPath('transcript.total_pages', 3)
+        ->assertJsonPath('transcript.title', 'My Video')
+        ->assertJsonPath('transcript.video_id', 'abcdefghijk')
+        ->assertJsonPath('page', 1)
+        ->assertJsonPath('segments.0.t', 0)
+        ->assertJsonPath('segments.0.x', 'the quick dog line 0');
+
+    expect($response->json('segments'))->toHaveCount(50);
+
+    $transcript = YoutubeTranscript::where('user_id', $this->user->id)->first();
+    expect($transcript)->not->toBeNull();
+
+    // Második oldal a felirat-lapozó végponton keresztül
+    $this->getJson(route('text-analysis.youtube.page', ['transcript' => $transcript->id, 'page' => 2]))
+        ->assertOk()
+        ->assertJsonPath('page', 2)
+        ->assertJsonPath('segments.0.x', 'the quick dog line 50');
+});
+
+test('youtube overview returns whole-video comprehension', function () {
+    $this->user->knownWords()->attach(Word::where('word', 'dog')->first()->id, ['status' => 'known']);
+    fakeYoutubeCaptions(10);
+
+    $store = $this->postJson(route('text-analysis.youtube.store'), [
+        'url' => 'https://www.youtube.com/watch?v=abcdefghijk',
+    ])->assertOk();
+
+    $transcript = YoutubeTranscript::where('user_id', $this->user->id)->first();
+
+    $this->getJson(route('text-analysis.youtube.overview', ['transcript' => $transcript->id]))
+        ->assertOk()
+        ->assertJsonStructure(['comprehension', 'totalWords', 'uniqueWords', 'knownCount', 'learningCount'])
+        ->assertJsonPath('knownCount', 10); // "dog" 10 sorban, mind ismert
+});
+
+test('youtube endpoint rejects non-youtube urls', function () {
+    $this->postJson(route('text-analysis.youtube.store'), ['url' => 'https://example.com/article'])
+        ->assertStatus(422)
+        ->assertJsonPath('error', 'Érvénytelen YouTube link.');
+});
+
+test('book overview returns whole-book comprehension', function () {
+    $this->user->knownWords()->attach(Word::where('word', 'dog')->first()->id, ['status' => 'known']);
+
+    $text = str_repeat('the quick dog ', 10); // a "dog" 10-szer szerepel, ismert
+    $book = UserBook::create([
+        'user_id' => $this->user->id,
+        'title' => 'Teszt könyv',
+        'file_type' => 'pdf',
+        'compressed_text' => gzencode($text, 6),
+        'total_pages' => 1,
+        'text_size' => strlen($text),
+    ]);
+
+    $this->getJson(route('text-analysis.books.overview', ['book' => $book->id]))
+        ->assertOk()
+        ->assertJsonStructure(['comprehension', 'totalWords', 'uniqueWords', 'knownCount', 'learningCount'])
+        ->assertJsonPath('knownCount', 10);
+});
+
+test('free plan is limited to one saved youtube transcript', function () {
+    fakeYoutubeCaptions(10);
+
+    $this->postJson(route('text-analysis.youtube.store'), ['url' => 'https://www.youtube.com/watch?v=abcdefghijk'])
+        ->assertOk();
+
+    $this->postJson(route('text-analysis.youtube.store'), ['url' => 'https://www.youtube.com/watch?v=lmnopqrstuv'])
+        ->assertStatus(403);
 });

@@ -6,9 +6,12 @@ use App\Models\User;
 use App\Models\UserBook;
 use App\Models\UserCustomWord;
 use App\Models\Word;
+use App\Models\YoutubeTranscript;
 use App\Services\AchievementService;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Http;
@@ -102,7 +105,7 @@ class TextAnalysisController extends Controller
             }
 
             $text = $videoId !== null
-                ? $this->fetchYouTubeCaptions($videoId)
+                ? $this->segmentsToText($this->fetchYouTubeCaptions($videoId))
                 : $this->fetchWebpageText($url);
         } catch (\RuntimeException $e) {
             return response()->json(['error' => $e->getMessage()], 422);
@@ -155,10 +158,55 @@ class TextAnalysisController extends Controller
             Cache::put($cacheKey, $dailyCount + 1, now()->endOfDay());
         }
 
+        $analysis = $this->buildAnalysis($text, $user);
+
+        $newAchievements = app(AchievementService::class)
+            ->checkAndAwardAnalysis($user, $analysis['comprehension']);
+
+        return response()->json([...$analysis, 'achievements' => $newAchievements]);
+    }
+
+    /**
+     * Egy szöveg szóelemzése: megértési %, token-státuszok és top ismeretlen szavak.
+     *
+     * @return array{comprehension: int, totalWords: int, uniqueWords: int, knownCount: int, learningCount: int, tokenStatuses: array<string, string|null>, topUnknown: array<int, array{word: string, frequency: int, rank: int, meaning_hu: string|null}>}
+     */
+    /**
+     * A 9 szóalak-oszlopra futó whereIn-t kötegelve futtatja, hogy nagy szövegnél
+     * (teljes könyv / videó) se lépje át a MySQL 65 535 placeholder-limitjét.
+     *
+     * @param  array<int, string>  $tokens
+     * @param  callable(): \Illuminate\Database\Eloquent\Builder<*>  $queryFactory  friss query builder kötegenként
+     * @param  array<int, string>  $select
+     * @return Collection<int, Model>
+     */
+    private function matchByForms(array $tokens, callable $queryFactory, array $select): Collection
+    {
+        $forms = ['word', 'form_base', 'verb_past', 'verb_past_participle', 'verb_present_participle', 'verb_third_person', 'noun_plural', 'adj_comparative', 'adj_superlative'];
+
+        // 1500 token × 9 oszlop = 13 500 kötés / lekérdezés — bőven a limit alatt.
+        $results = collect();
+        foreach (array_chunk($tokens, 1500) as $chunk) {
+            $results = $results->concat(
+                $queryFactory()
+                    ->where(function ($q) use ($chunk, $forms) {
+                        foreach ($forms as $i => $col) {
+                            $i === 0 ? $q->whereIn($col, $chunk) : $q->orWhereIn($col, $chunk);
+                        }
+                    })
+                    ->get($select)
+            );
+        }
+
+        return $results->unique('id')->values();
+    }
+
+    private function buildAnalysis(string $text, User $user): array
+    {
         $tokens = $this->tokenize($text);
 
         if (empty($tokens)) {
-            return response()->json([
+            return [
                 'comprehension' => 0,
                 'totalWords' => 0,
                 'uniqueWords' => 0,
@@ -166,25 +214,17 @@ class TextAnalysisController extends Controller
                 'learningCount' => 0,
                 'tokenStatuses' => [],
                 'topUnknown' => [],
-            ]);
+            ];
         }
 
         $uniqueTokens = array_values(array_unique($tokens));
         $tokenFrequencies = array_count_values($tokens);
 
-        $words = Word::query()
-            ->where(function ($q) use ($uniqueTokens) {
-                $q->whereIn('word', $uniqueTokens)
-                    ->orWhereIn('form_base', $uniqueTokens)
-                    ->orWhereIn('verb_past', $uniqueTokens)
-                    ->orWhereIn('verb_past_participle', $uniqueTokens)
-                    ->orWhereIn('verb_present_participle', $uniqueTokens)
-                    ->orWhereIn('verb_third_person', $uniqueTokens)
-                    ->orWhereIn('noun_plural', $uniqueTokens)
-                    ->orWhereIn('adj_comparative', $uniqueTokens)
-                    ->orWhereIn('adj_superlative', $uniqueTokens);
-            })
-            ->get(['id', 'word', 'rank', 'meaning_hu', 'form_base', 'verb_past', 'verb_past_participle', 'verb_present_participle', 'verb_third_person', 'noun_plural', 'adj_comparative', 'adj_superlative']);
+        $words = $this->matchByForms(
+            $uniqueTokens,
+            fn () => Word::query(),
+            ['id', 'word', 'rank', 'meaning_hu', 'form_base', 'verb_past', 'verb_past_participle', 'verb_present_participle', 'verb_third_person', 'noun_plural', 'adj_comparative', 'adj_superlative']
+        );
 
         $userWordStatuses = $user->knownWords()
             ->whereIn('words.id', $words->pluck('id'))
@@ -192,19 +232,11 @@ class TextAnalysisController extends Controller
             ->all();
 
         // Include user's custom words in the analysis (check all forms)
-        $customWords = UserCustomWord::where('user_id', $user->id)
-            ->where(function ($q) use ($uniqueTokens) {
-                $q->whereIn('word', $uniqueTokens)
-                    ->orWhereIn('form_base', $uniqueTokens)
-                    ->orWhereIn('verb_past', $uniqueTokens)
-                    ->orWhereIn('verb_past_participle', $uniqueTokens)
-                    ->orWhereIn('verb_present_participle', $uniqueTokens)
-                    ->orWhereIn('verb_third_person', $uniqueTokens)
-                    ->orWhereIn('noun_plural', $uniqueTokens)
-                    ->orWhereIn('adj_comparative', $uniqueTokens)
-                    ->orWhereIn('adj_superlative', $uniqueTokens);
-            })
-            ->get(['id', 'word', 'status', 'form_base', 'verb_past', 'verb_past_participle', 'verb_present_participle', 'verb_third_person', 'noun_plural', 'adj_comparative', 'adj_superlative']);
+        $customWords = $this->matchByForms(
+            $uniqueTokens,
+            fn () => UserCustomWord::where('user_id', $user->id),
+            ['id', 'word', 'status', 'form_base', 'verb_past', 'verb_past_participle', 'verb_present_participle', 'verb_third_person', 'noun_plural', 'adj_comparative', 'adj_superlative']
+        );
 
         // Build reverse map: lowercase form → Word model
         $formToWord = [];
@@ -298,11 +330,9 @@ class TextAnalysisController extends Controller
         );
 
         $totalTokenCount = count($tokens);
-        $comprehension = $totalTokenCount > 0 ? round(($knownTokenCount / $totalTokenCount) * 100) : 0;
+        $comprehension = $totalTokenCount > 0 ? (int) round(($knownTokenCount / $totalTokenCount) * 100) : 0;
 
-        $newAchievements = app(AchievementService::class)->checkAndAwardAnalysis($request->user(), $comprehension);
-
-        return response()->json([
+        return [
             'comprehension' => $comprehension,
             'totalWords' => $totalTokenCount,
             'uniqueWords' => count($uniqueTokens),
@@ -310,8 +340,7 @@ class TextAnalysisController extends Controller
             'learningCount' => $learningTokenCount,
             'tokenStatuses' => $tokenStatuses,
             'topUnknown' => array_values(array_slice($unknownInListWords, 0, 20, true)),
-            'achievements' => $newAchievements,
-        ]);
+        ];
     }
 
     private function extractYouTubeId(string $url): ?string
@@ -332,30 +361,36 @@ class TextAnalysisController extends Controller
         return null;
     }
 
-    private function fetchYouTubeCaptions(string $videoId): string
+    /**
+     * @return array<int, array{t: int, x: string}>
+     */
+    private function fetchYouTubeCaptions(string $videoId): array
     {
         // Strategy 1: InnerTube API with multiple clients
-        $text = $this->fetchViaInnertube($videoId);
-        if ($text !== '') {
-            return $text;
+        $segments = $this->fetchViaInnertube($videoId);
+        if (! empty($segments)) {
+            return $segments;
         }
 
         // Strategy 3: YouTube timedtext API
-        $text = $this->fetchViaTimedtextApi($videoId);
-        if ($text !== '') {
-            return $text;
+        $segments = $this->fetchViaTimedtextApi($videoId);
+        if (! empty($segments)) {
+            return $segments;
         }
 
         // Strategy 4: Scrape the watch page for a signed caption URL
-        $text = $this->fetchViaPageScraping($videoId);
-        if ($text !== '') {
-            return $text;
+        $segments = $this->fetchViaPageScraping($videoId);
+        if (! empty($segments)) {
+            return $segments;
         }
 
         throw new \RuntimeException('Ehhez a videóhoz nem érhetők el angol feliratok, vagy a felirat nem feldolgozható.');
     }
 
-    private function fetchViaInnertube(string $videoId): string
+    /**
+     * @return array<int, array{t: int, x: string}>
+     */
+    private function fetchViaInnertube(string $videoId): array
     {
         $androidUa = 'com.google.android.youtube/20.10.38 (Linux; U; Android 11) gzip';
 
@@ -365,11 +400,11 @@ class TextAnalysisController extends Controller
             ->get('https://www.youtube.com/watch?v='.$videoId);
 
         if (! $pageResponse->ok()) {
-            return '';
+            return [];
         }
 
         if (! preg_match('/"INNERTUBE_API_KEY"\s*:\s*"([a-zA-Z0-9_-]+)"/', $pageResponse->body(), $keyMatch)) {
-            return '';
+            return [];
         }
 
         $apiKey = $keyMatch[1];
@@ -386,13 +421,13 @@ class TextAnalysisController extends Controller
             ]);
 
         if (! $playerResponse->ok()) {
-            return '';
+            return [];
         }
 
         $tracks = $playerResponse->json('captions.playerCaptionsTracklistRenderer.captionTracks') ?? [];
 
         if (empty($tracks)) {
-            return '';
+            return [];
         }
 
         $track = collect($tracks)->first(fn ($t) => str_starts_with($t['languageCode'] ?? '', 'en'))
@@ -401,7 +436,7 @@ class TextAnalysisController extends Controller
         $captionUrl = $track['baseUrl'] ?? null;
 
         if (! $captionUrl) {
-            return '';
+            return [];
         }
 
         // Try XML (default, no fmt) first — ANDROID returns timedtext XML with <p> tags
@@ -412,16 +447,19 @@ class TextAnalysisController extends Controller
                 continue;
             }
 
-            $text = $this->parseCaptionBody($captionResponse->body());
-            if ($text !== '') {
-                return $text;
+            $segments = $this->parseCaptionBody($captionResponse->body());
+            if (! empty($segments)) {
+                return $segments;
             }
         }
 
-        return '';
+        return [];
     }
 
-    private function fetchViaTimedtextApi(string $videoId): string
+    /**
+     * @return array<int, array{t: int, x: string}>
+     */
+    private function fetchViaTimedtextApi(string $videoId): array
     {
         $base = 'https://www.youtube.com/api/timedtext?v='.urlencode($videoId).'&lang=en';
 
@@ -434,16 +472,19 @@ class TextAnalysisController extends Controller
                 continue;
             }
 
-            $text = $this->parseCaptionBody($response->body());
-            if ($text !== '') {
-                return $text;
+            $segments = $this->parseCaptionBody($response->body());
+            if (! empty($segments)) {
+                return $segments;
             }
         }
 
-        return '';
+        return [];
     }
 
-    private function fetchViaPageScraping(string $videoId): string
+    /**
+     * @return array<int, array{t: int, x: string}>
+     */
+    private function fetchViaPageScraping(string $videoId): array
     {
         $pageResponse = Http::timeout(20)
             ->withHeaders([
@@ -453,12 +494,12 @@ class TextAnalysisController extends Controller
             ->get('https://www.youtube.com/watch?v='.$videoId);
 
         if (! $pageResponse->ok()) {
-            return '';
+            return [];
         }
 
         $captionUrl = $this->extractCaptionUrl($pageResponse->body());
         if ($captionUrl === null) {
-            return '';
+            return [];
         }
 
         $json3Url = preg_replace('/([?&])fmt=[^&]*/', '$1fmt=json3', $captionUrl);
@@ -472,16 +513,19 @@ class TextAnalysisController extends Controller
                 continue;
             }
 
-            $text = $this->parseCaptionBody($response->body());
-            if ($text !== '') {
-                return $text;
+            $segments = $this->parseCaptionBody($response->body());
+            if (! empty($segments)) {
+                return $segments;
             }
         }
 
-        return '';
+        return [];
     }
 
-    private function parseCaptionBody(string $body): string
+    /**
+     * @return array<int, array{t: int, x: string}>
+     */
+    private function parseCaptionBody(string $body): array
     {
         $trimmed = ltrim($body);
 
@@ -500,15 +544,58 @@ class TextAnalysisController extends Controller
             return $this->parseXmlCaptions($body);
         }
 
-        return '';
+        return [];
     }
 
-    private function parseVttCaptions(string $body): string
+    /**
+     * Felirat-szegmensekből összefűzött, sima szöveg (a szóelemzéshez).
+     *
+     * @param  array<int, array{t: int, x: string}>  $segments
+     */
+    private function segmentsToText(array $segments): string
+    {
+        return implode(' ', array_map(fn ($s) => $s['x'], $segments));
+    }
+
+    /**
+     * Felirat-időbélyeg (HH:MM:SS.mmm vagy MM:SS.mmm) → egész másodperc.
+     */
+    private function captionTimestampToSeconds(string $ts): int
+    {
+        if (preg_match('/(?:(\d+):)?(\d{1,2}):(\d{2})(?:[.,]\d+)?/', $ts, $m)) {
+            return ((int) ($m[1] ?: 0)) * 3600 + ((int) $m[2]) * 60 + (int) $m[3];
+        }
+
+        return 0;
+    }
+
+    /**
+     * @return array<int, array{t: int, x: string}>
+     */
+    private function parseVttCaptions(string $body): array
     {
         $lines = preg_split('/\r?\n/', $body) ?: [];
-        $texts = [];
+        $segments = [];
         $prev = '';
         $pastHeader = false;
+        $curStart = 0;
+        $curTexts = [];
+
+        $flush = function () use (&$segments, &$curTexts, &$prev, &$curStart): void {
+            if (empty($curTexts)) {
+                return;
+            }
+
+            $text = trim(preg_replace('/\s+/', ' ', implode(' ', $curTexts)) ?? '');
+            $curTexts = [];
+
+            if ($text === '' || $text === $prev) {
+                return;
+            }
+
+            $segments[] = ['t' => $curStart, 'x' => $text];
+            $prev = $text;
+        };
 
         foreach ($lines as $line) {
             $line = trim($line);
@@ -522,8 +609,22 @@ class TextAnalysisController extends Controller
                 continue;
             }
 
-            // Skip blank lines, cue IDs (digits only), and timestamp lines
-            if ($line === '' || preg_match('/^\d+$/', $line) || str_contains($line, '-->')) {
+            // A timestamp line starts a new cue
+            if (str_contains($line, '-->')) {
+                $flush();
+                $curStart = $this->captionTimestampToSeconds(explode('-->', $line)[0]);
+
+                continue;
+            }
+
+            // Blank line ends the current cue; cue IDs (digits only) are skipped
+            if ($line === '') {
+                $flush();
+
+                continue;
+            }
+
+            if (preg_match('/^\d+$/', $line)) {
                 continue;
             }
 
@@ -533,15 +634,14 @@ class TextAnalysisController extends Controller
             $text = preg_replace('/\[[^\]]*\]/', '', $text) ?? $text;
             $text = trim(preg_replace('/\s+/', ' ', $text) ?? $text);
 
-            if ($text === '' || $text === $prev) {
-                continue;
+            if ($text !== '') {
+                $curTexts[] = $text;
             }
-
-            $texts[] = $text;
-            $prev = $text;
         }
 
-        return implode(' ', $texts);
+        $flush();
+
+        return $segments;
     }
 
     private function extractCaptionUrl(string $html): ?string
@@ -612,13 +712,17 @@ class TextAnalysisController extends Controller
         return $track['baseUrl'] ?? null;
     }
 
-    private function parseJson3Captions(mixed $data): string
+    /**
+     * @return array<int, array{t: int, x: string}>
+     */
+    private function parseJson3Captions(mixed $data): array
     {
         if (! is_array($data) || empty($data['events'])) {
-            return '';
+            return [];
         }
 
-        $lines = [];
+        $segments = [];
+        $prev = '';
         foreach ($data['events'] as $event) {
             if (! isset($event['segs'])) {
                 continue;
@@ -626,29 +730,50 @@ class TextAnalysisController extends Controller
             $text = implode('', array_column($event['segs'], 'utf8'));
             // Remove sound annotations like [Music], [Applause], [Laughter], etc.
             $text = preg_replace('/\[[^\]]*\]/', '', $text) ?? $text;
-            $text = preg_replace('/\s+/', ' ', trim($text)) ?? '';
-            if ($text !== '') {
-                $lines[] = $text;
+            $text = trim(preg_replace('/\s+/', ' ', trim($text)) ?? '');
+            if ($text === '' || $text === $prev) {
+                continue;
             }
+            $segments[] = ['t' => (int) round(((int) ($event['tStartMs'] ?? 0)) / 1000), 'x' => $text];
+            $prev = $text;
         }
 
-        return implode(' ', $lines);
+        return $segments;
     }
 
-    private function parseXmlCaptions(string $body): string
+    /**
+     * @return array<int, array{t: int, x: string}>
+     */
+    private function parseXmlCaptions(string $body): array
     {
-        // YouTube returns either <text> (older) or <p> (ANDROID InnerTube) tags
-        if (! preg_match_all('/<(?:text|p)[^>]*>(.*?)<\/(?:text|p)>/s', $body, $matches)) {
-            return '';
+        // YouTube returns either <text start="12.3"> (older) or <p t="12300"> (ANDROID InnerTube) tags
+        if (! preg_match_all('/<(?:text|p)([^>]*)>(.*?)<\/(?:text|p)>/s', $body, $matches, PREG_SET_ORDER)) {
+            return [];
         }
 
-        $lines = array_map(function ($line) {
-            $line = trim(html_entity_decode(strip_tags($line), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+        $segments = [];
+        $prev = '';
+        foreach ($matches as $m) {
+            $text = trim(html_entity_decode(strip_tags($m[2]), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+            $text = trim(preg_replace('/\[[^\]]*\]/', '', $text) ?? $text);
+            $text = trim(preg_replace('/\s+/', ' ', $text) ?? $text);
 
-            return trim(preg_replace('/\[[^\]]*\]/', '', $line) ?? $line);
-        }, $matches[1]);
+            if ($text === '' || $text === $prev) {
+                continue;
+            }
 
-        return implode(' ', array_filter($lines, fn ($l) => $l !== ''));
+            $start = 0;
+            if (preg_match('/\bstart="([\d.]+)"/', $m[1], $sm)) {
+                $start = (int) round((float) $sm[1]);
+            } elseif (preg_match('/\bt="(\d+)"/', $m[1], $tm)) {
+                $start = (int) round(((int) $tm[1]) / 1000);
+            }
+
+            $segments[] = ['t' => $start, 'x' => $text];
+            $prev = $text;
+        }
+
+        return $segments;
     }
 
     private function fetchWebpageText(string $url): string
@@ -1142,6 +1267,164 @@ PROMPT;
         ]);
     }
 
+    /** Hány elmentett YouTube-felirata lehet a felhasználónak (csomagtól függően). */
+    private function youtubeLimitFor(User $user): int
+    {
+        return match (true) {
+            $user->subscribed('premium') || $user->ai_access => 10,
+            $user->subscribed('default') => 3,
+            default => 1,
+        };
+    }
+
+    /**
+     * @return array{id: int, title: string, video_id: string, total_pages: int}
+     */
+    private function transcriptPayload(YoutubeTranscript $t): array
+    {
+        return [
+            'id' => $t->id,
+            'title' => $t->title,
+            'video_id' => $t->video_id,
+            'total_pages' => $t->total_pages,
+        ];
+    }
+
+    public function listYoutube(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $transcripts = YoutubeTranscript::where('user_id', $user->id)
+            ->orderByDesc('created_at')
+            ->get(['id', 'title', 'video_id', 'total_pages'])
+            ->map(fn (YoutubeTranscript $t) => $this->transcriptPayload($t));
+
+        return response()->json([
+            'transcripts' => $transcripts,
+            'youtubeLimit' => $this->youtubeLimitFor($user),
+        ]);
+    }
+
+    public function storeYoutube(Request $request): JsonResponse
+    {
+        $url = $request->validate(['url' => 'required|url:http,https|max:2000'])['url'];
+
+        $videoId = $this->extractYouTubeId($url);
+
+        if ($videoId === null) {
+            return response()->json(['error' => 'Érvénytelen YouTube link.'], 422);
+        }
+
+        $user = $request->user();
+        $limit = $this->youtubeLimitFor($user);
+
+        if (YoutubeTranscript::where('user_id', $user->id)->count() >= $limit) {
+            return response()->json([
+                'error' => "Elérted az elmentett YouTube-feliratok maximális számát ({$limit}). Törölj egyet, vagy válts magasabb csomagra.",
+            ], 403);
+        }
+
+        try {
+            $segments = $this->fetchYouTubeCaptions($videoId);
+        } catch (\RuntimeException $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
+        } catch (\Throwable) {
+            return response()->json(['error' => 'A felirat nem érhető el. Próbáld újra később.'], 422);
+        }
+
+        if (empty($segments)) {
+            return response()->json(['error' => 'Ehhez a videóhoz nem érhetők el angol feliratok.'], 422);
+        }
+
+        $title = $this->fetchYouTubeTitle($videoId) ?? 'YouTube videó';
+        $json = json_encode(array_values($segments), JSON_UNESCAPED_UNICODE) ?: '[]';
+        $totalPages = max(1, (int) ceil(count($segments) / YoutubeTranscript::SEGMENTS_PER_PAGE));
+
+        $transcript = YoutubeTranscript::create([
+            'user_id' => $user->id,
+            'video_id' => $videoId,
+            'title' => mb_substr($title, 0, 255),
+            'compressed_segments' => gzencode($json, 6),
+            'total_pages' => $totalPages,
+            'text_size' => mb_strlen($json, '8bit'),
+        ]);
+
+        $pageData = $transcript->getPage(1);
+
+        return response()->json([
+            'transcript' => $this->transcriptPayload($transcript),
+            'page' => 1,
+            'text' => $pageData['text'],
+            'segments' => $pageData['segments'],
+        ]);
+    }
+
+    public function getYoutubePage(Request $request, YoutubeTranscript $transcript): JsonResponse
+    {
+        abort_unless($transcript->user_id === $request->user()->id, 403);
+
+        $page = max(1, min((int) $request->query('page', 1), $transcript->total_pages));
+        $data = $transcript->getPage($page);
+
+        return response()->json([
+            'page' => $page,
+            'text' => $data['text'],
+            'segments' => $data['segments'],
+        ]);
+    }
+
+    /** A TELJES videó megértési statisztikája (az összes szegmens szövegén). */
+    public function youtubeOverview(Request $request, YoutubeTranscript $transcript): JsonResponse
+    {
+        abort_unless($transcript->user_id === $request->user()->id, 403);
+
+        $fullText = implode(' ', array_map(fn ($s) => $s['x'] ?? '', $transcript->segments()));
+        $analysis = $this->buildAnalysis($fullText, $request->user());
+
+        // A teljes felirat token-státusz térképe nem kell ide, csak az összesített számok.
+        unset($analysis['tokenStatuses']);
+
+        return response()->json($analysis);
+    }
+
+    public function deleteYoutube(Request $request, YoutubeTranscript $transcript): JsonResponse
+    {
+        abort_unless($transcript->user_id === $request->user()->id, 403);
+        $transcript->delete();
+
+        return response()->json(['ok' => true]);
+    }
+
+    private function fetchYouTubeTitle(string $videoId): ?string
+    {
+        try {
+            $response = Http::timeout(10)
+                ->withHeaders([
+                    'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                    'Accept-Language' => 'en-US,en;q=0.9',
+                ])
+                ->get('https://www.youtube.com/watch?v='.$videoId);
+
+            if (! $response->ok()) {
+                return null;
+            }
+
+            if (preg_match('/<meta\s+name="title"\s+content="([^"]+)"/', $response->body(), $m)) {
+                return html_entity_decode($m[1], ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            }
+
+            if (preg_match('/<title>(.*?)<\/title>/s', $response->body(), $m)) {
+                $title = html_entity_decode(trim($m[1]), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+                return trim(preg_replace('/\s*-\s*YouTube\s*$/', '', $title) ?? $title);
+            }
+        } catch (\Throwable) {
+            // Fallback to default title below.
+        }
+
+        return null;
+    }
+
     public function uploadBook(Request $request): JsonResponse
     {
         $request->validate([
@@ -1221,6 +1504,19 @@ PROMPT;
             'page' => $page,
             'text' => $book->getPage($page),
         ]);
+    }
+
+    /** A TELJES könyv megértési statisztikája (az összes oldal szövegén). */
+    public function bookOverview(Request $request, UserBook $book): JsonResponse
+    {
+        abort_unless($book->user_id === $request->user()->id, 403);
+
+        $fullText = gzdecode($book->compressed_text) ?: '';
+        $analysis = $this->buildAnalysis($fullText, $request->user());
+
+        unset($analysis['tokenStatuses']);
+
+        return response()->json($analysis);
     }
 
     public function deleteBook(Request $request, UserBook $book): JsonResponse
@@ -1568,12 +1864,50 @@ PROMPT;
     }
 
     /** @return string[] */
+    /**
+     * Gyakori angol összevonások kibontása valódi szavakra (a szóelemzéshez).
+     * Így az „I'm" nem két törött token lesz, hanem „am", az „I'd" → „would" stb.
+     */
+    private const CONTRACTIONS = [
+        "i'm" => 'i am', "you're" => 'you are', "we're" => 'we are', "they're" => 'they are',
+        "he's" => 'he is', "she's" => 'she is', "it's" => 'it is', "that's" => 'that is',
+        "there's" => 'there is', "here's" => 'here is', "who's" => 'who is', "what's" => 'what is',
+        "where's" => 'where is', "how's" => 'how is', "let's" => 'let us',
+        "i've" => 'i have', "you've" => 'you have', "we've" => 'we have', "they've" => 'they have',
+        "could've" => 'could have', "would've" => 'would have', "should've" => 'should have',
+        "might've" => 'might have', "must've" => 'must have',
+        "i'll" => 'i will', "you'll" => 'you will', "we'll" => 'we will', "they'll" => 'they will',
+        "he'll" => 'he will', "she'll" => 'she will', "it'll" => 'it will', "that'll" => 'that will',
+        "i'd" => 'i would', "you'd" => 'you would', "we'd" => 'we would', "they'd" => 'they would',
+        "he'd" => 'he would', "she'd" => 'she would', "it'd" => 'it would',
+        "don't" => 'do not', "doesn't" => 'does not', "didn't" => 'did not', "isn't" => 'is not',
+        "aren't" => 'are not', "wasn't" => 'was not', "weren't" => 'were not', "haven't" => 'have not',
+        "hasn't" => 'has not', "hadn't" => 'had not', "won't" => 'will not', "wouldn't" => 'would not',
+        "can't" => 'can not', "couldn't" => 'could not', "shouldn't" => 'should not',
+        "mustn't" => 'must not', "mightn't" => 'might not', "needn't" => 'need not',
+        "shan't" => 'shall not', "ain't" => 'is not',
+    ];
+
+    /**
+     * @return array<int, string>
+     */
     private function tokenize(string $text): array
     {
-        $cleaned = str_replace(["\u{2018}", "\u{2019}", "\u{2032}", "'"], ' ', $text);
-        $cleaned = preg_replace('/[^a-zA-Z ]+/', ' ', $cleaned) ?? '';
-        $words = preg_split('/\s+/', mb_strtolower(trim($cleaned))) ?: [];
+        // Aposztrófok egységesítése, kisbetűsítés
+        $cleaned = mb_strtolower(str_replace(["\u{2018}", "\u{2019}", "\u{2032}"], "'", $text));
 
-        return array_values(array_filter($words, fn ($w) => strlen($w) >= 2));
+        // Összevonások szóalakokra bontása; az ismeretlen aposztrófos szavaknál (pl. birtokos "dog's")
+        // levágjuk az aposztróf utáni részt → "dog".
+        $cleaned = preg_replace_callback(
+            "/\b[a-z]+(?:'[a-z]+)+\b/",
+            fn ($m) => self::CONTRACTIONS[$m[0]] ?? preg_replace("/'.*/", '', $m[0]),
+            $cleaned
+        ) ?? $cleaned;
+
+        $cleaned = preg_replace('/[^a-z ]+/', ' ', $cleaned) ?? '';
+        $words = preg_split('/\s+/', trim($cleaned)) ?: [];
+
+        // 1 betűs szavak közül csak a két valódi angol szót tartjuk meg ("a", "i") — a többi zaj.
+        return array_values(array_filter($words, fn ($w) => strlen($w) >= 2 || $w === 'a' || $w === 'i'));
     }
 }

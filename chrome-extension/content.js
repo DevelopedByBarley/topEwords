@@ -2075,7 +2075,9 @@ function renderYtBar(text) {
         const isWord = /^[a-zA-Z]/.test(clean) && clean.length > 0;
 
         if (isWord) {
-            const status = ytStatusMap?.get(clean.toLowerCase());
+            const key = clean.toLowerCase();
+            const status =
+                ytStatusMap?.get(key) ?? ytStatusMap?.get(key.split("'")[0]);
             const color = status ? STATUS_COLORS[status] : null;
             const escaped = token
                 .replace(/&/g, '&amp;')

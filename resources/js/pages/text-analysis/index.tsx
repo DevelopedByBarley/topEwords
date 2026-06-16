@@ -3,6 +3,7 @@ import { BookOpen, FileText, Globe, History, Loader2, ScanText, X, Youtube } fro
 import { useEffect, useMemo, useRef, useState } from 'react';
 import AnalysisResultView from '@/components/text-analysis/analysis-result';
 import { BookList, BookPager, BookReader } from '@/components/text-analysis/book-panel';
+import { WholeVideoBanner, YoutubeList, YoutubeReader } from '@/components/text-analysis/youtube-panel';
 import HistoryPanel from '@/components/text-analysis/history-panel';
 import {
     addHistoryEntry,
@@ -15,13 +16,14 @@ import {
     saveHistory,
     SESSION_KEY,
 } from '@/components/text-analysis/types';
-import type { AnalysisResult, HistoryEntry, InputMode, TokenStatus, UserBook } from '@/components/text-analysis/types';
+import type { AnalysisResult, HistoryEntry, InputMode, LyricSegment, TokenStatus, UserBook, VideoOverview, YoutubeTranscript } from '@/components/text-analysis/types';
 import WordLookupDialog from '@/components/text-analysis/word-lookup-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { analyze as analyzeRoute, fetchSource as fetchSourceRoute, show as textAnalysisShow } from '@/routes/text-analysis';
-import { destroy as destroyBook, index as booksIndex, page as bookPageRoute, store as storeBook } from '@/routes/text-analysis/books';
+import { destroy as destroyBook, index as booksIndex, overview as bookOverviewRoute, page as bookPageRoute, store as storeBook } from '@/routes/text-analysis/books';
+import { destroy as ytDestroy, index as ytIndex, overview as ytOverviewRoute, page as ytPageRoute, store as ytStore } from '@/routes/text-analysis/youtube';
 
 const MODE_TABS: { id: InputMode; label: string; Icon: React.ElementType }[] = [
     { id: 'text', label: 'Szöveg', Icon: FileText },
@@ -50,6 +52,16 @@ export default function TextAnalysis() {
     const [booksLoaded, setBooksLoaded] = useState(false);
     const [activeBook, setActiveBook] = useState<UserBook | null>(null);
     const [bookPage, setBookPage] = useState(1);
+    const [bookOverview, setBookOverview] = useState<VideoOverview | null>(null);
+
+    // YouTube-feliratok (külön rendszer)
+    const [transcripts, setTranscripts] = useState<YoutubeTranscript[]>([]);
+    const [youtubeLimit, setYoutubeLimit] = useState<number>(1);
+    const [youtubeLoaded, setYoutubeLoaded] = useState(false);
+    const [activeTranscript, setActiveTranscript] = useState<YoutubeTranscript | null>(null);
+    const [ytPage, setYtPage] = useState(1);
+    const [segments, setSegments] = useState<LyricSegment[] | null>(null);
+    const [overview, setOverview] = useState<VideoOverview | null>(null);
     const [isUploadingBook, setIsUploadingBook] = useState(false);
     const [isLoadingPage, setIsLoadingPage] = useState(false);
 
@@ -70,6 +82,12 @@ export default function TextAnalysis() {
         const isYouTube = /youtube\.com|youtu\.be/.test(urlParam);
         setMode(isYouTube ? 'youtube' : 'url');
         setUrlInput(urlParam);
+
+        // YouTube linket nem töltünk be automatikusan (könyv jönne létre) — a felhasználó indítja.
+        if (isYouTube) {
+            return;
+        }
+
         // fetch directly with the param value, not via state (which isn't set yet)
         setIsFetching(true);
         setError(null);
@@ -102,6 +120,13 @@ export default function TextAnalysis() {
         }
     }, [mode, text, urlInput, fetchedSource, result]);
 
+    useEffect(() => {
+        if (mode === 'youtube' && !youtubeLoaded) {
+            fetchTranscripts();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [mode]);
+
     const getBookmarkKey = (bookId: number) => `book_bookmark_${bookId}`;
     const saveBookmark = (bookId: number, page: number) =>
         localStorage.setItem(getBookmarkKey(bookId), String(page));
@@ -132,6 +157,7 @@ export default function TextAnalysis() {
             const data = await res.json();
             const pageText = data.text as string;
             setFetchedSource(pageText);
+            setSegments((data.segments as LyricSegment[] | undefined) ?? null);
             setBookPage(page);
             saveBookmark(book.id, page);
             setResult(null);
@@ -145,9 +171,22 @@ export default function TextAnalysis() {
         }
     };
 
+    const fetchBookOverview = async (book: UserBook) => {
+        setBookOverview(null);
+        try {
+            const res = await fetch(bookOverviewRoute.url(book.id), { headers: { Accept: 'application/json' } });
+            if (res.ok) {
+                setBookOverview((await res.json()) as VideoOverview);
+            }
+        } catch {
+            // A teljes könyv %-a opcionális — hiba esetén nem mutatjuk.
+        }
+    };
+
     const selectBook = (book: UserBook) => {
         setActiveBook(book);
         loadBookPage(book, loadBookmark(book.id));
+        fetchBookOverview(book);
     };
 
     const handleBookUpload = async (file: File) => {
@@ -171,11 +210,126 @@ export default function TextAnalysis() {
             setActiveBook(book);
             setBookPage(1);
             setFetchedSource(data.text as string);
+            setSegments(null);
             setResult(null);
+            fetchBookOverview(book);
         } catch {
             setError('Hálózati hiba. Próbáld újra.');
         } finally {
             setIsUploadingBook(false);
+        }
+    };
+
+    // ── YouTube-feliratok (külön rendszer) ──────────────────────────────────────
+
+    const getYtBookmarkKey = (id: number) => `yt_bookmark_${id}`;
+    const saveYtBookmark = (id: number, page: number) =>
+        localStorage.setItem(getYtBookmarkKey(id), String(page));
+    const loadYtBookmark = (id: number): number =>
+        parseInt(localStorage.getItem(getYtBookmarkKey(id)) ?? '1', 10) || 1;
+
+    const fetchTranscripts = async () => {
+        try {
+            const res = await fetch(ytIndex.url(), { headers: { Accept: 'application/json' } });
+            const data = await res.json();
+            setTranscripts(data.transcripts ?? []);
+            setYoutubeLimit(data.youtubeLimit ?? 1);
+        } catch {
+            setError('Nem sikerült betölteni a feliratokat.');
+        } finally {
+            setYoutubeLoaded(true);
+        }
+    };
+
+    const fetchOverview = async (transcript: YoutubeTranscript) => {
+        setOverview(null);
+        try {
+            const res = await fetch(ytOverviewRoute.url(transcript.id), { headers: { Accept: 'application/json' } });
+            if (res.ok) {
+                setOverview((await res.json()) as VideoOverview);
+            }
+        } catch {
+            // A teljes videó %-a opcionális — hiba esetén egyszerűen nem mutatjuk.
+        }
+    };
+
+    const loadYtPage = async (transcript: YoutubeTranscript, page: number, thenAnalyze = false) => {
+        setIsLoadingPage(true);
+        setError(null);
+        try {
+            const res = await fetch(ytPageRoute.url(transcript.id, { query: { page } }), {
+                headers: { Accept: 'application/json' },
+            });
+            const data = await res.json();
+            const pageText = data.text as string;
+            setFetchedSource(pageText);
+            setSegments((data.segments as LyricSegment[] | undefined) ?? null);
+            setYtPage(page);
+            saveYtBookmark(transcript.id, page);
+            setResult(null);
+            if (thenAnalyze) {
+                await analyze(pageText);
+            }
+        } catch {
+            setError('Hálózati hiba. Próbáld újra.');
+        } finally {
+            setIsLoadingPage(false);
+        }
+    };
+
+    const selectTranscript = (transcript: YoutubeTranscript) => {
+        setActiveTranscript(transcript);
+        setResult(null);
+        loadYtPage(transcript, loadYtBookmark(transcript.id));
+        fetchOverview(transcript);
+    };
+
+    /** Új YouTube videó feliratának lehívása és mentése, majd megnyitása az olvasóban. */
+    const loadYoutube = async (rawUrl: string) => {
+        const url = rawUrl.trim();
+        if (!url) return;
+        setIsFetching(true);
+        setError(null);
+        setUpgradeUrl(null);
+        try {
+            const { ok, data } = await postJson(ytStore.url(), { url });
+            if (!ok) {
+                setError((data.error as string) ?? (data.message as string) ?? 'Hiba történt.');
+                if (typeof data.upgrade_url === 'string') {
+                    setUpgradeUrl(data.upgrade_url);
+                }
+                return;
+            }
+            const transcript = data.transcript as YoutubeTranscript;
+            setTranscripts((prev) => [transcript, ...prev.filter((t) => t.id !== transcript.id)]);
+            setYoutubeLoaded(true);
+            setActiveTranscript(transcript);
+            setYtPage(1);
+            setFetchedSource(data.text as string);
+            setSegments((data.segments as LyricSegment[] | undefined) ?? null);
+            setResult(null);
+            setUrlInput('');
+            fetchOverview(transcript);
+        } catch {
+            setError('Hálózati hiba. Próbáld újra.');
+        } finally {
+            setIsFetching(false);
+        }
+    };
+
+    const deleteTranscript = async (transcript: YoutubeTranscript) => {
+        if (!confirm(`Törlöd a(z) „${transcript.title}" feliratot?`)) return;
+        await fetch(ytDestroy.url(transcript.id), {
+            method: 'DELETE',
+            headers: { 'X-CSRF-TOKEN': getCsrfToken() },
+        });
+        setTranscripts((prev) => prev.filter((t) => t.id !== transcript.id));
+        if (activeTranscript?.id === transcript.id) {
+            setActiveTranscript(null);
+            setFetchedSource(null);
+            setSegments(null);
+            setOverview(null);
+            setResult(null);
         }
     };
 
@@ -189,6 +343,8 @@ export default function TextAnalysis() {
         if (activeBook?.id === book.id) {
             setActiveBook(null);
             setFetchedSource(null);
+            setSegments(null);
+            setBookOverview(null);
             setResult(null);
         }
     };
@@ -196,8 +352,20 @@ export default function TextAnalysis() {
     const reset = () => {
         setResult(null);
         setFetchedSource(null);
+        setSegments(null);
         setError(null);
         setUpgradeUrl(null);
+    };
+
+    /** A „Új elemzés" YouTube módban csak az eredményt zárja — az olvasó (felirat + teljes %) megmarad. */
+    const handleResultReset = () => {
+        if (mode === 'youtube' && activeTranscript) {
+            setResult(null);
+            setError(null);
+            setUpgradeUrl(null);
+            return;
+        }
+        reset();
     };
 
     const switchMode = (m: InputMode) => {
@@ -205,6 +373,10 @@ export default function TextAnalysis() {
         reset();
         if (m === 'book' && !booksLoaded) {
             fetchBooks();
+        }
+        if (m === 'youtube') {
+            setActiveTranscript(null);
+            setOverview(null);
         }
     };
 
@@ -273,7 +445,7 @@ export default function TextAnalysis() {
                 window.dispatchEvent(new CustomEvent('achievements-unlocked', { detail: data.achievements }));
             }
 
-            if (mode !== 'book') {
+            if (mode !== 'book' && mode !== 'youtube') {
                 const label = mode === 'text'
                     ? input.slice(0, 80).trim() + (input.length > 80 ? '…' : '')
                     : urlInput;
@@ -415,17 +587,63 @@ export default function TextAnalysis() {
                             </>
                         )}
 
-                        {(mode === 'youtube' || mode === 'url') && (
+                        {mode === 'youtube' && (
+                            activeTranscript ? (
+                                <YoutubeReader
+                                    transcript={activeTranscript}
+                                    page={ytPage}
+                                    segments={segments}
+                                    overview={overview}
+                                    isLoadingPage={isLoadingPage}
+                                    isAnalyzing={isAnalyzing}
+                                    onBack={() => { setActiveTranscript(null); setFetchedSource(null); setSegments(null); setOverview(null); setResult(null); }}
+                                    onPageChange={(page) => loadYtPage(activeTranscript, page)}
+                                    onAnalyze={() => analyze(fetchedSource ?? '')}
+                                />
+                            ) : (
+                                <>
+                                    <div className="flex gap-2">
+                                        <Input
+                                            value={urlInput}
+                                            onChange={(e) => { setUrlInput(e.target.value); setError(null); }}
+                                            placeholder="https://www.youtube.com/watch?v=..."
+                                            className="flex-1"
+                                            onKeyDown={(e) => e.key === 'Enter' && !isFetching && loadYoutube(urlInput)}
+                                        />
+                                        <Button
+                                            variant="outline"
+                                            onClick={() => loadYoutube(urlInput)}
+                                            disabled={isFetching || !urlInput.trim()}
+                                        >
+                                            {isFetching ? <Loader2 className="size-4 animate-spin" /> : <Youtube className="size-4" />}
+                                            {isFetching ? 'Felirat letöltése...' : 'Felirat betöltése'}
+                                        </Button>
+                                    </div>
+
+                                    <p className="text-xs text-muted-foreground">
+                                        A videóhoz angol feliratnak kell lennie (auto-generált is megfelel). A teljes felirat
+                                        időbélyeges sorokként mentődik — lapozható, később folytatható, és látod a teljes videó ismertségi %-át.
+                                    </p>
+
+                                    <YoutubeList
+                                        transcripts={transcripts}
+                                        youtubeLimit={youtubeLimit}
+                                        loaded={youtubeLoaded}
+                                        loadBookmark={loadYtBookmark}
+                                        onSelect={selectTranscript}
+                                        onDelete={deleteTranscript}
+                                    />
+                                </>
+                            )
+                        )}
+
+                        {mode === 'url' && (
                             <>
                                 <div className="flex gap-2">
                                     <Input
                                         value={urlInput}
                                         onChange={(e) => { setUrlInput(e.target.value); setFetchedSource(null); setError(null); }}
-                                        placeholder={
-                                            mode === 'youtube'
-                                                ? 'https://www.youtube.com/watch?v=...'
-                                                : 'https://example.com/article'
-                                        }
+                                        placeholder="https://example.com/article"
                                         className="flex-1"
                                         onKeyDown={(e) => e.key === 'Enter' && !fetchedSource && fetchSource()}
                                     />
@@ -434,23 +652,17 @@ export default function TextAnalysis() {
                                         onClick={() => fetchSource()}
                                         disabled={isFetching || !urlInput.trim() || !!fetchedSource}
                                     >
-                                        {isFetching ? <Loader2 className="size-4 animate-spin" /> : (mode === 'youtube' ? <Youtube className="size-4" /> : <Globe className="size-4" />)}
+                                        {isFetching ? <Loader2 className="size-4 animate-spin" /> : <Globe className="size-4" />}
                                         {isFetching ? 'Betöltés...' : 'Betöltés'}
                                     </Button>
                                 </div>
-
-                                {mode === 'youtube' && (
-                                    <p className="text-xs text-muted-foreground">
-                                        A videóhoz angol feliratnak kell lennie (auto-generált is megfelel).
-                                    </p>
-                                )}
 
                                 {fetchedSource && (
                                     <>
                                         <div className="rounded-2xl bg-muted/50 p-3">
                                             <div className="mb-2 flex items-center justify-between">
                                                 <p className="text-xs font-medium text-muted-foreground">
-                                                    {mode === 'youtube' ? 'Betöltött felirat' : 'Betöltött szöveg'} ({fetchedSource.length.toLocaleString()} karakter)
+                                                    Betöltött szöveg ({fetchedSource.length.toLocaleString()} karakter)
                                                 </p>
                                                 <button
                                                     type="button"
@@ -490,16 +702,24 @@ export default function TextAnalysis() {
                                 )}
 
                                 {activeBook && fetchedSource !== null && (
-                                    <BookReader
-                                        book={activeBook}
-                                        page={bookPage}
-                                        text={fetchedSource}
-                                        isLoadingPage={isLoadingPage}
-                                        isAnalyzing={isAnalyzing}
-                                        onBack={() => { setActiveBook(null); setFetchedSource(null); setResult(null); }}
-                                        onPageChange={(page) => loadBookPage(activeBook, page)}
-                                        onAnalyze={() => analyze(fetchedSource)}
-                                    />
+                                    <>
+                                        <WholeVideoBanner
+                                            overview={bookOverview}
+                                            heading="A teljes könyvből ismered"
+                                            source="könyvben"
+                                            loadingLabel="Teljes könyv kiértékelése…"
+                                        />
+                                        <BookReader
+                                            book={activeBook}
+                                            page={bookPage}
+                                            text={fetchedSource}
+                                            isLoadingPage={isLoadingPage}
+                                            isAnalyzing={isAnalyzing}
+                                            onBack={() => { setActiveBook(null); setFetchedSource(null); setBookOverview(null); setResult(null); }}
+                                            onPageChange={(page) => loadBookPage(activeBook, page)}
+                                            onAnalyze={() => analyze(fetchedSource)}
+                                        />
+                                    </>
                                 )}
 
                                 {activeBook && isLoadingPage && !fetchedSource && (
@@ -528,17 +748,38 @@ export default function TextAnalysis() {
                     <AnalysisResultView
                         result={result}
                         activeText={activeText}
+                        segments={segments}
                         onWordClick={handleWordClick}
-                        onReset={reset}
+                        onReset={handleResultReset}
                     >
                         {mode === 'book' && activeBook && (
-                            <BookPager
-                                page={bookPage}
-                                totalPages={activeBook.total_pages}
-                                disabled={isLoadingPage || isAnalyzing}
-                                onPrev={() => loadBookPage(activeBook, bookPage - 1, true)}
-                                onNext={() => loadBookPage(activeBook, bookPage + 1, true)}
-                            />
+                            <>
+                                <WholeVideoBanner
+                                    overview={bookOverview}
+                                    heading="A teljes könyvből ismered"
+                                    source="könyvben"
+                                    loadingLabel="Teljes könyv kiértékelése…"
+                                />
+                                <BookPager
+                                    page={bookPage}
+                                    totalPages={activeBook.total_pages}
+                                    disabled={isLoadingPage || isAnalyzing}
+                                    onPrev={() => loadBookPage(activeBook, bookPage - 1, true)}
+                                    onNext={() => loadBookPage(activeBook, bookPage + 1, true)}
+                                />
+                            </>
+                        )}
+                        {mode === 'youtube' && activeTranscript && (
+                            <>
+                                <WholeVideoBanner overview={overview} />
+                                <BookPager
+                                    page={ytPage}
+                                    totalPages={activeTranscript.total_pages}
+                                    disabled={isLoadingPage || isAnalyzing}
+                                    onPrev={() => loadYtPage(activeTranscript, ytPage - 1, true)}
+                                    onNext={() => loadYtPage(activeTranscript, ytPage + 1, true)}
+                                />
+                            </>
                         )}
                     </AnalysisResultView>
                 )}

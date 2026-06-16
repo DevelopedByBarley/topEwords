@@ -37,12 +37,12 @@ test('dashboard returns level stats and totals', function () {
             ->component('dashboard')
             ->has('levelStats', 6)
             ->where('totalKnown', 1)
-            ->where('levelStats.0.label', 'Kezdő')
+            ->where('levelStats.0.label', 'Top 1 000')
             ->where('levelStats.0.known', 1)
             ->where('levelStats.0.learning', 0)
-            ->where('levelStats.2.label', 'Középszint')
+            ->where('levelStats.2.label', '2 001 – 4 000')
             ->where('levelStats.2.learning', 1)
-            ->where('levelStats.3.label', 'Haladó')
+            ->where('levelStats.3.label', '4 001 – 6 000')
             ->where('levelStats.3.known', 0)
         );
 });

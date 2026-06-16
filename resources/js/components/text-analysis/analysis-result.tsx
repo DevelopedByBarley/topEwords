@@ -1,17 +1,19 @@
 import { BookOpen, CheckCheck, Clock, HelpCircle, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import HighlightedText from '@/components/text-analysis/highlighted-text';
-import type { AnalysisResult } from '@/components/text-analysis/types';
+import LyricsView from '@/components/text-analysis/lyrics-view';
+import type { AnalysisResult, LyricSegment } from '@/components/text-analysis/types';
 
 interface AnalysisResultViewProps {
     result: AnalysisResult;
     activeText: string;
+    segments?: LyricSegment[] | null;
     onWordClick: (word: string, context: string) => void;
     onReset: () => void;
     children?: React.ReactNode;
 }
 
-export default function AnalysisResultView({ result, activeText, onWordClick, onReset, children }: AnalysisResultViewProps) {
+export default function AnalysisResultView({ result, activeText, segments, onWordClick, onReset, children }: AnalysisResultViewProps) {
     const comprehensionColor =
         result.comprehension >= 90 ? 'text-green-600 dark:text-green-400'
         : result.comprehension >= 70 ? 'text-blue-600 dark:text-blue-400'
@@ -96,10 +98,16 @@ export default function AnalysisResultView({ result, activeText, onWordClick, on
                 ))}
             </div>
 
-            {/* Highlighted text */}
+            {/* Highlighted text / lyrics */}
             <div className="rounded-3xl bg-card p-5 shadow-sm">
-                <p className="mb-3 text-sm font-medium">Szöveg kiemelésekkel</p>
-                <HighlightedText text={activeText} tokenStatuses={result.tokenStatuses} onWordClick={onWordClick} />
+                <p className="mb-3 text-sm font-medium">
+                    {segments && segments.length > 0 ? 'Felirat időbélyegekkel' : 'Szöveg kiemelésekkel'}
+                </p>
+                {segments && segments.length > 0 ? (
+                    <LyricsView segments={segments} tokenStatuses={result.tokenStatuses} onWordClick={onWordClick} />
+                ) : (
+                    <HighlightedText text={activeText} tokenStatuses={result.tokenStatuses} onWordClick={onWordClick} />
+                )}
             </div>
 
             {/* Top unknown words */}

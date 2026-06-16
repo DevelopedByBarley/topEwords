@@ -7,7 +7,7 @@ interface HighlightedProps {
 }
 
 function HighlightedParagraph({ para, tokenStatuses, onWordClick }: HighlightedProps & { para: string }) {
-    const parts = para.split(/([a-zA-Z]+)/);
+    const parts = para.split(/([a-zA-Z]+(?:['’][a-zA-Z]+)*)/);
     const extractSentence = (word: string) => {
         const sentences = para.split(/(?<=[.!?])\s+/);
         return sentences.find((s) => s.toLowerCase().includes(word.toLowerCase()))?.trim() ?? para.slice(0, 300);
@@ -45,7 +45,7 @@ export default function HighlightedText({ text, tokenStatuses, onWordClick }: Hi
         );
     }
 
-    const parts = text.split(/([a-zA-Z]+)/);
+    const parts = text.split(/([a-zA-Z]+(?:['’][a-zA-Z]+)*)/);
     const extractSentence = (word: string) => {
         const sentences = text.split(/(?<=[.!?])\s+/);
         return sentences.find((s) => s.toLowerCase().includes(word.toLowerCase()))?.trim() ?? text.slice(0, 300);

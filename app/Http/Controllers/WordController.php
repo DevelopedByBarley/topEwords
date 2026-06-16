@@ -177,12 +177,12 @@ class WordController extends Controller
             'words' => $words,
             'filters' => ['search' => $search, 'letter' => $letter, 'level' => $level, 'status' => $statusFilter, 'importance' => $importanceFilter, 'folder' => $folderId, 'per_page' => $perPage],
             'stats' => [
-                'total' => Word::count() + $allCustomWords->count(),
-                'known' => ($statusCounts['known'] ?? 0) + $customKnown,
-                'learning' => ($statusCounts['learning'] ?? 0) + $customLearning,
-                'saved' => ($statusCounts['saved'] ?? 0) + $customSaved,
-                'pronunciation' => ($statusCounts['pronunciation'] ?? 0) + $customPronunciation,
-                'practice' => ($statusCounts['practice'] ?? 0) + $customPractice,
+                'total' => Word::count(),
+                'known' => $statusCounts['known'] ?? 0,
+                'learning' => $statusCounts['learning'] ?? 0,
+                'saved' => $statusCounts['saved'] ?? 0,
+                'pronunciation' => $statusCounts['pronunciation'] ?? 0,
+                'practice' => $statusCounts['practice'] ?? 0,
             ],
             'customWords' => $customWords,
             'customStats' => [

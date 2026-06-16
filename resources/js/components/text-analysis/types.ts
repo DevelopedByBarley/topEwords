@@ -9,6 +9,40 @@ export interface UserBook {
     total_pages: number;
 }
 
+/** Egy YouTube-felirat időbélyeges sora: t = kezdés másodpercben, x = szöveg. */
+export interface LyricSegment {
+    t: number;
+    x: string;
+}
+
+/** Egy elmentett YouTube-felirat (külön a könyvektől). */
+export interface YoutubeTranscript {
+    id: number;
+    title: string;
+    video_id: string;
+    total_pages: number;
+}
+
+/** A teljes videó összesített megértési statisztikája. */
+export interface VideoOverview {
+    comprehension: number;
+    totalWords: number;
+    uniqueWords: number;
+    knownCount: number;
+    learningCount: number;
+}
+
+/** Másodperc → m:ss (vagy h:mm:ss) formátum. */
+export function formatTimestamp(seconds: number): string {
+    const s = Math.max(0, Math.floor(seconds));
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    const mm = h > 0 ? String(m).padStart(2, '0') : String(m);
+
+    return (h > 0 ? `${h}:` : '') + `${mm}:${String(sec).padStart(2, '0')}`;
+}
+
 export interface HistoryEntry {
     id: number;
     mode: InputMode;
