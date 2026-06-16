@@ -185,7 +185,7 @@ const POPUP_CSS = `
         border-top: 1px solid #f1f5f9;
     }
 
-    a.link {
+    a.link, button.link {
         font-size: 12px;
         color: #6366f1;
         cursor: pointer;
@@ -193,7 +193,14 @@ const POPUP_CSS = `
         text-underline-offset: 2px;
     }
 
-    a.link:hover { color: #4f46e5; }
+    button.link {
+        border: none;
+        background: none;
+        padding: 0;
+        font-family: inherit;
+    }
+
+    a.link:hover, button.link:hover { color: #4f46e5; }
 
     .tts-btn {
         display: inline-flex;
@@ -437,14 +444,20 @@ function renderBody(data) {
         body.innerHTML = `
             <span class="msg">„${esc(data.word)}" nincs az adatbázisban.</span>
             <div class="footer" style="margin-top:8px;gap:8px;flex-wrap:wrap">
-                <a class="link" href="${APP_URL}/words?add=${encodeURIComponent(data.word)}" target="_blank">
+                <button class="link add-custom-btn" type="button">
                     Saját szóként hozzáadom →
-                </a>
+                </button>
                 <a class="link" href="${googleUrl}" target="_blank" style="color:#4285f4">
                     🔍 Google AI
                 </a>
             </div>
         `;
+
+        body.querySelector('.add-custom-btn')?.addEventListener('click', () => {
+            const word = data.word;
+            hidePopup();
+            openAddWordForm(word);
+        });
 
         return;
     }
@@ -544,7 +557,14 @@ function handleStatusClick(btn, data) {
             csrf: data.csrf,
         },
         (resp) => {
-            if (resp?.ok || !shadow) {
+            if (resp?.ok) {
+                // A státusz a szerveren is frissült — frissítsük a kiemeléseket azonnal.
+                refreshVocabHighlights();
+
+                return;
+            }
+
+            if (!shadow) {
                 return;
             }
 
@@ -1020,6 +1040,45 @@ function hideSearch() {
     }
 }
 
+/**
+ * Megnyitja a keresőt egy adott szóra és egyből a hozzáadás-űrlapot mutatja
+ * (ha a szó nincs a szótárban) — így a feliratból/bárhonnan fel lehet venni
+ * saját szót az app külön megnyitása nélkül.
+ */
+function openAddWordForm(word) {
+    showSearch();
+
+    const input = searchShadow?.getElementById('search-input');
+
+    if (input) {
+        input.value = word;
+    }
+
+    showSearchLoading();
+    sendMsg({ type: 'SEARCH_WORD', q: word }, (resp) => {
+        if (!searchShadow) {
+            return;
+        }
+
+        searchCsrf = resp?.csrf ?? null;
+        searchHasAccess = resp?.has_active_access ?? false;
+        searchIsAdmin = resp?.is_admin ?? false;
+
+        const results = resp?.results ?? [];
+        const exact = results.find(
+            (r) => r.word?.toLowerCase() === word.toLowerCase(),
+        );
+
+        renderSearchResults(results, resp?.error);
+
+        if (exact) {
+            showSearchDetail(exact);
+        } else {
+            showSearchDetail({ word, _notFound: true });
+        }
+    });
+}
+
 function showSearchLoading() {
     if (!searchShadow) {
         return;
@@ -1367,6 +1426,7 @@ function showSearchDetail(data) {
                     fb.textContent = `„${data.word}" hozzáadva!`;
                     fb.style.color = '#22c55e';
                     fb.style.display = 'block';
+                    refreshVocabHighlights();
                 } else if (resp?.error === 'duplicate') {
                     btn.disabled = false;
                     btn.textContent = 'Hozzáadás';
@@ -1446,7 +1506,13 @@ function showSearchDetail(data) {
                         csrf: searchCsrf,
                     },
                     (resp) => {
-                        if (resp?.ok || !searchShadow) {
+                        if (resp?.ok) {
+                            refreshVocabHighlights();
+
+                            return;
+                        }
+
+                        if (!searchShadow) {
                             return;
                         }
 
@@ -1842,6 +1908,7 @@ let ytPanelVideo = null;
 let ytPanelTimeHandler = null;
 let ytPanelLastUserScroll = 0;
 let ytControlsObserver = null;
+let ytLastCaptionText = '';
 
 const YT_HIDE_STYLE_ID = 'tw-yt-hide-native-captions';
 
@@ -2113,6 +2180,7 @@ function renderYtBar(text) {
         return;
     }
 
+    ytLastCaptionText = text;
     bar.innerHTML = ytWordsToHtml(text);
     bar.style.display = 'block';
 }
@@ -2153,10 +2221,13 @@ function startYtObserver() {
 
 // ── Be/ki kapcsolás ──
 
-/** A szó→státusz térképet egyszer kéri le és cache-eli; a sáv és az oldalsáv is ezt hívja. */
+/**
+ * A szó→státusz térképet egyszer kéri le és cache-eli; a sáv és az oldalsáv is ezt hívja.
+ * A callback megkapja az esetleges hibát ('network' | 'unauthenticated' | null).
+ */
 function ensureYtStatusMap(callback) {
     if (ytStatusMap) {
-        callback();
+        callback(null);
 
         return;
     }
@@ -2169,17 +2240,88 @@ function ensureYtStatusMap(callback) {
                     s,
                 ]),
             );
+            callback(null);
+
+            return;
         }
 
-        callback();
+        callback(resp?.error ?? 'network');
+    });
+}
+
+/** Rövid értesítés a feliratsávban (pl. nincs bejelentkezés / kapcsolat). */
+function showYtBarNotice(text) {
+    const bar = ytBarHost?.shadowRoot?.getElementById('bar');
+
+    if (!bar) {
+        return;
+    }
+
+    bar.textContent = text;
+    bar.style.display = 'block';
+
+    setTimeout(() => {
+        if (bar.textContent === text) {
+            bar.style.display = 'none';
+            bar.textContent = '';
+        }
+    }, 6000);
+}
+
+/**
+ * Egy szó státuszának/felvitelének mentése után frissíti a státusztérképet, és
+ * azonnal újrarajzolja az aktív felületeket (feliratsáv, átirat-oldalsáv, oldali
+ * kiemelés), hogy a változás külön frissítés nélkül látszódjon.
+ */
+function refreshVocabHighlights() {
+    sendMsg({ type: 'GET_STATUSES' }, (resp) => {
+        if (!resp || resp.error || !resp.statuses) {
+            return;
+        }
+
+        const map = new Map(
+            Object.entries(resp.statuses).map(([w, s]) => [w.toLowerCase(), s]),
+        );
+
+        if (ytStatusMap) {
+            ytStatusMap = map;
+
+            if (ytLastCaptionText) {
+                renderYtBar(ytLastCaptionText);
+            }
+
+            if (ytPanelSegments.length) {
+                renderYtPanelSegments();
+            }
+        }
+
+        if (hlWordMap) {
+            hlWordMap = map;
+            removeHighlights();
+            applyHighlights();
+        }
     });
 }
 
 function enableYtLyrics() {
     ensureYtBar();
     ensureNativeCaptionsOn();
-    hideNativeCaptions();
-    ensureYtStatusMap(() => startYtObserver());
+    ensureYtStatusMap((error) => {
+        if (error) {
+            // Bejelentkezés/kapcsolat hiányában nem rejtjük el a natív feliratot —
+            // a felhasználó látja az okát, és megmaradnak a normál feliratai.
+            showYtBarNotice(
+                error === 'network'
+                    ? 'Nincs kapcsolat a TopWords-szel.'
+                    : 'Jelentkezz be a TopWords-be a szókiemeléshez.',
+            );
+
+            return;
+        }
+
+        hideNativeCaptions();
+        startYtObserver();
+    });
 }
 
 function disableYtLyrics() {
@@ -2206,6 +2348,22 @@ function formatYtTime(sec) {
     return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`;
 }
 
+/**
+ * Az alsó vezérlősor teljes képernyős / színházi módban végigér a videón, ezért
+ * ilyenkor hagyunk neki helyet a panel alján, hogy ne takarjuk el. Normál módban
+ * a kontrollok a bal oldali lejátszóban vannak, a panel mellettük lehet végig.
+ */
+function positionYtPanel() {
+    if (!ytPanelHost) {
+        return;
+    }
+
+    const wide =
+        !!document.fullscreenElement ||
+        !!document.querySelector('ytd-watch-flexy[theater]');
+    ytPanelHost.style.bottom = wide ? '80px' : '12px';
+}
+
 function ensureYtPanel() {
     if (ytPanelHost?.isConnected) {
         return;
@@ -2223,6 +2381,7 @@ function ensureYtPanel() {
         maxWidth: '40vw',
         zIndex: '2147483645',
     });
+    positionYtPanel();
 
     const shadow = ytPanelHost.attachShadow({ mode: 'open' });
     shadow.innerHTML = `
@@ -2505,12 +2664,13 @@ function injectYtPanelToggle() {
 
     const btn = document.createElement('button');
     btn.className = 'ytp-button tw-yt-panel-toggle';
+    // A TW gomb ikonjának footprintjét követi (x≈1..23, y≈5..24), hogy egy vonalban legyen.
     btn.innerHTML = `
         <svg width="100%" height="100%" viewBox="0 0 36 36" style="display:block;pointer-events:none">
-            <rect x="9" y="9" width="18" height="2.6" rx="1.3" fill="#fff"/>
-            <rect x="9" y="15" width="18" height="2.6" rx="1.3" fill="#fff"/>
-            <rect x="9" y="21" width="12" height="2.6" rx="1.3" fill="#fff"/>
-            <rect class="tw-panel-underline" x="9" y="26.5" width="18" height="2.5" rx="1.25" fill="#f00"/>
+            <rect x="2" y="7" width="21" height="2.4" rx="1.2" fill="#fff"/>
+            <rect x="2" y="12.3" width="21" height="2.4" rx="1.2" fill="#fff"/>
+            <rect x="2" y="17.6" width="14" height="2.4" rx="1.2" fill="#fff"/>
+            <rect class="tw-panel-underline" x="5" y="22" width="14" height="2.5" rx="1.25" fill="#f00"/>
         </svg>
     `;
     btn.addEventListener('click', toggleYtPanel);
@@ -2560,6 +2720,7 @@ function startYtControlsObserver() {
             pending = false;
             injectYtToggle();
             injectYtPanelToggle();
+            positionYtPanel();
         });
     });
 
