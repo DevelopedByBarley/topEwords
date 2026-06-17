@@ -23,16 +23,19 @@ function refreshBadge() {
 // ── Context menus ─────────────────────────────────────────────────────────────
 
 chrome.runtime.onInstalled.addListener(() => {
-    chrome.contextMenus.create({
-        id: 'lookup-word',
-        title: 'Szó keresése: "%s"',
-        contexts: ['selection'],
-    });
+    // removeAll előbb: frissítéskor/újratöltéskor elkerüli a "duplicate id" hibát.
+    chrome.contextMenus.removeAll(() => {
+        chrome.contextMenus.create({
+            id: 'lookup-word',
+            title: 'Szó keresése: "%s"',
+            contexts: ['selection'],
+        });
 
-    chrome.contextMenus.create({
-        id: 'analyze-page',
-        title: 'Oldal szövegelemzése',
-        contexts: ['page', 'selection'],
+        chrome.contextMenus.create({
+            id: 'analyze-page',
+            title: 'Oldal szövegelemzése',
+            contexts: ['page', 'selection'],
+        });
     });
 
     refreshBadge();
@@ -56,6 +59,10 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     }
 
     if (info.menuItemId === 'analyze-page') {
+        if (!tab?.url) {
+            return;
+        }
+
         chrome.tabs.create({
             url: `${APP_URL}/text-analysis?url=${encodeURIComponent(tab.url)}`,
         });

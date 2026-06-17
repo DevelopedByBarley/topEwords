@@ -137,6 +137,21 @@ test('badge counts learning words including custom ones', function () {
         ->assertJson(['count' => 2]);
 });
 
+test('frequent extension reads do not exhaust the add-word limit', function () {
+    // A read végpontok (ext-read vödör) nem oszthatják az add-word (ext-write)
+    // limitjét — különben a gyakori lookup/statuses hívások blokkolnák a felvitelt.
+    for ($i = 0; $i < 25; $i++) {
+        $this->actingAs($this->user)
+            ->getJson(route('extension.statuses'))
+            ->assertSuccessful();
+    }
+
+    $this->actingAs($this->user)
+        ->postJson(route('extension.add-word'), ['word' => 'isolationtest'])
+        ->assertSuccessful()
+        ->assertJson(['ok' => true]);
+});
+
 test('youtube transcript is gated behind premium access', function () {
     Http::fake();
 

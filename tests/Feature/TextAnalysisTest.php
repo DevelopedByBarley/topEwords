@@ -64,6 +64,24 @@ test('word forms are recognized via variant columns', function () {
         ->assertJsonPath('tokenStatuses.runs', 'known');
 });
 
+test('apostrophe custom words get their status in the token map', function () {
+    $this->user->customWords()->create(['word' => "I'm", 'status' => 'known']);
+    $this->user->customWords()->create(['word' => "can't", 'status' => 'learning']);
+
+    $this->postJson(route('text-analysis.analyze'), ['text' => "I'm sure I can't run"])
+        ->assertOk()
+        ->assertJsonPath('tokenStatuses.i\'m', 'known')
+        ->assertJsonPath('tokenStatuses.can\'t', 'learning');
+});
+
+test('curly apostrophe in text matches a straight-apostrophe custom word', function () {
+    $this->user->customWords()->create(['word' => "we'll", 'status' => 'known']);
+
+    $this->postJson(route('text-analysis.analyze'), ['text' => "we\u{2019}ll see"])
+        ->assertOk()
+        ->assertJsonPath('tokenStatuses.we\'ll', 'known');
+});
+
 test('words not in top 10k are classified as not_in_list', function () {
     $this->postJson(route('text-analysis.analyze'), ['text' => 'supercalifragilistic'])
         ->assertOk()

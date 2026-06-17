@@ -8,7 +8,7 @@ import {
     Trophy,
     X,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { pricing } from '@/routes';
@@ -108,6 +108,18 @@ export default function Quiz({
     const [score, setScore] = useState(0);
     const [wrongAnswers, setWrongAnswers] = useState<QuizWord[]>([]);
     const [finished, setFinished] = useState(false);
+
+    // Új kvíz (új words prop) érkezésekor visszaállítjuk az állapotot — különben
+    // az Inertia újrahasználja a komponenst, és a régi current/answerState/finished
+    // beragadna.
+    useEffect(() => {
+        setCurrent(0);
+        setSelected(null);
+        setAnswerState('unanswered');
+        setScore(0);
+        setWrongAnswers([]);
+        setFinished(false);
+    }, [words]);
 
     const isSetup =
         words.length === 0 && filters.count === 0 && filters.ids === '';

@@ -53,6 +53,8 @@ interface AccessUser {
     plan_override: 'basic' | 'premium' | null;
     ai_access: boolean;
     has_ai: boolean;
+    subscribed: boolean;
+    subscription_plan: 'basic' | 'premium' | null;
 }
 
 interface Props {
@@ -478,6 +480,14 @@ export default function AdminIndex({
                                                 <div className="min-w-0">
                                                     <div className="truncate text-sm font-medium">
                                                         {u.name}
+                                                        {u.subscribed && (
+                                                            <span className="ml-1.5 rounded bg-green-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-green-400">
+                                                                Előfizető
+                                                                {u.subscription_plan
+                                                                    ? ` · ${u.subscription_plan}`
+                                                                    : ''}
+                                                            </span>
+                                                        )}
                                                         {u.plan_override && (
                                                             <span className="ml-1.5 text-[10px] text-zinc-500">
                                                                 (admin

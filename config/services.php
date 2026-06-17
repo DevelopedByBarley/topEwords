@@ -37,6 +37,9 @@ return [
 
     'gemini' => [
         'api_key' => env('GEMINI_API_KEY'),
+        // Havi AI-költségkeret felhasználónként, mikro-dollárban tárolva (1e6 = $1).
+        // A tényleges Gemini token-költségből fogy (input/output × modell-ár).
+        'monthly_budget_micros' => (int) round(((float) env('GEMINI_MONTHLY_BUDGET_USD', 0.50)) * 1_000_000),
     ],
 
     'stripe' => [

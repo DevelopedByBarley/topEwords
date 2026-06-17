@@ -1311,6 +1311,20 @@ function showSearchDetail(data) {
                     geminiBtn.disabled = false;
                     geminiBtn.innerHTML = '✨ AI kitöltés';
 
+                    if (resp?.error === 'ai_limit') {
+                        const fb = detail.querySelector('#add-feedback');
+
+                        if (fb) {
+                            fb.textContent =
+                                resp.message ??
+                                'Elérted a havi AI-felhasználási kereted.';
+                            fb.style.color = '#f97316';
+                            fb.style.display = 'block';
+                        }
+
+                        return;
+                    }
+
                     if (!resp || resp.error) {
                         return;
                     }

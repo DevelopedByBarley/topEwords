@@ -91,13 +91,15 @@ class PricingController extends Controller
         return redirect()->route('pricing')->with('success', 'Sikeres fizetés! Köszönjük az előfizetést – a funkciók azonnal elérhetők.');
     }
 
-    public function portal(Request $request): RedirectResponse
+    public function portal(Request $request): RedirectResponse|\Illuminate\Http\Response
     {
         // Stripe ügyfél nélkül a portál hívása kivételt dobna
         if (! $request->user()->hasStripeId()) {
             return redirect()->route('pricing');
         }
 
-        return $request->user()->redirectToBillingPortal(route('pricing'));
+        // A Stripe portál külső URL — Inertia POST-nál Inertia::location kell,
+        // különben a kliens nem navigál (sima redirectnél "nem történik semmi").
+        return Inertia::location($request->user()->billingPortalUrl(route('pricing')));
     }
 }

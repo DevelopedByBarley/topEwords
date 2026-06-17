@@ -31,7 +31,7 @@ Route::get('/sitemap.xml', function () {
 // ── Fizetés ───────────────────────────────────────────────────────────────────
 
 Route::middleware('auth')->group(function () {
-    Route::post('/pricing/checkout/{plan}', [PricingController::class, 'checkout'])->name('pricing.checkout')->middleware('throttle:20,1');
+    Route::post('/pricing/checkout/{plan}', [PricingController::class, 'checkout'])->name('pricing.checkout')->middleware('throttle:20,1,pricing-checkout');
     Route::post('/pricing/portal', [PricingController::class, 'portal'])->name('pricing.portal');
 });
 

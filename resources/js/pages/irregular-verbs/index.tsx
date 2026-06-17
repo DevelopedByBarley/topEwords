@@ -311,6 +311,20 @@ export default function IrregularVerbsIndex({ verbs }: Props) {
     const pastRef = useRef<HTMLInputElement>(null);
     const participleRef = useRef<HTMLInputElement>(null);
 
+    // Friss látogatáskor (új verbs prop) visszaállunk a beállítás-képernyőre —
+    // különben az Inertia újrahasználja a komponenst, és a befejezett/félbehagyott
+    // kvíz állapota (a szó) beragadna újranyitáskor.
+    useEffect(() => {
+        setQuizVerbs(null);
+        setCurrent(0);
+        setPastInput('');
+        setParticipleInput('');
+        setAnswerState('unanswered');
+        setScore(0);
+        setWrongVerbs([]);
+        setFinished(false);
+    }, [verbs]);
+
     const card = quizVerbs?.[current] ?? null;
     const answered = current + (answerState !== 'unanswered' ? 1 : 0);
     const progress =

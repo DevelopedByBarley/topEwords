@@ -60,6 +60,10 @@ class AdminController extends Controller
                 'plan_override' => $u->plan_override,
                 'ai_access' => $u->ai_access,
                 'has_ai' => $u->hasAiAccess(),
+                // Valódi (fizető) Stripe-előfizetés van-e, és milyen csomag — az
+                // admin felülírástól / próbaidőtől / lifetime-tól függetlenül.
+                'subscribed' => $u->activeSubscription() !== null,
+                'subscription_plan' => $u->subscriptionPlan(),
             ]);
 
         return Inertia::render('admin/index', [

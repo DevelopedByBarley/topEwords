@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Settings;
 
 use App\Http\Controllers\Controller;
+use App\Services\AiUsageService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -10,10 +11,19 @@ use Inertia\Response;
 
 class SubscriptionController extends Controller
 {
-    public function edit(Request $request): Response
+    public function edit(Request $request, AiUsageService $aiUsage): Response
     {
         $user = $request->user();
         $activeSub = $user->activeSubscription();
+
+        $paymentMethod = null;
+
+        if ($user->hasStripeId() && $user->pm_last_four !== null) {
+            $paymentMethod = [
+                'brand' => $user->pm_type,
+                'last_four' => $user->pm_last_four,
+            ];
+        }
 
         return Inertia::render('settings/subscription', [
             'hasActiveAccess' => $user->hasActiveAccess(),
@@ -22,6 +32,8 @@ class SubscriptionController extends Controller
             'hasAiAccess' => $user->hasAiAccess(),
             'isOnTrial' => $user->onTrial(),
             'trialEndsAt' => $user->trial_ends_at?->toIso8601String(),
+            'aiUsage' => $user->hasAiAccess() ? $aiUsage->snapshot($user) : null,
+            'paymentMethod' => $paymentMethod,
             'subscription' => $activeSub ? [
                 'stripe_status' => $activeSub->stripe_status,
                 'ends_at' => $activeSub->ends_at?->toIso8601String(),
@@ -55,13 +67,15 @@ class SubscriptionController extends Controller
         return back();
     }
 
-    public function portal(Request $request): RedirectResponse
+    public function portal(Request $request): RedirectResponse|\Illuminate\Http\Response
     {
         // Stripe ügyfél nélkül a portál hívása kivételt dobna
         if (! $request->user()->hasStripeId()) {
             return redirect()->route('pricing');
         }
 
-        return $request->user()->redirectToBillingPortal(route('subscription.edit'));
+        // A Stripe portál külső URL — Inertia POST-nál Inertia::location kell,
+        // különben a kliens nem navigál (sima redirectnél "nem történik semmi").
+        return Inertia::location($request->user()->billingPortalUrl(route('subscription.edit')));
     }
 }

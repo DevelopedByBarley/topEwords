@@ -29,7 +29,7 @@ export default function Privacy() {
                 {/* Content */}
                 <main className="mx-auto max-w-3xl px-6 py-16">
                     <h1 className="mb-2 text-3xl font-bold tracking-tight">Adatkezelési Tájékoztató</h1>
-                    <p className="mb-10 text-sm text-muted-foreground">Hatályos: 2026. március 28-tól</p>
+                    <p className="mb-10 text-sm text-muted-foreground">Hatályos: 2026. június 16-tól</p>
 
                     <div className="prose prose-neutral dark:prose-invert max-w-none space-y-8 text-sm leading-relaxed text-foreground">
 
@@ -93,6 +93,21 @@ export default function Privacy() {
                                             <td className="px-4 py-3">Szavak rendszerezése mappákba</td>
                                             <td className="px-4 py-3">Szerződés teljesítése</td>
                                         </tr>
+                                        <tr>
+                                            <td className="px-4 py-3">Saját szavak, flashcardok</td>
+                                            <td className="px-4 py-3">Egyéni szótár és kártyák tárolása</td>
+                                            <td className="px-4 py-3">Szerződés teljesítése</td>
+                                        </tr>
+                                        <tr>
+                                            <td className="px-4 py-3">Szövegelemzés tartalma (beillesztett szöveg, megadott URL, YouTube-felirat, feltöltött könyv)</td>
+                                            <td className="px-4 py-3">Szövegelemzés és AI-funkciók</td>
+                                            <td className="px-4 py-3">Szerződés teljesítése</td>
+                                        </tr>
+                                        <tr>
+                                            <td className="px-4 py-3">Előfizetési adatok (név, e-mail, előfizetési állapot)</td>
+                                            <td className="px-4 py-3">Előfizetés kezelése, számlázás</td>
+                                            <td className="px-4 py-3">Szerződés / jogi kötelezettség</td>
+                                        </tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -124,11 +139,39 @@ export default function Privacy() {
                         </section>
 
                         <section>
-                            <h2 className="mb-3 text-lg font-semibold">5. Adattovábbítás, harmadik felek</h2>
-                            <p className="text-muted-foreground">
-                                Az Adatkezelő a Felhasználók személyes adatait harmadik félnek nem adja el és nem adja át,
-                                kivéve ha ezt jogszabály kötelezővé teszi (pl. hatósági megkeresés esetén). Az alkalmazás nem
-                                tartalmaz hirdetési vagy nyomkövető technológiát (pl. Facebook Pixel, Google Analytics).
+                            <h2 className="mb-3 text-lg font-semibold">5. Adattovábbítás, adatfeldolgozók</h2>
+                            <p className="mb-2 text-muted-foreground">
+                                Az Adatkezelő a személyes adatokat <strong className="text-foreground">nem adja el</strong>,
+                                és harmadik félnek kizárólag a szolgáltatás nyújtásához szükséges mértékben, az alábbi
+                                adatfeldolgozók részére továbbítja:
+                            </p>
+                            <ul className="list-disc space-y-2 pl-5 text-muted-foreground">
+                                <li>
+                                    <strong className="text-foreground">Stripe</strong> (fizetés feldolgozása) – Stripe
+                                    Payments Europe, Ltd. (Írország) / Stripe, Inc. (USA). Előfizetés esetén a neved és
+                                    e-mail-címed kerül továbbításra; a <strong className="text-foreground">kártyaadatokat
+                                    közvetlenül a Stripe kezeli</strong>, azokat nem tároljuk.
+                                </li>
+                                <li>
+                                    <strong className="text-foreground">Google (Gemini API)</strong> (AI-funkciók) – Google
+                                    Ireland Ltd. / Google LLC (USA). Az AI-alapú szómagyarázat és flashcard-generálás során
+                                    a vizsgált szót, illetve a megadott szövegrészt feldolgozásra a Google felé továbbítjuk.
+                                </li>
+                                <li>
+                                    <strong className="text-foreground">Tárhelyszolgáltató</strong> –{' '}
+                                    <span className="italic">[tárhelyszolgáltató neve és székhelye]</span> – az adatok
+                                    tárolása és a szolgáltatás üzemeltetése céljából.
+                                </li>
+                            </ul>
+                            <p className="mt-3 text-muted-foreground">
+                                Egyes szolgáltatók (pl. Stripe, Google) az Európai Gazdasági Térségen kívül (pl. USA) is
+                                kezelhetnek adatot; ilyen továbbítás kizárólag a GDPR szerinti megfelelő garanciákkal
+                                (pl. EU–USA adatvédelmi keret, általános szerződési feltételek – SCC) történik.
+                            </p>
+                            <p className="mt-3 text-muted-foreground">
+                                Az alkalmazás <strong className="text-foreground">nem</strong> tartalmaz hirdetési vagy
+                                nyomkövető technológiát (pl. Facebook Pixel, Google Analytics), és adatot jogszabályi
+                                kötelezettségen kívül (pl. hatósági megkeresés) nem ad át.
                             </p>
                         </section>
 
@@ -159,6 +202,11 @@ export default function Privacy() {
                                     <strong className="text-foreground">Helyi beállítások:</strong> a bővítmény a böngésződ
                                     helyi tárolójában (<code>chrome.storage.local</code>) kizárólag a saját beállításaidat
                                     őrzi (pl. kiemelés be/ki, YouTube-felirat be/ki). Ezek nem hagyják el az eszközödet.
+                                </li>
+                                <li>
+                                    <strong className="text-foreground">AI-funkciók:</strong> ha AI-alapú kitöltést
+                                    használsz a bővítményben, az adott szót a topwords.eu szerverén keresztül a Google
+                                    (Gemini) felé továbbítjuk a tartalom legenerálásához (lásd 5. pont).
                                 </li>
                                 <li>
                                     <strong className="text-foreground">Nincs követés:</strong> a bővítmény nem tartalmaz

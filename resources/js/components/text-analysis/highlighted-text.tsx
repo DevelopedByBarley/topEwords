@@ -6,6 +6,12 @@ interface HighlightedProps {
     onWordClick?: (word: string, context: string) => void;
 }
 
+// A kulcsokat a backend egységes (egyenes) aposztróffal és kisbetűvel adja —
+// a göndör aposztrófokat (' ' ′) ide is normalizáljuk, hogy az „I'm", „can't"
+// stb. saját szavak színe a megjelenítésben is meglegyen.
+const tokenKey = (word: string) =>
+    word.toLowerCase().replace(/[‘’′]/g, "'");
+
 function HighlightedParagraph({ para, tokenStatuses, onWordClick }: HighlightedProps & { para: string }) {
     const parts = para.split(/([a-zA-Z]+(?:['’][a-zA-Z]+)*)/);
     const extractSentence = (word: string) => {
@@ -16,7 +22,7 @@ function HighlightedParagraph({ para, tokenStatuses, onWordClick }: HighlightedP
         <p className="wrap-break-word leading-7">
             {parts.map((part, i) => {
                 if (i % 2 === 0) return part;
-                const status = tokenStatuses[part.toLowerCase()];
+                const status = tokenStatuses[tokenKey(part)];
                 const className = status ? STATUS_STYLES[status] : '';
                 return (
                     <span
@@ -56,7 +62,7 @@ export default function HighlightedText({ text, tokenStatuses, onWordClick }: Hi
                 if (i % 2 === 0) {
                     return part;
                 }
-                const status = tokenStatuses[part.toLowerCase()];
+                const status = tokenStatuses[tokenKey(part)];
                 const className = status ? STATUS_STYLES[status] : '';
 
                 return (

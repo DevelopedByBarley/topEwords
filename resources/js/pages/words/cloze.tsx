@@ -527,6 +527,18 @@ export default function Cloze({
 
     const inputRef = useRef<HTMLInputElement>(null);
 
+    // Új kvíz (új items prop) érkezésekor visszaállítjuk az állapotot — különben
+    // az Inertia újrahasználja a komponenst, és a régi current/answerState/finished
+    // beragadna (úgy tűnik, nem változik a mondat).
+    useEffect(() => {
+        setCurrent(0);
+        setInput('');
+        setAnswerState('unanswered');
+        setScore(0);
+        setWrongItems([]);
+        setFinished(false);
+    }, [items]);
+
     const isSetup =
         items.length === 0 && filters.count === 0 && filters.ids === '';
     const isEmpty =

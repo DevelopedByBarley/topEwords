@@ -131,6 +131,26 @@ class User extends Authenticatable
             || $this->currentPlan() === 'premium';
     }
 
+    public function isAdmin(): bool
+    {
+        $adminEmail = config('app.admin_email');
+
+        return $adminEmail !== null && $this->email === $adminEmail;
+    }
+
+    /**
+     * The user's monthly AI cost budget in micro-dollars (1e6 = $1).
+     * `null` means unlimited (admins).
+     */
+    public function aiMonthlyLimit(): ?int
+    {
+        if ($this->isAdmin()) {
+            return null;
+        }
+
+        return $this->ai_credit_limit ?? (int) config('services.gemini.monthly_budget_micros');
+    }
+
     public function isOnFreePlan(): bool
     {
         return ! $this->hasActiveAccess();
@@ -178,6 +198,7 @@ class User extends Authenticatable
             'trial_ends_at' => 'datetime',
             'lifetime_access' => 'boolean',
             'ai_access' => 'boolean',
+            'ai_credits_reset_at' => 'datetime',
             'onboarding_completed_at' => 'datetime',
         ];
     }

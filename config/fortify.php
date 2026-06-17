@@ -143,8 +143,11 @@ return [
     |
     */
 
-    'features' => [
-        Features::registration(),
+    'features' => array_values(array_filter([
+        // Regisztráció .env-ből kapcsolható: REGISTRATION_ENABLED=false esetén
+        // a /register route-ok sem regisztrálódnak (szerveroldalon is zárva),
+        // és a frontend canRegister=false lesz → eltűnik a regisztrációs UI.
+        env('REGISTRATION_ENABLED', true) ? Features::registration() : null,
         Features::resetPasswords(),
         Features::emailVerification(),
         Features::twoFactorAuthentication([
@@ -152,6 +155,6 @@ return [
             'confirmPassword' => true,
             // 'window' => 0
         ]),
-    ],
+    ])),
 
 ];

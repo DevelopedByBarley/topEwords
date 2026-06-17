@@ -1,5 +1,5 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { Crown, ExternalLink, Sparkles, Zap } from 'lucide-react';
+import { CreditCard, Crown, ExternalLink, Sparkles, Zap } from 'lucide-react';
 import Heading from '@/components/heading';
 import { Button } from '@/components/ui/button';
 import { pricing } from '@/routes';
@@ -12,6 +12,12 @@ interface Props {
     hasAiAccess: boolean;
     isOnTrial: boolean;
     trialEndsAt: string | null;
+    aiUsage: {
+        unlimited: boolean;
+        percent: number;
+        reset_at: string;
+    } | null;
+    paymentMethod: { brand: string | null; last_four: string } | null;
     subscription: {
         stripe_status: string;
         ends_at: string | null;
@@ -27,6 +33,8 @@ export default function Subscription({
     isPremium,
     isOnTrial,
     trialEndsAt,
+    aiUsage,
+    paymentMethod,
     subscription,
 }: Props) {
     const { flash } = usePage<{ flash: { success?: string } }>().props;
@@ -221,6 +229,73 @@ export default function Subscription({
                         </Link>
                     </div>
                 )}
+
+                {/* AI usage */}
+                {aiUsage && (
+                    <div className="rounded-xl border p-5">
+                        <div className="mb-1 flex items-center gap-2">
+                            <Sparkles className="size-4 text-violet-600 dark:text-violet-400" />
+                            <p className="font-semibold">AI használat</p>
+                        </div>
+                        {aiUsage.unlimited ? (
+                            <p className="text-sm text-muted-foreground">
+                                Korlátlan AI-hozzáférés.
+                            </p>
+                        ) : (
+                            <>
+                                <p className="mb-3 text-sm text-muted-foreground">
+                                    Ebben a hónapban a havi AI-kereted{' '}
+                                    <strong className="text-foreground">
+                                        {aiUsage.percent}%
+                                    </strong>
+                                    -át használtad fel.
+                                </p>
+                                <div className="bg-secondary mb-2 h-2 w-full overflow-hidden rounded-full">
+                                    <div
+                                        className="h-2 rounded-full bg-violet-500 transition-all"
+                                        style={{ width: `${aiUsage.percent}%` }}
+                                    />
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                    {aiUsage.percent >= 100
+                                        ? 'Elérted a havi AI-kereted. '
+                                        : `Még ${100 - aiUsage.percent}% maradt. `}
+                                    Újraindul:{' '}
+                                    {new Date(
+                                        aiUsage.reset_at,
+                                    ).toLocaleDateString('hu-HU')}
+                                    .
+                                </p>
+                            </>
+                        )}
+                    </div>
+                )}
+
+                {/* Fizetési mód */}
+                {paymentMethod && (
+                    <div className="rounded-xl border p-5">
+                        <div className="mb-1 flex items-center gap-2">
+                            <CreditCard className="size-4 text-muted-foreground" />
+                            <p className="font-semibold">Fizetési mód</p>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                            {paymentMethod.brand
+                                ? `${paymentMethod.brand.toUpperCase()} `
+                                : 'Kártya '}
+                            •••• {paymentMethod.last_four}
+                        </p>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="mt-3"
+                            onClick={handlePortal}
+                        >
+                            <ExternalLink className="mr-1.5 size-3.5" />
+                            Kártya módosítása
+                        </Button>
+                    </div>
+                )}
+
             </div>
         </>
     );

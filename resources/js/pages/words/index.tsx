@@ -1,4 +1,4 @@
-import { Head, router, usePage } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import {
     ArrowLeftRight,
     BookMarked,
@@ -65,6 +65,7 @@ import {
     update as updateCustomWord,
 } from '@/routes/custom-words';
 import { importMethod as importFromWord } from '@/routes/flashcards/cards';
+import { index as flashcardsIndex } from '@/routes/flashcards';
 import { destroy, store, update } from '@/routes/folders';
 import { update as folderWordUpdate } from '@/routes/folders/words';
 import {
@@ -1737,7 +1738,20 @@ export default function WordsIndex({
                                             </div>
                                         </div>
                                     )}
-                                    {isAdmin && (
+                                    {flashcardDecks.length === 0 && (
+                                        <p className="text-xs text-muted-foreground">
+                                            Flashcardként mentéshez előbb{' '}
+                                            <Link
+                                                href={flashcardsIndex().url}
+                                                className="text-primary underline underline-offset-2"
+                                            >
+                                                hozz létre egy csomagot
+                                            </Link>
+                                            .
+                                        </p>
+                                    )}
+
+                                    {hasAiAccess && (
                                         <div className="flex flex-col gap-3 border-t pt-4">
                                             <WordInsightPanel
                                                 key={cw.word}
@@ -2192,14 +2206,32 @@ export default function WordsIndex({
                                     </div>
                                 )}
 
-                                {/* Admin szerkesztés */}
-                                {isAdmin && (
+                                {flashcardDecks.length === 0 && (
+                                    <p className="text-xs text-muted-foreground">
+                                        Flashcardként mentéshez előbb{' '}
+                                        <Link
+                                            href={flashcardsIndex().url}
+                                            className="text-primary underline underline-offset-2"
+                                        >
+                                            hozz létre egy csomagot
+                                        </Link>
+                                        .
+                                    </p>
+                                )}
+
+                                {/* AI szó-infó (AI-hozzáférésű felhasználóknak) */}
+                                {hasAiAccess && (
                                     <div className="flex flex-col gap-3 border-t pt-4">
                                         <WordInsightPanel
                                             key={selectedWord.word}
                                             word={selectedWord.word}
                                         />
+                                    </div>
+                                )}
 
+                                {/* Admin szerkesztés */}
+                                {isAdmin && (
+                                    <div className="flex flex-col gap-3 border-t pt-4">
                                         <Button
                                             variant="outline"
                                             size="sm"

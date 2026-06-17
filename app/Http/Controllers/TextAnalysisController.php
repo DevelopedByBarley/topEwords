@@ -8,6 +8,7 @@ use App\Models\UserCustomWord;
 use App\Models\Word;
 use App\Models\YoutubeTranscript;
 use App\Services\AchievementService;
+use App\Services\AiUsageService;
 use App\Services\YouTubeCaptionService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
@@ -22,7 +23,29 @@ use Smalot\PdfParser\Parser as PdfParser;
 
 class TextAnalysisController extends Controller
 {
-    public function __construct(private YouTubeCaptionService $captions) {}
+    public function __construct(
+        private YouTubeCaptionService $captions,
+        private AiUsageService $aiUsage,
+    ) {}
+
+    /**
+     * Returns a 429 response when the user has exhausted their monthly AI
+     * quota, or null when they may proceed. Admins (unlimited) never hit this.
+     */
+    private function aiLimitGuard(Request $request): ?JsonResponse
+    {
+        $user = $request->user();
+
+        if ($user === null || $this->aiUsage->allows($user)) {
+            return null;
+        }
+
+        return response()->json([
+            'error' => 'ai_limit',
+            'message' => 'Elérted a havi AI-felhasználási kereted. A keret a következő hónap elején újraindul.',
+            ...$this->aiUsage->snapshot($user),
+        ], 429);
+    }
 
     public function show(): Response
     {
@@ -325,6 +348,30 @@ class TextAnalysisController extends Controller
             }
         }
 
+        // Aposztrófos saját szavak (pl. "I'm", "can't", "we'll") párosítása a
+        // megjelenítéshez: a tokenizáló az aposztrófos alakokat kibontja/levágja,
+        // ezért a szövegben szereplő aposztrófos alakokat külön ráillesztjük a
+        // saját szó státuszával — a frontend pontosan ezekre a kulcsokra keres.
+        $normalizedText = mb_strtolower(str_replace(["\u{2018}", "\u{2019}", "\u{2032}"], "'", $text));
+
+        if (preg_match_all("/\b[a-z]+(?:'[a-z]+)+\b/", $normalizedText, $apostropheMatches)) {
+            $apostropheWords = array_flip($apostropheMatches[0]);
+
+            $customApostrophe = $user->customWords()
+                ->where(fn ($q) => $q->where('word', 'like', "%'%")
+                    ->orWhere('word', 'like', "%\u{2019}%")
+                    ->orWhere('word', 'like', "%\u{2018}%"))
+                ->get(['word', 'status']);
+
+            foreach ($customApostrophe as $customWord) {
+                $key = mb_strtolower(str_replace(["\u{2018}", "\u{2019}", "\u{2032}"], "'", $customWord->word));
+
+                if (isset($apostropheWords[$key])) {
+                    $tokenStatuses[$key] = $customWord->status;
+                }
+            }
+        }
+
         uasort(
             $unknownInListWords,
             fn ($a, $b) => $b['frequency'] !== $a['frequency']
@@ -437,6 +484,10 @@ class TextAnalysisController extends Controller
     {
         abort_unless(Gate::check('admin') || $request->user()?->hasAiAccess(), 403);
 
+        if ($limited = $this->aiLimitGuard($request)) {
+            return $limited;
+        }
+
         $word = $this->sanitizeWordForPrompt($request->string('word')->trim()->value());
 
         if ($word === null) {
@@ -484,6 +535,8 @@ PROMPT;
         if (! is_array($data)) {
             return response()->json(['error' => 'Érvénytelen válasz.'], 502);
         }
+
+        $this->aiUsage->record($request->user(), $result['cost_micros'] ?? 0);
 
         $front = $this->buildFlashcardFront($data);
         $back = $this->buildFlashcardBack($data);
@@ -645,6 +698,10 @@ PROMPT;
     {
         abort_unless(Gate::check('admin') || $request->user()?->hasAiAccess(), 403);
 
+        if ($limited = $this->aiLimitGuard($request)) {
+            return $limited;
+        }
+
         $validated = $request->validate([
             'word' => ['required', 'string', 'max:100', "regex:/^[\pL][\pL'\\- ]*$/u"],
             'meaning_hu' => ['nullable', 'string', 'max:200'],
@@ -693,6 +750,8 @@ PROMPT;
             return response()->json(['error' => 'Érvénytelen válasz.'], 502);
         }
 
+        $this->aiUsage->record($request->user(), $response['cost_micros'] ?? 0);
+
         return response()->json([
             'usage_ok' => (bool) ($data['usage_ok'] ?? false),
             'grammar_ok' => (bool) ($data['grammar_ok'] ?? true),
@@ -705,7 +764,11 @@ PROMPT;
 
     public function wordInsight(Request $request): JsonResponse
     {
-        abort_unless(Gate::check('admin'), 403);
+        abort_unless(Gate::check('admin') || $request->user()?->hasAiAccess(), 403);
+
+        if ($limited = $this->aiLimitGuard($request)) {
+            return $limited;
+        }
 
         $word = $this->sanitizeWordForPrompt($request->string('word')->trim()->value());
 
@@ -751,6 +814,8 @@ PROMPT;
             return response()->json(['error' => 'Érvénytelen válasz.'], 502);
         }
 
+        $this->aiUsage->record($request->user(), $result['cost_micros'] ?? 0);
+
         return response()->json([
             'areas' => $data['areas'] ?? [],
             'register_hu' => $data['register_hu'] ?? '',
@@ -771,6 +836,10 @@ PROMPT;
     public function geminiWordLookup(Request $request): JsonResponse
     {
         abort_unless(Gate::check('admin') || request()->user()?->hasAiAccess(), 403);
+
+        if ($limited = $this->aiLimitGuard($request)) {
+            return $limited;
+        }
 
         $word = $this->sanitizeWordForPrompt($request->string('word')->trim()->lower()->value());
         $context = $request->string('context')->trim()->value();
@@ -817,6 +886,8 @@ PROMPT;
         if (! is_array($data)) {
             return response()->json(['error' => 'Érvénytelen válasz.'], 502);
         }
+
+        $this->aiUsage->record($request->user(), $result['cost_micros'] ?? 0);
 
         return response()->json([
             'meaning_hu' => $data['meaning_hu'] ?? null,
@@ -1346,9 +1417,20 @@ PROMPT;
     }
 
     /**
+     * Gemini árazás modellenként, USD / 1M token (input és output külön).
+     * A költséget ebből számoljuk mikro-dollárban (lásd lentebb).
+     *
+     * @var array<string, array{in: float, out: float}>
+     */
+    private const GEMINI_PRICING = [
+        'gemini-2.5-flash-lite' => ['in' => 0.10, 'out' => 0.40],
+        'gemini-2.5-flash' => ['in' => 0.30, 'out' => 2.50],
+    ];
+
+    /**
      * Call Gemini with retry logic and thinking disabled.
      *
-     * @return array{ok: bool, data: mixed, error: string}
+     * @return array{ok: bool, data: mixed, error: string, cost_micros?: int}
      */
     private function callGemini(string $apiKey, string $prompt, int $maxTokens, string $model = 'gemini-2.5-flash-lite', float $temperature = 0.3): array
     {
@@ -1397,7 +1479,18 @@ PROMPT;
                 continue;
             }
 
-            return ['ok' => true, 'data' => $data, 'error' => ''];
+            // Tényleges költség a Gemini válasz token-bontásából (input/output külön
+            // árazva), mikro-dollárban (1e6 = $1). Hiányzó usageMetadata esetén durva
+            // becslés a prompt + válasz hosszából (~4 karakter / token).
+            $inputTokens = (int) ($response->json('usageMetadata.promptTokenCount')
+                ?? ceil(mb_strlen($prompt) / 4));
+            $outputTokens = (int) ($response->json('usageMetadata.candidatesTokenCount')
+                ?? ceil(mb_strlen($text) / 4));
+
+            $rate = self::GEMINI_PRICING[$model] ?? self::GEMINI_PRICING['gemini-2.5-flash-lite'];
+            $costMicros = (int) round($inputTokens * $rate['in'] + $outputTokens * $rate['out']);
+
+            return ['ok' => true, 'data' => $data, 'error' => '', 'cost_micros' => $costMicros];
         }
 
         return ['ok' => false, 'data' => null, 'error' => $lastError];

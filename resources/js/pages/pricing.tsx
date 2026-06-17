@@ -8,6 +8,7 @@ import {
     Sparkles,
     Zap,
 } from 'lucide-react';
+import { useState } from 'react';
 import AppLogoIcon from '@/components/app-logo-icon';
 import { Button } from '@/components/ui/button';
 import { dashboard, home, login, register } from '@/routes';
@@ -77,9 +78,18 @@ export default function Pricing({
           )
         : 0;
 
+    const [consent, setConsent] = useState(false);
+    const [consentError, setConsentError] = useState(false);
+
     function handleCheckout(plan: 'basic' | 'premium') {
         if (!isLoggedIn) {
             router.visit(register());
+
+            return;
+        }
+
+        if (!consent) {
+            setConsentError(true);
 
             return;
         }
@@ -415,6 +425,57 @@ export default function Pricing({
                                     )}
                                 </div>
                             </div>
+
+                            {/* ÁFA + elállási tájékoztató */}
+                            {stripeConfigured && (
+                                <div className="mx-auto mt-6 max-w-2xl space-y-3">
+                                    <p className="text-center text-xs text-muted-foreground">
+                                        A feltüntetett árak bruttó árak (az ÁFÁ-t
+                                        tartalmazzák). A terhelés euróban
+                                        történik.
+                                    </p>
+                                    <label className="flex cursor-pointer items-start gap-2 rounded-xl border bg-card px-4 py-3 text-left text-xs text-muted-foreground">
+                                        <input
+                                            type="checkbox"
+                                            className="mt-0.5 size-4 shrink-0"
+                                            checked={consent}
+                                            onChange={(e) => {
+                                                setConsent(e.target.checked);
+                                                setConsentError(false);
+                                            }}
+                                        />
+                                        <span>
+                                            Tudomásul veszem, hogy a szolgáltatás
+                                            a fizetés után azonnal elérhetővé
+                                            válik; kifejezetten hozzájárulok a
+                                            teljesítés azonnali megkezdéséhez, és
+                                            tudomásul veszem, hogy ezzel
+                                            elveszítem a 14 napos elállási
+                                            jogomat. Elfogadom az{' '}
+                                            <Link
+                                                href="/terms"
+                                                className="text-primary underline underline-offset-2"
+                                            >
+                                                ÁSZF
+                                            </Link>
+                                            -et és az{' '}
+                                            <Link
+                                                href="/privacy"
+                                                className="text-primary underline underline-offset-2"
+                                            >
+                                                Adatkezelési tájékoztatót
+                                            </Link>
+                                            .
+                                        </span>
+                                    </label>
+                                    {consentError && (
+                                        <p className="text-center text-xs text-red-500">
+                                            A folytatáshoz fogadd el a
+                                            feltételeket.
+                                        </p>
+                                    )}
+                                </div>
+                            )}
 
                             {/* FAQ */}
                             <div className="mt-16">

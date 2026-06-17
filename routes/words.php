@@ -22,11 +22,11 @@ Route::middleware(['auth', 'verified', EnsureOnboardingComplete::class])->group(
 
     // Gyakorlások: szabad írás, mondatkiegészítés, kvíz
     Route::get('words/practice', [WordController::class, 'practice'])->name('words.practice');
-    Route::post('words/practice/check', [TextAnalysisController::class, 'practiceCheck'])->name('words.practice.check')->middleware('throttle:30,1');
+    Route::post('words/practice/check', [TextAnalysisController::class, 'practiceCheck'])->name('words.practice.check')->middleware('throttle:30,1,words-practice');
     Route::get('words/cloze', [ClozeController::class, 'index'])->name('words.cloze');
     Route::get('words/quiz', [WordController::class, 'quiz'])->name('words.quiz');
-    Route::post('words/quiz/complete', [QuizController::class, 'complete'])->name('words.quiz.complete')->middleware('throttle:30,1');
-    Route::post('words/sentence-check', [TextAnalysisController::class, 'sentenceCheck'])->name('words.sentence-check')->middleware('throttle:30,1');
+    Route::post('words/quiz/complete', [QuizController::class, 'complete'])->name('words.quiz.complete')->middleware('throttle:30,1,words-quiz');
+    Route::post('words/sentence-check', [TextAnalysisController::class, 'sentenceCheck'])->name('words.sentence-check')->middleware('throttle:30,1,ta-ai');
 
     // Napi ismétlés
     Route::get('review', [ReviewController::class, 'index'])->name('review.index');
