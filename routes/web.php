@@ -44,6 +44,8 @@ Route::middleware(['auth', 'can:admin'])->group(function () {
     Route::get('admin', [AdminController::class, 'index'])->name('admin');
     Route::post('admin/ai-access', [AdminController::class, 'toggleAiAccess'])->name('admin.ai-access.toggle');
     Route::post('admin/access', [AdminController::class, 'setAccess'])->name('admin.access.set');
+    Route::post('admin/invites', [AdminController::class, 'storeInvite'])->name('admin.invites.store');
+    Route::delete('admin/invites/{invite}', [AdminController::class, 'destroyInvite'])->name('admin.invites.destroy');
 });
 
 // ── Onboarding, dashboard, eredmények ─────────────────────────────────────────

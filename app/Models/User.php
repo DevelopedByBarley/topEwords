@@ -17,7 +17,7 @@ use Laravel\Cashier\Billable;
 use Laravel\Cashier\Subscription;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 
-#[Fillable(['name', 'email', 'password', 'streak', 'last_activity_date', 'quiz_completions', 'text_analyses', 'lifetime_access', 'ai_access', 'onboarding_completed_at'])]
+#[Fillable(['name', 'email', 'password', 'streak', 'last_activity_date', 'quiz_completions', 'text_analyses', 'lifetime_access', 'ai_access', 'onboarding_completed_at', 'invite_id', 'trial_ends_at'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable
 {

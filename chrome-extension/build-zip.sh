@@ -34,6 +34,12 @@ rm -f "$OUT"
 # -X: extra attribútumok (pl. macOS .DS_Store, resource fork) kihagyása
 zip -X "$OUT" "${FILES[@]}"
 
+# Stabil nevű másolat a publikus letöltéshez (a landing oldal innen kínálja).
+PUBLIC_DIR="../public/downloads"
+mkdir -p "$PUBLIC_DIR"
+cp "$OUT" "$PUBLIC_DIR/topwords-extension.zip"
+
 echo ""
 echo "Kész: $(pwd)/$OUT"
-echo "Töltsd fel ezt a fájlt a Chrome Web Store Developer Dashboardon."
+echo "Publikus letöltés: $(cd "$PUBLIC_DIR" && pwd)/topwords-extension.zip"
+echo "Töltsd fel a CWS-zip-et ($OUT) a Chrome Web Store Developer Dashboardon."

@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Invite;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -66,6 +68,22 @@ class AdminController extends Controller
                 'subscription_plan' => $u->subscriptionPlan(),
             ]);
 
+        $invites = Invite::withCount('users')
+            ->with('users:id,invite_id,email')
+            ->latest()
+            ->get()
+            ->map(fn (Invite $i) => [
+                'id' => $i->id,
+                'code' => $i->code,
+                'label' => $i->label,
+                'uses' => $i->uses,
+                'max_uses' => $i->max_uses,
+                'expires_at' => $i->expires_at?->toIso8601String(),
+                'usable' => $i->isUsable(),
+                'url' => url('/register').'?invite='.$i->code,
+                'used_by' => $i->users->pluck('email')->all(),
+            ]);
+
         return Inertia::render('admin/index', [
             'stats' => [
                 'totalUsers' => $totalUsers,
@@ -84,7 +102,41 @@ class AdminController extends Controller
             'mostActive' => $mostActive,
             'registrationsByDay' => $registrationsByDay,
             'accessUsers' => $accessUsers,
+            'invites' => $invites,
+            'inviteOnly' => (bool) config('registration.invite_only'),
         ]);
+    }
+
+    /**
+     * Új meghívókód generálása (egyéni kód, opcionális címkével/lejárattal).
+     */
+    public function storeInvite(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'label' => ['nullable', 'string', 'max:100'],
+            'max_uses' => ['required', 'integer', 'min:1', 'max:10000'],
+            'expires_at' => ['nullable', 'date', 'after:now'],
+        ]);
+
+        do {
+            $code = Str::upper(Str::random(8));
+        } while (Invite::where('code', $code)->exists());
+
+        Invite::create([
+            'code' => $code,
+            'label' => $data['label'] ?? null,
+            'max_uses' => $data['max_uses'],
+            'expires_at' => $data['expires_at'] ?? null,
+        ]);
+
+        return back()->with('success', "Meghívókód létrehozva: {$code}");
+    }
+
+    public function destroyInvite(Invite $invite): RedirectResponse
+    {
+        $invite->delete();
+
+        return back()->with('success', 'Meghívókód visszavonva.');
     }
 
     /**

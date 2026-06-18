@@ -40,6 +40,7 @@ import {
 import { useEffect, useState } from 'react';
 import AppLogoIcon from '@/components/app-logo-icon';
 import BetaBanner from '@/components/beta-banner';
+import ChromeExtensionsLink from '@/components/chrome-extensions-link';
 import { Button } from '@/components/ui/button';
 import { dashboard, login, pricing, register, terms, privacy } from '@/routes';
 import { index as wordsIndex } from '@/routes/words';
@@ -1532,9 +1533,22 @@ export default function Welcome({
                                         </h3>
                                     </div>
                                     <p className="mb-4 text-sm text-muted-foreground">
-                                        Az extension egyelőre fejlesztői módban
-                                        érhető el. Hamarosan felkerül a Chrome
-                                        Web Store-ba is.
+                                        A tesztidőszak alatt az extension
+                                        közvetlenül innen letölthető és
+                                        fejlesztői módban telepíthető. Hamarosan
+                                        felkerül a Chrome Web Store-ba is.
+                                    </p>
+                                    <a
+                                        href="/downloads/topwords-extension.zip"
+                                        download
+                                        className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+                                    >
+                                        <Download className="size-4" />
+                                        Bővítmény letöltése (.zip)
+                                    </a>
+                                    <p className="mt-2 text-xs text-muted-foreground">
+                                        Chrome / Edge / Brave böngészőkben
+                                        működik.
                                     </p>
                                 </div>
                                 <div className="shrink-0 md:w-80">
@@ -1545,19 +1559,28 @@ export default function Welcome({
                                         {[
                                             {
                                                 n: 1,
-                                                text: 'Nyisd meg: chrome://extensions',
+                                                text: 'Töltsd le a .zip-et, és csomagold ki egy mappába',
                                             },
                                             {
                                                 n: 2,
-                                                text: 'Kapcsold be a Fejlesztői módot (jobb felső sarok)',
+                                                text: (
+                                                    <>
+                                                        Nyisd meg:{' '}
+                                                        <ChromeExtensionsLink />
+                                                    </>
+                                                ),
                                             },
                                             {
                                                 n: 3,
-                                                text: 'Kattints: Kicsomagolt bővítmény betöltése',
+                                                text: 'Kapcsold be a Fejlesztői módot (jobb felső sarok)',
                                             },
                                             {
                                                 n: 4,
-                                                text: 'Válaszd ki a letöltött chrome-extension mappát',
+                                                text: 'Kattints: Kicsomagolt bővítmény betöltése',
+                                            },
+                                            {
+                                                n: 5,
+                                                text: 'Válaszd ki a kicsomagolt mappát',
                                             },
                                         ].map(({ n, text }) => (
                                             <li key={n} className="flex gap-3">
