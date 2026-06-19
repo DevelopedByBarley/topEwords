@@ -53,6 +53,18 @@ test('a successful ai lookup adds the actual cost in micro-dollars', function ()
     expect($user->fresh()->ai_credits_used)->toBe(130);
 });
 
+test('a failed ai call refunds the reservation and does not consume budget', function () {
+    // Both attempts fail → the pre-charged reservation must be released.
+    Http::fake(['generativelanguage.googleapis.com/*' => Http::response('error', 500)]);
+    $user = User::factory()->create(['ai_access' => true]);
+
+    $this->actingAs($user)
+        ->getJson(route('text-analysis.gemini-lookup', ['word' => 'test']))
+        ->assertStatus(502);
+
+    expect($user->fresh()->ai_credits_used)->toBe(0);
+});
+
 test('admins have an unlimited budget and are not charged', function () {
     fakeGemini(['meaning_hu' => 'teszt', 'part_of_speech' => 'noun']);
     $admin = User::factory()->create(['email' => 'admin@example.com']);

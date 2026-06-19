@@ -577,7 +577,7 @@ Rules:
 - Respond ONLY with valid JSON, no markdown.
 PROMPT;
 
-        $result = $this->callGemini($apiKey, $prompt, 800, 'gemini-2.5-flash');
+        $result = $this->callGemini($apiKey, $prompt, 800, 'gemini-2.5-flash', user: $request->user());
 
         if (! $result['ok']) {
             return response()->json(['error' => $result['error']], 502);
@@ -588,8 +588,6 @@ PROMPT;
         if (! is_array($data)) {
             return response()->json(['error' => 'Érvénytelen válasz.'], 502);
         }
-
-        $this->aiUsage->record($request->user(), $result['cost_micros'] ?? 0);
 
         $front = $this->buildFlashcardFront($data);
         $back = $this->buildFlashcardBack($data);
@@ -722,7 +720,7 @@ PROMPT;
 
         $apiKey = config('services.gemini.api_key');
 
-        $response = $this->callGemini($apiKey, $prompt, 800);
+        $response = $this->callGemini($apiKey, $prompt, 800, user: $request->user());
 
         if (! $response['ok']) {
             return response()->json(['error' => $response['error']], 502);
@@ -791,7 +789,7 @@ PROMPT;
 
         $apiKey = config('services.gemini.api_key');
 
-        $response = $this->callGemini($apiKey, $prompt, 400);
+        $response = $this->callGemini($apiKey, $prompt, 400, user: $request->user());
 
         if (! $response['ok']) {
             return response()->json(['error' => $response['error']], 502);
@@ -802,8 +800,6 @@ PROMPT;
         if (! is_array($data)) {
             return response()->json(['error' => 'Érvénytelen válasz.'], 502);
         }
-
-        $this->aiUsage->record($request->user(), $response['cost_micros'] ?? 0);
 
         return response()->json([
             'usage_ok' => (bool) ($data['usage_ok'] ?? false),
@@ -855,7 +851,7 @@ Rules:
 - Respond ONLY with valid JSON, no markdown.
 PROMPT;
 
-        $result = $this->callGemini($apiKey, $prompt, 600);
+        $result = $this->callGemini($apiKey, $prompt, 600, user: $request->user());
 
         if (! $result['ok']) {
             return response()->json(['error' => $result['error']], 502);
@@ -866,8 +862,6 @@ PROMPT;
         if (! is_array($data)) {
             return response()->json(['error' => 'Érvénytelen válasz.'], 502);
         }
-
-        $this->aiUsage->record($request->user(), $result['cost_micros'] ?? 0);
 
         return response()->json([
             'areas' => $data['areas'] ?? [],
@@ -928,7 +922,7 @@ You are a Hungarian-English dictionary assistant. For the English word "{$word}"
 Respond ONLY with valid JSON, no markdown, no explanation.
 PROMPT;
 
-        $result = $this->callGemini($apiKey, $prompt, 400, temperature: 0.2);
+        $result = $this->callGemini($apiKey, $prompt, 400, temperature: 0.2, user: $request->user());
 
         if (! $result['ok']) {
             return response()->json(['error' => $result['error']], 502);
@@ -939,8 +933,6 @@ PROMPT;
         if (! is_array($data)) {
             return response()->json(['error' => 'Érvénytelen válasz.'], 502);
         }
-
-        $this->aiUsage->record($request->user(), $result['cost_micros'] ?? 0);
 
         return response()->json([
             'meaning_hu' => $data['meaning_hu'] ?? null,
@@ -1485,7 +1477,7 @@ PROMPT;
      *
      * @return array{ok: bool, data: mixed, error: string, cost_micros?: int}
      */
-    private function callGemini(string $apiKey, string $prompt, int $maxTokens, string $model = 'gemini-2.5-flash-lite', float $temperature = 0.3): array
+    private function callGemini(string $apiKey, string $prompt, int $maxTokens, string $model = 'gemini-2.5-flash-lite', float $temperature = 0.3, ?User $user = null): array
     {
         $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent";
         $payload = [
@@ -1496,6 +1488,17 @@ PROMPT;
                 'thinkingConfig' => ['thinkingBudget' => 0],
             ],
         ];
+
+        $rate = self::GEMINI_PRICING[$model] ?? self::GEMINI_PRICING['gemini-2.5-flash-lite'];
+
+        // Pre-charge an estimate (prompt input + max possible output) atomically
+        // so concurrent calls cannot all pass the budget check before any of
+        // them is recorded; reconciled to the real cost below (settle/refund).
+        $estimatedMicros = (int) round(((int) ceil(mb_strlen($prompt) / 4)) * $rate['in'] + $maxTokens * $rate['out']);
+
+        if ($user !== null && ! $this->aiUsage->reserve($user, $estimatedMicros)) {
+            return ['ok' => false, 'data' => null, 'error' => 'Elérted a havi AI-felhasználási kereted.', 'cost_micros' => 0];
+        }
 
         $lastError = 'Ismeretlen hiba.';
 
@@ -1540,13 +1543,20 @@ PROMPT;
             $outputTokens = (int) ($response->json('usageMetadata.candidatesTokenCount')
                 ?? ceil(mb_strlen($text) / 4));
 
-            $rate = self::GEMINI_PRICING[$model] ?? self::GEMINI_PRICING['gemini-2.5-flash-lite'];
             $costMicros = (int) round($inputTokens * $rate['in'] + $outputTokens * $rate['out']);
+
+            if ($user !== null) {
+                $this->aiUsage->settle($user, $estimatedMicros, $costMicros);
+            }
 
             return ['ok' => true, 'data' => $data, 'error' => '', 'cost_micros' => $costMicros];
         }
 
-        return ['ok' => false, 'data' => null, 'error' => $lastError];
+        if ($user !== null) {
+            $this->aiUsage->refund($user, $estimatedMicros);
+        }
+
+        return ['ok' => false, 'data' => null, 'error' => $lastError, 'cost_micros' => 0];
     }
 
     /** @return string[] */

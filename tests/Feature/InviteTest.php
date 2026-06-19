@@ -1,7 +1,9 @@
 <?php
 
+use App\Actions\Fortify\CreateNewUser;
 use App\Models\Invite;
 use App\Models\User;
+use Illuminate\Validation\ValidationException;
 
 function validRegistration(array $extra = []): array
 {
@@ -53,6 +55,30 @@ test('an exhausted invite is rejected', function () {
         ->assertSessionHasErrors('invite');
 
     expect(User::where('email', 'teszt@example.com')->exists())->toBeFalse();
+});
+
+test('an invite cannot be consumed beyond max_uses', function () {
+    config(['registration.invite_only' => true]);
+    $invite = Invite::create(['code' => 'ONCE', 'max_uses' => 1]);
+    $action = app(CreateNewUser::class);
+
+    $action->create([
+        'name' => 'First', 'email' => 'first@example.com',
+        'password' => 'Password123!@#x', 'password_confirmation' => 'Password123!@#x',
+        'invite' => 'ONCE',
+    ]);
+
+    expect($invite->fresh()->uses)->toBe(1);
+
+    // A second consumption of the now-exhausted code must fail atomically.
+    expect(fn () => $action->create([
+        'name' => 'Second', 'email' => 'second@example.com',
+        'password' => 'Password123!@#x', 'password_confirmation' => 'Password123!@#x',
+        'invite' => 'ONCE',
+    ]))->toThrow(ValidationException::class);
+
+    expect($invite->fresh()->uses)->toBe(1);
+    expect(User::where('email', 'second@example.com')->exists())->toBeFalse();
 });
 
 test('an expired invite is rejected', function () {

@@ -6,7 +6,9 @@ use App\Concerns\PasswordValidationRules;
 use App\Concerns\ProfileValidationRules;
 use App\Models\Invite;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\ValidationException;
 use Laravel\Fortify\Contracts\CreatesNewUsers;
 
 class CreateNewUser implements CreatesNewUsers
@@ -39,22 +41,36 @@ class CreateNewUser implements CreatesNewUsers
 
         Validator::make($input, $rules)->validate();
 
-        $invite = $inviteOnly
-            ? Invite::where('code', $input['invite'])->first()
-            : null;
-
         $trialDays = (int) config('registration.trial_days');
 
-        $user = User::create([
-            'name' => $input['name'],
-            'email' => $input['email'],
-            'password' => $input['password'],
-            'trial_ends_at' => $trialDays > 0 ? now()->addDays($trialDays) : null,
-            'invite_id' => $invite?->id,
-        ]);
+        return DB::transaction(function () use ($input, $inviteOnly, $trialDays): User {
+            $invite = null;
 
-        $invite?->increment('uses');
+            if ($inviteOnly) {
+                // Lock the invite row and re-check usability inside the transaction.
+                // The validation closure above is only a UX pre-check; without this
+                // lock two concurrent registrations could both pass it before either
+                // records its use, exceeding max_uses (TOCTOU).
+                $invite = Invite::where('code', $input['invite'])->lockForUpdate()->first();
 
-        return $user;
+                if (! $invite || ! $invite->isUsable()) {
+                    throw ValidationException::withMessages([
+                        'invite' => 'Érvénytelen vagy lejárt meghívókód.',
+                    ]);
+                }
+            }
+
+            $user = User::create([
+                'name' => $input['name'],
+                'email' => $input['email'],
+                'password' => $input['password'],
+                'trial_ends_at' => $trialDays > 0 ? now()->addDays($trialDays) : null,
+                'invite_id' => $invite?->id,
+            ]);
+
+            $invite?->increment('uses');
+
+            return $user;
+        });
     }
 }

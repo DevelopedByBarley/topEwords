@@ -8,7 +8,9 @@ use Illuminate\Support\Carbon;
 class AiUsageService
 {
     /**
-     * Whether the user may make another AI call this period.
+     * Whether the user may make another AI call this period. This is a fast,
+     * non-atomic pre-check for UX (so the UI can show a 429 immediately); the
+     * authoritative, race-safe enforcement happens in reserve().
      */
     public function allows(User $user): bool
     {
@@ -20,19 +22,75 @@ class AiUsageService
     }
 
     /**
-     * Record AI cost (call after a successful AI request) in micro-dollars,
-     * as computed from the Gemini response's token usage.
+     * Atomically reserve estimated budget for one upcoming AI call. Returns
+     * false if the user is already at/over their limit (the call must then be
+     * refused). Unlimited users (admins) always pass without being charged.
+     *
+     * The reservation is what makes budget enforcement race-safe: each
+     * concurrent call consumes its estimate via a single conditional UPDATE
+     * before its API request runs, so they cannot all pass a stale "under
+     * limit" check and overspend (TOCTOU). The reservation is reconciled to the
+     * real cost by settle(), or released by refund() if the call fails.
      */
-    public function record(User $user, int $costMicros): void
+    public function reserve(User $user, int $estimatedMicros): bool
     {
         $this->resetIfDue($user);
 
-        // Korlátlan (admin) felhasználónál nincs értelme számolni.
-        if ($user->aiMonthlyLimit() === null || $costMicros <= 0) {
+        if ($user->aiMonthlyLimit() === null) {
+            return true; // unlimited (admin)
+        }
+
+        $estimate = max(1, $estimatedMicros);
+
+        $consumed = User::whereKey($user->getKey())
+            ->where('ai_credits_used', '<', $user->aiMonthlyLimit())
+            ->increment('ai_credits_used', $estimate);
+
+        if ($consumed === 0) {
+            return false;
+        }
+
+        $user->ai_credits_used += $estimate; // keep the in-memory model in sync
+
+        return true;
+    }
+
+    /**
+     * Reconcile a reservation to the actual cost after a successful AI call.
+     */
+    public function settle(User $user, int $estimatedMicros, int $actualMicros): void
+    {
+        if ($user->aiMonthlyLimit() === null) {
             return;
         }
 
-        $user->increment('ai_credits_used', $costMicros);
+        $this->adjust($user, max(0, $actualMicros) - max(1, $estimatedMicros));
+    }
+
+    /**
+     * Release a reservation when the AI call ultimately failed.
+     */
+    public function refund(User $user, int $estimatedMicros): void
+    {
+        if ($user->aiMonthlyLimit() === null) {
+            return;
+        }
+
+        $this->adjust($user, -max(1, $estimatedMicros));
+    }
+
+    /**
+     * Apply a signed delta to the usage counter atomically.
+     */
+    private function adjust(User $user, int $deltaMicros): void
+    {
+        if ($deltaMicros > 0) {
+            User::whereKey($user->getKey())->increment('ai_credits_used', $deltaMicros);
+        } elseif ($deltaMicros < 0) {
+            User::whereKey($user->getKey())->decrement('ai_credits_used', -$deltaMicros);
+        }
+
+        $user->ai_credits_used = max(0, (int) $user->ai_credits_used + $deltaMicros);
     }
 
     /**

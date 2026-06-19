@@ -42,13 +42,13 @@ Jelmagyarázat: 🔴 Critical · 🟠 High · 🟡 Medium · 🟢 Low · ⚪ Inf
   *Maradék (nem kötelező): a `resources/js/pages/auth/verify-email.tsx` és a ProfileController
   `mustVerifyEmail` propja halott, de ártalmatlan — későbbi takarításra hagyva.*
 
-- [ ] **🟡 #A2 — Invite-beváltás nem atomi (TOCTOU)**
-  `app/Actions/Fortify/CreateNewUser.php:30-56`, `app/Models/Invite.php:23-30`
-  Az `isUsable()` ellenőrzés és az `increment('uses')` külön, lock nélküli lépések.
-  Konkurens regisztrációval túlléphető a `max_uses`. Most lappangó (`INVITE_ONLY=false`),
-  de a tervezett paywallnál High lesz.
-  **Javítás:** `DB::transaction` + `lockForUpdate`, vagy atomi feltételes update
-  (`where('uses','<','max_uses')->increment('uses')`), és 0 érintett sor = „elfogyott”.
+- [x] **🟡 #A2 — Invite-beváltás nem atomi (TOCTOU) — KÉSZ (2026-06-19)**
+  `app/Actions/Fortify/CreateNewUser.php`
+  A beváltás `DB::transaction`-be került, az invite sort `lockForUpdate()` zárolja, és a
+  használhatóság **a zár alatt újra** ellenőrződik (a validációs closure csak UX-előellenőrzés).
+  Nem-használható kódra `ValidationException` (`invite` kulcs) — a user a megszokott hibát látja,
+  user nem jön létre, a tranzakció visszagörget. Új teszt: egyszeri kód kétszer nem váltható be
+  (`uses` 1 marad). Suite zöld (186 passed).
 
 - [ ] **🟡 #A3 — Ismételhető trial-abuse**
   `app/Actions/Fortify/CreateNewUser.php:46-53`, `config/registration.php:14`
@@ -94,13 +94,15 @@ folyamat, account enumeration, 2FA-konfig, session-config, admin gate — mind r
   (182 passed). Pint zöld.
   *Megj.: a 15 000 karakteres `mb_substr` cap továbbra is megvan a `fetchSource`-ban.*
 
-- [ ] **🟡 #E2 — AI-budget nem atomi (konkurens túlköltés)**
-  `app/Services/AiUsageService.php:13-36`, `TextAnalysisController.php:35-48` és a `record()` hívások
-  Az `allows()` olvas, a Gemini-hívás *után* jön a `record()` increment — lock/foglalás nélkül.
-  Konkurens kérések mind átmennek → túlköltés a havi kereten felül. (Csak AI-jogosult user a saját
-  keretét; nem anonim cost-abuse.)
-  **Javítás:** foglalás a hívás ELŐTT (atomi increment, utána korrekció), vagy `Cache::lock()` /
-  `DB::transaction` + `lockForUpdate` a check-increment köré; szigorúbb per-perc throttle.
+- [x] **🟡 #E2 — AI-budget nem atomi — KÉSZ (2026-06-19)**
+  `app/Services/AiUsageService.php`, `app/Http/Controllers/TextAnalysisController.php`
+  Foglalás→rendezés minta a `callGemini()` közös fojtópontban: a hívás ELŐTT atomi, feltételes
+  `increment` foglalja le a becsült költséget (`reserve()`, `where ai_credits_used < limit` →
+  konkurens kérések nem láthatnak elavult „van keret” állapotot, TOCTOU lezárva). Siker után
+  `settle()` a valós költségre rendez, hiba esetén `refund()` visszaadja a foglalást (nincs
+  szivárgás). A régi `record()` és a 4 híváshelyi hívás megszűnt; az `allows()` pre-check megmaradt
+  gyors 429-hez. Admin (korlátlan) érintetlen. 2 új teszt (refund hibánál; a meglévő pontos
+  költség-tesztek továbbra is zöldek). Suite zöld (187 passed).
 
 - [ ] **🟢 #E3 — `geminiListModels` nyers upstream válasz**
   `app/Http/Controllers/TextAnalysisController.php:826-834`
