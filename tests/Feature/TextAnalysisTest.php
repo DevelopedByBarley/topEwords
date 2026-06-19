@@ -265,6 +265,20 @@ test('a multi-word custom phrase does not hijack a plain word in analysis', func
         ->assertJsonPath('tokenStatuses.cut', 'known');
 });
 
+test('analysis returns phrase statuses for multi-word custom phrases present in the text', function () {
+    $this->user->customWords()->create([
+        'word' => 'cut through',
+        'status' => 'learning',
+        'verb_past' => 'cut', // single-word form must not leak into token coloring
+    ]);
+
+    $this->postJson(route('text-analysis.analyze'), ['text' => 'They will cut through the noise'])
+        ->assertOk()
+        ->assertJsonPath('phraseStatuses.cut through', 'learning')
+        // The bare token "cut" keeps its own (word-list) status, not the phrase's.
+        ->assertJsonPath('tokenStatuses.cut', 'in_list');
+});
+
 test('looking up a plain word does not return a multi-word custom phrase', function () {
     $cut = Word::where('word', 'cut')->firstOrFail();
     $this->user->knownWords()->attach($cut->id, ['status' => 'known']);

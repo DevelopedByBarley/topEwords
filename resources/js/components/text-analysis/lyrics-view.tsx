@@ -1,39 +1,41 @@
+import { buildRenderTokens } from '@/components/text-analysis/tokenize-render';
 import { formatTimestamp, STATUS_STYLES } from '@/components/text-analysis/types';
 import type { LyricSegment, TokenStatus } from '@/components/text-analysis/types';
 
 interface LyricsViewProps {
     segments: LyricSegment[];
     tokenStatuses: Record<string, TokenStatus>;
+    phraseStatuses?: Record<string, TokenStatus>;
     onWordClick?: (word: string, context: string) => void;
 }
 
 function HighlightedLine({
     line,
     tokenStatuses,
+    phraseStatuses,
     onWordClick,
 }: {
     line: string;
     tokenStatuses: Record<string, TokenStatus>;
+    phraseStatuses?: Record<string, TokenStatus>;
     onWordClick?: (word: string, context: string) => void;
 }) {
-    const parts = line.split(/([a-zA-Z]+(?:['’][a-zA-Z]+)*)/);
-
     return (
         <p className="wrap-break-word leading-7">
-            {parts.map((part, i) => {
-                if (i % 2 === 0) {
-                    return part;
+            {buildRenderTokens(line, tokenStatuses, phraseStatuses ?? {}).map((token, i) => {
+                if (token.kind === 'sep') {
+                    return token.text;
                 }
-                const status = tokenStatuses[part.toLowerCase()];
-                const className = status ? STATUS_STYLES[status] : '';
+
+                const className = token.status ? STATUS_STYLES[token.status] : '';
 
                 return (
                     <span
                         key={i}
-                        onClick={() => onWordClick?.(part, line)}
+                        onClick={() => onWordClick?.(token.text, line)}
                         className={`cursor-pointer rounded px-0.5 transition-opacity hover:opacity-70 ${className}`}
                     >
-                        {part}
+                        {token.text}
                     </span>
                 );
             })}
@@ -41,7 +43,7 @@ function HighlightedLine({
     );
 }
 
-export default function LyricsView({ segments, tokenStatuses, onWordClick }: LyricsViewProps) {
+export default function LyricsView({ segments, tokenStatuses, phraseStatuses, onWordClick }: LyricsViewProps) {
     return (
         <div className="flex flex-col">
             {segments.map((seg, i) => (
@@ -56,6 +58,7 @@ export default function LyricsView({ segments, tokenStatuses, onWordClick }: Lyr
                         <HighlightedLine
                             line={seg.x}
                             tokenStatuses={tokenStatuses}
+                            phraseStatuses={phraseStatuses}
                             onWordClick={onWordClick}
                         />
                     </div>

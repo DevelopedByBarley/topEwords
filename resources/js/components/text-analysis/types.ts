@@ -73,6 +73,8 @@ export interface AnalysisResult {
     knownCount: number;
     learningCount: number;
     tokenStatuses: Record<string, TokenStatus>;
+    /** Normalized multi-word phrase → status, for phrase-level highlighting. */
+    phraseStatuses?: Record<string, TokenStatus>;
     topUnknown: UnknownWord[];
 }
 

@@ -104,9 +104,9 @@ export default function AnalysisResultView({ result, activeText, segments, onWor
                     {segments && segments.length > 0 ? 'Felirat időbélyegekkel' : 'Szöveg kiemelésekkel'}
                 </p>
                 {segments && segments.length > 0 ? (
-                    <LyricsView segments={segments} tokenStatuses={result.tokenStatuses} onWordClick={onWordClick} />
+                    <LyricsView segments={segments} tokenStatuses={result.tokenStatuses} phraseStatuses={result.phraseStatuses} onWordClick={onWordClick} />
                 ) : (
-                    <HighlightedText text={activeText} tokenStatuses={result.tokenStatuses} onWordClick={onWordClick} />
+                    <HighlightedText text={activeText} tokenStatuses={result.tokenStatuses} phraseStatuses={result.phraseStatuses} onWordClick={onWordClick} />
                 )}
             </div>
 

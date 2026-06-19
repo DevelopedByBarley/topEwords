@@ -302,6 +302,7 @@ class TextAnalysisController extends Controller
                 'knownCount' => 0,
                 'learningCount' => 0,
                 'tokenStatuses' => [],
+                'phraseStatuses' => [],
                 'topUnknown' => [],
             ];
         }
@@ -443,6 +444,43 @@ class TextAnalysisController extends Controller
             }
         }
 
+        // Többszavas saját kifejezések (pl. "cut through", "take place") a
+        // kifejezés-szintű kiemeléshez. Egyszavas token-illesztéssel ezek nem
+        // ábrázolhatók, ezért normalizált kifejezés → státusz térképet adunk, és a
+        // frontend mohó n-gram illesztéssel emeli ki őket a megjelenített szövegben.
+        $phraseStatuses = [];
+        $tokenSet = array_flip($uniqueTokens);
+
+        $phraseCustomWords = UserCustomWord::where('user_id', $user->id)
+            ->where('word', 'like', '% %')
+            ->whereNotNull('status')
+            ->where('status', '!=', '')
+            ->get(['status', 'word', 'verb_past', 'verb_past_participle', 'verb_present_participle', 'verb_third_person']);
+
+        foreach ($phraseCustomWords as $phrase) {
+            foreach (array_filter([
+                $phrase->word,
+                $phrase->verb_past,
+                $phrase->verb_past_participle,
+                $phrase->verb_present_participle,
+                $phrase->verb_third_person,
+            ]) as $form) {
+                $normalized = mb_strtolower(trim((string) preg_replace('/\s+/', ' ',
+                    str_replace(["\u{2018}", "\u{2019}", "\u{2032}"], "'", $form))));
+
+                // Csak a többszavas alakok, és csak ha minden szavuk szerepel a szövegben.
+                if (! str_contains($normalized, ' ')) {
+                    continue;
+                }
+
+                $everyWordPresent = ! array_filter(explode(' ', $normalized), fn ($w) => ! isset($tokenSet[$w]));
+
+                if ($everyWordPresent) {
+                    $phraseStatuses[$normalized] ??= $phrase->status;
+                }
+            }
+        }
+
         uasort(
             $unknownInListWords,
             fn ($a, $b) => $b['frequency'] !== $a['frequency']
@@ -460,6 +498,7 @@ class TextAnalysisController extends Controller
             'knownCount' => $knownTokenCount,
             'learningCount' => $learningTokenCount,
             'tokenStatuses' => $tokenStatuses,
+            'phraseStatuses' => $phraseStatuses,
             'topUnknown' => array_values(array_slice($unknownInListWords, 0, 20, true)),
         ];
     }
