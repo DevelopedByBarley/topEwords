@@ -117,6 +117,8 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
                 noun_plural: msg.noun_plural,
                 adj_comparative: msg.adj_comparative,
                 adj_superlative: msg.adj_superlative,
+                status: msg.status,
+                importance: msg.importance,
             }),
         })
             .then((r) => r.json())
@@ -201,6 +203,28 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
                 sendResponse({ ok: r.ok });
             })
+            .catch(() => sendResponse({ error: 'network' }));
+
+        return true;
+    }
+
+    if (msg.type === 'UPDATE_IMPORTANCE') {
+        const url = msg.is_custom
+            ? `${APP_URL}/custom-words/${msg.id}/importance`
+            : `${APP_URL}/words/${msg.id}/importance`;
+
+        fetch(url, {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': msg.csrf,
+                'X-Requested-With': 'XMLHttpRequest',
+                Accept: 'application/json',
+            },
+            body: JSON.stringify({ importance: msg.importance ?? null }),
+        })
+            .then((r) => sendResponse({ ok: r.ok }))
             .catch(() => sendResponse({ error: 'network' }));
 
         return true;

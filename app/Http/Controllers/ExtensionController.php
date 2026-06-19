@@ -41,10 +41,10 @@ class ExtensionController extends Controller
         })->first(['id', 'word', 'meaning_hu', 'extra_meanings', 'synonyms', 'part_of_speech', 'rank', 'example_en', 'example_hu']);
 
         if ($match) {
-            $status = $request->user()->knownWords()
+            $pivot = $request->user()->knownWords()
                 ->wherePivot('word_id', $match->id)
                 ->first()
-                ?->pivot->status;
+                ?->pivot;
 
             return response()->json([
                 'found' => true,
@@ -58,7 +58,8 @@ class ExtensionController extends Controller
                 'rank' => $match->rank,
                 'example_en' => $match->example_en,
                 'example_hu' => $match->example_hu,
-                'status' => $status,
+                'status' => $pivot?->status,
+                'importance' => $pivot?->importance,
                 'csrf' => csrf_token(),
                 'has_active_access' => $hasActiveAccess,
             ]);
@@ -84,7 +85,7 @@ class ExtensionController extends Controller
                             });
                     });
             })
-            ->first(['id', 'word', 'meaning_hu', 'extra_meanings', 'synonyms', 'part_of_speech', 'example_en', 'example_hu', 'status']);
+            ->first(['id', 'word', 'meaning_hu', 'extra_meanings', 'synonyms', 'part_of_speech', 'example_en', 'example_hu', 'status', 'importance']);
 
         if ($custom) {
             return response()->json([
@@ -100,6 +101,7 @@ class ExtensionController extends Controller
                 'example_en' => $custom->example_en,
                 'example_hu' => $custom->example_hu,
                 'status' => $custom->status,
+                'importance' => $custom->importance,
                 'csrf' => csrf_token(),
                 'has_active_access' => $hasActiveAccess,
             ]);
@@ -131,7 +133,13 @@ class ExtensionController extends Controller
             'noun_plural' => ['nullable', 'string', 'max:100'],
             'adj_comparative' => ['nullable', 'string', 'max:100'],
             'adj_superlative' => ['nullable', 'string', 'max:100'],
+            'status' => ['nullable', 'in:known,learning,saved,pronunciation,practice'],
+            'importance' => ['nullable', 'integer', 'min:1', 'max:5'],
         ]);
+
+        // A felvitelkor választott státusz az alapértelmezés; ha nincs megadva,
+        // marad a korábbi viselkedés (a szó „Tudom" státusszal kerül be).
+        $data['status'] = $data['status'] ?? 'known';
 
         if ($request->user()->isOnFreePlan() && $request->user()->customWords()->count() >= 10) {
             return response()->json(['error' => 'limit']);

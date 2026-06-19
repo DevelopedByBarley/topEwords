@@ -100,6 +100,36 @@ test('add-word creates a custom word', function () {
     expect($this->user->customWords()->where('word', 'serendipity')->exists())->toBeTrue();
 });
 
+test('add-word stores the chosen status and importance', function () {
+    $this->actingAs($this->user)
+        ->postJson(route('extension.add-word'), [
+            'word' => 'serendipity',
+            'meaning_hu' => 'véletlen szerencse',
+            'status' => 'practice',
+            'importance' => 4,
+        ])
+        ->assertSuccessful()
+        ->assertJson(['ok' => true]);
+
+    $custom = $this->user->customWords()->where('word', 'serendipity')->first();
+    expect($custom->status)->toBe('practice');
+    expect($custom->importance)->toBe(4);
+});
+
+test('add-word defaults to known status when none chosen', function () {
+    $this->actingAs($this->user)
+        ->postJson(route('extension.add-word'), ['word' => 'serendipity'])
+        ->assertSuccessful();
+
+    expect($this->user->customWords()->where('word', 'serendipity')->first()->status)->toBe('known');
+});
+
+test('add-word rejects an invalid status', function () {
+    $this->actingAs($this->user)
+        ->postJson(route('extension.add-word'), ['word' => 'serendipity', 'status' => 'bogus'])
+        ->assertStatus(422);
+});
+
 test('add-word rejects duplicates', function () {
     $this->user->customWords()->create(['word' => 'serendipity']);
 

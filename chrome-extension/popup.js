@@ -91,12 +91,14 @@ const STATUS_COLORS = {
     saved: '#f97316',
     known: '#22c55e',
     pronunciation: '#8b5cf6',
+    practice: '#f43f5e',
 };
 const STATUS_LABELS = {
     known: 'Tudom',
     learning: 'Tanulom',
     saved: 'Mentett',
     pronunciation: 'Kiejtés',
+    practice: 'Gyakorlásra',
 };
 
 statsBtn.addEventListener('click', () => {
@@ -156,7 +158,8 @@ function renderStats(stats, error) {
         (stats.known ?? 0) +
         (stats.learning ?? 0) +
         (stats.saved ?? 0) +
-        (stats.pronunciation ?? 0);
+        (stats.pronunciation ?? 0) +
+        (stats.practice ?? 0);
     const pct =
         stats.total > 0 ? Math.round((withStatus / stats.total) * 100) : 0;
 

@@ -5,6 +5,7 @@ const STATUS_LABELS = {
     saved: 'Mentett',
     known: 'Tudom',
     pronunciation: 'Kiejtés',
+    practice: 'Gyakorlásra',
 };
 
 const STATUS_COLORS = {
@@ -12,6 +13,7 @@ const STATUS_COLORS = {
     saved: '#f97316',
     known: '#22c55e',
     pronunciation: '#8b5cf6',
+    practice: '#f43f5e',
 };
 
 const POPUP_CSS = `
@@ -178,6 +180,33 @@ const POPUP_CSS = `
         border-color: transparent;
     }
 
+    .importance-row { display: flex; gap: 2px; margin-bottom: 10px; }
+
+    .imp-star {
+        flex: 1;
+        border: none;
+        background: none;
+        cursor: pointer;
+        font-size: 18px;
+        line-height: 1;
+        padding: 2px 0;
+        color: #cbd5e1;
+        transition: color 0.12s;
+        font-family: inherit;
+    }
+
+    .imp-star.filled { color: #fbbf24; }
+    .imp-star:hover { color: #f59e0b; }
+
+    .meta-label {
+        font-size: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #94a3b8;
+        margin-bottom: 4px;
+    }
+
     .footer {
         display: flex;
         align-items: center;
@@ -326,6 +355,7 @@ document.addEventListener(
                 2: 'saved',
                 3: 'known',
                 4: 'pronunciation',
+                5: 'practice',
             };
             const status = statusByKey[e.key];
 
@@ -541,12 +571,17 @@ function renderBody(data) {
         statusSection = `<a class="link" href="${APP_URL}/pricing" target="_blank" style="display:block;margin-bottom:10px;">⭐ Prémiumra váltva státuszokat is menthetsz</a>`;
     }
 
+    const importanceSection = data.has_active_access
+        ? `<div class="meta-label">Fontosság</div><div class="importance-row" id="hover-importance">${starsHtml(data.importance)}</div>`
+        : '';
+
     body.innerHTML = `
         <span class="meaning">${esc(meaning_hu)}</span>
         ${extra_meanings ? `<span class="extra">${esc(extra_meanings)}</span>` : ''}
         ${data.synonyms ? `<span class="synonyms">≈ ${esc(data.synonyms)}</span>` : ''}
         ${data.example_en ? `<span class="example">"${esc(data.example_en)}"${data.example_hu ? `<br><span class="example-hu">"${esc(data.example_hu)}"</span>` : ''}</span>` : ''}
         ${statusSection}
+        ${importanceSection}
         <div class="footer">
             <a class="link" href="${APP_URL}/words?search=${encodeURIComponent(word)}" target="_blank">Megnyitás →</a>
             <button class="tts-btn" title="Kiejtés angolul">🔊</button>
@@ -557,10 +592,47 @@ function renderBody(data) {
         body.querySelectorAll('.status-btn').forEach((btn) => {
             btn.addEventListener('click', () => handleStatusClick(btn, data));
         });
+
+        const impRow = body.querySelector('#hover-importance');
+
+        impRow?.querySelectorAll('.imp-star').forEach((star) => {
+            star.addEventListener('click', () =>
+                handleImportanceClick(parseInt(star.dataset.star), data, impRow),
+            );
+        });
     }
 
     body.querySelector('.tts-btn')?.addEventListener('click', () =>
         speakWord(word),
+    );
+}
+
+function handleImportanceClick(n, data, impRow) {
+    const prevImportance = data.importance ?? null;
+    const next = prevImportance === n ? null : n;
+
+    // Optimistic UI — a data-t is frissítjük, hogy az újrakattintás toggle-öljön.
+    paintStars(impRow, next);
+    data.importance = next;
+    currentData = data;
+
+    sendMsg(
+        {
+            type: 'UPDATE_IMPORTANCE',
+            id: data.id,
+            is_custom: data.is_custom,
+            importance: next,
+            csrf: data.csrf,
+        },
+        (resp) => {
+            if (resp?.ok || !shadow) {
+                return;
+            }
+
+            // Sikertelen mentés → előző érték visszaállítása
+            data.importance = prevImportance;
+            paintStars(impRow, prevImportance);
+        },
     );
 }
 
@@ -812,6 +884,33 @@ const SEARCH_CSS = `
 
     .status-btn:hover { border-color: #6366f1; color: #6366f1; background: #eef2ff; }
     .status-btn.active { color: #fff; border-color: transparent; }
+
+    .importance-row { display: flex; gap: 2px; margin-bottom: 10px; }
+
+    .imp-star {
+        flex: 1;
+        border: none;
+        background: none;
+        cursor: pointer;
+        font-size: 18px;
+        line-height: 1;
+        padding: 2px 0;
+        color: #cbd5e1;
+        transition: color 0.12s;
+        font-family: inherit;
+    }
+
+    .imp-star.filled { color: #fbbf24; }
+    .imp-star:hover { color: #f59e0b; }
+
+    .meta-label {
+        font-size: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #94a3b8;
+        margin-bottom: 4px;
+    }
 
     .detail-link {
         font-size: 12px;
@@ -1217,6 +1316,38 @@ function renderSearchResults(results, error) {
     });
 }
 
+function statusBtnsHtml(active) {
+    return Object.entries(STATUS_LABELS)
+        .map(([key, label]) => {
+            const isActive = active === key;
+            const color = STATUS_COLORS[key];
+            const activeStyle = isActive
+                ? `background:${color};border-color:${color};color:#fff`
+                : '';
+
+            return `<button class="status-btn${isActive ? ' active' : ''}" data-status="${key}" style="${activeStyle}">${label}</button>`;
+        })
+        .join('');
+}
+
+function starsHtml(value) {
+    const v = value ?? 0;
+
+    return [1, 2, 3, 4, 5]
+        .map(
+            (n) =>
+                `<button type="button" class="imp-star${n <= v ? ' filled' : ''}" data-star="${n}" title="${n} csillag">★</button>`,
+        )
+        .join('');
+}
+
+function paintStars(container, value) {
+    const v = value ?? 0;
+    container.querySelectorAll('.imp-star').forEach((star) => {
+        star.classList.toggle('filled', parseInt(star.dataset.star) <= v);
+    });
+}
+
 function showSearchDetail(data) {
     if (!searchShadow) {
         return;
@@ -1225,20 +1356,11 @@ function showSearchDetail(data) {
     const detail = searchShadow.getElementById('detail');
 
     let statusSection = '';
+    let importanceSection = '';
 
     if (searchHasAccess) {
-        const btns = Object.entries(STATUS_LABELS)
-            .map(([key, label]) => {
-                const isActive = data.status === key;
-                const color = STATUS_COLORS[key];
-                const activeStyle = isActive
-                    ? `background:${color};border-color:${color};color:#fff`
-                    : '';
-
-                return `<button class="status-btn${isActive ? ' active' : ''}" data-status="${key}" style="${activeStyle}">${label}</button>`;
-            })
-            .join('');
-        statusSection = `<div class="detail-statuses">${btns}</div>`;
+        statusSection = `<div class="detail-statuses">${statusBtnsHtml(data.status)}</div>`;
+        importanceSection = `<div class="meta-label">Fontosság</div><div class="importance-row" id="detail-importance">${starsHtml(data.importance)}</div>`;
     }
 
     // Ha nincs a DB-ben (nem found), mutass teljes "Hozzáadás" formot
@@ -1304,6 +1426,12 @@ function showSearchDetail(data) {
                     </div>
                 </div>
             </div>
+            <div style="margin-top:10px">
+                <div class="meta-label">Státusz</div>
+                <div class="detail-statuses" id="add-statuses">${statusBtnsHtml('known')}</div>
+                <div class="meta-label">Fontosság</div>
+                <div class="importance-row" id="add-importance">${starsHtml(null)}</div>
+            </div>
             <div style="display:flex;align-items:center;gap:8px;margin-top:12px">
                 <button id="add-btn" class="add-btn">Hozzáadás</button>
                 <div id="add-feedback" style="font-size:12px;color:#22c55e;display:none"></div>
@@ -1320,6 +1448,44 @@ function showSearchDetail(data) {
                 pos === 'noun' ? 'flex' : 'none';
             detail.querySelector('#adj-fields').style.display =
                 pos === 'adj' ? 'flex' : 'none';
+        });
+
+        // Felvitelkor választható státusz (alapból „Tudom") és fontosság.
+        let addStatus = 'known';
+        let addImportance = null;
+
+        const addStatusRow = detail.querySelector('#add-statuses');
+        addStatusRow.querySelectorAll('.status-btn').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const key = btn.dataset.status;
+                const isSame = addStatus === key;
+
+                addStatusRow.querySelectorAll('.status-btn').forEach((b) => {
+                    b.classList.remove('active');
+                    b.style.background = '';
+                    b.style.borderColor = '';
+                    b.style.color = '';
+                });
+
+                if (!isSame) {
+                    btn.classList.add('active');
+                    const color = STATUS_COLORS[key];
+                    btn.style.background = color;
+                    btn.style.borderColor = color;
+                    btn.style.color = '#fff';
+                }
+
+                addStatus = isSame ? null : key;
+            });
+        });
+
+        const addImpRow = detail.querySelector('#add-importance');
+        addImpRow.querySelectorAll('.imp-star').forEach((star) => {
+            star.addEventListener('click', () => {
+                const n = parseInt(star.dataset.star);
+                addImportance = addImportance === n ? null : n;
+                paintStars(addImpRow, addImportance);
+            });
         });
 
         const geminiBtn = detail.querySelector('#gemini-fill-btn');
@@ -1453,6 +1619,8 @@ function showSearchDetail(data) {
                 example_hu:
                     detail.querySelector('#add-example-hu').value.trim() ||
                     null,
+                status: addStatus,
+                importance: addImportance,
             };
 
             if (pos === 'verb') {
@@ -1527,6 +1695,7 @@ function showSearchDetail(data) {
         <div class="detail-meaning">${esc(data.meaning_hu ?? '')}</div>
         ${data.extra_meanings ? `<div class="detail-extra">${esc(data.extra_meanings)}</div>` : ''}
         ${statusSection}
+        ${importanceSection}
         <div style="display:flex;align-items:center;gap:4px">
             <a class="detail-link" href="${APP_URL}/words?search=${encodeURIComponent(data.word)}" target="_blank">Megnyitás a TopWords-ben →</a>
             <button class="detail-tts-btn" title="Kiejtés angolul">🔊</button>
@@ -1584,6 +1753,36 @@ function showSearchDetail(data) {
                         // Sikertelen mentés → előző állapot visszaállítása
                         data = prev;
                         showSearchDetail(prev);
+                    },
+                );
+            });
+        });
+
+        const impRow = detail.querySelector('#detail-importance');
+
+        impRow?.querySelectorAll('.imp-star').forEach((star) => {
+            star.addEventListener('click', () => {
+                const n = parseInt(star.dataset.star);
+                const prevImportance = data.importance ?? null;
+                const next = prevImportance === n ? null : n;
+
+                paintStars(impRow, next);
+                data = { ...data, importance: next };
+
+                sendMsg(
+                    {
+                        type: 'UPDATE_IMPORTANCE',
+                        id: data.id,
+                        is_custom: data.is_custom,
+                        importance: next,
+                        csrf: searchCsrf,
+                    },
+                    (resp) => {
+                        if (!resp?.ok) {
+                            // Sikertelen mentés → előző érték visszaállítása
+                            data = { ...data, importance: prevImportance };
+                            paintStars(impRow, prevImportance);
+                        }
                     },
                 );
             });
@@ -1915,6 +2114,7 @@ function getPageStats(wordMap) {
         saved: 0,
         known: 0,
         pronunciation: 0,
+        practice: 0,
         total: seen.size,
     };
 
