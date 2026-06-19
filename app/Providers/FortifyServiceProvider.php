@@ -7,6 +7,7 @@ use App\Actions\Fortify\ResetUserPassword;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
@@ -31,6 +32,7 @@ class FortifyServiceProvider extends ServiceProvider
         $this->configureActions();
         $this->configureViews();
         $this->configureRateLimiting();
+        $this->configureRouteThrottling();
     }
 
     /**
@@ -85,6 +87,32 @@ class FortifyServiceProvider extends ServiceProvider
             $throttleKey = Str::transliterate(Str::lower($request->input(Fortify::username())).'|'.$request->ip());
 
             return Limit::perMinute(5)->by($throttleKey);
+        });
+
+        // Fortify does not throttle registration or the password-reset request;
+        // limit them by IP to curb mass account creation and email-bombing.
+        RateLimiter::for('register', fn (Request $request) => Limit::perMinute(10)->by($request->ip()));
+        RateLimiter::for('password-request', fn (Request $request) => Limit::perMinute(5)->by($request->ip()));
+    }
+
+    /**
+     * Attach throttle middleware to Fortify's registration and password-reset
+     * request routes, which Fortify itself registers without any rate limiting.
+     * Done after booting so the routes are already registered.
+     */
+    private function configureRouteThrottling(): void
+    {
+        $this->app->booted(function () {
+            $throttles = [
+                'register.store' => 'throttle:register',
+                'password.email' => 'throttle:password-request',
+            ];
+
+            foreach (Route::getRoutes() as $route) {
+                if ($middleware = ($throttles[$route->getName()] ?? null)) {
+                    $route->middleware($middleware);
+                }
+            }
         });
     }
 }

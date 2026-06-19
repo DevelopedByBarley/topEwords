@@ -77,11 +77,20 @@ class PricingController extends Controller
         // esetén a sikeres fizetés UTÁN 403-at kapna a visszairányításkor.
         $successUrl = URL::temporarySignedRoute('pricing.success', now()->addHour());
 
-        $checkout = $user->newSubscription($plan === 'premium' ? 'premium' : 'default', $priceId)
-            ->checkout([
-                'success_url' => $successUrl,
-                'cancel_url' => route('pricing', ['checkout' => 'cancelled']),
-            ]);
+        $subscriptionBuilder = $user->newSubscription($plan === 'premium' ? 'premium' : 'default', $priceId);
+
+        // Első előfizetéskor próbaidő: a kártyát elkérik, de csak a trial végén
+        // számláznak. A trial alatt a felhasználó a választott fizetett csomagot kapja.
+        $trialDays = (int) config('registration.subscription_trial_days');
+
+        if ($trialDays > 0) {
+            $subscriptionBuilder->trialDays($trialDays);
+        }
+
+        $checkout = $subscriptionBuilder->checkout([
+            'success_url' => $successUrl,
+            'cancel_url' => route('pricing', ['checkout' => 'cancelled']),
+        ]);
 
         return Inertia::location($checkout->url);
     }

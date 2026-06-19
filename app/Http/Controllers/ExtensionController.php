@@ -15,7 +15,7 @@ class ExtensionController extends Controller
     public function lookup(Request $request): JsonResponse
     {
         if (! $request->user()) {
-            return response()->json(['error' => 'unauthenticated']);
+            return response()->json(['error' => 'unauthenticated'], 401);
         }
 
         $hasActiveAccess = $request->user()->hasActiveAccess();
@@ -64,18 +64,25 @@ class ExtensionController extends Controller
             ]);
         }
 
-        // Try custom words (all forms)
+        // Try custom words. Exact word match always counts (covers phrases like
+        // "cut through"); conjugation-form matching is limited to single-word
+        // entries so a phrase's single-word base form cannot hijack a plain word.
         $custom = UserCustomWord::where('user_id', $request->user()->id)
             ->where(function ($q) use ($lower) {
                 $q->whereRaw('LOWER(word) = ?', [$lower])
-                    ->orWhereRaw('LOWER(form_base) = ?', [$lower])
-                    ->orWhereRaw('LOWER(verb_past) = ?', [$lower])
-                    ->orWhereRaw('LOWER(verb_past_participle) = ?', [$lower])
-                    ->orWhereRaw('LOWER(verb_present_participle) = ?', [$lower])
-                    ->orWhereRaw('LOWER(verb_third_person) = ?', [$lower])
-                    ->orWhereRaw('LOWER(noun_plural) = ?', [$lower])
-                    ->orWhereRaw('LOWER(adj_comparative) = ?', [$lower])
-                    ->orWhereRaw('LOWER(adj_superlative) = ?', [$lower]);
+                    ->orWhere(function ($q2) use ($lower) {
+                        $q2->where('word', 'not like', '% %')
+                            ->where(function ($q3) use ($lower) {
+                                $q3->whereRaw('LOWER(form_base) = ?', [$lower])
+                                    ->orWhereRaw('LOWER(verb_past) = ?', [$lower])
+                                    ->orWhereRaw('LOWER(verb_past_participle) = ?', [$lower])
+                                    ->orWhereRaw('LOWER(verb_present_participle) = ?', [$lower])
+                                    ->orWhereRaw('LOWER(verb_third_person) = ?', [$lower])
+                                    ->orWhereRaw('LOWER(noun_plural) = ?', [$lower])
+                                    ->orWhereRaw('LOWER(adj_comparative) = ?', [$lower])
+                                    ->orWhereRaw('LOWER(adj_superlative) = ?', [$lower]);
+                            });
+                    });
             })
             ->first(['id', 'word', 'meaning_hu', 'extra_meanings', 'synonyms', 'part_of_speech', 'example_en', 'example_hu', 'status']);
 
@@ -104,7 +111,7 @@ class ExtensionController extends Controller
     public function addWord(Request $request): JsonResponse
     {
         if (! $request->user()) {
-            return response()->json(['error' => 'unauthenticated']);
+            return response()->json(['error' => 'unauthenticated'], 401);
         }
 
         $data = $request->validate([
@@ -149,7 +156,7 @@ class ExtensionController extends Controller
     public function statuses(Request $request): JsonResponse
     {
         if (! $request->user()) {
-            return response()->json(['error' => 'unauthenticated']);
+            return response()->json(['error' => 'unauthenticated'], 401);
         }
 
         $userId = $request->user()->id;
@@ -175,6 +182,14 @@ class ExtensionController extends Controller
         // so captions/pages match conjugations like "changed" → "change" or "has" → "have".
         $statuses = [];
         foreach ($markedWords->concat($customWords) as $row) {
+            // Skip multi-word phrases (e.g. custom "cut through"): their single-word
+            // conjugation columns would otherwise map a plain token ("cut") to the
+            // phrase's status, hijacking the real word. Single tokens can't represent
+            // a phrase anyway.
+            if (str_contains((string) $row->word, ' ')) {
+                continue;
+            }
+
             foreach ([$row->word, ...array_map(fn ($column) => $row->{$column}, $formColumns)] as $form) {
                 if ($form !== null && $form !== '') {
                     $statuses[mb_strtolower($form)] = $row->status;
@@ -242,7 +257,7 @@ class ExtensionController extends Controller
     public function search(Request $request): JsonResponse
     {
         if (! $request->user()) {
-            return response()->json(['error' => 'unauthenticated']);
+            return response()->json(['error' => 'unauthenticated'], 401);
         }
 
         $q = $request->string('q')->trim()->value();

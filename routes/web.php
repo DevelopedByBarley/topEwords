@@ -7,8 +7,6 @@ use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\PricingController;
 use App\Http\Controllers\StripeWebhookController;
 use App\Http\Middleware\EnsureOnboardingComplete;
-use App\Models\User;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Laravel\Fortify\Features;
 
@@ -67,12 +65,3 @@ require __DIR__.'/flashcards.php';
 require __DIR__.'/text-analysis.php';
 require __DIR__.'/extension.php';
 require __DIR__.'/settings.php';
-
-// TEMP: helyi vizuális ellenőrzéshez — törlendő!
-if (app()->environment('local')) {
-    Route::get('/dev-login', function () {
-        Auth::loginUsingId(User::first()->id);
-
-        return redirect(request()->query('redirect', '/dashboard'));
-    });
-}

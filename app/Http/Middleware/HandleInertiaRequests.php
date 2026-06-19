@@ -41,7 +41,10 @@ class HandleInertiaRequests extends Middleware
             ...parent::share($request),
             'name' => config('app.name'),
             'auth' => [
-                'user' => $request->user(),
+                // Explicit whitelist — never share the raw model, which would leak
+                // billing (stripe_id, pm_last_four) and entitlement internals to every
+                // page. Plan state is exposed via the `subscription` block below.
+                'user' => $request->user()?->only(['id', 'name', 'email', 'email_verified_at']),
                 'isAdmin' => $request->user() ? Gate::check('admin', $request->user()) : false,
                 'subscription' => $request->user() ? (function () use ($request) {
                     $user = $request->user();

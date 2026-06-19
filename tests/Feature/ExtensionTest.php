@@ -16,7 +16,7 @@ beforeEach(function () {
 
 test('lookup requires authentication', function () {
     $this->getJson(route('extension.lookup', ['word' => 'apple']))
-        ->assertSuccessful()
+        ->assertUnauthorized()
         ->assertJson(['error' => 'unauthenticated']);
 });
 

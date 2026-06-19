@@ -8,8 +8,9 @@ return [
     'invite_only' => (bool) env('REGISTRATION_INVITE_ONLY', false),
 
     /*
-    | A regisztrációkor automatikusan induló próbaidőszak hossza napokban.
-    | 0 esetén nincs próbaidő (a felhasználó rögtön az ingyenes szinten van).
+    | Az ELŐFIZETÉSKOR induló Stripe-próbaidő hossza napokban. A regisztráció
+    | önmagában nem ad próbaidőt — minden új fiók a free csomagon indul, és
+    | csak az előfizetés (kártyamegadás) indít próbaidőt. 0 esetén nincs trial.
     */
-    'trial_days' => (int) env('TRIAL_DAYS', 5),
+    'subscription_trial_days' => (int) env('SUBSCRIPTION_TRIAL_DAYS', 30),
 ];

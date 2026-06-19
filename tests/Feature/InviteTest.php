@@ -32,7 +32,7 @@ test('registration requires a valid invite when invite-only is on', function () 
     expect(User::where('email', 'teszt@example.com')->exists())->toBeFalse();
 });
 
-test('a valid invite allows registration, sets the trial and is consumed', function () {
+test('a valid invite allows registration and is consumed, starting on the free plan', function () {
     config(['registration.invite_only' => true]);
     $invite = Invite::create(['code' => 'BETA2026', 'max_uses' => 1]);
 
@@ -42,7 +42,9 @@ test('a valid invite allows registration, sets the trial and is consumed', funct
     $user = User::where('email', 'teszt@example.com')->first();
     expect($user)->not->toBeNull();
     expect($user->invite_id)->toBe($invite->id);
-    expect($user->trial_ends_at)->not->toBeNull();
+    // Registration grants no trial — new accounts start free (trial is subscription-only).
+    expect($user->trial_ends_at)->toBeNull();
+    expect($user->currentPlan())->toBe('free');
     expect($invite->fresh()->uses)->toBe(1);
 });
 

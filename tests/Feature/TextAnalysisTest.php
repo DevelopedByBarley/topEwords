@@ -26,6 +26,7 @@ beforeEach(function () {
         array_merge($base, ['word' => 'quick', 'rank' => 200, 'meaning_hu' => 'gyors', 'adj_comparative' => 'quicker', 'adj_superlative' => 'quickest']),
         array_merge($base, ['word' => 'dog', 'rank' => 300, 'meaning_hu' => 'kutya', 'noun_plural' => 'dogs']),
         array_merge($base, ['word' => 'the', 'rank' => 1, 'meaning_hu' => 'a/az']),
+        array_merge($base, ['word' => 'cut', 'rank' => 400, 'meaning_hu' => 'vág', 'verb_past' => 'cut', 'verb_present_participle' => 'cutting', 'verb_third_person' => 'cuts']),
     ]);
 });
 
@@ -242,4 +243,41 @@ test('fetch-source extracts text from a public page', function () {
     $this->postJson(route('text-analysis.fetch-source'), ['url' => 'http://93.184.216.34/article'])
         ->assertOk()
         ->assertJsonPath('text', fn ($text) => str_contains($text, 'sufficiently long article paragraph'));
+});
+
+// ── Multi-word custom phrases must not hijack a plain word ────────────────────
+
+test('a multi-word custom phrase does not hijack a plain word in analysis', function () {
+    $cut = Word::where('word', 'cut')->firstOrFail();
+    $this->user->knownWords()->attach($cut->id, ['status' => 'known']);
+
+    // Phrasal verb stored with single-word conjugations (real data shape).
+    $this->user->customWords()->create([
+        'word' => 'cut through',
+        'status' => 'learning',
+        'verb_past' => 'cut',
+        'verb_third_person' => 'cuts',
+        'verb_present_participle' => 'cutting',
+    ]);
+
+    $this->postJson(route('text-analysis.analyze'), ['text' => 'I want to cut the rope'])
+        ->assertOk()
+        ->assertJsonPath('tokenStatuses.cut', 'known');
+});
+
+test('looking up a plain word does not return a multi-word custom phrase', function () {
+    $cut = Word::where('word', 'cut')->firstOrFail();
+    $this->user->knownWords()->attach($cut->id, ['status' => 'known']);
+
+    $this->user->customWords()->create([
+        'word' => 'cut through',
+        'status' => 'learning',
+        'verb_past' => 'cut',
+    ]);
+
+    $this->getJson(route('text-analysis.word-lookup', ['word' => 'cut']))
+        ->assertOk()
+        ->assertJsonPath('type', 'word')
+        ->assertJsonPath('word', 'cut')
+        ->assertJsonPath('status', 'known');
 });

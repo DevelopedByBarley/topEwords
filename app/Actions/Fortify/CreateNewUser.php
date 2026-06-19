@@ -41,9 +41,7 @@ class CreateNewUser implements CreatesNewUsers
 
         Validator::make($input, $rules)->validate();
 
-        $trialDays = (int) config('registration.trial_days');
-
-        return DB::transaction(function () use ($input, $inviteOnly, $trialDays): User {
+        return DB::transaction(function () use ($input, $inviteOnly): User {
             $invite = null;
 
             if ($inviteOnly) {
@@ -64,11 +62,14 @@ class CreateNewUser implements CreatesNewUsers
                 'name' => $input['name'],
                 'email' => $input['email'],
                 'password' => $input['password'],
-                'trial_ends_at' => $trialDays > 0 ? now()->addDays($trialDays) : null,
-                'invite_id' => $invite?->id,
             ]);
 
-            $invite?->increment('uses');
+            // New accounts start on the free plan — no automatic trial. A trial is
+            // granted only on subscribe (Stripe trial; see PricingController::checkout).
+            if ($invite !== null) {
+                $user->forceFill(['invite_id' => $invite->id])->save(); // not mass-assignable
+                $invite->increment('uses');
+            }
 
             return $user;
         });

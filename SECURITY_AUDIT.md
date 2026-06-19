@@ -38,9 +38,10 @@ Jelmagyarázat: 🔴 Critical · 🟠 High · 🟡 Medium · 🟢 Low · ⚪ Inf
     `flashcards.php`, `words.php`, `text-analysis.php`, `settings.php`
   - `FortifyServiceProvider` — halott `verifyEmailView` regisztráció törölve
   - Az `EmailVerificationTest` / `VerificationNotificationTest` automatikusan skip-el
-    (`skipUnlessFortifyFeature`); teszt-suite zöld (179 passed, 8 skipped). Pint zöld.
-  *Maradék (nem kötelező): a `resources/js/pages/auth/verify-email.tsx` és a ProfileController
-  `mustVerifyEmail` propja halott, de ártalmatlan — későbbi takarításra hagyva.*
+    (`skipUnlessFortifyFeature`); teszt-suite zöld. Pint zöld.
+  - Frontend-takarítás (a Wayfinder már nem generálja a `@/routes/verification`-t, ami build-hibát
+    okozott): törölve a halott `verify-email.tsx`, a `profile.tsx` verifikációs blokkja, és a
+    ProfileController `mustVerifyEmail`/`status` propátadása. `npm run build` zöld.
 
 - [x] **🟡 #A2 — Invite-beváltás nem atomi (TOCTOU) — KÉSZ (2026-06-19)**
   `app/Actions/Fortify/CreateNewUser.php`
@@ -50,32 +51,35 @@ Jelmagyarázat: 🔴 Critical · 🟠 High · 🟡 Medium · 🟢 Low · ⚪ Inf
   user nem jön létre, a tranzakció visszagörget. Új teszt: egyszeri kód kétszer nem váltható be
   (`uses` 1 marad). Suite zöld (186 passed).
 
-- [ ] **🟡 #A3 — Ismételhető trial-abuse**
-  `app/Actions/Fortify/CreateNewUser.php:46-53`, `config/registration.php:14`
-  Minden regisztráció kap 5 nap `basic`-et dedup/eszközkötés nélkül → végtelen friss fiókkal
-  örök ingyen basic. (`lowercase_usernames` csak kisbetűsít, a `+` aliasokat nem szűri.)
-  **Javítás:** üzleti döntés kérdése — trial invite-only mögé / fizetési mód kérése /
-  trial-jogosultság követése normalizált email/identitás alapján.
+- [x] **🟡 #A3 — Ismételhető trial-abuse — KÉSZ (2026-06-19, üzleti döntés)**
+  `app/Actions/Fortify/CreateNewUser.php`, `config/registration.php`, `app/Http/Controllers/PricingController.php`
+  Üzleti döntés: **a regisztráció nem ad trialt** — minden új fiók a `free` csomagon indul. A
+  CreateNewUser már nem állít `trial_ends_at`-ot. Próbaidő csak **előfizetéskor** indul (Stripe
+  trial, `subscription_trial_days`, alapból 30 nap) a `PricingController::checkout`-ban
+  (`->trialDays(...)`), ahol a kártyát elkérik. Tesztelőknek az admin felület ad csomagot
+  (`plan_override`). Így nincs mit visszaélni: ingyen trial nem létezik.
+  *⚠ Manuálisan ellenőrizendő Stripe teszt-kártyával: checkout → trialing állapot → a trial alatt
+  a fizetett csomag jár, a hónap végén jön az első terhelés.*
 
-- [ ] **🟢 #A4 — Túl bő `#[Fillable]` a User-en (lappangó mass-assignment)**
-  `app/Models/User.php:20`
-  A fillable tartalmazza: `lifetime_access`, `ai_access`, `trial_ends_at`, `invite_id`.
-  Most NEM kihasználható (regisztráció és profil-update is whitelistet/`validated()`-et használ),
-  de egy jövőbeli `update($request->all())` privilégium-emelés lenne.
-  **Javítás:** vegyük ki a jogosultsági mezőket a `#[Fillable]`-ből, és állítsuk őket
-  explicit `forceFill`-lel a szerveroldali action-ökben.
+- [x] **🟢 #A4 — Túl bő `#[Fillable]` a User-en — KÉSZ (2026-06-19)**
+  `app/Models/User.php`, `app/Actions/Fortify/CreateNewUser.php`
+  A `lifetime_access`, `ai_access`, `trial_ends_at`, `invite_id` kikerült a `#[Fillable]`-ből
+  (a `plan_override`/`stripe_*`/`ai_credit*` eleve nem volt benne). A `CreateNewUser` mostantól
+  `forceFill`-lel állítja a `trial_ends_at`/`invite_id`-t. Az `AdminController` direkt property-vel
+  ír (nem érintett), a factory megkerüli a fillable-t (tesztek nem érintettek). Új teszt: a 6
+  jogosultsági mező nem mass-assignelhető. Suite zöld (189 passed).
 
-- [ ] **🟢 #A5 — Nincs rate limit a regisztráción és a jelszó-reset kérésen**
-  `app/Providers/FortifyServiceProvider.php:82-93`
-  Csak `login` (5/min) és `two-factor` van throttle-özve; a `register` és `forgot-password`
-  nincs. Tömeges fiókgyártás / email-bombing. (A reset-broker 60s-os throttle részben véd.)
-  **Javítás:** `throttle:` middleware a registration és forgot-password route-okra.
+- [x] **🟢 #A5 — Nincs rate limit a regisztráción és a jelszó-reset kérésen — KÉSZ (2026-06-19)**
+  `app/Providers/FortifyServiceProvider.php`
+  Két IP-alapú limiter (`register` 10/min, `password-request` 5/min), és egy `booted()` hook
+  rárakja a `throttle:` middleware-t a Fortify `register.store` / `password.email` route-okra
+  (a Fortify ezekre alapból nem tesz limitert; csak login/two-factor/passkey-re van config-kapocs).
+  2 új teszt (a route-ok hordozzák a limitert; a forgot-password 6. kérése 429). Suite zöld
+  (191 passed).
 
-- [ ] **⚪ #A6 — `/dev-login` backdoor**
-  `routes/web.php:72-78`
-  Hitelesítés nélkül belép `User::first()`-ként; `app()->environment('local')` védi, prodban
-  nem regisztrálódik. Törlendő (ahogy a komment is jelzi). Ha marad: `APP_DEBUG` + titkos token,
-  és `redirect()->to()` same-host ellenőrzéssel.
+- [x] **⚪ #A6 — `/dev-login` backdoor — KÉSZ (2026-06-19)**
+  `routes/web.php`
+  A `/dev-login` route és a fölöslegessé vált `User`/`Auth` importok törölve.
 
 **Cáfolt (nem teendő):** gyenge jelszó-policy (prodban `min(12)`+uncompromised), jelszó-reset
 folyamat, account enumeration, 2FA-konfig, session-config, admin gate — mind rendben.
@@ -104,17 +108,16 @@ folyamat, account enumeration, 2FA-konfig, session-config, admin gate — mind r
   gyors 429-hez. Admin (korlátlan) érintetlen. 2 új teszt (refund hibánál; a meglévő pontos
   költség-tesztek továbbra is zöldek). Suite zöld (187 passed).
 
-- [ ] **🟢 #E3 — `geminiListModels` nyers upstream válasz**
-  `app/Http/Controllers/TextAnalysisController.php:826-834`
-  A teljes Google-választ (és hibatestet) nyersen visszaadja minden AI-jogosultnak. Nem
-  kulcs-szivárgás (a kulcs header). Dev-tooling jellegű.
-  **Javítás:** admin-only (dobjuk a `hasAiAccess`-t) vagy törlés; ha marad, mező-whitelist.
+- [x] **🟢 #E3 — `geminiListModels` nyers upstream válasz — KÉSZ (2026-06-19)**
+  `app/Http/Controllers/TextAnalysisController.php`
+  A guard `Gate::check('admin') || hasAiAccess()` → **admin-only** (`abort_unless(Gate::check('admin'), 403)`).
+  A valódi AI-feature végpontok (`geminiWordLookup` stb.) érintetlenek.
 
-- [ ] **⚪ #E4 — Extension auth-hibák HTTP 200-zal**
-  `ExtensionController.php:18,107,152,245`
-  Az `unauthenticated` válaszok 200-at adnak 401 helyett (a `youtubeTranscript` helyesen 401/403).
-  Konzisztencia, nem sebezhetőség.
-  **Javítás:** `, 401` a JSON válaszokhoz.
+- [x] **⚪ #E4 — Extension auth-hibák HTTP 200-zal — KÉSZ (2026-06-19)**
+  `app/Http/Controllers/ExtensionController.php`
+  A 4 `unauthenticated` válasz mostantól `401` (lookup/addWord/statuses/search); a `badge`
+  szándékosan marad 200 `count:0` (a kiegészítő badge-logikája olvassa). Teszt frissítve
+  (`assertUnauthorized`).
 
 **Cáfolt (nem teendő):** prompt injection (sanitizeWordForPrompt regex+cap), YouTube-SSRF
 (szigorú 11-karakteres video-ID), extension `auth` middleware hiánya (kézi user-check + session
@@ -143,22 +146,18 @@ route-model binding (kontrollerek kompenzálnak), bulk endpoint arbitrary id (no
 
 ## Data exposure / frontend
 
-- [ ] **🟠 #D1 — Túl bő `User` szerializáció a shared propban**
-  `app/Http/Middleware/HandleInertiaRequests.php:44`, `app/Models/User.php:21`
-  A `'user' => $request->user()` minden oldalra kiküldi a teljes modellt; a `#[Hidden]` csak
-  jelszó/2FA/remember_token-t rejt. Kimegy: `stripe_id`, `pm_type`, `pm_last_four`,
-  `plan_override`, `ai_credit_limit`, `ai_credits_used`, `lifetime_access`, `invite_id`.
-  *Saját adat (nem kereszt-felhasználós), ezért az adverzális kör Low-ra húzta — súly vitatható.*
-  **Javítás:** vagy bővítsük a `#[Hidden]`-t a fenti oszlopokkal, vagy (jobb) explicit whitelist
-  (`only(['id','name','email','onboarding_completed_at', ...])`). A plan-állapotot a frontend a
-  `subscription` tömbből úgyis megkapja, a nyers oszlopok nem kellenek kliensoldalon.
+- [x] **🟠 #D1 — Túl bő `User` szerializáció a shared propban — KÉSZ (2026-06-19)**
+  `app/Http/Middleware/HandleInertiaRequests.php`
+  A `'user' => $request->user()` helyett explicit whitelist:
+  `->only(['id','name','email','email_verified_at'])`. A frontend csak ezeket olvassa
+  (`name`/`email`/`email_verified_at`), a plan-állapotot a `subscription` blokk adja, a
+  `trial_ends_at`-ot a Pricing/Subscription kontroller külön. Így `stripe_id`, `pm_*`,
+  `plan_override`, `ai_credit*` stb. már nem megy ki egyetlen oldalra sem. Új teszt: a shared
+  `auth.user` prop nem tartalmazza a billing/entitlement mezőket. Suite zöld (189 passed).
 
-- [ ] **🟡 #D2 — `APP_DEBUG=true` + nincs custom error oldal**
-  `.env`
-  Lokálban rendben, de prodba kerülve stack-trace/env/PII szivárgás (Ignition). Semmi nem
-  kényszeríti ki a `false`-t. (Lásd lent az általános megjegyzést.)
-  **Javítás:** prod `.env`-ben `APP_DEBUG=false`, `APP_ENV=production`; opcionálisan custom
-  Inertia error oldal 4xx/5xx-re.
+- [x] **🟡 #D2 — `APP_DEBUG=true` (prod-konfig) — KÉSZ (prodban rendezve, 2026-06-19)**
+  Prodban `APP_DEBUG=false` beállítva (a felhasználó megerősítette). Lokálban marad `true`
+  (dev-kényelem). Custom Inertia error oldal opcionális, nem készült.
 
 **Cáfolt (nem teendő):** rich-text editor `dangerouslySetInnerHTML` (csak self-XSS — nincs megosztott
 deck / admin-render), 2FA QR SVG (szerver-generált), admin PII (`can:admin` mögött, nincs

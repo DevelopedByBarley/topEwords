@@ -64,18 +64,26 @@ class TextAnalysisController extends Controller
 
         $user = $request->user();
 
-        // Check user's custom words first (all forms)
+        // Check user's custom words first. Exact match on the stored word always
+        // counts (covers phrases like "cut through"); form-based (conjugation)
+        // matching is restricted to single-word entries, so a phrase's single-word
+        // base form ("cut") cannot hijack a plain word lookup.
         $customWord = $user->customWords()
             ->where(function ($q) use ($raw) {
                 $q->whereRaw('LOWER(word) = ?', [$raw])
-                    ->orWhereRaw('LOWER(form_base) = ?', [$raw])
-                    ->orWhereRaw('LOWER(verb_past) = ?', [$raw])
-                    ->orWhereRaw('LOWER(verb_past_participle) = ?', [$raw])
-                    ->orWhereRaw('LOWER(verb_present_participle) = ?', [$raw])
-                    ->orWhereRaw('LOWER(verb_third_person) = ?', [$raw])
-                    ->orWhereRaw('LOWER(noun_plural) = ?', [$raw])
-                    ->orWhereRaw('LOWER(adj_comparative) = ?', [$raw])
-                    ->orWhereRaw('LOWER(adj_superlative) = ?', [$raw]);
+                    ->orWhere(function ($q2) use ($raw) {
+                        $q2->where('word', 'not like', '% %')
+                            ->where(function ($q3) use ($raw) {
+                                $q3->whereRaw('LOWER(form_base) = ?', [$raw])
+                                    ->orWhereRaw('LOWER(verb_past) = ?', [$raw])
+                                    ->orWhereRaw('LOWER(verb_past_participle) = ?', [$raw])
+                                    ->orWhereRaw('LOWER(verb_present_participle) = ?', [$raw])
+                                    ->orWhereRaw('LOWER(verb_third_person) = ?', [$raw])
+                                    ->orWhereRaw('LOWER(noun_plural) = ?', [$raw])
+                                    ->orWhereRaw('LOWER(adj_comparative) = ?', [$raw])
+                                    ->orWhereRaw('LOWER(adj_superlative) = ?', [$raw]);
+                            });
+                    });
             })
             ->first();
         if ($customWord) {
@@ -349,6 +357,14 @@ class TextAnalysisController extends Controller
         // Build reverse map: lowercase form → custom word (all forms take priority)
         $formToCustomWord = [];
         foreach ($customWords as $customWord) {
+            // Multi-word custom phrases (e.g. "cut through") must not colour single
+            // tokens. Their conjugation columns often hold the single-word base form
+            // ("cut"), which would otherwise hijack the real word's status. A single
+            // token can never represent a phrase, so phrases are skipped here.
+            if (str_contains((string) $customWord->word, ' ')) {
+                continue;
+            }
+
             foreach (array_filter([
                 mb_strtolower($customWord->word),
                 $customWord->form_base ? mb_strtolower($customWord->form_base) : null,
@@ -872,7 +888,8 @@ PROMPT;
 
     public function geminiListModels(): JsonResponse
     {
-        abort_unless(Gate::check('admin') || request()->user()?->hasAiAccess(), 403);
+        // Dev tooling that proxies the raw upstream model list — admin-only.
+        abort_unless(Gate::check('admin'), 403);
         $apiKey = config('services.gemini.api_key');
         $response = Http::withHeaders(['x-goog-api-key' => $apiKey])
             ->get('https://generativelanguage.googleapis.com/v1beta/models');
