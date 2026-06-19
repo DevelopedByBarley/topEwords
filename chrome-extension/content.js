@@ -1903,6 +1903,148 @@ function applyHighlights() {
     document.addEventListener('click', handleHlClick, { capture: true });
 }
 
+// ── Közös szó/kifejezés tokenizálás ─────────────────────────────────────────
+// Ugyanaz a logika, mint a webes szövegelemzőben (buildRenderTokens): a szöveget
+// szó/elválasztó darabokra bontja, és a leghosszabb ismert kifejezést illeszti
+// elsőként (max 3 szó, közöttük csak whitespace), így a kifejezés egy egységként
+// jelölhető. A kifejezéseket a státusztérkép kulcsában lévő szóköz árulja el.
+
+const MAX_PHRASE_WORDS = 3;
+const HL_WORD_SPLIT = /([a-zA-Z]+(?:['’][a-zA-Z]+)*)/;
+const phraseFlagCache = new WeakMap();
+
+function hlKey(word) {
+    return word.toLowerCase().replace(/[‘’′]/g, "'");
+}
+
+/** Igaz, ha a térkép tartalmaz legalább egy több szavas kifejezést. Map-enként cache-elt. */
+function mapHasPhrases(map) {
+    if (!map) {
+        return false;
+    }
+
+    if (phraseFlagCache.has(map)) {
+        return phraseFlagCache.get(map);
+    }
+
+    const value = [...map.keys()].some((key) => key.includes(' '));
+    phraseFlagCache.set(map, value);
+
+    return value;
+}
+
+function lookupWordStatus(map, key) {
+    // Birtokos eset visszaesés: "john's" → "john".
+    return map.get(key) ?? map.get(key.split("'")[0]);
+}
+
+/**
+ * Tokenekre bontja a szöveget: { kind: 'sep' | 'word' | 'phrase', text, status }.
+ * A státusszal rendelkező 'word'/'phrase' tokeneket kell kiemelni.
+ */
+function buildHlTokens(text, map, hasPhrases) {
+    const parts = text.split(HL_WORD_SPLIT);
+    const tokens = [];
+    let i = 0;
+
+    while (i < parts.length) {
+        // Az elválasztók a páros indexeken vannak.
+        if (i % 2 === 0) {
+            if (parts[i] !== '') {
+                tokens.push({ kind: 'sep', text: parts[i] });
+            }
+
+            i += 1;
+
+            continue;
+        }
+
+        let matched = false;
+
+        if (hasPhrases) {
+            for (let n = MAX_PHRASE_WORDS; n >= 2; n -= 1) {
+                const lastWordIdx = i + (n - 1) * 2;
+
+                if (lastWordIdx >= parts.length) {
+                    continue;
+                }
+
+                const words = [];
+                let adjacent = true;
+
+                for (let k = 0; k < n; k += 1) {
+                    words.push(parts[i + k * 2]);
+
+                    // A kifejezés szavai között csak whitespace állhat.
+                    if (k < n - 1 && !/^\s+$/.test(parts[i + k * 2 + 1] ?? '')) {
+                        adjacent = false;
+
+                        break;
+                    }
+                }
+
+                if (!adjacent) {
+                    continue;
+                }
+
+                const status = map.get(words.map(hlKey).join(' '));
+
+                if (status) {
+                    tokens.push({
+                        kind: 'phrase',
+                        text: parts.slice(i, lastWordIdx + 1).join(''),
+                        status,
+                    });
+                    i = lastWordIdx + 1;
+                    matched = true;
+
+                    break;
+                }
+            }
+        }
+
+        if (matched) {
+            continue;
+        }
+
+        tokens.push({
+            kind: 'word',
+            text: parts[i],
+            status: lookupWordStatus(map, hlKey(parts[i])),
+        });
+        i += 1;
+    }
+
+    return tokens;
+}
+
+/** Kiemelő span az élő oldalhoz. Kifejezés: szaggatott aláhúzás + halvány háttér. */
+function makeHlSpan(text, status, isPhrase) {
+    const color = STATUS_COLORS[status];
+    const span = document.createElement('span');
+    span.dataset.twHl = hlKey(text);
+    span.dataset.twStatus = status;
+    span.style.setProperty('display', 'inline', 'important');
+    span.style.setProperty('position', 'static', 'important');
+    span.style.setProperty('float', 'none', 'important');
+    span.style.setProperty('text-decoration-line', 'underline', 'important');
+    span.style.setProperty('text-decoration-color', color, 'important');
+    span.style.setProperty('text-decoration-thickness', '2px', 'important');
+    span.style.setProperty('cursor', 'pointer', 'important');
+
+    if (isPhrase) {
+        span.dataset.twPhrase = '1';
+        span.style.setProperty('text-decoration-style', 'dashed', 'important');
+        span.style.setProperty('background-color', `${color}1f`, 'important');
+        span.style.setProperty('border-radius', '3px', 'important');
+        span.style.setProperty('padding', '0 2px', 'important');
+    }
+
+    span.textContent = text;
+
+    return span;
+}
+
 function highlightTextNode(node) {
     const parentEl = node.parentElement;
 
@@ -1914,58 +2056,31 @@ function highlightTextNode(node) {
         }
     }
 
-    const text = node.textContent;
-    const regex = /\b([a-zA-Z]{2,})\b/g;
-    const parts = [];
-    let lastIndex = 0;
-    let hasMatch = false;
-    let match;
+    const tokens = buildHlTokens(
+        node.textContent,
+        hlWordMap,
+        mapHasPhrases(hlWordMap),
+    );
 
-    while ((match = regex.exec(text)) !== null) {
-        const status = hlWordMap.get(match[1].toLowerCase());
-
-        if (!status) {
-            continue;
-        }
-
-        hasMatch = true;
-
-        if (match.index > lastIndex) {
-            parts.push(
-                document.createTextNode(text.slice(lastIndex, match.index)),
-            );
-        }
-
-        const span = document.createElement('span');
-        span.dataset.twHl = match[1].toLowerCase();
-        span.dataset.twStatus = status;
-        span.style.setProperty('display', 'inline', 'important');
-        span.style.setProperty('position', 'static', 'important');
-        span.style.setProperty('float', 'none', 'important');
-        span.style.setProperty(
-            'text-decoration-line',
-            'underline',
-            'important',
-        );
-        span.style.setProperty(
-            'text-decoration-color',
-            STATUS_COLORS[status],
-            'important',
-        );
-        span.style.setProperty('text-decoration-thickness', '2px', 'important');
-        span.style.setProperty('cursor', 'pointer', 'important');
-        span.textContent = match[1];
-        parts.push(span);
-        lastIndex = match.index + match[1].length;
-    }
+    const hasMatch = tokens.some(
+        (token) =>
+            (token.kind === 'word' || token.kind === 'phrase') && token.status,
+    );
 
     if (!hasMatch) {
         return;
     }
 
-    if (lastIndex < text.length) {
-        parts.push(document.createTextNode(text.slice(lastIndex)));
-    }
+    const parts = tokens.map((token) => {
+        if (
+            (token.kind === 'word' || token.kind === 'phrase') &&
+            token.status
+        ) {
+            return makeHlSpan(token.text, token.status, token.kind === 'phrase');
+        }
+
+        return document.createTextNode(token.text);
+    });
 
     const parent = node.parentNode;
 
@@ -2383,33 +2498,41 @@ function ensureYtBar() {
  * szavak (és ragozott alakjaik) a státuszuk színével. A sáv és az oldalsáv is ezt használja.
  */
 function ytWordsToHtml(text) {
-    const regex = /([a-zA-Z']+|[^a-zA-Z']+)/g;
+    const tokens = buildHlTokens(
+        text,
+        ytStatusMap ?? new Map(),
+        mapHasPhrases(ytStatusMap),
+    );
+
     let html = '';
-    let match;
 
-    while ((match = regex.exec(text)) !== null) {
-        const token = match[0];
-        const clean = token.replace(/^'|'$/g, '');
-        const isWord = /^[a-zA-Z]/.test(clean) && clean.length > 0;
+    tokens.forEach((token) => {
+        // Az elválasztók sima szövegként mennek (nem kattinthatók).
+        if (token.kind === 'sep') {
+            html += esc(token.text);
 
-        if (isWord) {
-            const key = clean.toLowerCase();
-            const status =
-                ytStatusMap?.get(key) ?? ytStatusMap?.get(key.split("'")[0]);
-            const color = status ? STATUS_COLORS[status] : null;
-            const escaped = token
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;');
-            const attr = token.replace(/"/g, '&quot;');
+            return;
+        }
+
+        // Minden szó ÉS kifejezés kattintható `.tw-word` span — a szín csak akkor
+        // kerül rá, ha van státusza, hogy a státusz nélküli szavakat is ki lehessen
+        // keresni kattintással (mint korábban).
+        const attr = token.text.replace(/"/g, '&quot;');
+        const color = token.status ? STATUS_COLORS[token.status] : null;
+
+        if (token.kind === 'phrase') {
+            // Kifejezés: szín + halvány háttér-pill, hogy egységként látsszon.
+            const style = color
+                ? `style="color:${color};text-shadow:0 0 8px ${color}66;background:${color}26;border-radius:4px;padding:0 3px"`
+                : '';
+            html += `<span class="tw-word tw-phrase" data-yt-word="${attr}" ${style}>${esc(token.text)}</span>`;
+        } else {
             const style = color
                 ? `style="color:${color};text-shadow:0 0 8px ${color}66"`
                 : '';
-            html += `<span class="tw-word" data-yt-word="${attr}" ${style}>${escaped}</span>`;
-        } else {
-            html += esc(token);
+            html += `<span class="tw-word" data-yt-word="${attr}" ${style}>${esc(token.text)}</span>`;
         }
-    }
+    });
 
     return html;
 }

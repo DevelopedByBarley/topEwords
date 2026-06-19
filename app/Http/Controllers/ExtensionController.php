@@ -190,11 +190,16 @@ class ExtensionController extends Controller
         // so captions/pages match conjugations like "changed" → "change" or "has" → "have".
         $statuses = [];
         foreach ($markedWords->concat($customWords) as $row) {
-            // Skip multi-word phrases (e.g. custom "cut through"): their single-word
-            // conjugation columns would otherwise map a plain token ("cut") to the
-            // phrase's status, hijacking the real word. Single tokens can't represent
-            // a phrase anyway.
-            if (str_contains((string) $row->word, ' ')) {
+            $word = (string) $row->word;
+
+            // Multi-word phrase (e.g. "used to", "cut through"): store ONLY the phrase
+            // itself, never its single-word conjugation columns — those would otherwise
+            // map a plain token ("use", "to") to the phrase's status, hijacking the real
+            // word. The client recognises a phrase automatically by the space in the key
+            // and matches it greedily (longest phrase first) before single words.
+            if (str_contains($word, ' ')) {
+                $statuses[mb_strtolower($word)] = $row->status;
+
                 continue;
             }
 

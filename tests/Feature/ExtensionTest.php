@@ -155,6 +155,24 @@ test('statuses returns the user word status map', function () {
         ]);
 });
 
+test('statuses includes multi-word phrases without hijacking single words', function () {
+    // A kifejezés bekerül a térképbe, de a ragozott-alak oszlopai (form_base "use")
+    // nem mappelhetik a sima "use" szót a kifejezés státuszára.
+    $this->user->customWords()->create([
+        'word' => 'used to',
+        'status' => 'practice',
+        'form_base' => 'use',
+    ]);
+
+    $response = $this->actingAs($this->user)
+        ->getJson(route('extension.statuses'))
+        ->assertSuccessful()
+        ->assertJson(['statuses' => ['used to' => 'practice']]);
+
+    expect($response->json('statuses'))->not->toHaveKey('use');
+    expect($response->json('statuses'))->not->toHaveKey('used');
+});
+
 test('badge counts learning words including custom ones', function () {
     $apple = Word::where('word', 'apple')->first();
     $this->user->knownWords()->attach($apple->id, ['status' => 'learning']);
