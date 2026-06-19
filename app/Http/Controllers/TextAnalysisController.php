@@ -10,6 +10,8 @@ use App\Models\YoutubeTranscript;
 use App\Services\AchievementService;
 use App\Services\AiUsageService;
 use App\Services\YouTubeCaptionService;
+use GuzzleHttp\Psr7\UriResolver;
+use GuzzleHttp\Psr7\Utils;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -145,9 +147,12 @@ class TextAnalysisController extends Controller
     }
 
     /**
-     * Block requests to private/reserved IP ranges (SSRF guard).
+     * Resolve the URL's host and ensure it points to a public IP (SSRF guard).
+     * Returns the validated IP so the caller can pin the connection to it
+     * (defeats DNS rebinding). Throws if the host is missing, unresolvable,
+     * or resolves to a private/reserved range.
      */
-    private function assertPublicHost(string $url): void
+    private function assertPublicHost(string $url): string
     {
         $host = parse_url($url, PHP_URL_HOST);
 
@@ -157,10 +162,60 @@ class TextAnalysisController extends Controller
 
         $ip = filter_var($host, FILTER_VALIDATE_IP) ? $host : gethostbyname($host);
 
-        if (filter_var($ip, FILTER_VALIDATE_IP) &&
-            ! filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+        if (! filter_var($ip, FILTER_VALIDATE_IP)) {
             throw new \RuntimeException('Ez a cím nem érhető el.');
         }
+
+        if (! filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+            throw new \RuntimeException('Ez a cím nem érhető el.');
+        }
+
+        return $ip;
+    }
+
+    /**
+     * SSRF-safe HTTP GET. Redirects are followed manually so every hop's host
+     * is re-validated as public, and each request is pinned to the validated
+     * IP (CURLOPT_RESOLVE) so a rebinding DNS answer cannot redirect the
+     * connection to an internal address between the check and the connect.
+     */
+    private function safeFetch(string $url): \Illuminate\Http\Client\Response
+    {
+        $maxRedirects = 5;
+
+        for ($hop = 0; $hop <= $maxRedirects; $hop++) {
+            $ip = $this->assertPublicHost($url);
+            $host = parse_url($url, PHP_URL_HOST);
+            $scheme = parse_url($url, PHP_URL_SCHEME) ?: 'http';
+            $port = parse_url($url, PHP_URL_PORT) ?: ($scheme === 'https' ? 443 : 80);
+
+            $response = Http::timeout(15)
+                ->withoutRedirecting()
+                ->withHeaders(['User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'])
+                ->withOptions(['curl' => [CURLOPT_RESOLVE => ["{$host}:{$port}:{$ip}"]]])
+                ->get($url);
+
+            if (! $response->redirect()) {
+                return $response;
+            }
+
+            $location = $response->header('Location');
+
+            if ($location === '') {
+                return $response;
+            }
+
+            // Resolve relative redirects against the current URL and require http(s).
+            $next = (string) UriResolver::resolve(Utils::uriFor($url), Utils::uriFor($location));
+
+            if (! in_array(parse_url($next, PHP_URL_SCHEME), ['http', 'https'], true)) {
+                throw new \RuntimeException('Ez a cím nem érhető el.');
+            }
+
+            $url = $next;
+        }
+
+        throw new \RuntimeException('Túl sok átirányítás.');
     }
 
     public function analyze(Request $request): JsonResponse
@@ -395,9 +450,7 @@ class TextAnalysisController extends Controller
 
     private function fetchWebpageText(string $url): string
     {
-        $response = Http::timeout(15)
-            ->withHeaders(['User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'])
-            ->get($url);
+        $response = $this->safeFetch($url);
 
         if (! $response->ok()) {
             throw new \RuntimeException('A weboldal nem érhető el (HTTP '.$response->status().').');

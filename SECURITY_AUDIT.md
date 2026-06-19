@@ -30,15 +30,17 @@ Jelmagyarázat: 🔴 Critical · 🟠 High · 🟡 Medium · 🟢 Low · ⚪ Inf
 
 ## Auth & regisztráció
 
-- [ ] **🟠 #A1 — Email-verifikáció no-op**
-  `app/Models/User.php:5,22`, `config/fortify.php:152`, `routes/web.php:53,58`
-  A `verified` middleware sok route-on ott van, de a `User` nem implementálja a
-  `MustVerifyEmail`-t (az import ki van kommentezve), így minden user verifikálatlanul átmegy.
-  A profil UI sem kér verifikációt (`mustVerifyEmail` mindig false).
-  **Javítás:** vagy `class User ... implements MustVerifyEmail`, vagy vegyük le a `verified`
-  middleware-t és a `Features::emailVerification()`-t (hogy ne legyen hamis biztonságérzet).
-  *Megj.: a `verified` itt a user saját onboarding/dashboard oldalát kapuzza, nem kereszt-felhasználós
-  erőforrást — a tényleges kockázat: verifikálatlan emaillel be lehet jutni. Súly vitatható (Low–High).*
+- [x] **🟠 #A1 — Email-verifikáció no-op — KÉSZ (2026-06-19)**
+  Megoldás: a feature levétele (nem `MustVerifyEmail` bevezetése), hogy ne legyen hamis
+  biztonságérzet és senki ne akadjon ki. Elvégzett változtatások:
+  - `config/fortify.php` — `Features::emailVerification()` törölve
+  - `verified` middleware levéve 6 helyről: `routes/web.php` (onboarding + dashboard/achievements),
+    `flashcards.php`, `words.php`, `text-analysis.php`, `settings.php`
+  - `FortifyServiceProvider` — halott `verifyEmailView` regisztráció törölve
+  - Az `EmailVerificationTest` / `VerificationNotificationTest` automatikusan skip-el
+    (`skipUnlessFortifyFeature`); teszt-suite zöld (179 passed, 8 skipped). Pint zöld.
+  *Maradék (nem kötelező): a `resources/js/pages/auth/verify-email.tsx` és a ProfileController
+  `mustVerifyEmail` propja halott, de ártalmatlan — későbbi takarításra hagyva.*
 
 - [ ] **🟡 #A2 — Invite-beváltás nem atomi (TOCTOU)**
   `app/Actions/Fortify/CreateNewUser.php:30-56`, `app/Models/Invite.php:23-30`
@@ -82,15 +84,15 @@ folyamat, account enumeration, 2FA-konfig, session-config, admin gate — mind r
 
 ## Extension API + AI
 
-- [ ] **🟠 #E1 — SSRF a webpage-fetch-ben (redirect + DNS-rebinding bypass)**
-  `app/Http/Controllers/TextAnalysisController.php:122-164,396-400`
-  Az `assertPublicHost()` csak a kezdő hostot ellenőrzi, de a `Http::get()` követi a redirecteket.
-  `evil.com` → `169.254.169.254`/`127.0.0.1` átirányítással belső/metadata oldalak olvashatók
-  (body 15 000 karakterig visszajön). DNS-rebinding (TOCTOU) is nyitva. Auth+throttle védi,
-  de bármely free-user eléri (`fetchSource`-on nincs plan-check).
-  **Javítás:** tiltsuk a redirect-követést (`allow_redirects=false`) és utasítsuk el a 3xx-et,
-  vagy hopponként újra-`assertPublicHost`; a feloldott IP-t rögzítsük/validáljuk connect-időben
-  (DNS-rebind ellen); response-size cap.
+- [x] **🟠 #E1 — SSRF a webpage-fetch-ben — KÉSZ (2026-06-19)**
+  `app/Http/Controllers/TextAnalysisController.php`
+  Új `safeFetch()` helper: a redirecteket kézzel követjük (max 5), és **minden hopon** újra
+  `assertPublicHost()`; a kapcsolatot a feloldott IP-re pinneljük (`CURLOPT_RESOLVE`), így a
+  DNS-rebinding (TOCTOU) nem tud belső címre fordítani. A redirect-célnál http(s) séma kötelező.
+  Az `assertPublicHost()` mostantól visszaadja a validált IP-t, és a feloldhatatlan hostot is
+  elutasítja (eddig átment). 3 új teszt (privát IP / belső redirect / publikus oldal); suite zöld
+  (182 passed). Pint zöld.
+  *Megj.: a 15 000 karakteres `mb_substr` cap továbbra is megvan a `fetchSource`-ban.*
 
 - [ ] **🟡 #E2 — AI-budget nem atomi (konkurens túlköltés)**
   `app/Services/AiUsageService.php:13-36`, `TextAnalysisController.php:35-48` és a `record()` hívások
@@ -165,16 +167,14 @@ directory listing / titok-fájl).
 
 ## Billing / Stripe
 
-- [ ] **🟠 #B1 — Webhook aláírás-ellenőrzés „fail-open” hiányzó secret esetén**
-  `vendor/laravel/cashier/.../WebhookController.php:27-32`, `bootstrap/app.php:22`
-  A `stripe/*` CSRF alól ki van véve, így az aláírás-ellenőrzés az EGYETLEN védelem. A Cashier
-  viszont csak akkor csatolja a `VerifyWebhookSignature` middleware-t, ha
-  `config('cashier.webhook.secret')` nem üres. **Jelenleg védve** (a `STRIPE_WEBHOOK_SECRET` be van
-  állítva, 70 karakter), de ha valaha üres/kimarad (rossz deploy, config-cache, új env), a végpont
-  csendben elfogad hamisított, aláíratlan webhookokat → kamu `subscription.created/updated`
-  eseménnyel ingyen prémium adható bárkinek (a `subscriptionPlan()` a `stripe_price`-ból dönt).
-  **Javítás:** boot-időben dobjon hibát, ha `STRIPE_ENABLED=true` de a webhook-secret üres; vagy
-  override-oljuk a controller konstruktort, hogy hiányzó secretnél hard-fail legyen (ne skip).
+- [x] **🟠 #B1 — Webhook aláírás-ellenőrzés „fail-open” — KÉSZ (2026-06-19)**
+  `app/Providers/AppServiceProvider.php`
+  Új `assertStripeWebhookSecured()` a `boot()`-ban: ha `services.stripe.enabled` igaz, de a
+  `cashier.webhook.secret` üres, az alkalmazás `RuntimeException`-nel megtagadja a bootot (fail-loud)
+  — így a `stripe/*` (CSRF-exempt) végpont sosem fut aláírás-ellenőrzés nélkül. 3 teszt
+  (enabled+no-secret dob / enabled+secret ok / disabled+no-secret ok). Suite zöld (185 passed).
+  *Megj.: a hatás megegyezik a Cashier feltételes `VerifyWebhookSignature` middleware-ével — most
+  csak nem maradhat csendben kikapcsolva.*
 
 **Cáfolt (nem teendő):**
 - Kliens-vezérelt ár/plan → ingyen upgrade: `checkout` szerveroldali allowlist

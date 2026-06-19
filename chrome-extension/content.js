@@ -354,19 +354,24 @@ document.addEventListener('visibilitychange', () => {
 
 // ── Popup ─────────────────────────────────────────────────────────────────────
 
-function showPopup(word, rect) {
+function showPopup(word, rect, preferAbove = false) {
     hidePopup();
     currentWord = word;
+
+    // Teljes képernyőn csak a fullscreen elem leszármazottai látszanak, ezért a
+    // popupot oda tesszük (fix pozícióval, viewport-koordinátákkal). Egyébként a
+    // body-ba, abszolút pozícióval (görgetéssel együtt).
+    const fsEl = document.fullscreenElement;
 
     // Shadow DOM host
     host = document.createElement('div');
     host.style.cssText = `
-        position: absolute;
+        position: ${fsEl ? 'fixed' : 'absolute'};
         z-index: 2147483647;
         pointer-events: auto;
     `;
-    positionHost(host, rect);
-    document.body.appendChild(host);
+    (fsEl ?? document.body).appendChild(host);
+    positionHost(host, rect, !!fsEl, preferAbove);
 
     shadow = host.attachShadow({ mode: 'open' });
 
@@ -400,27 +405,42 @@ function showPopup(word, rect) {
 
         currentData = response;
         renderBody(response);
+        // A popup a tartalomtól megnőtt — igazítsuk újra, hogy ne lógjon a feliratra.
+        positionHost(host, rect, !!fsEl, preferAbove);
     });
 }
 
-function positionHost(el, rect) {
-    const scrollX = window.scrollX;
-    const scrollY = window.scrollY;
+function positionHost(el, rect, fixed = false, preferAbove = false) {
+    // Fix pozíciónál (fullscreen) viewport-koordináták kellenek, görgetés nélkül.
+    const offsetX = fixed ? 0 : window.scrollX;
+    const offsetY = fixed ? 0 : window.scrollY;
     const viewportW = window.innerWidth;
     const viewportH = window.innerHeight;
-    const popupH = 200;
+    // A popup tényleges mérete (ha már renderelt) — különben becslés. A tartalom
+    // beérkezésekor a showPopup újrahívja ezt a megnőtt mérettel.
+    const popupH = el.offsetHeight || 200;
+    const popupW = el.offsetWidth || 260;
 
-    let left = rect.left + scrollX;
+    let left = rect.left + offsetX;
 
-    if (left + 275 > viewportW + scrollX) {
-        left = Math.max(0, viewportW + scrollX - 275);
+    if (left + popupW + 15 > viewportW + offsetX) {
+        left = Math.max(0, viewportW + offsetX - popupW - 15);
     }
 
     const spaceBelow = viewportH - rect.bottom;
-    const top =
-        spaceBelow >= popupH || rect.top < popupH
-            ? rect.bottom + scrollY + 8
-            : rect.top + scrollY - popupH - 16;
+    // Alapból a szó alá; feliratból nyitva (preferAbove) a szó fölé, hacsak ott
+    // nincs elég hely, de lent igen.
+    const placeBelow = preferAbove
+        ? rect.top < popupH + 16 && spaceBelow >= popupH
+        : spaceBelow >= popupH || rect.top < popupH;
+    let top = placeBelow
+        ? rect.bottom + offsetY + 8
+        : rect.top + offsetY - popupH - 16;
+
+    // Ne lógjon ki a viewport tetején/alján.
+    const minTop = offsetY + 8;
+    const maxTop = offsetY + viewportH - popupH - 8;
+    top = Math.max(minTop, Math.min(top, maxTop));
 
     el.style.left = `${left}px`;
     el.style.top = `${top}px`;
@@ -945,7 +965,9 @@ function showSearch() {
     searchHost = document.createElement('div');
     searchHost.style.cssText =
         'position:fixed;inset:0;z-index:2147483647;pointer-events:auto;';
-    document.body.appendChild(searchHost);
+    // Teljes képernyőn csak a fullscreen elem leszármazottai látszanak, ezért a
+    // kereső-modalt is oda tesszük (position:fixed így a viewportra igazodik).
+    (document.fullscreenElement ?? document.body).appendChild(searchHost);
 
     searchShadow = searchHost.attachShadow({ mode: 'open' });
 
@@ -2206,7 +2228,7 @@ function handleYtWordClick(span) {
 
     pauseVideoIfPlaying();
     speakWord(word);
-    showPopup(word, span.getBoundingClientRect());
+    showPopup(word, span.getBoundingClientRect(), true);
 }
 
 function renderYtBar(text) {
@@ -2336,6 +2358,11 @@ function refreshVocabHighlights() {
             if (ytPanelSegments.length) {
                 renderYtPanelSegments();
             }
+        }
+
+        if (nfxEnabled && nfxLastCaptionText) {
+            ytStatusMap = map;
+            renderNfxBar(nfxLastCaptionText);
         }
 
         if (hlWordMap) {
@@ -2891,6 +2918,477 @@ if (location.hostname === 'www.youtube.com') {
             initYtSubtitles();
         } else {
             window.addEventListener('load', () => initYtSubtitles(), {
+                once: true,
+            });
+        }
+    }
+}
+
+// ── Netflix Subtitle Integration ──────────────────────────────────────────────
+//
+// A YouTube felirat-sáv párja Netflixre: a natív felirat (.player-timedtext) a
+// DOM-ba renderelődik, ezt olvassuk, elrejtjük, és helyette saját kattintható
+// sávot rajzolunk a lejátszóra. A szótér-/popup-/kiejtés-gépezet közös a
+// YouTube-bal (ytStatusMap, ensureYtStatusMap, ytWordsToHtml, showPopup).
+//
+// A teljes átirat-oldalsáv (YouTube-on /extension/youtube-transcript) itt nincs:
+// a Netflixnek nincs egyszerűen elérhető átirat-forrása.
+
+let nfxEnabled = false; // chrome.storage.local: nfxLyricsEnabled (alapból ki)
+let nfxObserver = null;
+let nfxBarHost = null;
+let nfxToggleHost = null;
+let nfxLastCaptionText = '';
+let nfxNavInterval = null;
+let nfxNoticeShown = false;
+
+const NFX_HIDE_STYLE_ID = 'tw-nfx-hide-native-captions';
+
+function isNetflixWatchPage() {
+    return (
+        location.hostname === 'www.netflix.com' &&
+        location.pathname.startsWith('/watch')
+    );
+}
+
+/** A lejátszó konténere — ez megy teljes képernyőre is, ezért ebbe tesszük a sávot/gombot. */
+function nfxPlayerContainer() {
+    return (
+        document.querySelector('.watch-video') ??
+        document.querySelector('[data-uia="watch-video"]') ??
+        document.querySelector('.player-timedtext')?.parentElement ??
+        null
+    );
+}
+
+function nfxVideo() {
+    return (
+        document.querySelector('.watch-video video') ??
+        document.querySelector('video')
+    );
+}
+
+// ── Natív felirat elrejtése ──
+
+function hideNfxNativeCaptions() {
+    if (document.getElementById(NFX_HIDE_STYLE_ID)) {
+        return;
+    }
+
+    const style = document.createElement('style');
+    style.id = NFX_HIDE_STYLE_ID;
+    // opacity: a DOM tovább frissül (innen olvasunk), csak nem látszik.
+    style.textContent =
+        '.player-timedtext { opacity: 0 !important; pointer-events: none !important; }';
+    document.head.appendChild(style);
+}
+
+function showNfxNativeCaptions() {
+    document.getElementById(NFX_HIDE_STYLE_ID)?.remove();
+}
+
+// ── Felirat-sáv ──
+
+function ensureNfxBar() {
+    if (nfxBarHost?.isConnected) {
+        return;
+    }
+
+    nfxBarHost?.remove();
+    nfxBarHost = null;
+
+    const player = nfxPlayerContainer();
+
+    if (!player) {
+        return;
+    }
+
+    nfxBarHost = document.createElement('div');
+    nfxBarHost.id = 'tw-nfx-bar-host';
+    Object.assign(nfxBarHost.style, {
+        position: 'absolute',
+        bottom: '18%',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        zIndex: '2147483646',
+        pointerEvents: 'none',
+        width: 'max-content',
+        maxWidth: '80%',
+    });
+
+    const shadow = nfxBarHost.attachShadow({ mode: 'open' });
+    shadow.innerHTML = `
+        <style>
+            #bar {
+                display: none;
+                background: rgba(8,8,8,0.85);
+                backdrop-filter: blur(4px);
+                border-radius: 6px;
+                padding: 10px 18px;
+                font-family: 'Netflix Sans', Roboto, Arial, sans-serif;
+                font-size: 26px;
+                line-height: 1.5;
+                color: #fff;
+                text-align: center;
+                word-break: break-word;
+                pointer-events: auto;
+            }
+            .tw-word {
+                cursor: pointer;
+                border-radius: 3px;
+                padding: 0 1px;
+                transition: opacity 0.1s;
+            }
+            .tw-word:hover { opacity: 0.8; }
+        </style>
+        <div id="bar"></div>
+    `;
+
+    shadow.getElementById('bar').addEventListener('click', (e) => {
+        handleNfxWordClick(e.target.closest('.tw-word'));
+    });
+
+    player.appendChild(nfxBarHost);
+}
+
+/** Felirat-szóra kattintás: videó megáll, kiejtés, jelentés-popup. */
+function handleNfxWordClick(span) {
+    if (!span) {
+        return;
+    }
+
+    const word = span.dataset.ytWord?.replace(/^'|'$/g, '') ?? '';
+
+    if (!word) {
+        return;
+    }
+
+    const video = nfxVideo();
+
+    if (video && !video.paused) {
+        video.pause();
+    }
+
+    speakWord(word);
+    showPopup(word, span.getBoundingClientRect(), true);
+}
+
+function renderNfxBar(text) {
+    const bar = nfxBarHost?.shadowRoot?.getElementById('bar');
+
+    if (!bar) {
+        return;
+    }
+
+    if (!text.trim()) {
+        bar.innerHTML = '';
+        bar.style.display = 'none';
+
+        return;
+    }
+
+    nfxLastCaptionText = text;
+    // A szó-tokenizálást/színezést a YouTube-bal közös segéddel végezzük.
+    bar.innerHTML = ytWordsToHtml(text);
+    bar.style.display = 'block';
+}
+
+function showNfxBarNotice(text) {
+    const bar = nfxBarHost?.shadowRoot?.getElementById('bar');
+
+    if (!bar) {
+        return;
+    }
+
+    bar.textContent = text;
+    bar.style.display = 'block';
+
+    setTimeout(() => {
+        if (bar.textContent === text) {
+            bar.style.display = 'none';
+            bar.textContent = '';
+        }
+    }, 6000);
+}
+
+function readNfxCaptionText() {
+    const container = document.querySelector('.player-timedtext');
+
+    return container ? container.innerText.trim() : '';
+}
+
+function startNfxObserver() {
+    nfxObserver?.disconnect();
+
+    let lastText = '';
+    nfxNoticeShown = false;
+
+    nfxObserver = new MutationObserver(() => {
+        // A lejátszó újrarenderelésekor a sáv eltűnhet — olcsó guarddal visszatesszük.
+        ensureNfxBar();
+
+        const text = readNfxCaptionText();
+
+        if (text === lastText) {
+            return;
+        }
+
+        lastText = text;
+        renderNfxBar(text);
+    });
+
+    const player = nfxPlayerContainer() ?? document.documentElement;
+    nfxObserver.observe(player, {
+        childList: true,
+        subtree: true,
+        characterData: true,
+    });
+
+    // Ha pár másodperc után sincs felirat-szöveg, a felhasználónak be kell
+    // kapcsolnia a Netflix feliratot — ezt nem tudjuk megbízhatóan automatizálni.
+    setTimeout(() => {
+        if (nfxEnabled && !readNfxCaptionText() && !nfxNoticeShown) {
+            nfxNoticeShown = true;
+            showNfxBarNotice('Kapcsold be a feliratot a Netflixen (CC).');
+        }
+    }, 4000);
+}
+
+// ── Lebegő be/ki kapcsoló a lejátszón ──
+
+function ensureNfxToggle() {
+    if (nfxToggleHost?.isConnected) {
+        updateNfxToggleState();
+
+        return;
+    }
+
+    nfxToggleHost?.remove();
+    nfxToggleHost = null;
+
+    const player = nfxPlayerContainer();
+
+    if (!player) {
+        return;
+    }
+
+    nfxToggleHost = document.createElement('div');
+    nfxToggleHost.id = 'tw-nfx-toggle-host';
+    Object.assign(nfxToggleHost.style, {
+        position: 'absolute',
+        bottom: '150px',
+        right: '60px',
+        zIndex: '2147483646',
+    });
+
+    const shadow = nfxToggleHost.attachShadow({ mode: 'open' });
+    shadow.innerHTML = `
+        <style>
+            #btn {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                width: 68px;
+                height: 46px;
+                border: none;
+                border-radius: 8px;
+                background: rgba(0,0,0,0.55);
+                cursor: pointer;
+                padding: 0;
+                opacity: 0.85;
+                transition: opacity 0.15s, background 0.15s;
+            }
+            #btn:hover { opacity: 1; background: rgba(0,0,0,0.75); }
+        </style>
+        <button id="btn" title="TopWords felirat">
+            <svg width="50" height="32" viewBox="0 0 36 24" style="display:block">
+                <rect x="1" y="3" width="26" height="16" rx="3" fill="#fff"/>
+                <text x="14" y="15" text-anchor="middle" font-family="Roboto, Arial, sans-serif" font-size="10" font-weight="800" fill="#0f0f0f">TW</text>
+                <rect class="tw-underline" x="6" y="21" width="16" height="2.5" rx="1.25" fill="#e50914"/>
+            </svg>
+        </button>
+    `;
+
+    shadow.getElementById('btn').addEventListener('click', toggleNfxLyrics);
+
+    player.appendChild(nfxToggleHost);
+    updateNfxToggleState();
+}
+
+function updateNfxToggleState() {
+    const shadow = nfxToggleHost?.shadowRoot;
+
+    if (!shadow) {
+        return;
+    }
+
+    const underline = shadow.querySelector('.tw-underline');
+
+    if (underline) {
+        underline.style.display = nfxEnabled ? '' : 'none';
+    }
+
+    const btn = shadow.getElementById('btn');
+
+    if (btn) {
+        btn.title = nfxEnabled
+            ? 'TopWords felirat kikapcsolása'
+            : 'TopWords felirat bekapcsolása';
+    }
+}
+
+// ── Be/ki kapcsolás ──
+
+function toggleNfxLyrics() {
+    nfxEnabled = !nfxEnabled;
+    chrome.storage.local.set({ nfxLyricsEnabled: nfxEnabled });
+
+    if (nfxEnabled) {
+        enableNfxLyrics();
+    } else {
+        disableNfxLyrics();
+    }
+
+    updateNfxToggleState();
+}
+
+function enableNfxLyrics() {
+    ensureNfxBar();
+    ensureYtStatusMap((error) => {
+        if (error) {
+            showNfxBarNotice(
+                error === 'network'
+                    ? 'Nincs kapcsolat a TopWords-szel.'
+                    : 'Jelentkezz be a TopWords-be a szókiemeléshez.',
+            );
+
+            return;
+        }
+
+        hideNfxNativeCaptions();
+        startNfxObserver();
+    });
+}
+
+function disableNfxLyrics() {
+    nfxObserver?.disconnect();
+    nfxObserver = null;
+    nfxBarHost?.remove();
+    nfxBarHost = null;
+    nfxLastCaptionText = '';
+    showNfxNativeCaptions();
+}
+
+// A lejátszó vezérlősora/DOM-ja gyakran újrarenderelődik — egy könnyű,
+// frame-enként összevont observerrel tartjuk életben a kapcsolót és a sávot.
+let nfxControlsObserver = null;
+
+function startNfxControlsObserver() {
+    nfxControlsObserver?.disconnect();
+
+    let pending = false;
+    nfxControlsObserver = new MutationObserver(() => {
+        if (pending) {
+            return;
+        }
+
+        pending = true;
+        requestAnimationFrame(() => {
+            pending = false;
+
+            if (!isNetflixWatchPage()) {
+                return;
+            }
+
+            ensureNfxToggle();
+
+            if (nfxEnabled) {
+                ensureNfxBar();
+            }
+        });
+    });
+
+    nfxControlsObserver.observe(document.body, {
+        childList: true,
+        subtree: true,
+    });
+}
+
+function destroyNfxSubtitles() {
+    nfxObserver?.disconnect();
+    nfxObserver = null;
+    nfxControlsObserver?.disconnect();
+    nfxControlsObserver = null;
+    nfxBarHost?.remove();
+    nfxBarHost = null;
+    nfxToggleHost?.remove();
+    nfxToggleHost = null;
+    nfxLastCaptionText = '';
+    showNfxNativeCaptions();
+}
+
+function initNfxSubtitles(attempt = 0) {
+    if (!isNetflixWatchPage()) {
+        return;
+    }
+
+    if (!nfxPlayerContainer()) {
+        if (attempt < 10) {
+            setTimeout(() => initNfxSubtitles(attempt + 1), 1000);
+        }
+
+        return;
+    }
+
+    chrome.storage.local.get(
+        { nfxLyricsEnabled: false },
+        ({ nfxLyricsEnabled }) => {
+            if (!isNetflixWatchPage()) {
+                return;
+            }
+
+            nfxEnabled = nfxLyricsEnabled;
+            ensureNfxToggle();
+            startNfxControlsObserver();
+
+            if (nfxEnabled) {
+                enableNfxLyrics();
+            }
+        },
+    );
+}
+
+// A Netflix SPA: nincs dedikált navigációs esemény, ezért az URL-t figyeljük.
+function startNfxNavWatch() {
+    if (nfxNavInterval) {
+        return;
+    }
+
+    let lastPath = location.pathname + location.search;
+    nfxNavInterval = setInterval(() => {
+        const path = location.pathname + location.search;
+
+        if (path === lastPath) {
+            return;
+        }
+
+        lastPath = path;
+        destroyNfxSubtitles();
+
+        if (isNetflixWatchPage()) {
+            setTimeout(() => initNfxSubtitles(), 1200);
+        }
+    }, 1000);
+}
+
+if (location.hostname === 'www.netflix.com') {
+    startNfxNavWatch();
+
+    if (isNetflixWatchPage()) {
+        if (document.readyState === 'complete') {
+            initNfxSubtitles();
+        } else {
+            window.addEventListener('load', () => initNfxSubtitles(), {
                 once: true,
             });
         }

@@ -12,7 +12,7 @@ use App\Http\Controllers\WordController;
 use App\Http\Middleware\EnsureOnboardingComplete;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware(['auth', 'verified', EnsureOnboardingComplete::class])->group(function () {
+Route::middleware(['auth', EnsureOnboardingComplete::class])->group(function () {
     // Top 10 000 szó
     Route::get('words', [WordController::class, 'index'])->name('words.index');
     Route::get('words/search', [WordController::class, 'search'])->name('words.search');

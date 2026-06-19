@@ -1,8 +1,8 @@
 {
     "manifest_version": 3,
     "name": "TopWords",
-    "version": "1.8",
-    "description": "Look up English words instantly on any webpage and track your vocabulary progress with spaced repetition.",
+    "version": "1.9",
+    "description": "Look up English words instantly on any webpage, on YouTube and Netflix subtitles, and track your vocabulary progress with spaced repetition.",
     "homepage_url": "https://topwords.eu",
     "minimum_chrome_version": "110",
     "permissions": ["activeTab", "contextMenus", "storage"],

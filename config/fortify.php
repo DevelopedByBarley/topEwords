@@ -149,7 +149,6 @@ return [
         // és a frontend canRegister=false lesz → eltűnik a regisztrációs UI.
         env('REGISTRATION_ENABLED', true) ? Features::registration() : null,
         Features::resetPasswords(),
-        Features::emailVerification(),
         Features::twoFactorAuthentication([
             'confirm' => true,
             'confirmPassword' => true,

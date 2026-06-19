@@ -50,12 +50,12 @@ Route::middleware(['auth', 'can:admin'])->group(function () {
 
 // ── Onboarding, dashboard, eredmények ─────────────────────────────────────────
 
-Route::middleware(['auth', 'verified'])->group(function () {
+Route::middleware('auth')->group(function () {
     Route::get('onboarding', [OnboardingController::class, 'show'])->name('onboarding');
     Route::post('onboarding', [OnboardingController::class, 'complete'])->name('onboarding.complete');
 });
 
-Route::middleware(['auth', 'verified', EnsureOnboardingComplete::class])->group(function () {
+Route::middleware(['auth', EnsureOnboardingComplete::class])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('achievements', [AchievementController::class, 'index'])->name('achievements.index');
 });

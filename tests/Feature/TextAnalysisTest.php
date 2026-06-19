@@ -209,3 +209,37 @@ test('free plan is limited to one saved youtube transcript', function () {
     $this->postJson(route('text-analysis.youtube.store'), ['url' => 'https://www.youtube.com/watch?v=lmnopqrstuv'])
         ->assertStatus(403);
 });
+
+// ── SSRF guard (fetch-source) ────────────────────────────────────────────────
+
+test('fetch-source rejects a private/reserved IP host', function () {
+    Http::fake(); // nothing should ever be fetched
+
+    $this->postJson(route('text-analysis.fetch-source'), ['url' => 'http://127.0.0.1/secret'])
+        ->assertStatus(422);
+
+    Http::assertNothingSent();
+});
+
+test('fetch-source rejects a redirect to an internal address', function () {
+    // First (public) hop redirects to a link-local/internal address.
+    Http::fake([
+        'http://93.184.216.34/*' => Http::response('', 302, ['Location' => 'http://169.254.169.254/latest/meta-data/']),
+    ]);
+
+    $this->postJson(route('text-analysis.fetch-source'), ['url' => 'http://93.184.216.34/article'])
+        ->assertStatus(422);
+});
+
+test('fetch-source extracts text from a public page', function () {
+    Http::fake([
+        'http://93.184.216.34/*' => Http::response(
+            '<html><body><article><p>This is a sufficiently long article paragraph that survives the short-line filter.</p></article></body></html>',
+            200,
+        ),
+    ]);
+
+    $this->postJson(route('text-analysis.fetch-source'), ['url' => 'http://93.184.216.34/article'])
+        ->assertOk()
+        ->assertJsonPath('text', fn ($text) => str_contains($text, 'sufficiently long article paragraph'));
+});
