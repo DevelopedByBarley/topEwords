@@ -20,8 +20,15 @@ return new class extends Migration
             $table->index('user_id');
         });
 
-        // MEDIUMBLOB supports up to 16 MB — enough for any compressed book text
-        DB::statement('ALTER TABLE user_books ADD COLUMN compressed_text MEDIUMBLOB NOT NULL AFTER file_type');
+        // MEDIUMBLOB supports up to 16 MB — enough for any compressed book text.
+        // SQLite (tests) has no MEDIUMBLOB; its BLOB type is unbounded anyway.
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement('ALTER TABLE user_books ADD COLUMN compressed_text MEDIUMBLOB NOT NULL AFTER file_type');
+        } else {
+            Schema::table('user_books', function (Blueprint $table) {
+                $table->binary('compressed_text');
+            });
+        }
     }
 
     public function down(): void

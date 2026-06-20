@@ -1,7 +1,7 @@
 import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition } from './../../../wayfinder'
 /**
 * @see \App\Http\Controllers\TextAnalysisController::check
-* @see app/Http/Controllers/TextAnalysisController.php:828
+* @see app/Http/Controllers/TextAnalysisController.php:679
 * @route '/words/practice/check'
 */
 export const check = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -16,7 +16,7 @@ check.definition = {
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::check
-* @see app/Http/Controllers/TextAnalysisController.php:828
+* @see app/Http/Controllers/TextAnalysisController.php:679
 * @route '/words/practice/check'
 */
 check.url = (options?: RouteQueryOptions) => {
@@ -25,7 +25,7 @@ check.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::check
-* @see app/Http/Controllers/TextAnalysisController.php:828
+* @see app/Http/Controllers/TextAnalysisController.php:679
 * @route '/words/practice/check'
 */
 check.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -35,7 +35,7 @@ check.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::check
-* @see app/Http/Controllers/TextAnalysisController.php:828
+* @see app/Http/Controllers/TextAnalysisController.php:679
 * @route '/words/practice/check'
 */
 const checkForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -45,7 +45,7 @@ const checkForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => 
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::check
-* @see app/Http/Controllers/TextAnalysisController.php:828
+* @see app/Http/Controllers/TextAnalysisController.php:679
 * @route '/words/practice/check'
 */
 checkForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({

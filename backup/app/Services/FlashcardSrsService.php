@@ -159,17 +159,35 @@ class FlashcardSrsService
     {
         return FlashcardReview::firstOrCreate(
             ['flashcard_id' => $flashcard->id, 'direction' => $direction],
-            [
-                'state' => 'new',
-                'due_at' => null,
-                'interval' => 0,
-                'ease_factor' => 250,
-                'repetitions' => 0,
-                'lapses' => 0,
-                'learning_step' => 0,
-                'is_leech' => false,
-            ]
+            $this->defaultReviewAttributes()
         );
+    }
+
+    /**
+     * Unsaved review instance with default values — for previews without touching the DB.
+     */
+    public function newReviewFor(Flashcard $flashcard, string $direction): FlashcardReview
+    {
+        return new FlashcardReview([
+            'flashcard_id' => $flashcard->id,
+            'direction' => $direction,
+            ...$this->defaultReviewAttributes(),
+        ]);
+    }
+
+    /** @return array<string, mixed> */
+    private function defaultReviewAttributes(): array
+    {
+        return [
+            'state' => 'new',
+            'due_at' => null,
+            'interval' => 0,
+            'ease_factor' => 250,
+            'repetitions' => 0,
+            'lapses' => 0,
+            'learning_step' => 0,
+            'is_leech' => false,
+        ];
     }
 
     /**

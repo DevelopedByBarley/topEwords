@@ -585,6 +585,7 @@ function renderBody(data) {
         <div class="footer">
             <a class="link" href="${APP_URL}/words?search=${encodeURIComponent(word)}" target="_blank">Megnyitás →</a>
             <button class="tts-btn" title="Kiejtés angolul">🔊</button>
+            <button class="fc-btn" title="Flashcard készítése" style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;border:1px solid #e2e8f0;background:none;cursor:pointer;font-size:12px;flex-shrink:0;margin-left:6px">📇</button>
         </div>
     `;
 
@@ -605,6 +606,10 @@ function renderBody(data) {
     body.querySelector('.tts-btn')?.addEventListener('click', () =>
         speakWord(word),
     );
+
+    body.querySelector('.fc-btn')?.addEventListener('click', () => {
+        openFlashcardModal(data, data.csrf);
+    });
 }
 
 function handleImportanceClick(n, data, impRow) {
@@ -1348,6 +1353,479 @@ function paintStars(container, value) {
     });
 }
 
+// ── Flashcard készítés a popupból ───────────────────────────────────────────
+// A paklikat egyszer kérjük le és cache-eljük. Ugyanazokat a mezőket menti, mint
+// a webes szerkesztő; az AI a meglévő gemini-flashcard végpontot hívja, így a
+// kártya azonosan kerül az adatbázisba.
+
+let fcDecksCache = null;
+
+function showFcFeedback(el, text, color) {
+    if (!el) {
+        return;
+    }
+
+    el.textContent = text;
+    el.style.color = color;
+    el.style.display = 'block';
+}
+
+// Az AI-flashcard HTML-jét a backend már escape-eli, de defense-in-depth jelleggel
+// kliens oldalon is megtisztítjuk, mielőtt DOM-ba kerül: eltávolítjuk a veszélyes
+// elemeket, az on* eseménykezelőket és a javascript:/data: URL-eket. DocumentFragmentet
+// ad vissza, amit replaceChildren-nel rakunk be (sosem nyers innerHTML-lel).
+function sanitizeAiHtml(html) {
+    const tpl = document.createElement('template');
+    tpl.innerHTML = String(html ?? '');
+
+    tpl.content
+        .querySelectorAll(
+            'script, style, iframe, object, embed, link, meta, base, form, svg, math',
+        )
+        .forEach((el) => el.remove());
+
+    tpl.content.querySelectorAll('*').forEach((el) => {
+        [...el.attributes].forEach((attr) => {
+            const name = attr.name.toLowerCase();
+
+            if (name.startsWith('on')) {
+                el.removeAttribute(attr.name);
+            } else if (
+                [
+                    'href',
+                    'src',
+                    'srcset',
+                    'xlink:href',
+                    'formaction',
+                    'action',
+                    'background',
+                    'poster',
+                ].includes(name) &&
+                /^\s*(javascript|data|vbscript):/i.test(attr.value)
+            ) {
+                el.removeAttribute(attr.name);
+            } else if (
+                name === 'style' &&
+                /expression\s*\(|javascript:/i.test(attr.value)
+            ) {
+                el.removeAttribute(attr.name);
+            }
+        });
+    });
+
+    return tpl.content;
+}
+
+function flashcardFormHtml(data, info) {
+    const decks = info?.decks ?? [];
+    const hasAi = info?.has_ai_access;
+
+    if (!decks.length) {
+        return `
+            <div class="fc-empty">Még nincs flashcard-paklid.</div>
+            <a href="${APP_URL}/flashcards" target="_blank" class="fc-empty-link">Hozz létre egyet a TopWords-ben →</a>
+        `;
+    }
+
+    const deckOptions = decks
+        .map((d) => `<option value="${d.id}">${esc(d.name)}</option>`)
+        .join('');
+
+    return `
+        <div class="fc-label">Pakli</div>
+        <select data-fc-deck class="fc-input fc-select">${deckOptions}</select>
+
+        <div data-fc-fields class="fc-grid">
+            <div>
+                <div class="fc-label">Előlap</div>
+                <textarea data-fc-front class="fc-input fc-area">${esc(data.word ?? '')}</textarea>
+            </div>
+            <div>
+                <div class="fc-label">Hátlap</div>
+                <textarea data-fc-back class="fc-input fc-area">${esc(data.meaning_hu ?? '')}</textarea>
+            </div>
+        </div>
+
+        <div data-fc-preview class="fc-preview-wrap" style="display:none">
+            <div class="fc-grid">
+                <div>
+                    <div class="fc-label">Előlap (AI)</div>
+                    <div data-fc-front-preview class="fc-preview-box"></div>
+                </div>
+                <div>
+                    <div class="fc-label">Hátlap (AI)</div>
+                    <div data-fc-back-preview class="fc-preview-box"></div>
+                </div>
+            </div>
+            <button data-fc-manual class="fc-manual">↩ Kézi szerkesztés</button>
+        </div>
+
+        <div class="fc-row">
+            <div style="flex:1">
+                <div class="fc-label">Irány</div>
+                <select data-fc-direction class="fc-input fc-select">
+                    <option value="both">oda-vissza</option>
+                    <option value="front_to_back">elő → hát</option>
+                    <option value="back_to_front">hát → elő</option>
+                </select>
+            </div>
+            <div>
+                <div class="fc-label">Szín</div>
+                <input data-fc-color type="color" value="#6366f1" class="fc-color" />
+            </div>
+        </div>
+
+        <div class="fc-actions">
+            <button data-fc-save class="fc-save">Mentés</button>
+            ${hasAi ? `<button data-fc-ai class="fc-ai">✨ AI flashcard</button>` : ''}
+            <div data-fc-feedback class="fc-feedback" style="display:none"></div>
+        </div>
+    `;
+}
+
+function wireFlashcardForm(root, data, csrf, onBack) {
+    root.querySelector('[data-fc-back]')?.addEventListener('click', onBack);
+
+    const saveBtn = root.querySelector('[data-fc-save]');
+
+    if (!saveBtn) {
+        return;
+    }
+
+    const fields = root.querySelector('[data-fc-fields]');
+    const preview = root.querySelector('[data-fc-preview]');
+    const feedback = root.querySelector('[data-fc-feedback]');
+
+    // AI mód: a gemini-flashcard kész HTML-t ad; ezt renderelt előnézetként
+    // mutatjuk, és mentéskor ezt küldjük (nincs WYSIWYG, de a DB-be ugyanaz kerül).
+    let aiFront = null;
+    let aiBack = null;
+
+    root.querySelector('[data-fc-ai]')?.addEventListener('click', () => {
+        const aiBtn = root.querySelector('[data-fc-ai]');
+        aiBtn.disabled = true;
+        aiBtn.textContent = '⏳';
+
+        sendMsg({ type: 'GEMINI_FLASHCARD', word: data.word }, (resp) => {
+            aiBtn.disabled = false;
+            aiBtn.textContent = '✨ AI';
+
+            if (resp?.error === 'ai_limit') {
+                showFcFeedback(
+                    feedback,
+                    resp.message ?? 'Elérted a havi AI-felhasználási kereted.',
+                    '#f97316',
+                );
+
+                return;
+            }
+
+            if (!resp || resp.error || (!resp.front && !resp.back)) {
+                showFcFeedback(
+                    feedback,
+                    'Az AI nem tudott kártyát készíteni.',
+                    '#ef4444',
+                );
+
+                return;
+            }
+
+            aiFront = resp.front ?? '';
+            aiBack = resp.back ?? '';
+            root
+                .querySelector('[data-fc-front-preview]')
+                .replaceChildren(sanitizeAiHtml(aiFront));
+            root
+                .querySelector('[data-fc-back-preview]')
+                .replaceChildren(sanitizeAiHtml(aiBack));
+            fields.style.display = 'none';
+            preview.style.display = 'block';
+            feedback.style.display = 'none';
+        });
+    });
+
+    root.querySelector('[data-fc-manual]')?.addEventListener('click', () => {
+        aiFront = null;
+        aiBack = null;
+        preview.style.display = 'none';
+        fields.style.display = 'block';
+    });
+
+    saveBtn.addEventListener('click', () => {
+        const usingAi = aiFront !== null;
+        const front = usingAi
+            ? aiFront
+            : root.querySelector('[data-fc-front]').value.trim();
+        const back = usingAi
+            ? aiBack
+            : root.querySelector('[data-fc-back]').value.trim();
+
+        if (!front || !back) {
+            showFcFeedback(feedback, 'Az elő- és hátlap kötelező.', '#f97316');
+
+            return;
+        }
+
+        saveBtn.disabled = true;
+        saveBtn.textContent = '…';
+
+        const card = {
+            deck_id: parseInt(root.querySelector('[data-fc-deck]').value),
+            front,
+            back,
+            direction: root.querySelector('[data-fc-direction]').value,
+            color: root.querySelector('[data-fc-color]').value,
+        };
+
+        // word_id csak globális szóhoz — saját szónál/kifejezésnél nincs words-rekord.
+        if (!data.is_custom && data.id) {
+            card.word_id = data.id;
+        }
+
+        sendMsg({ type: 'CREATE_FLASHCARD', card, csrf }, (resp) => {
+            if (resp?.ok) {
+                saveBtn.style.display = 'none';
+                showFcFeedback(feedback, 'Kártya mentve! ✓', '#22c55e');
+                // Rövid visszajelzés után bezárjuk a modált.
+                setTimeout(() => onBack?.(), 900);
+            } else if (resp?.error === 'limit') {
+                saveBtn.disabled = false;
+                saveBtn.textContent = 'Mentés';
+                showFcFeedback(
+                    feedback,
+                    'Ingyenes limit: paklinként max 20 kártya.',
+                    '#f97316',
+                );
+            } else if (resp?.error === 'deck_not_found') {
+                fcDecksCache = null; // cache elavult — újratöltjük legközelebb
+                saveBtn.disabled = false;
+                saveBtn.textContent = 'Mentés';
+                showFcFeedback(feedback, 'A pakli nem található.', '#ef4444');
+            } else {
+                saveBtn.disabled = false;
+                saveBtn.textContent = 'Mentés';
+                showFcFeedback(
+                    feedback,
+                    'Nem sikerült menteni — próbáld újra.',
+                    '#ef4444',
+                );
+            }
+        });
+    });
+}
+
+const FC_MODAL_CSS = `
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :host {
+        position: fixed;
+        inset: 0;
+        z-index: 2147483647;
+    }
+
+    .fc-backdrop {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+        padding: 48px 16px;
+        background: rgba(15, 23, 42, 0.5);
+        backdrop-filter: blur(2px);
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+
+    .fc-card {
+        width: min(560px, 94vw);
+        max-height: 86vh;
+        overflow-y: auto;
+        background: #fff;
+        border-radius: 14px;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+        padding: 18px 20px 20px;
+        color: #1e293b;
+    }
+
+    .fc-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 8px;
+    }
+
+    .fc-title { font-size: 16px; font-weight: 700; color: #0f172a; }
+    .fc-title small { font-weight: 500; color: #94a3b8; margin-left: 6px; }
+
+    .fc-close {
+        width: 30px; height: 30px;
+        border: none; background: none; cursor: pointer;
+        font-size: 22px; line-height: 1; color: #94a3b8; border-radius: 50%;
+        flex-shrink: 0;
+    }
+    .fc-close:hover { background: #f1f5f9; color: #475569; }
+
+    .fc-label {
+        font-size: 11px; font-weight: 600; text-transform: uppercase;
+        letter-spacing: 0.05em; color: #94a3b8; margin: 12px 0 4px;
+    }
+
+    .fc-input {
+        width: 100%;
+        border: 1px solid #e2e8f0;
+        border-radius: 9px;
+        padding: 8px 11px;
+        font-size: 14px;
+        font-family: inherit;
+        color: #0f172a;
+        background: #fff;
+        outline: none;
+    }
+    .fc-input:focus { border-color: #6366f1; }
+    .fc-select { cursor: pointer; }
+    .fc-area { resize: vertical; min-height: 64px; line-height: 1.45; }
+
+    .fc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    @media (max-width: 520px) { .fc-grid { grid-template-columns: 1fr; } }
+
+    .fc-preview-box {
+        border: 1px solid #e2e8f0;
+        border-radius: 9px;
+        padding: 10px 12px;
+        background: #f8fafc;
+        max-height: 320px;
+        overflow-y: auto;
+        font-size: 14px;
+        line-height: 1.5;
+        color: #0f172a;
+    }
+    .fc-preview-box p { margin: 0 0 6px; }
+    .fc-preview-box :last-child { margin-bottom: 0; }
+
+    .fc-manual {
+        margin-top: 8px;
+        font-size: 12px; color: #6366f1;
+        background: none; border: none; cursor: pointer;
+        font-family: inherit; text-decoration: underline;
+    }
+
+    .fc-row { display: flex; gap: 14px; }
+
+    .fc-color {
+        width: 48px; height: 38px;
+        border: 1px solid #e2e8f0; border-radius: 9px;
+        background: #fff; cursor: pointer; padding: 2px;
+    }
+
+    .fc-actions { display: flex; align-items: center; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+
+    .fc-save {
+        padding: 9px 22px; background: #6366f1; color: #fff;
+        border: none; border-radius: 9px; font-size: 14px; font-weight: 600;
+        cursor: pointer; font-family: inherit; transition: background 0.15s;
+    }
+    .fc-save:hover { background: #4f46e5; }
+    .fc-save:disabled { opacity: 0.6; cursor: default; }
+
+    .fc-ai {
+        padding: 9px 14px; background: #faf5ff; color: #7c3aed;
+        border: 1px solid #ede9fe; border-radius: 9px; font-size: 13px; font-weight: 500;
+        cursor: pointer; font-family: inherit;
+    }
+    .fc-ai:hover { background: #f3e8ff; }
+    .fc-ai:disabled { opacity: 0.6; cursor: default; }
+
+    .fc-feedback { font-size: 13px; font-weight: 500; }
+
+    .fc-empty { font-size: 14px; color: #475569; margin-bottom: 8px; }
+    .fc-empty-link { font-size: 13px; color: #6366f1; text-decoration: underline; text-underline-offset: 2px; }
+
+    .fc-loading { font-size: 14px; color: #94a3b8; padding: 16px 0; text-align: center; }
+`;
+
+let fcModalHost = null;
+
+function fcModalEscHandler(e) {
+    if (e.key === 'Escape') {
+        closeFlashcardModal();
+    }
+}
+
+function closeFlashcardModal() {
+    document.removeEventListener('keydown', fcModalEscHandler, true);
+    fcModalHost?.remove();
+    fcModalHost = null;
+}
+
+/**
+ * Saját, széles modális ablakot nyit a flashcard készítéséhez — így az AI által
+ * generált hosszú tartalom is olvashatóan elfér (a kis lookup-popup túl szűk).
+ */
+function openFlashcardModal(data, csrf) {
+    closeFlashcardModal();
+
+    fcModalHost = document.createElement('div');
+    const shadow = fcModalHost.attachShadow({ mode: 'open' });
+
+    const style = document.createElement('style');
+    style.textContent = FC_MODAL_CSS;
+    shadow.appendChild(style);
+
+    const backdrop = document.createElement('div');
+    backdrop.className = 'fc-backdrop';
+
+    const card = document.createElement('div');
+    card.className = 'fc-card';
+    card.innerHTML = `
+        <div class="fc-head">
+            <span class="fc-title">📇 Új flashcard <small>${esc(data.word ?? '')}</small></span>
+            <button class="fc-close" title="Bezárás">×</button>
+        </div>
+        <div class="fc-body"><div class="fc-loading">Paklik betöltése…</div></div>
+    `;
+    backdrop.appendChild(card);
+    shadow.appendChild(backdrop);
+    document.body.appendChild(fcModalHost);
+    document.addEventListener('keydown', fcModalEscHandler, true);
+
+    card.querySelector('.fc-close').addEventListener('click', closeFlashcardModal);
+
+    // Csak a háttérre (kártyán kívülre) kattintás zár — a kártyán belüli nem.
+    backdrop.addEventListener('click', (e) => {
+        if (e.target === backdrop) {
+            closeFlashcardModal();
+        }
+    });
+
+    const body = card.querySelector('.fc-body');
+
+    const render = (info) => {
+        body.innerHTML = flashcardFormHtml(data, info);
+        wireFlashcardForm(body, data, csrf, closeFlashcardModal);
+    };
+
+    if (fcDecksCache) {
+        render(fcDecksCache);
+
+        return;
+    }
+
+    sendMsg({ type: 'GET_DECKS' }, (resp) => {
+        if (!fcModalHost) {
+            return;
+        }
+
+        if (!resp || resp.error) {
+            body.innerHTML =
+                '<div class="fc-empty">Nem sikerült betölteni a paklikat.</div>';
+
+            return;
+        }
+
+        fcDecksCache = resp;
+        render(resp);
+    });
+}
+
 function showSearchDetail(data) {
     if (!searchShadow) {
         return;
@@ -1699,13 +2177,19 @@ function showSearchDetail(data) {
         <div style="display:flex;align-items:center;gap:4px">
             <a class="detail-link" href="${APP_URL}/words?search=${encodeURIComponent(data.word)}" target="_blank">Megnyitás a TopWords-ben →</a>
             <button class="detail-tts-btn" title="Kiejtés angolul">🔊</button>
+            <button class="fc-btn" title="Flashcard készítése" style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;border:1px solid #e2e8f0;background:none;cursor:pointer;font-size:12px;flex-shrink:0;margin-left:6px">📇</button>
         </div>
     `;
     detail.classList.add('visible');
+    detail.classList.remove('form-mode');
 
     detail
         .querySelector('.detail-tts-btn')
         ?.addEventListener('click', () => speakWord(data.word));
+
+    detail.querySelector('.fc-btn')?.addEventListener('click', () => {
+        openFlashcardModal(data, searchCsrf);
+    });
 
     if (searchHasAccess) {
         detail.querySelectorAll('.status-btn').forEach((btn) => {
@@ -1808,7 +2292,7 @@ const SKIP_TAGS = new Set([
 ]);
 
 function initHighlight() {
-    chrome.storage.local.get('hlEnabled', ({ hlEnabled }) => {
+    storageGet({ hlEnabled: false }, ({ hlEnabled }) => {
         if (hlEnabled) {
             highlightEnabled = true;
 
@@ -2129,7 +2613,7 @@ function handleHlClick(e) {
 
 function toggleHighlight() {
     highlightEnabled = !highlightEnabled;
-    chrome.storage.local.set({ hlEnabled: highlightEnabled });
+    storageSet({ hlEnabled: highlightEnabled });
 
     if (highlightEnabled) {
         loadAndApplyHighlights();
@@ -2244,11 +2728,61 @@ function getPageStats(wordMap) {
     return counts;
 }
 
+// Escape-el szöveg- ÉS attribútum-kontextushoz is (idézőjelekkel együtt), hogy
+// idézett HTML-attribútumba helyezve se lehessen kitörni belőle.
 function esc(str) {
     return String(str ?? '')
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+// Igaz, amíg a bővítmény kontextusa él. Újratöltés/frissítés után a régi content
+// script tovább fut, ekkor a chrome.* hívások „Extension context invalidated"
+// hibát dobnak — a hosszú életű observerek/interval ezzel ellenőriznek és leállnak.
+function extAlive() {
+    try {
+        return !!chrome.runtime?.id;
+    } catch {
+        return false;
+    }
+}
+
+// Guard-olt chrome.storage.local elérés, hogy egy halott kontextusban se dobjon.
+function storageGet(defaults, callback) {
+    if (!extAlive()) {
+        callback?.(defaults);
+
+        return;
+    }
+
+    try {
+        chrome.storage.local.get(defaults, (values) => {
+            if (chrome.runtime.lastError) {
+                callback?.(defaults);
+
+                return;
+            }
+
+            callback?.(values);
+        });
+    } catch {
+        callback?.(defaults);
+    }
+}
+
+function storageSet(values) {
+    if (!extAlive()) {
+        return;
+    }
+
+    try {
+        chrome.storage.local.set(values);
+    } catch {
+        // A kontextus időközben érvénytelenné vált — nincs teendő.
+    }
 }
 
 function sendMsg(msg, callback) {
@@ -2405,7 +2939,7 @@ function updateYtToggleState() {
 
 function toggleYtLyrics() {
     ytEnabled = !ytEnabled;
-    chrome.storage.local.set({ ytLyricsEnabled: ytEnabled });
+    storageSet({ ytLyricsEnabled: ytEnabled });
 
     if (ytEnabled) {
         enableYtLyrics();
@@ -2517,7 +3051,7 @@ function ytWordsToHtml(text) {
         // Minden szó ÉS kifejezés kattintható `.tw-word` span — a szín csak akkor
         // kerül rá, ha van státusza, hogy a státusz nélküli szavakat is ki lehessen
         // keresni kattintással (mint korábban).
-        const attr = token.text.replace(/"/g, '&quot;');
+        const attr = esc(token.text);
         const color = token.status ? STATUS_COLORS[token.status] : null;
 
         if (token.kind === 'phrase') {
@@ -2579,6 +3113,12 @@ function startYtObserver() {
     let lastText = '';
 
     ytObserver = new MutationObserver(() => {
+        if (!extAlive()) {
+            destroyYtSubtitles();
+
+            return;
+        }
+
         // A lejátszó újrarenderelésekor a sáv és a gomb is eltűnhet —
         // olcsó guard-okkal visszatesszük.
         ensureYtBar();
@@ -2977,6 +3517,7 @@ function updateYtPanelActiveSegment(time) {
 
     if (stale) {
         idx = 0;
+
         for (let i = 0; i < ytPanelSegments.length; i++) {
             if (ytPanelSegments[i].t <= time) {
                 idx = i;
@@ -3087,7 +3628,7 @@ function disableYtPanel() {
 
 function toggleYtPanel() {
     ytPanelEnabled = !ytPanelEnabled;
-    chrome.storage.local.set({ ytTranscriptEnabled: ytPanelEnabled });
+    storageSet({ ytTranscriptEnabled: ytPanelEnabled });
 
     if (ytPanelEnabled) {
         enableYtPanel();
@@ -3154,6 +3695,13 @@ function startYtControlsObserver() {
 
     let pending = false;
     ytControlsObserver = new MutationObserver(() => {
+        if (!extAlive()) {
+            ytControlsObserver?.disconnect();
+            ytControlsObserver = null;
+
+            return;
+        }
+
         if (pending) {
             return;
         }
@@ -3200,7 +3748,7 @@ function initYtSubtitles(attempt = 0) {
         return;
     }
 
-    chrome.storage.local.get(
+    storageGet(
         { ytLyricsEnabled: false, ytTranscriptEnabled: false },
         ({ ytLyricsEnabled, ytTranscriptEnabled }) => {
             if (!isYouTubePage()) {
@@ -3447,6 +3995,12 @@ function startNfxObserver() {
     nfxNoticeShown = false;
 
     nfxObserver = new MutationObserver(() => {
+        if (!extAlive()) {
+            destroyNfxSubtitles();
+
+            return;
+        }
+
         // A lejátszó újrarenderelésekor a sáv eltűnhet — olcsó guarddal visszatesszük.
         ensureNfxBar();
 
@@ -3564,7 +4118,7 @@ function updateNfxToggleState() {
 
 function toggleNfxLyrics() {
     nfxEnabled = !nfxEnabled;
-    chrome.storage.local.set({ nfxLyricsEnabled: nfxEnabled });
+    storageSet({ nfxLyricsEnabled: nfxEnabled });
 
     if (nfxEnabled) {
         enableNfxLyrics();
@@ -3611,6 +4165,13 @@ function startNfxControlsObserver() {
 
     let pending = false;
     nfxControlsObserver = new MutationObserver(() => {
+        if (!extAlive()) {
+            nfxControlsObserver?.disconnect();
+            nfxControlsObserver = null;
+
+            return;
+        }
+
         if (pending) {
             return;
         }
@@ -3663,7 +4224,7 @@ function initNfxSubtitles(attempt = 0) {
         return;
     }
 
-    chrome.storage.local.get(
+    storageGet(
         { nfxLyricsEnabled: false },
         ({ nfxLyricsEnabled }) => {
             if (!isNetflixWatchPage()) {
@@ -3689,6 +4250,13 @@ function startNfxNavWatch() {
 
     let lastPath = location.pathname + location.search;
     nfxNavInterval = setInterval(() => {
+        if (!extAlive()) {
+            clearInterval(nfxNavInterval);
+            nfxNavInterval = null;
+
+            return;
+        }
+
         const path = location.pathname + location.search;
 
         if (path === lastPath) {

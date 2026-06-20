@@ -548,6 +548,12 @@ class TextAnalysisController extends Controller
 
     private const BOOK_STORAGE_LIMIT = 30 * 1024 * 1024;
 
+    /** Max uncompressed bytes of a single EPUB zip entry (zip-bomb guard). */
+    private const MAX_EPUB_ENTRY_BYTES = 5 * 1024 * 1024;
+
+    /** Max total uncompressed bytes read from an EPUB before stopping (zip-bomb guard). */
+    private const MAX_EPUB_TOTAL_BYTES = 40 * 1024 * 1024;
+
     private function bookLimitFor(User $user): int
     {
         return match (true) {
@@ -1140,7 +1146,7 @@ PROMPT;
     public function uploadBook(Request $request): JsonResponse
     {
         $request->validate([
-            'file' => 'required|file|mimetypes:application/pdf,application/epub+zip,application/zip|extensions:pdf,epub|max:102400',
+            'file' => 'required|file|mimetypes:application/pdf,application/epub+zip,application/zip|extensions:pdf,epub|max:30720',
         ]);
 
         $user = $request->user();
@@ -1272,10 +1278,18 @@ PROMPT;
         }
 
         $parts = [];
+        $totalBytes = 0;
         foreach ($spineFiles as $name) {
-            $content = $zip->getFromName($name);
+            $content = $this->safeReadZipEntry($zip, $name);
             if ($content === false) {
                 continue;
+            }
+
+            // Stop once the cumulative uncompressed prose passes the cap, so a
+            // zip with many large entries can't exhaust memory across iterations.
+            $totalBytes += strlen($content);
+            if ($totalBytes > self::MAX_EPUB_TOTAL_BYTES) {
+                break;
             }
 
             $text = $this->htmlToCleanText($content);
@@ -1369,7 +1383,7 @@ PROMPT;
      */
     private function readEpubSpine(\ZipArchive $zip, string $opfPath): array
     {
-        $opfContent = $zip->getFromName($opfPath);
+        $opfContent = $this->safeReadZipEntry($zip, $opfPath);
         if ($opfContent === false) {
             return [];
         }
@@ -1456,7 +1470,7 @@ PROMPT;
             }
 
             // Content-based skip: read file and check if it's a TOC page
-            $content = $zip->getFromName($fullPath);
+            $content = $this->safeReadZipEntry($zip, $fullPath);
             if ($content !== false && $this->looksLikeTocPage($content)) {
                 continue;
             }
@@ -1504,9 +1518,26 @@ PROMPT;
         return implode('/', $stack);
     }
 
+    /**
+     * Read a zip entry only if its uncompressed size is within the per-entry cap.
+     * Guards against zip bombs: ZipArchive::getFromName() decompresses the whole
+     * entry into memory, so an unchecked read of a maliciously compressed entry
+     * could exhaust memory. Returns false for missing or oversized entries.
+     */
+    private function safeReadZipEntry(\ZipArchive $zip, string $name): string|false
+    {
+        $stat = $zip->statName($name);
+
+        if ($stat === false || ($stat['size'] ?? 0) > self::MAX_EPUB_ENTRY_BYTES) {
+            return false;
+        }
+
+        return $zip->getFromName($name);
+    }
+
     private function findEpubOpfPath(\ZipArchive $zip): ?string
     {
-        $container = $zip->getFromName('META-INF/container.xml');
+        $container = $this->safeReadZipEntry($zip, 'META-INF/container.xml');
         if ($container === false) {
             return null;
         }

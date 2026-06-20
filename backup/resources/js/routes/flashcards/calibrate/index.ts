@@ -1,7 +1,7 @@
 import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition, applyUrlDefaults } from './../../../wayfinder'
 /**
 * @see \App\Http\Controllers\FlashcardCalibrationController::rate
-* @see app/Http/Controllers/FlashcardCalibrationController.php:106
+* @see app/Http/Controllers/FlashcardCalibrationController.php:84
 * @route '/flashcards/{deck}/calibrate'
 */
 export const rate = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -16,7 +16,7 @@ rate.definition = {
 
 /**
 * @see \App\Http\Controllers\FlashcardCalibrationController::rate
-* @see app/Http/Controllers/FlashcardCalibrationController.php:106
+* @see app/Http/Controllers/FlashcardCalibrationController.php:84
 * @route '/flashcards/{deck}/calibrate'
 */
 rate.url = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -49,7 +49,7 @@ rate.url = (args: { deck: number | { id: number } } | [deck: number | { id: numb
 
 /**
 * @see \App\Http\Controllers\FlashcardCalibrationController::rate
-* @see app/Http/Controllers/FlashcardCalibrationController.php:106
+* @see app/Http/Controllers/FlashcardCalibrationController.php:84
 * @route '/flashcards/{deck}/calibrate'
 */
 rate.post = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -59,7 +59,7 @@ rate.post = (args: { deck: number | { id: number } } | [deck: number | { id: num
 
 /**
 * @see \App\Http\Controllers\FlashcardCalibrationController::rate
-* @see app/Http/Controllers/FlashcardCalibrationController.php:106
+* @see app/Http/Controllers/FlashcardCalibrationController.php:84
 * @route '/flashcards/{deck}/calibrate'
 */
 const rateForm = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -69,7 +69,7 @@ const rateForm = (args: { deck: number | { id: number } } | [deck: number | { id
 
 /**
 * @see \App\Http\Controllers\FlashcardCalibrationController::rate
-* @see app/Http/Controllers/FlashcardCalibrationController.php:106
+* @see app/Http/Controllers/FlashcardCalibrationController.php:84
 * @route '/flashcards/{deck}/calibrate'
 */
 rateForm.post = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -81,7 +81,7 @@ rate.form = rateForm
 
 /**
 * @see \App\Http\Controllers\FlashcardCalibrationController::skip
-* @see app/Http/Controllers/FlashcardCalibrationController.php:194
+* @see app/Http/Controllers/FlashcardCalibrationController.php:166
 * @route '/flashcards/{deck}/calibrate/skip'
 */
 export const skip = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -96,7 +96,7 @@ skip.definition = {
 
 /**
 * @see \App\Http\Controllers\FlashcardCalibrationController::skip
-* @see app/Http/Controllers/FlashcardCalibrationController.php:194
+* @see app/Http/Controllers/FlashcardCalibrationController.php:166
 * @route '/flashcards/{deck}/calibrate/skip'
 */
 skip.url = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -129,7 +129,7 @@ skip.url = (args: { deck: number | { id: number } } | [deck: number | { id: numb
 
 /**
 * @see \App\Http\Controllers\FlashcardCalibrationController::skip
-* @see app/Http/Controllers/FlashcardCalibrationController.php:194
+* @see app/Http/Controllers/FlashcardCalibrationController.php:166
 * @route '/flashcards/{deck}/calibrate/skip'
 */
 skip.post = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -139,7 +139,7 @@ skip.post = (args: { deck: number | { id: number } } | [deck: number | { id: num
 
 /**
 * @see \App\Http\Controllers\FlashcardCalibrationController::skip
-* @see app/Http/Controllers/FlashcardCalibrationController.php:194
+* @see app/Http/Controllers/FlashcardCalibrationController.php:166
 * @route '/flashcards/{deck}/calibrate/skip'
 */
 const skipForm = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -149,7 +149,7 @@ const skipForm = (args: { deck: number | { id: number } } | [deck: number | { id
 
 /**
 * @see \App\Http\Controllers\FlashcardCalibrationController::skip
-* @see app/Http/Controllers/FlashcardCalibrationController.php:194
+* @see app/Http/Controllers/FlashcardCalibrationController.php:166
 * @route '/flashcards/{deck}/calibrate/skip'
 */
 skipForm.post = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({

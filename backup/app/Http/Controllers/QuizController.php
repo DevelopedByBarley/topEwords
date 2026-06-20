@@ -10,9 +10,9 @@ class QuizController extends Controller
 {
     public function complete(Request $request, AchievementService $service): JsonResponse
     {
-        $perfect = (bool) $request->input('perfect', false);
+        $request->validate(['perfect' => ['boolean']]);
 
-        $newAchievements = $service->checkAndAwardQuiz($request->user(), $perfect);
+        $newAchievements = $service->checkAndAwardQuiz($request->user(), $request->boolean('perfect'));
 
         return response()->json(['achievements' => $newAchievements]);
     }

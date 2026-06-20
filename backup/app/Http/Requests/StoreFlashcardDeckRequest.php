@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreFlashcardDeckRequest extends FormRequest
 {
@@ -17,7 +18,11 @@ class StoreFlashcardDeckRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:10000'],
-            'folder_id' => ['nullable', 'integer', 'exists:flashcard_folders,id'],
+            'folder_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('flashcard_folders', 'id')->where('user_id', $this->user()->id),
+            ],
         ];
     }
 }

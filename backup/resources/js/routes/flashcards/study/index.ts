@@ -1,7 +1,7 @@
 import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition, applyUrlDefaults } from './../../../wayfinder'
 /**
 * @see \App\Http\Controllers\FlashcardStudyController::submit
-* @see app/Http/Controllers/FlashcardStudyController.php:76
+* @see app/Http/Controllers/FlashcardStudyController.php:78
 * @route '/flashcards/{deck}/study'
 */
 export const submit = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -16,7 +16,7 @@ submit.definition = {
 
 /**
 * @see \App\Http\Controllers\FlashcardStudyController::submit
-* @see app/Http/Controllers/FlashcardStudyController.php:76
+* @see app/Http/Controllers/FlashcardStudyController.php:78
 * @route '/flashcards/{deck}/study'
 */
 submit.url = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -49,7 +49,7 @@ submit.url = (args: { deck: number | { id: number } } | [deck: number | { id: nu
 
 /**
 * @see \App\Http\Controllers\FlashcardStudyController::submit
-* @see app/Http/Controllers/FlashcardStudyController.php:76
+* @see app/Http/Controllers/FlashcardStudyController.php:78
 * @route '/flashcards/{deck}/study'
 */
 submit.post = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -59,7 +59,7 @@ submit.post = (args: { deck: number | { id: number } } | [deck: number | { id: n
 
 /**
 * @see \App\Http\Controllers\FlashcardStudyController::submit
-* @see app/Http/Controllers/FlashcardStudyController.php:76
+* @see app/Http/Controllers/FlashcardStudyController.php:78
 * @route '/flashcards/{deck}/study'
 */
 const submitForm = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -69,7 +69,7 @@ const submitForm = (args: { deck: number | { id: number } } | [deck: number | { 
 
 /**
 * @see \App\Http\Controllers\FlashcardStudyController::submit
-* @see app/Http/Controllers/FlashcardStudyController.php:76
+* @see app/Http/Controllers/FlashcardStudyController.php:78
 * @route '/flashcards/{deck}/study'
 */
 submitForm.post = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -81,7 +81,7 @@ submit.form = submitForm
 
 /**
 * @see \App\Http\Controllers\FlashcardStudyController::undo
-* @see app/Http/Controllers/FlashcardStudyController.php:95
+* @see app/Http/Controllers/FlashcardStudyController.php:100
 * @route '/flashcards/{deck}/study/undo'
 */
 export const undo = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -96,7 +96,7 @@ undo.definition = {
 
 /**
 * @see \App\Http\Controllers\FlashcardStudyController::undo
-* @see app/Http/Controllers/FlashcardStudyController.php:95
+* @see app/Http/Controllers/FlashcardStudyController.php:100
 * @route '/flashcards/{deck}/study/undo'
 */
 undo.url = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -129,7 +129,7 @@ undo.url = (args: { deck: number | { id: number } } | [deck: number | { id: numb
 
 /**
 * @see \App\Http\Controllers\FlashcardStudyController::undo
-* @see app/Http/Controllers/FlashcardStudyController.php:95
+* @see app/Http/Controllers/FlashcardStudyController.php:100
 * @route '/flashcards/{deck}/study/undo'
 */
 undo.post = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -139,7 +139,7 @@ undo.post = (args: { deck: number | { id: number } } | [deck: number | { id: num
 
 /**
 * @see \App\Http\Controllers\FlashcardStudyController::undo
-* @see app/Http/Controllers/FlashcardStudyController.php:95
+* @see app/Http/Controllers/FlashcardStudyController.php:100
 * @route '/flashcards/{deck}/study/undo'
 */
 const undoForm = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -149,7 +149,7 @@ const undoForm = (args: { deck: number | { id: number } } | [deck: number | { id
 
 /**
 * @see \App\Http\Controllers\FlashcardStudyController::undo
-* @see app/Http/Controllers/FlashcardStudyController.php:95
+* @see app/Http/Controllers/FlashcardStudyController.php:100
 * @route '/flashcards/{deck}/study/undo'
 */
 undoForm.post = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({

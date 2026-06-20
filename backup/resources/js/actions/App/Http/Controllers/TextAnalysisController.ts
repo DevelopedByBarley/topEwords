@@ -1,7 +1,7 @@
 import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition, applyUrlDefaults } from './../../../../wayfinder'
 /**
 * @see \App\Http\Controllers\TextAnalysisController::practiceCheck
-* @see app/Http/Controllers/TextAnalysisController.php:828
+* @see app/Http/Controllers/TextAnalysisController.php:679
 * @route '/words/practice/check'
 */
 export const practiceCheck = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -16,7 +16,7 @@ practiceCheck.definition = {
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::practiceCheck
-* @see app/Http/Controllers/TextAnalysisController.php:828
+* @see app/Http/Controllers/TextAnalysisController.php:679
 * @route '/words/practice/check'
 */
 practiceCheck.url = (options?: RouteQueryOptions) => {
@@ -25,7 +25,7 @@ practiceCheck.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::practiceCheck
-* @see app/Http/Controllers/TextAnalysisController.php:828
+* @see app/Http/Controllers/TextAnalysisController.php:679
 * @route '/words/practice/check'
 */
 practiceCheck.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -35,7 +35,7 @@ practiceCheck.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => (
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::practiceCheck
-* @see app/Http/Controllers/TextAnalysisController.php:828
+* @see app/Http/Controllers/TextAnalysisController.php:679
 * @route '/words/practice/check'
 */
 const practiceCheckForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -45,7 +45,7 @@ const practiceCheckForm = (options?: RouteQueryOptions): RouteFormDefinition<'po
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::practiceCheck
-* @see app/Http/Controllers/TextAnalysisController.php:828
+* @see app/Http/Controllers/TextAnalysisController.php:679
 * @route '/words/practice/check'
 */
 practiceCheckForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -56,8 +56,64 @@ practiceCheckForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'pos
 practiceCheck.form = practiceCheckForm
 
 /**
+* @see \App\Http\Controllers\TextAnalysisController::sentenceCheck
+* @see app/Http/Controllers/TextAnalysisController.php:764
+* @route '/words/sentence-check'
+*/
+export const sentenceCheck = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
+    url: sentenceCheck.url(options),
+    method: 'post',
+})
+
+sentenceCheck.definition = {
+    methods: ["post"],
+    url: '/words/sentence-check',
+} satisfies RouteDefinition<["post"]>
+
+/**
+* @see \App\Http\Controllers\TextAnalysisController::sentenceCheck
+* @see app/Http/Controllers/TextAnalysisController.php:764
+* @route '/words/sentence-check'
+*/
+sentenceCheck.url = (options?: RouteQueryOptions) => {
+    return sentenceCheck.definition.url + queryParams(options)
+}
+
+/**
+* @see \App\Http\Controllers\TextAnalysisController::sentenceCheck
+* @see app/Http/Controllers/TextAnalysisController.php:764
+* @route '/words/sentence-check'
+*/
+sentenceCheck.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
+    url: sentenceCheck.url(options),
+    method: 'post',
+})
+
+/**
+* @see \App\Http\Controllers\TextAnalysisController::sentenceCheck
+* @see app/Http/Controllers/TextAnalysisController.php:764
+* @route '/words/sentence-check'
+*/
+const sentenceCheckForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: sentenceCheck.url(options),
+    method: 'post',
+})
+
+/**
+* @see \App\Http\Controllers\TextAnalysisController::sentenceCheck
+* @see app/Http/Controllers/TextAnalysisController.php:764
+* @route '/words/sentence-check'
+*/
+sentenceCheckForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: sentenceCheck.url(options),
+    method: 'post',
+})
+
+sentenceCheck.form = sentenceCheckForm
+
+/**
 * @see \App\Http\Controllers\TextAnalysisController::show
-* @see app/Http/Controllers/TextAnalysisController.php:20
+* @see app/Http/Controllers/TextAnalysisController.php:52
 * @route '/text-analysis'
 */
 export const show = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -72,7 +128,7 @@ show.definition = {
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::show
-* @see app/Http/Controllers/TextAnalysisController.php:20
+* @see app/Http/Controllers/TextAnalysisController.php:52
 * @route '/text-analysis'
 */
 show.url = (options?: RouteQueryOptions) => {
@@ -81,7 +137,7 @@ show.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::show
-* @see app/Http/Controllers/TextAnalysisController.php:20
+* @see app/Http/Controllers/TextAnalysisController.php:52
 * @route '/text-analysis'
 */
 show.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -91,7 +147,7 @@ show.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::show
-* @see app/Http/Controllers/TextAnalysisController.php:20
+* @see app/Http/Controllers/TextAnalysisController.php:52
 * @route '/text-analysis'
 */
 show.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -101,7 +157,7 @@ show.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::show
-* @see app/Http/Controllers/TextAnalysisController.php:20
+* @see app/Http/Controllers/TextAnalysisController.php:52
 * @route '/text-analysis'
 */
 const showForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -111,7 +167,7 @@ const showForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::show
-* @see app/Http/Controllers/TextAnalysisController.php:20
+* @see app/Http/Controllers/TextAnalysisController.php:52
 * @route '/text-analysis'
 */
 showForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -121,7 +177,7 @@ showForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::show
-* @see app/Http/Controllers/TextAnalysisController.php:20
+* @see app/Http/Controllers/TextAnalysisController.php:52
 * @route '/text-analysis'
 */
 showForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -138,7 +194,7 @@ show.form = showForm
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::fetchSource
-* @see app/Http/Controllers/TextAnalysisController.php:92
+* @see app/Http/Controllers/TextAnalysisController.php:132
 * @route '/text-analysis/fetch-source'
 */
 export const fetchSource = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -153,7 +209,7 @@ fetchSource.definition = {
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::fetchSource
-* @see app/Http/Controllers/TextAnalysisController.php:92
+* @see app/Http/Controllers/TextAnalysisController.php:132
 * @route '/text-analysis/fetch-source'
 */
 fetchSource.url = (options?: RouteQueryOptions) => {
@@ -162,7 +218,7 @@ fetchSource.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::fetchSource
-* @see app/Http/Controllers/TextAnalysisController.php:92
+* @see app/Http/Controllers/TextAnalysisController.php:132
 * @route '/text-analysis/fetch-source'
 */
 fetchSource.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -172,7 +228,7 @@ fetchSource.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::fetchSource
-* @see app/Http/Controllers/TextAnalysisController.php:92
+* @see app/Http/Controllers/TextAnalysisController.php:132
 * @route '/text-analysis/fetch-source'
 */
 const fetchSourceForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -182,7 +238,7 @@ const fetchSourceForm = (options?: RouteQueryOptions): RouteFormDefinition<'post
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::fetchSource
-* @see app/Http/Controllers/TextAnalysisController.php:92
+* @see app/Http/Controllers/TextAnalysisController.php:132
 * @route '/text-analysis/fetch-source'
 */
 fetchSourceForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -193,8 +249,445 @@ fetchSourceForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'
 fetchSource.form = fetchSourceForm
 
 /**
+* @see \App\Http\Controllers\TextAnalysisController::listYoutube
+* @see app/Http/Controllers/TextAnalysisController.php:996
+* @route '/text-analysis/youtube'
+*/
+export const listYoutube = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
+    url: listYoutube.url(options),
+    method: 'get',
+})
+
+listYoutube.definition = {
+    methods: ["get","head"],
+    url: '/text-analysis/youtube',
+} satisfies RouteDefinition<["get","head"]>
+
+/**
+* @see \App\Http\Controllers\TextAnalysisController::listYoutube
+* @see app/Http/Controllers/TextAnalysisController.php:996
+* @route '/text-analysis/youtube'
+*/
+listYoutube.url = (options?: RouteQueryOptions) => {
+    return listYoutube.definition.url + queryParams(options)
+}
+
+/**
+* @see \App\Http\Controllers\TextAnalysisController::listYoutube
+* @see app/Http/Controllers/TextAnalysisController.php:996
+* @route '/text-analysis/youtube'
+*/
+listYoutube.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
+    url: listYoutube.url(options),
+    method: 'get',
+})
+
+/**
+* @see \App\Http\Controllers\TextAnalysisController::listYoutube
+* @see app/Http/Controllers/TextAnalysisController.php:996
+* @route '/text-analysis/youtube'
+*/
+listYoutube.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
+    url: listYoutube.url(options),
+    method: 'head',
+})
+
+/**
+* @see \App\Http\Controllers\TextAnalysisController::listYoutube
+* @see app/Http/Controllers/TextAnalysisController.php:996
+* @route '/text-analysis/youtube'
+*/
+const listYoutubeForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    action: listYoutube.url(options),
+    method: 'get',
+})
+
+/**
+* @see \App\Http\Controllers\TextAnalysisController::listYoutube
+* @see app/Http/Controllers/TextAnalysisController.php:996
+* @route '/text-analysis/youtube'
+*/
+listYoutubeForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    action: listYoutube.url(options),
+    method: 'get',
+})
+
+/**
+* @see \App\Http\Controllers\TextAnalysisController::listYoutube
+* @see app/Http/Controllers/TextAnalysisController.php:996
+* @route '/text-analysis/youtube'
+*/
+listYoutubeForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    action: listYoutube.url({
+        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+            _method: 'HEAD',
+            ...(options?.query ?? options?.mergeQuery ?? {}),
+        }
+    }),
+    method: 'get',
+})
+
+listYoutube.form = listYoutubeForm
+
+/**
+* @see \App\Http\Controllers\TextAnalysisController::storeYoutube
+* @see app/Http/Controllers/TextAnalysisController.php:1011
+* @route '/text-analysis/youtube'
+*/
+export const storeYoutube = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
+    url: storeYoutube.url(options),
+    method: 'post',
+})
+
+storeYoutube.definition = {
+    methods: ["post"],
+    url: '/text-analysis/youtube',
+} satisfies RouteDefinition<["post"]>
+
+/**
+* @see \App\Http\Controllers\TextAnalysisController::storeYoutube
+* @see app/Http/Controllers/TextAnalysisController.php:1011
+* @route '/text-analysis/youtube'
+*/
+storeYoutube.url = (options?: RouteQueryOptions) => {
+    return storeYoutube.definition.url + queryParams(options)
+}
+
+/**
+* @see \App\Http\Controllers\TextAnalysisController::storeYoutube
+* @see app/Http/Controllers/TextAnalysisController.php:1011
+* @route '/text-analysis/youtube'
+*/
+storeYoutube.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
+    url: storeYoutube.url(options),
+    method: 'post',
+})
+
+/**
+* @see \App\Http\Controllers\TextAnalysisController::storeYoutube
+* @see app/Http/Controllers/TextAnalysisController.php:1011
+* @route '/text-analysis/youtube'
+*/
+const storeYoutubeForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: storeYoutube.url(options),
+    method: 'post',
+})
+
+/**
+* @see \App\Http\Controllers\TextAnalysisController::storeYoutube
+* @see app/Http/Controllers/TextAnalysisController.php:1011
+* @route '/text-analysis/youtube'
+*/
+storeYoutubeForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: storeYoutube.url(options),
+    method: 'post',
+})
+
+storeYoutube.form = storeYoutubeForm
+
+/**
+* @see \App\Http\Controllers\TextAnalysisController::getYoutubePage
+* @see app/Http/Controllers/TextAnalysisController.php:1065
+* @route '/text-analysis/youtube/{transcript}/page'
+*/
+export const getYoutubePage = (args: { transcript: number | { id: number } } | [transcript: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
+    url: getYoutubePage.url(args, options),
+    method: 'get',
+})
+
+getYoutubePage.definition = {
+    methods: ["get","head"],
+    url: '/text-analysis/youtube/{transcript}/page',
+} satisfies RouteDefinition<["get","head"]>
+
+/**
+* @see \App\Http\Controllers\TextAnalysisController::getYoutubePage
+* @see app/Http/Controllers/TextAnalysisController.php:1065
+* @route '/text-analysis/youtube/{transcript}/page'
+*/
+getYoutubePage.url = (args: { transcript: number | { id: number } } | [transcript: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
+    if (typeof args === 'string' || typeof args === 'number') {
+        args = { transcript: args }
+    }
+
+    if (typeof args === 'object' && !Array.isArray(args) && 'id' in args) {
+        args = { transcript: args.id }
+    }
+
+    if (Array.isArray(args)) {
+        args = {
+            transcript: args[0],
+        }
+    }
+
+    args = applyUrlDefaults(args)
+
+    const parsedArgs = {
+        transcript: typeof args.transcript === 'object'
+        ? args.transcript.id
+        : args.transcript,
+    }
+
+    return getYoutubePage.definition.url
+            .replace('{transcript}', parsedArgs.transcript.toString())
+            .replace(/\/+$/, '') + queryParams(options)
+}
+
+/**
+* @see \App\Http\Controllers\TextAnalysisController::getYoutubePage
+* @see app/Http/Controllers/TextAnalysisController.php:1065
+* @route '/text-analysis/youtube/{transcript}/page'
+*/
+getYoutubePage.get = (args: { transcript: number | { id: number } } | [transcript: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
+    url: getYoutubePage.url(args, options),
+    method: 'get',
+})
+
+/**
+* @see \App\Http\Controllers\TextAnalysisController::getYoutubePage
+* @see app/Http/Controllers/TextAnalysisController.php:1065
+* @route '/text-analysis/youtube/{transcript}/page'
+*/
+getYoutubePage.head = (args: { transcript: number | { id: number } } | [transcript: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'head'> => ({
+    url: getYoutubePage.url(args, options),
+    method: 'head',
+})
+
+/**
+* @see \App\Http\Controllers\TextAnalysisController::getYoutubePage
+* @see app/Http/Controllers/TextAnalysisController.php:1065
+* @route '/text-analysis/youtube/{transcript}/page'
+*/
+const getYoutubePageForm = (args: { transcript: number | { id: number } } | [transcript: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    action: getYoutubePage.url(args, options),
+    method: 'get',
+})
+
+/**
+* @see \App\Http\Controllers\TextAnalysisController::getYoutubePage
+* @see app/Http/Controllers/TextAnalysisController.php:1065
+* @route '/text-analysis/youtube/{transcript}/page'
+*/
+getYoutubePageForm.get = (args: { transcript: number | { id: number } } | [transcript: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    action: getYoutubePage.url(args, options),
+    method: 'get',
+})
+
+/**
+* @see \App\Http\Controllers\TextAnalysisController::getYoutubePage
+* @see app/Http/Controllers/TextAnalysisController.php:1065
+* @route '/text-analysis/youtube/{transcript}/page'
+*/
+getYoutubePageForm.head = (args: { transcript: number | { id: number } } | [transcript: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    action: getYoutubePage.url(args, {
+        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+            _method: 'HEAD',
+            ...(options?.query ?? options?.mergeQuery ?? {}),
+        }
+    }),
+    method: 'get',
+})
+
+getYoutubePage.form = getYoutubePageForm
+
+/**
+* @see \App\Http\Controllers\TextAnalysisController::youtubeOverview
+* @see app/Http/Controllers/TextAnalysisController.php:1080
+* @route '/text-analysis/youtube/{transcript}/overview'
+*/
+export const youtubeOverview = (args: { transcript: number | { id: number } } | [transcript: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
+    url: youtubeOverview.url(args, options),
+    method: 'get',
+})
+
+youtubeOverview.definition = {
+    methods: ["get","head"],
+    url: '/text-analysis/youtube/{transcript}/overview',
+} satisfies RouteDefinition<["get","head"]>
+
+/**
+* @see \App\Http\Controllers\TextAnalysisController::youtubeOverview
+* @see app/Http/Controllers/TextAnalysisController.php:1080
+* @route '/text-analysis/youtube/{transcript}/overview'
+*/
+youtubeOverview.url = (args: { transcript: number | { id: number } } | [transcript: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
+    if (typeof args === 'string' || typeof args === 'number') {
+        args = { transcript: args }
+    }
+
+    if (typeof args === 'object' && !Array.isArray(args) && 'id' in args) {
+        args = { transcript: args.id }
+    }
+
+    if (Array.isArray(args)) {
+        args = {
+            transcript: args[0],
+        }
+    }
+
+    args = applyUrlDefaults(args)
+
+    const parsedArgs = {
+        transcript: typeof args.transcript === 'object'
+        ? args.transcript.id
+        : args.transcript,
+    }
+
+    return youtubeOverview.definition.url
+            .replace('{transcript}', parsedArgs.transcript.toString())
+            .replace(/\/+$/, '') + queryParams(options)
+}
+
+/**
+* @see \App\Http\Controllers\TextAnalysisController::youtubeOverview
+* @see app/Http/Controllers/TextAnalysisController.php:1080
+* @route '/text-analysis/youtube/{transcript}/overview'
+*/
+youtubeOverview.get = (args: { transcript: number | { id: number } } | [transcript: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
+    url: youtubeOverview.url(args, options),
+    method: 'get',
+})
+
+/**
+* @see \App\Http\Controllers\TextAnalysisController::youtubeOverview
+* @see app/Http/Controllers/TextAnalysisController.php:1080
+* @route '/text-analysis/youtube/{transcript}/overview'
+*/
+youtubeOverview.head = (args: { transcript: number | { id: number } } | [transcript: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'head'> => ({
+    url: youtubeOverview.url(args, options),
+    method: 'head',
+})
+
+/**
+* @see \App\Http\Controllers\TextAnalysisController::youtubeOverview
+* @see app/Http/Controllers/TextAnalysisController.php:1080
+* @route '/text-analysis/youtube/{transcript}/overview'
+*/
+const youtubeOverviewForm = (args: { transcript: number | { id: number } } | [transcript: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    action: youtubeOverview.url(args, options),
+    method: 'get',
+})
+
+/**
+* @see \App\Http\Controllers\TextAnalysisController::youtubeOverview
+* @see app/Http/Controllers/TextAnalysisController.php:1080
+* @route '/text-analysis/youtube/{transcript}/overview'
+*/
+youtubeOverviewForm.get = (args: { transcript: number | { id: number } } | [transcript: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    action: youtubeOverview.url(args, options),
+    method: 'get',
+})
+
+/**
+* @see \App\Http\Controllers\TextAnalysisController::youtubeOverview
+* @see app/Http/Controllers/TextAnalysisController.php:1080
+* @route '/text-analysis/youtube/{transcript}/overview'
+*/
+youtubeOverviewForm.head = (args: { transcript: number | { id: number } } | [transcript: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    action: youtubeOverview.url(args, {
+        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+            _method: 'HEAD',
+            ...(options?.query ?? options?.mergeQuery ?? {}),
+        }
+    }),
+    method: 'get',
+})
+
+youtubeOverview.form = youtubeOverviewForm
+
+/**
+* @see \App\Http\Controllers\TextAnalysisController::deleteYoutube
+* @see app/Http/Controllers/TextAnalysisController.php:1093
+* @route '/text-analysis/youtube/{transcript}'
+*/
+export const deleteYoutube = (args: { transcript: number | { id: number } } | [transcript: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'delete'> => ({
+    url: deleteYoutube.url(args, options),
+    method: 'delete',
+})
+
+deleteYoutube.definition = {
+    methods: ["delete"],
+    url: '/text-analysis/youtube/{transcript}',
+} satisfies RouteDefinition<["delete"]>
+
+/**
+* @see \App\Http\Controllers\TextAnalysisController::deleteYoutube
+* @see app/Http/Controllers/TextAnalysisController.php:1093
+* @route '/text-analysis/youtube/{transcript}'
+*/
+deleteYoutube.url = (args: { transcript: number | { id: number } } | [transcript: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
+    if (typeof args === 'string' || typeof args === 'number') {
+        args = { transcript: args }
+    }
+
+    if (typeof args === 'object' && !Array.isArray(args) && 'id' in args) {
+        args = { transcript: args.id }
+    }
+
+    if (Array.isArray(args)) {
+        args = {
+            transcript: args[0],
+        }
+    }
+
+    args = applyUrlDefaults(args)
+
+    const parsedArgs = {
+        transcript: typeof args.transcript === 'object'
+        ? args.transcript.id
+        : args.transcript,
+    }
+
+    return deleteYoutube.definition.url
+            .replace('{transcript}', parsedArgs.transcript.toString())
+            .replace(/\/+$/, '') + queryParams(options)
+}
+
+/**
+* @see \App\Http\Controllers\TextAnalysisController::deleteYoutube
+* @see app/Http/Controllers/TextAnalysisController.php:1093
+* @route '/text-analysis/youtube/{transcript}'
+*/
+deleteYoutube.delete = (args: { transcript: number | { id: number } } | [transcript: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'delete'> => ({
+    url: deleteYoutube.url(args, options),
+    method: 'delete',
+})
+
+/**
+* @see \App\Http\Controllers\TextAnalysisController::deleteYoutube
+* @see app/Http/Controllers/TextAnalysisController.php:1093
+* @route '/text-analysis/youtube/{transcript}'
+*/
+const deleteYoutubeForm = (args: { transcript: number | { id: number } } | [transcript: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: deleteYoutube.url(args, {
+        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+            _method: 'DELETE',
+            ...(options?.query ?? options?.mergeQuery ?? {}),
+        }
+    }),
+    method: 'post',
+})
+
+/**
+* @see \App\Http\Controllers\TextAnalysisController::deleteYoutube
+* @see app/Http/Controllers/TextAnalysisController.php:1093
+* @route '/text-analysis/youtube/{transcript}'
+*/
+deleteYoutubeForm.delete = (args: { transcript: number | { id: number } } | [transcript: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: deleteYoutube.url(args, {
+        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+            _method: 'DELETE',
+            ...(options?.query ?? options?.mergeQuery ?? {}),
+        }
+    }),
+    method: 'post',
+})
+
+deleteYoutube.form = deleteYoutubeForm
+
+/**
 * @see \App\Http\Controllers\TextAnalysisController::analyze
-* @see app/Http/Controllers/TextAnalysisController.php:111
+* @see app/Http/Controllers/TextAnalysisController.php:229
 * @route '/text-analysis/analyze'
 */
 export const analyze = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -209,7 +702,7 @@ analyze.definition = {
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::analyze
-* @see app/Http/Controllers/TextAnalysisController.php:111
+* @see app/Http/Controllers/TextAnalysisController.php:229
 * @route '/text-analysis/analyze'
 */
 analyze.url = (options?: RouteQueryOptions) => {
@@ -218,7 +711,7 @@ analyze.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::analyze
-* @see app/Http/Controllers/TextAnalysisController.php:111
+* @see app/Http/Controllers/TextAnalysisController.php:229
 * @route '/text-analysis/analyze'
 */
 analyze.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -228,7 +721,7 @@ analyze.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::analyze
-* @see app/Http/Controllers/TextAnalysisController.php:111
+* @see app/Http/Controllers/TextAnalysisController.php:229
 * @route '/text-analysis/analyze'
 */
 const analyzeForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -238,7 +731,7 @@ const analyzeForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> =
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::analyze
-* @see app/Http/Controllers/TextAnalysisController.php:111
+* @see app/Http/Controllers/TextAnalysisController.php:229
 * @route '/text-analysis/analyze'
 */
 analyzeForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -250,7 +743,7 @@ analyze.form = analyzeForm
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::wordLookup
-* @see app/Http/Controllers/TextAnalysisController.php:25
+* @see app/Http/Controllers/TextAnalysisController.php:57
 * @route '/text-analysis/word-lookup'
 */
 export const wordLookup = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -265,7 +758,7 @@ wordLookup.definition = {
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::wordLookup
-* @see app/Http/Controllers/TextAnalysisController.php:25
+* @see app/Http/Controllers/TextAnalysisController.php:57
 * @route '/text-analysis/word-lookup'
 */
 wordLookup.url = (options?: RouteQueryOptions) => {
@@ -274,7 +767,7 @@ wordLookup.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::wordLookup
-* @see app/Http/Controllers/TextAnalysisController.php:25
+* @see app/Http/Controllers/TextAnalysisController.php:57
 * @route '/text-analysis/word-lookup'
 */
 wordLookup.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -284,7 +777,7 @@ wordLookup.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::wordLookup
-* @see app/Http/Controllers/TextAnalysisController.php:25
+* @see app/Http/Controllers/TextAnalysisController.php:57
 * @route '/text-analysis/word-lookup'
 */
 wordLookup.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -294,7 +787,7 @@ wordLookup.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::wordLookup
-* @see app/Http/Controllers/TextAnalysisController.php:25
+* @see app/Http/Controllers/TextAnalysisController.php:57
 * @route '/text-analysis/word-lookup'
 */
 const wordLookupForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -304,7 +797,7 @@ const wordLookupForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'>
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::wordLookup
-* @see app/Http/Controllers/TextAnalysisController.php:25
+* @see app/Http/Controllers/TextAnalysisController.php:57
 * @route '/text-analysis/word-lookup'
 */
 wordLookupForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -314,7 +807,7 @@ wordLookupForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> =
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::wordLookup
-* @see app/Http/Controllers/TextAnalysisController.php:25
+* @see app/Http/Controllers/TextAnalysisController.php:57
 * @route '/text-analysis/word-lookup'
 */
 wordLookupForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -331,7 +824,7 @@ wordLookup.form = wordLookupForm
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::geminiWordLookup
-* @see app/Http/Controllers/TextAnalysisController.php:1027
+* @see app/Http/Controllers/TextAnalysisController.php:900
 * @route '/text-analysis/gemini-lookup'
 */
 export const geminiWordLookup = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -346,7 +839,7 @@ geminiWordLookup.definition = {
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::geminiWordLookup
-* @see app/Http/Controllers/TextAnalysisController.php:1027
+* @see app/Http/Controllers/TextAnalysisController.php:900
 * @route '/text-analysis/gemini-lookup'
 */
 geminiWordLookup.url = (options?: RouteQueryOptions) => {
@@ -355,7 +848,7 @@ geminiWordLookup.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::geminiWordLookup
-* @see app/Http/Controllers/TextAnalysisController.php:1027
+* @see app/Http/Controllers/TextAnalysisController.php:900
 * @route '/text-analysis/gemini-lookup'
 */
 geminiWordLookup.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -365,7 +858,7 @@ geminiWordLookup.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => 
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::geminiWordLookup
-* @see app/Http/Controllers/TextAnalysisController.php:1027
+* @see app/Http/Controllers/TextAnalysisController.php:900
 * @route '/text-analysis/gemini-lookup'
 */
 geminiWordLookup.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -375,7 +868,7 @@ geminiWordLookup.head = (options?: RouteQueryOptions): RouteDefinition<'head'> =
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::geminiWordLookup
-* @see app/Http/Controllers/TextAnalysisController.php:1027
+* @see app/Http/Controllers/TextAnalysisController.php:900
 * @route '/text-analysis/gemini-lookup'
 */
 const geminiWordLookupForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -385,7 +878,7 @@ const geminiWordLookupForm = (options?: RouteQueryOptions): RouteFormDefinition<
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::geminiWordLookup
-* @see app/Http/Controllers/TextAnalysisController.php:1027
+* @see app/Http/Controllers/TextAnalysisController.php:900
 * @route '/text-analysis/gemini-lookup'
 */
 geminiWordLookupForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -395,7 +888,7 @@ geminiWordLookupForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'g
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::geminiWordLookup
-* @see app/Http/Controllers/TextAnalysisController.php:1027
+* @see app/Http/Controllers/TextAnalysisController.php:900
 * @route '/text-analysis/gemini-lookup'
 */
 geminiWordLookupForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -412,7 +905,7 @@ geminiWordLookup.form = geminiWordLookupForm
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::geminiFlashcard
-* @see app/Http/Controllers/TextAnalysisController.php:705
+* @see app/Http/Controllers/TextAnalysisController.php:552
 * @route '/text-analysis/gemini-flashcard'
 */
 export const geminiFlashcard = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -427,7 +920,7 @@ geminiFlashcard.definition = {
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::geminiFlashcard
-* @see app/Http/Controllers/TextAnalysisController.php:705
+* @see app/Http/Controllers/TextAnalysisController.php:552
 * @route '/text-analysis/gemini-flashcard'
 */
 geminiFlashcard.url = (options?: RouteQueryOptions) => {
@@ -436,7 +929,7 @@ geminiFlashcard.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::geminiFlashcard
-* @see app/Http/Controllers/TextAnalysisController.php:705
+* @see app/Http/Controllers/TextAnalysisController.php:552
 * @route '/text-analysis/gemini-flashcard'
 */
 geminiFlashcard.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -446,7 +939,7 @@ geminiFlashcard.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => (
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::geminiFlashcard
-* @see app/Http/Controllers/TextAnalysisController.php:705
+* @see app/Http/Controllers/TextAnalysisController.php:552
 * @route '/text-analysis/gemini-flashcard'
 */
 geminiFlashcard.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -456,7 +949,7 @@ geminiFlashcard.head = (options?: RouteQueryOptions): RouteDefinition<'head'> =>
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::geminiFlashcard
-* @see app/Http/Controllers/TextAnalysisController.php:705
+* @see app/Http/Controllers/TextAnalysisController.php:552
 * @route '/text-analysis/gemini-flashcard'
 */
 const geminiFlashcardForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -466,7 +959,7 @@ const geminiFlashcardForm = (options?: RouteQueryOptions): RouteFormDefinition<'
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::geminiFlashcard
-* @see app/Http/Controllers/TextAnalysisController.php:705
+* @see app/Http/Controllers/TextAnalysisController.php:552
 * @route '/text-analysis/gemini-flashcard'
 */
 geminiFlashcardForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -476,7 +969,7 @@ geminiFlashcardForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'ge
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::geminiFlashcard
-* @see app/Http/Controllers/TextAnalysisController.php:705
+* @see app/Http/Controllers/TextAnalysisController.php:552
 * @route '/text-analysis/gemini-flashcard'
 */
 geminiFlashcardForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -493,7 +986,7 @@ geminiFlashcard.form = geminiFlashcardForm
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::geminiListModels
-* @see app/Http/Controllers/TextAnalysisController.php:1018
+* @see app/Http/Controllers/TextAnalysisController.php:889
 * @route '/text-analysis/gemini-models'
 */
 export const geminiListModels = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -508,7 +1001,7 @@ geminiListModels.definition = {
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::geminiListModels
-* @see app/Http/Controllers/TextAnalysisController.php:1018
+* @see app/Http/Controllers/TextAnalysisController.php:889
 * @route '/text-analysis/gemini-models'
 */
 geminiListModels.url = (options?: RouteQueryOptions) => {
@@ -517,7 +1010,7 @@ geminiListModels.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::geminiListModels
-* @see app/Http/Controllers/TextAnalysisController.php:1018
+* @see app/Http/Controllers/TextAnalysisController.php:889
 * @route '/text-analysis/gemini-models'
 */
 geminiListModels.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -527,7 +1020,7 @@ geminiListModels.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => 
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::geminiListModels
-* @see app/Http/Controllers/TextAnalysisController.php:1018
+* @see app/Http/Controllers/TextAnalysisController.php:889
 * @route '/text-analysis/gemini-models'
 */
 geminiListModels.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -537,7 +1030,7 @@ geminiListModels.head = (options?: RouteQueryOptions): RouteDefinition<'head'> =
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::geminiListModels
-* @see app/Http/Controllers/TextAnalysisController.php:1018
+* @see app/Http/Controllers/TextAnalysisController.php:889
 * @route '/text-analysis/gemini-models'
 */
 const geminiListModelsForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -547,7 +1040,7 @@ const geminiListModelsForm = (options?: RouteQueryOptions): RouteFormDefinition<
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::geminiListModels
-* @see app/Http/Controllers/TextAnalysisController.php:1018
+* @see app/Http/Controllers/TextAnalysisController.php:889
 * @route '/text-analysis/gemini-models'
 */
 geminiListModelsForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -557,7 +1050,7 @@ geminiListModelsForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'g
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::geminiListModels
-* @see app/Http/Controllers/TextAnalysisController.php:1018
+* @see app/Http/Controllers/TextAnalysisController.php:889
 * @route '/text-analysis/gemini-models'
 */
 geminiListModelsForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -574,7 +1067,7 @@ geminiListModels.form = geminiListModelsForm
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::wordInsight
-* @see app/Http/Controllers/TextAnalysisController.php:963
+* @see app/Http/Controllers/TextAnalysisController.php:830
 * @route '/text-analysis/word-insight'
 */
 export const wordInsight = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -589,7 +1082,7 @@ wordInsight.definition = {
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::wordInsight
-* @see app/Http/Controllers/TextAnalysisController.php:963
+* @see app/Http/Controllers/TextAnalysisController.php:830
 * @route '/text-analysis/word-insight'
 */
 wordInsight.url = (options?: RouteQueryOptions) => {
@@ -598,7 +1091,7 @@ wordInsight.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::wordInsight
-* @see app/Http/Controllers/TextAnalysisController.php:963
+* @see app/Http/Controllers/TextAnalysisController.php:830
 * @route '/text-analysis/word-insight'
 */
 wordInsight.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -608,7 +1101,7 @@ wordInsight.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::wordInsight
-* @see app/Http/Controllers/TextAnalysisController.php:963
+* @see app/Http/Controllers/TextAnalysisController.php:830
 * @route '/text-analysis/word-insight'
 */
 wordInsight.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -618,7 +1111,7 @@ wordInsight.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::wordInsight
-* @see app/Http/Controllers/TextAnalysisController.php:963
+* @see app/Http/Controllers/TextAnalysisController.php:830
 * @route '/text-analysis/word-insight'
 */
 const wordInsightForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -628,7 +1121,7 @@ const wordInsightForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::wordInsight
-* @see app/Http/Controllers/TextAnalysisController.php:963
+* @see app/Http/Controllers/TextAnalysisController.php:830
 * @route '/text-analysis/word-insight'
 */
 wordInsightForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -638,7 +1131,7 @@ wordInsightForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> 
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::wordInsight
-* @see app/Http/Controllers/TextAnalysisController.php:963
+* @see app/Http/Controllers/TextAnalysisController.php:830
 * @route '/text-analysis/word-insight'
 */
 wordInsightForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -654,64 +1147,8 @@ wordInsightForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'>
 wordInsight.form = wordInsightForm
 
 /**
-* @see \App\Http\Controllers\TextAnalysisController::sentenceCheck
-* @see app/Http/Controllers/TextAnalysisController.php:901
-* @route '/words/sentence-check'
-*/
-export const sentenceCheck = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
-    url: sentenceCheck.url(options),
-    method: 'post',
-})
-
-sentenceCheck.definition = {
-    methods: ["post"],
-    url: '/words/sentence-check',
-} satisfies RouteDefinition<["post"]>
-
-/**
-* @see \App\Http\Controllers\TextAnalysisController::sentenceCheck
-* @see app/Http/Controllers/TextAnalysisController.php:901
-* @route '/words/sentence-check'
-*/
-sentenceCheck.url = (options?: RouteQueryOptions) => {
-    return sentenceCheck.definition.url + queryParams(options)
-}
-
-/**
-* @see \App\Http\Controllers\TextAnalysisController::sentenceCheck
-* @see app/Http/Controllers/TextAnalysisController.php:901
-* @route '/words/sentence-check'
-*/
-sentenceCheck.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
-    url: sentenceCheck.url(options),
-    method: 'post',
-})
-
-/**
-* @see \App\Http\Controllers\TextAnalysisController::sentenceCheck
-* @see app/Http/Controllers/TextAnalysisController.php:901
-* @route '/words/sentence-check'
-*/
-const sentenceCheckForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
-    action: sentenceCheck.url(options),
-    method: 'post',
-})
-
-/**
-* @see \App\Http\Controllers\TextAnalysisController::sentenceCheck
-* @see app/Http/Controllers/TextAnalysisController.php:901
-* @route '/words/sentence-check'
-*/
-sentenceCheckForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
-    action: sentenceCheck.url(options),
-    method: 'post',
-})
-
-sentenceCheck.form = sentenceCheckForm
-
-/**
 * @see \App\Http\Controllers\TextAnalysisController::listBooks
-* @see app/Http/Controllers/TextAnalysisController.php:674
+* @see app/Http/Controllers/TextAnalysisController.php:521
 * @route '/text-analysis/books'
 */
 export const listBooks = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -726,7 +1163,7 @@ listBooks.definition = {
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::listBooks
-* @see app/Http/Controllers/TextAnalysisController.php:674
+* @see app/Http/Controllers/TextAnalysisController.php:521
 * @route '/text-analysis/books'
 */
 listBooks.url = (options?: RouteQueryOptions) => {
@@ -735,7 +1172,7 @@ listBooks.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::listBooks
-* @see app/Http/Controllers/TextAnalysisController.php:674
+* @see app/Http/Controllers/TextAnalysisController.php:521
 * @route '/text-analysis/books'
 */
 listBooks.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -745,7 +1182,7 @@ listBooks.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::listBooks
-* @see app/Http/Controllers/TextAnalysisController.php:674
+* @see app/Http/Controllers/TextAnalysisController.php:521
 * @route '/text-analysis/books'
 */
 listBooks.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -755,7 +1192,7 @@ listBooks.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::listBooks
-* @see app/Http/Controllers/TextAnalysisController.php:674
+* @see app/Http/Controllers/TextAnalysisController.php:521
 * @route '/text-analysis/books'
 */
 const listBooksForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -765,7 +1202,7 @@ const listBooksForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> 
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::listBooks
-* @see app/Http/Controllers/TextAnalysisController.php:674
+* @see app/Http/Controllers/TextAnalysisController.php:521
 * @route '/text-analysis/books'
 */
 listBooksForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -775,7 +1212,7 @@ listBooksForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> =>
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::listBooks
-* @see app/Http/Controllers/TextAnalysisController.php:674
+* @see app/Http/Controllers/TextAnalysisController.php:521
 * @route '/text-analysis/books'
 */
 listBooksForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -792,7 +1229,7 @@ listBooks.form = listBooksForm
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::uploadBook
-* @see app/Http/Controllers/TextAnalysisController.php:1096
+* @see app/Http/Controllers/TextAnalysisController.php:1101
 * @route '/text-analysis/books'
 */
 export const uploadBook = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -807,7 +1244,7 @@ uploadBook.definition = {
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::uploadBook
-* @see app/Http/Controllers/TextAnalysisController.php:1096
+* @see app/Http/Controllers/TextAnalysisController.php:1101
 * @route '/text-analysis/books'
 */
 uploadBook.url = (options?: RouteQueryOptions) => {
@@ -816,7 +1253,7 @@ uploadBook.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::uploadBook
-* @see app/Http/Controllers/TextAnalysisController.php:1096
+* @see app/Http/Controllers/TextAnalysisController.php:1101
 * @route '/text-analysis/books'
 */
 uploadBook.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -826,7 +1263,7 @@ uploadBook.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::uploadBook
-* @see app/Http/Controllers/TextAnalysisController.php:1096
+* @see app/Http/Controllers/TextAnalysisController.php:1101
 * @route '/text-analysis/books'
 */
 const uploadBookForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -836,7 +1273,7 @@ const uploadBookForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::uploadBook
-* @see app/Http/Controllers/TextAnalysisController.php:1096
+* @see app/Http/Controllers/TextAnalysisController.php:1101
 * @route '/text-analysis/books'
 */
 uploadBookForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -848,7 +1285,7 @@ uploadBook.form = uploadBookForm
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::getBookPage
-* @see app/Http/Controllers/TextAnalysisController.php:1165
+* @see app/Http/Controllers/TextAnalysisController.php:1170
 * @route '/text-analysis/books/{book}/page'
 */
 export const getBookPage = (args: { book: number | { id: number } } | [book: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -863,7 +1300,7 @@ getBookPage.definition = {
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::getBookPage
-* @see app/Http/Controllers/TextAnalysisController.php:1165
+* @see app/Http/Controllers/TextAnalysisController.php:1170
 * @route '/text-analysis/books/{book}/page'
 */
 getBookPage.url = (args: { book: number | { id: number } } | [book: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -896,7 +1333,7 @@ getBookPage.url = (args: { book: number | { id: number } } | [book: number | { i
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::getBookPage
-* @see app/Http/Controllers/TextAnalysisController.php:1165
+* @see app/Http/Controllers/TextAnalysisController.php:1170
 * @route '/text-analysis/books/{book}/page'
 */
 getBookPage.get = (args: { book: number | { id: number } } | [book: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -906,7 +1343,7 @@ getBookPage.get = (args: { book: number | { id: number } } | [book: number | { i
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::getBookPage
-* @see app/Http/Controllers/TextAnalysisController.php:1165
+* @see app/Http/Controllers/TextAnalysisController.php:1170
 * @route '/text-analysis/books/{book}/page'
 */
 getBookPage.head = (args: { book: number | { id: number } } | [book: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -916,7 +1353,7 @@ getBookPage.head = (args: { book: number | { id: number } } | [book: number | { 
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::getBookPage
-* @see app/Http/Controllers/TextAnalysisController.php:1165
+* @see app/Http/Controllers/TextAnalysisController.php:1170
 * @route '/text-analysis/books/{book}/page'
 */
 const getBookPageForm = (args: { book: number | { id: number } } | [book: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -926,7 +1363,7 @@ const getBookPageForm = (args: { book: number | { id: number } } | [book: number
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::getBookPage
-* @see app/Http/Controllers/TextAnalysisController.php:1165
+* @see app/Http/Controllers/TextAnalysisController.php:1170
 * @route '/text-analysis/books/{book}/page'
 */
 getBookPageForm.get = (args: { book: number | { id: number } } | [book: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -936,7 +1373,7 @@ getBookPageForm.get = (args: { book: number | { id: number } } | [book: number |
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::getBookPage
-* @see app/Http/Controllers/TextAnalysisController.php:1165
+* @see app/Http/Controllers/TextAnalysisController.php:1170
 * @route '/text-analysis/books/{book}/page'
 */
 getBookPageForm.head = (args: { book: number | { id: number } } | [book: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -952,8 +1389,113 @@ getBookPageForm.head = (args: { book: number | { id: number } } | [book: number 
 getBookPage.form = getBookPageForm
 
 /**
+* @see \App\Http\Controllers\TextAnalysisController::bookOverview
+* @see app/Http/Controllers/TextAnalysisController.php:1183
+* @route '/text-analysis/books/{book}/overview'
+*/
+export const bookOverview = (args: { book: number | { id: number } } | [book: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
+    url: bookOverview.url(args, options),
+    method: 'get',
+})
+
+bookOverview.definition = {
+    methods: ["get","head"],
+    url: '/text-analysis/books/{book}/overview',
+} satisfies RouteDefinition<["get","head"]>
+
+/**
+* @see \App\Http\Controllers\TextAnalysisController::bookOverview
+* @see app/Http/Controllers/TextAnalysisController.php:1183
+* @route '/text-analysis/books/{book}/overview'
+*/
+bookOverview.url = (args: { book: number | { id: number } } | [book: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
+    if (typeof args === 'string' || typeof args === 'number') {
+        args = { book: args }
+    }
+
+    if (typeof args === 'object' && !Array.isArray(args) && 'id' in args) {
+        args = { book: args.id }
+    }
+
+    if (Array.isArray(args)) {
+        args = {
+            book: args[0],
+        }
+    }
+
+    args = applyUrlDefaults(args)
+
+    const parsedArgs = {
+        book: typeof args.book === 'object'
+        ? args.book.id
+        : args.book,
+    }
+
+    return bookOverview.definition.url
+            .replace('{book}', parsedArgs.book.toString())
+            .replace(/\/+$/, '') + queryParams(options)
+}
+
+/**
+* @see \App\Http\Controllers\TextAnalysisController::bookOverview
+* @see app/Http/Controllers/TextAnalysisController.php:1183
+* @route '/text-analysis/books/{book}/overview'
+*/
+bookOverview.get = (args: { book: number | { id: number } } | [book: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
+    url: bookOverview.url(args, options),
+    method: 'get',
+})
+
+/**
+* @see \App\Http\Controllers\TextAnalysisController::bookOverview
+* @see app/Http/Controllers/TextAnalysisController.php:1183
+* @route '/text-analysis/books/{book}/overview'
+*/
+bookOverview.head = (args: { book: number | { id: number } } | [book: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'head'> => ({
+    url: bookOverview.url(args, options),
+    method: 'head',
+})
+
+/**
+* @see \App\Http\Controllers\TextAnalysisController::bookOverview
+* @see app/Http/Controllers/TextAnalysisController.php:1183
+* @route '/text-analysis/books/{book}/overview'
+*/
+const bookOverviewForm = (args: { book: number | { id: number } } | [book: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    action: bookOverview.url(args, options),
+    method: 'get',
+})
+
+/**
+* @see \App\Http\Controllers\TextAnalysisController::bookOverview
+* @see app/Http/Controllers/TextAnalysisController.php:1183
+* @route '/text-analysis/books/{book}/overview'
+*/
+bookOverviewForm.get = (args: { book: number | { id: number } } | [book: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    action: bookOverview.url(args, options),
+    method: 'get',
+})
+
+/**
+* @see \App\Http\Controllers\TextAnalysisController::bookOverview
+* @see app/Http/Controllers/TextAnalysisController.php:1183
+* @route '/text-analysis/books/{book}/overview'
+*/
+bookOverviewForm.head = (args: { book: number | { id: number } } | [book: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    action: bookOverview.url(args, {
+        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+            _method: 'HEAD',
+            ...(options?.query ?? options?.mergeQuery ?? {}),
+        }
+    }),
+    method: 'get',
+})
+
+bookOverview.form = bookOverviewForm
+
+/**
 * @see \App\Http\Controllers\TextAnalysisController::deleteBook
-* @see app/Http/Controllers/TextAnalysisController.php:1177
+* @see app/Http/Controllers/TextAnalysisController.php:1195
 * @route '/text-analysis/books/{book}'
 */
 export const deleteBook = (args: { book: number | { id: number } } | [book: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'delete'> => ({
@@ -968,7 +1510,7 @@ deleteBook.definition = {
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::deleteBook
-* @see app/Http/Controllers/TextAnalysisController.php:1177
+* @see app/Http/Controllers/TextAnalysisController.php:1195
 * @route '/text-analysis/books/{book}'
 */
 deleteBook.url = (args: { book: number | { id: number } } | [book: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -1001,7 +1543,7 @@ deleteBook.url = (args: { book: number | { id: number } } | [book: number | { id
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::deleteBook
-* @see app/Http/Controllers/TextAnalysisController.php:1177
+* @see app/Http/Controllers/TextAnalysisController.php:1195
 * @route '/text-analysis/books/{book}'
 */
 deleteBook.delete = (args: { book: number | { id: number } } | [book: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'delete'> => ({
@@ -1011,7 +1553,7 @@ deleteBook.delete = (args: { book: number | { id: number } } | [book: number | {
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::deleteBook
-* @see app/Http/Controllers/TextAnalysisController.php:1177
+* @see app/Http/Controllers/TextAnalysisController.php:1195
 * @route '/text-analysis/books/{book}'
 */
 const deleteBookForm = (args: { book: number | { id: number } } | [book: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -1026,7 +1568,7 @@ const deleteBookForm = (args: { book: number | { id: number } } | [book: number 
 
 /**
 * @see \App\Http\Controllers\TextAnalysisController::deleteBook
-* @see app/Http/Controllers/TextAnalysisController.php:1177
+* @see app/Http/Controllers/TextAnalysisController.php:1195
 * @route '/text-analysis/books/{book}'
 */
 deleteBookForm.delete = (args: { book: number | { id: number } } | [book: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -1041,6 +1583,6 @@ deleteBookForm.delete = (args: { book: number | { id: number } } | [book: number
 
 deleteBook.form = deleteBookForm
 
-const TextAnalysisController = { practiceCheck, show, fetchSource, analyze, wordLookup, geminiWordLookup, geminiFlashcard, geminiListModels, wordInsight, sentenceCheck, listBooks, uploadBook, getBookPage, deleteBook }
+const TextAnalysisController = { practiceCheck, sentenceCheck, show, fetchSource, listYoutube, storeYoutube, getYoutubePage, youtubeOverview, deleteYoutube, analyze, wordLookup, geminiWordLookup, geminiFlashcard, geminiListModels, wordInsight, listBooks, uploadBook, getBookPage, bookOverview, deleteBook }
 
 export default TextAnalysisController

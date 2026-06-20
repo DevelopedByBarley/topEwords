@@ -37,10 +37,32 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureDefaults();
+        $this->assertStripeWebhookSecured();
 
         Gate::define('admin', function (User $user): bool {
-            return $user->email === env('ADMIN_EMAIL');
+            $adminEmail = config('app.admin_email');
+
+            return $adminEmail !== null && $user->email === $adminEmail;
         });
+    }
+
+    /**
+     * Fail loudly if Stripe is enabled but the webhook signing secret is missing.
+     *
+     * The stripe/* routes are CSRF-exempt, so Cashier's signature check is the only
+     * thing authenticating incoming webhooks. Cashier attaches that middleware ONLY
+     * when the secret is non-empty — an empty secret silently disables verification
+     * and would accept forged webhooks (e.g. a free premium upgrade). Refuse to boot.
+     */
+    public function assertStripeWebhookSecured(): void
+    {
+        if (config('services.stripe.enabled') && empty(config('cashier.webhook.secret'))) {
+            throw new \RuntimeException(
+                'STRIPE_ENABLED is true but STRIPE_WEBHOOK_SECRET is empty. The stripe/* '
+                .'webhook is CSRF-exempt, so an unset secret disables Stripe signature '
+                .'verification and would accept forged webhooks. Set STRIPE_WEBHOOK_SECRET.'
+            );
+        }
     }
 
     /**

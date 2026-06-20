@@ -68,6 +68,34 @@ test('lookup reports not found for unknown words', function () {
         ->assertJson(['found' => false, 'word' => 'xyzzy']);
 });
 
+test('lookup finds a custom phrase clicked from captions with NBSP separators', function () {
+    $this->user->customWords()->create([
+        'word' => 'get rid of',
+        'meaning_hu' => 'megszabadul valamitől',
+        'status' => 'saved',
+    ]);
+
+    // A felirat-tokenek NBSP-vel jönnek; a lookupnak normalizálnia kell.
+    $this->actingAs($this->user)
+        ->getJson(route('extension.lookup', ['word' => "get\u{00A0}rid\u{00A0}of"]))
+        ->assertSuccessful()
+        ->assertJson([
+            'found' => true,
+            'is_custom' => true,
+            'word' => 'get rid of',
+            'meaning_hu' => 'megszabadul valamitől',
+        ]);
+});
+
+test('add-word normalizes phrase whitespace before storing', function () {
+    $this->actingAs($this->user)
+        ->postJson(route('extension.add-word'), ['word' => "get\u{00A0}rid  of"])
+        ->assertSuccessful()
+        ->assertJson(['ok' => true, 'word' => 'get rid of']);
+
+    expect($this->user->customWords()->where('word', 'get rid of')->exists())->toBeTrue();
+});
+
 test('search returns prefix matches ordered by rank', function () {
     $response = $this->actingAs($this->user)
         ->getJson(route('extension.search', ['q' => 'app']))
@@ -139,6 +167,71 @@ test('add-word rejects duplicates', function () {
         ->assertJson(['error' => 'duplicate']);
 });
 
+test('decks returns the user own decks and ai access', function () {
+    $this->user->flashcardDecks()->create(['name' => 'Angol szavak']);
+    $this->user->flashcardDecks()->create(['name' => 'Kifejezések']);
+    User::factory()->create()->flashcardDecks()->create(['name' => 'Más felhasználó']);
+
+    $response = $this->actingAs($this->user)
+        ->getJson(route('extension.decks'))
+        ->assertSuccessful()
+        ->assertJsonCount(2, 'decks')
+        ->assertJsonStructure(['decks' => [['id', 'name']], 'has_ai_access']);
+
+    expect(collect($response->json('decks'))->pluck('name')->all())
+        ->toBe(['Angol szavak', 'Kifejezések']);
+});
+
+test('create-flashcard adds a card to the chosen deck', function () {
+    $deck = $this->user->flashcardDecks()->create(['name' => 'Angol szavak']);
+    $apple = Word::where('word', 'apple')->first();
+
+    $this->actingAs($this->user)
+        ->postJson(route('extension.create-flashcard'), [
+            'deck_id' => $deck->id,
+            'word_id' => $apple->id,
+            'front' => 'apple',
+            'back' => 'alma',
+            'direction' => 'both',
+        ])
+        ->assertSuccessful()
+        ->assertJson(['ok' => true]);
+
+    $card = $deck->flashcards()->first();
+    expect($card->front)->toBe('apple');
+    expect($card->back)->toBe('alma');
+    expect($card->word_id)->toBe($apple->id);
+});
+
+test('create-flashcard rejects a deck the user does not own', function () {
+    $foreignDeck = User::factory()->create()->flashcardDecks()->create(['name' => 'Idegen']);
+
+    $this->actingAs($this->user)
+        ->postJson(route('extension.create-flashcard'), [
+            'deck_id' => $foreignDeck->id,
+            'front' => 'apple',
+            'back' => 'alma',
+            'direction' => 'both',
+        ])
+        ->assertNotFound()
+        ->assertJson(['error' => 'deck_not_found']);
+
+    expect($foreignDeck->flashcards()->count())->toBe(0);
+});
+
+test('create-flashcard requires front, back and a valid direction', function () {
+    $deck = $this->user->flashcardDecks()->create(['name' => 'Angol szavak']);
+
+    $this->actingAs($this->user)
+        ->postJson(route('extension.create-flashcard'), [
+            'deck_id' => $deck->id,
+            'front' => 'apple',
+            'direction' => 'sideways',
+        ])
+        ->assertStatus(422)
+        ->assertJsonValidationErrors(['back', 'direction']);
+});
+
 test('statuses returns the user word status map', function () {
     $apple = Word::where('word', 'apple')->first();
     $this->user->knownWords()->attach($apple->id, ['status' => 'learning']);
@@ -171,6 +264,27 @@ test('statuses includes multi-word phrases without hijacking single words', func
 
     expect($response->json('statuses'))->not->toHaveKey('use');
     expect($response->json('statuses'))->not->toHaveKey('used');
+});
+
+test('statuses excludes periphrastic comparatives so they are not treated as phrases', function () {
+    // A "desperate" középfoka körülírásos ("more desperate") — ez szóközös, ezért
+    // nem kerülhet a térképbe, különben a kliens kifejezésként emelné ki.
+    $desperate = Word::create([
+        'word' => 'desperate',
+        'meaning_hu' => 'kétségbeesett',
+        'adj_comparative' => 'more desperate',
+        'adj_superlative' => 'most desperate',
+        'rank' => 99,
+    ]);
+    $this->user->knownWords()->attach($desperate->id, ['status' => 'known']);
+
+    $response = $this->actingAs($this->user)
+        ->getJson(route('extension.statuses'))
+        ->assertSuccessful()
+        ->assertJson(['statuses' => ['desperate' => 'known']]);
+
+    expect($response->json('statuses'))->not->toHaveKey('more desperate');
+    expect($response->json('statuses'))->not->toHaveKey('most desperate');
 });
 
 test('badge counts learning words including custom ones', function () {

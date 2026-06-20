@@ -12,12 +12,12 @@ use Inertia\Response;
 class DashboardController extends Controller
 {
     public const LEVELS = [
-        1 => ['label' => 'Kezdő', 'color' => 'green'],
-        2 => ['label' => 'Alapszint', 'color' => 'blue'],
-        3 => ['label' => 'Középszint', 'color' => 'yellow'],
-        4 => ['label' => 'Haladó', 'color' => 'orange'],
-        5 => ['label' => 'Szakértő', 'color' => 'purple'],
-        6 => ['label' => 'Mester', 'color' => 'red'],
+        1 => ['label' => 'Top 1 000', 'color' => 'green'],
+        2 => ['label' => '1 001 – 2 000', 'color' => 'blue'],
+        3 => ['label' => '2 001 – 4 000', 'color' => 'yellow'],
+        4 => ['label' => '4 001 – 6 000', 'color' => 'orange'],
+        5 => ['label' => '6 001 – 8 000', 'color' => 'purple'],
+        6 => ['label' => '8 001 – 10 000', 'color' => 'red'],
     ];
 
     public function index(Request $request): Response

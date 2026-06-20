@@ -6,6 +6,7 @@ use App\Http\Requests\StoreFlashcardRequest;
 use App\Http\Requests\UpdateFlashcardRequest;
 use App\Models\Flashcard;
 use App\Models\FlashcardDeck;
+use App\Models\FlashcardReview;
 use App\Models\UserCustomWord;
 use App\Models\Word;
 use Illuminate\Http\RedirectResponse;
@@ -13,12 +14,14 @@ use Illuminate\Http\Request;
 
 class FlashcardCardController extends Controller
 {
+    private const FREE_LIMIT_MESSAGE = 'Ingyenes fiókkal paklinként max 20 kártyát adhatsz hozzá. Frissíts prémiumra a korlátlan hozzáféréshez.';
+
     public function store(StoreFlashcardRequest $request, FlashcardDeck $deck): RedirectResponse
     {
         abort_unless($deck->user_id === $request->user()->id, 403);
 
-        if ($request->user()->isOnFreePlan() && $deck->flashcards()->count() >= 20) {
-            return back()->with('error', 'Ingyenes fiókkal paklinként max 20 kártyát adhatsz hozzá. Frissíts prémiumra a korlátlan hozzáféréshez.');
+        if (! $request->user()->canAddFlashcardsTo($deck)) {
+            return back()->with('error', self::FREE_LIMIT_MESSAGE);
         }
 
         $deck->flashcards()->create($request->validated());
@@ -29,6 +32,10 @@ class FlashcardCardController extends Controller
     public function importFromWord(Request $request, FlashcardDeck $deck): RedirectResponse
     {
         abort_unless($deck->user_id === $request->user()->id, 403);
+
+        if (! $request->user()->canAddFlashcardsTo($deck)) {
+            return back()->with('error', self::FREE_LIMIT_MESSAGE);
+        }
 
         $data = $request->validate([
             'word_id' => ['nullable', 'integer', 'exists:words,id'],
@@ -107,6 +114,10 @@ class FlashcardCardController extends Controller
         abort_unless($deck->user_id === $request->user()->id, 403);
         abort_unless($flashcard->deck_id === $deck->id, 403);
 
+        if (! $request->user()->canAddFlashcardsTo($deck)) {
+            return back()->with('error', self::FREE_LIMIT_MESSAGE);
+        }
+
         $deck->flashcards()->create([
             'word_id' => $flashcard->word_id,
             'front' => $flashcard->front,
@@ -141,9 +152,9 @@ class FlashcardCardController extends Controller
             'ids.*' => ['integer'],
         ])['ids'];
 
-        $deck->flashcards()->whereIn('id', $ids)->delete();
+        $deleted = $deck->flashcards()->whereIn('id', $ids)->delete();
 
-        return to_route('flashcards.show', $deck)->with('success', count($ids).' kártya törölve.');
+        return to_route('flashcards.show', $deck)->with('success', $deleted.' kártya törölve.');
     }
 
     public function bulkReset(Request $request, FlashcardDeck $deck): RedirectResponse
@@ -155,12 +166,10 @@ class FlashcardCardController extends Controller
             'ids.*' => ['integer'],
         ])['ids'];
 
-        $cards = $deck->flashcards()->whereIn('id', $ids)->get();
-        foreach ($cards as $card) {
-            $card->reviews()->delete();
-        }
+        $ownedIds = $deck->flashcards()->whereIn('id', $ids)->pluck('id');
+        FlashcardReview::whereIn('flashcard_id', $ownedIds)->delete();
 
-        return to_route('flashcards.show', $deck)->with('success', count($ids).' kártya haladása visszaállítva.');
+        return to_route('flashcards.show', $deck)->with('success', $ownedIds->count().' kártya haladása visszaállítva.');
     }
 
     public function bulkReverse(Request $request, FlashcardDeck $deck): RedirectResponse
@@ -172,20 +181,28 @@ class FlashcardCardController extends Controller
             'ids.*' => ['integer'],
         ])['ids'];
 
-        $deck->flashcards()->whereIn('id', $ids)->each(function (Flashcard $card) use ($deck) {
-            $deck->flashcards()->create([
-                'front' => $card->back,
-                'front_notes' => $card->back_notes,
-                'front_speak' => $card->back_speak,
-                'back' => $card->front,
-                'back_notes' => $card->front_notes,
-                'back_speak' => $card->front_speak,
-                'direction' => $card->direction,
-                'color' => $card->color,
-            ]);
-        });
+        $cards = $deck->flashcards()->whereIn('id', $ids)->get();
 
-        return to_route('flashcards.show', $deck)->with('success', count($ids).' fordított másolat létrehozva.');
+        if (! $request->user()->canAddFlashcardsTo($deck, $cards->count())) {
+            return back()->with('error', self::FREE_LIMIT_MESSAGE);
+        }
+
+        $now = now();
+        $deck->flashcards()->insert($cards->map(fn (Flashcard $card) => [
+            'deck_id' => $deck->id,
+            'front' => $card->back,
+            'front_notes' => $card->back_notes,
+            'front_speak' => $card->back_speak,
+            'back' => $card->front,
+            'back_notes' => $card->front_notes,
+            'back_speak' => $card->front_speak,
+            'direction' => $card->direction,
+            'color' => $card->color,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ])->all());
+
+        return to_route('flashcards.show', $deck)->with('success', $cards->count().' fordított másolat létrehozva.');
     }
 
     public function bulkDirection(Request $request, FlashcardDeck $deck): RedirectResponse
@@ -198,9 +215,9 @@ class FlashcardCardController extends Controller
             'direction' => ['required', 'in:front_to_back,back_to_front,both'],
         ]);
 
-        $deck->flashcards()->whereIn('id', $validated['ids'])->update(['direction' => $validated['direction']]);
+        $updated = $deck->flashcards()->whereIn('id', $validated['ids'])->update(['direction' => $validated['direction']]);
 
-        return to_route('flashcards.show', $deck)->with('success', count($validated['ids']).' kártya iránya frissítve.');
+        return to_route('flashcards.show', $deck)->with('success', $updated.' kártya iránya frissítve.');
     }
 
     public function bulkMove(Request $request, FlashcardDeck $deck): RedirectResponse
@@ -216,8 +233,8 @@ class FlashcardCardController extends Controller
         $targetDeck = FlashcardDeck::findOrFail($validated['target_deck_id']);
         abort_unless($targetDeck->user_id === $request->user()->id, 403);
 
-        $deck->flashcards()->whereIn('id', $validated['ids'])->update(['deck_id' => $targetDeck->id]);
+        $moved = $deck->flashcards()->whereIn('id', $validated['ids'])->update(['deck_id' => $targetDeck->id]);
 
-        return to_route('flashcards.show', $deck)->with('success', count($validated['ids']).' kártya áthelyezve.');
+        return to_route('flashcards.show', $deck)->with('success', $moved.' kártya áthelyezve.');
     }
 }

@@ -2,12 +2,20 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\User;
 use App\Models\UserBook;
 use App\Models\UserCustomWord;
 use App\Models\Word;
+use App\Models\YoutubeTranscript;
 use App\Services\AchievementService;
+use App\Services\AiUsageService;
+use App\Services\YouTubeCaptionService;
+use GuzzleHttp\Psr7\UriResolver;
+use GuzzleHttp\Psr7\Utils;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Http;
@@ -17,6 +25,30 @@ use Smalot\PdfParser\Parser as PdfParser;
 
 class TextAnalysisController extends Controller
 {
+    public function __construct(
+        private YouTubeCaptionService $captions,
+        private AiUsageService $aiUsage,
+    ) {}
+
+    /**
+     * Returns a 429 response when the user has exhausted their monthly AI
+     * quota, or null when they may proceed. Admins (unlimited) never hit this.
+     */
+    private function aiLimitGuard(Request $request): ?JsonResponse
+    {
+        $user = $request->user();
+
+        if ($user === null || $this->aiUsage->allows($user)) {
+            return null;
+        }
+
+        return response()->json([
+            'error' => 'ai_limit',
+            'message' => 'Elérted a havi AI-felhasználási kereted. A keret a következő hónap elején újraindul.',
+            ...$this->aiUsage->snapshot($user),
+        ], 429);
+    }
+
     public function show(): Response
     {
         return Inertia::render('text-analysis/index');
@@ -32,18 +64,26 @@ class TextAnalysisController extends Controller
 
         $user = $request->user();
 
-        // Check user's custom words first (all forms)
+        // Check user's custom words first. Exact match on the stored word always
+        // counts (covers phrases like "cut through"); form-based (conjugation)
+        // matching is restricted to single-word entries, so a phrase's single-word
+        // base form ("cut") cannot hijack a plain word lookup.
         $customWord = $user->customWords()
             ->where(function ($q) use ($raw) {
                 $q->whereRaw('LOWER(word) = ?', [$raw])
-                    ->orWhereRaw('LOWER(form_base) = ?', [$raw])
-                    ->orWhereRaw('LOWER(verb_past) = ?', [$raw])
-                    ->orWhereRaw('LOWER(verb_past_participle) = ?', [$raw])
-                    ->orWhereRaw('LOWER(verb_present_participle) = ?', [$raw])
-                    ->orWhereRaw('LOWER(verb_third_person) = ?', [$raw])
-                    ->orWhereRaw('LOWER(noun_plural) = ?', [$raw])
-                    ->orWhereRaw('LOWER(adj_comparative) = ?', [$raw])
-                    ->orWhereRaw('LOWER(adj_superlative) = ?', [$raw]);
+                    ->orWhere(function ($q2) use ($raw) {
+                        $q2->where('word', 'not like', '% %')
+                            ->where(function ($q3) use ($raw) {
+                                $q3->whereRaw('LOWER(form_base) = ?', [$raw])
+                                    ->orWhereRaw('LOWER(verb_past) = ?', [$raw])
+                                    ->orWhereRaw('LOWER(verb_past_participle) = ?', [$raw])
+                                    ->orWhereRaw('LOWER(verb_present_participle) = ?', [$raw])
+                                    ->orWhereRaw('LOWER(verb_third_person) = ?', [$raw])
+                                    ->orWhereRaw('LOWER(noun_plural) = ?', [$raw])
+                                    ->orWhereRaw('LOWER(adj_comparative) = ?', [$raw])
+                                    ->orWhereRaw('LOWER(adj_superlative) = ?', [$raw]);
+                            });
+                    });
             })
             ->first();
         if ($customWord) {
@@ -91,16 +131,22 @@ class TextAnalysisController extends Controller
 
     public function fetchSource(Request $request): JsonResponse
     {
-        $url = $request->validate(['url' => 'required|url|max:2000'])['url'];
+        $url = $request->validate(['url' => 'required|url:http,https|max:2000'])['url'];
 
-        $videoId = $this->extractYouTubeId($url);
+        $videoId = $this->captions->extractVideoId($url);
 
         try {
+            if ($videoId === null) {
+                $this->assertPublicHost($url);
+            }
+
             $text = $videoId !== null
-                ? $this->fetchYouTubeCaptions($videoId)
+                ? $this->captions->segmentsToText($this->captions->fetchCaptions($videoId))
                 : $this->fetchWebpageText($url);
-        } catch (\Throwable $e) {
+        } catch (\RuntimeException $e) {
             return response()->json(['error' => $e->getMessage()], 422);
+        } catch (\Throwable) {
+            return response()->json(['error' => 'A forrás nem érhető el. Próbáld újra később.'], 422);
         }
 
         $text = mb_substr($text, 0, 15000);
@@ -108,8 +154,82 @@ class TextAnalysisController extends Controller
         return response()->json(['text' => $text]);
     }
 
+    /**
+     * Resolve the URL's host and ensure it points to a public IP (SSRF guard).
+     * Returns the validated IP so the caller can pin the connection to it
+     * (defeats DNS rebinding). Throws if the host is missing, unresolvable,
+     * or resolves to a private/reserved range.
+     */
+    private function assertPublicHost(string $url): string
+    {
+        $host = parse_url($url, PHP_URL_HOST);
+
+        if (! is_string($host) || $host === '') {
+            throw new \RuntimeException('Érvénytelen URL.');
+        }
+
+        $ip = filter_var($host, FILTER_VALIDATE_IP) ? $host : gethostbyname($host);
+
+        if (! filter_var($ip, FILTER_VALIDATE_IP)) {
+            throw new \RuntimeException('Ez a cím nem érhető el.');
+        }
+
+        if (! filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+            throw new \RuntimeException('Ez a cím nem érhető el.');
+        }
+
+        return $ip;
+    }
+
+    /**
+     * SSRF-safe HTTP GET. Redirects are followed manually so every hop's host
+     * is re-validated as public, and each request is pinned to the validated
+     * IP (CURLOPT_RESOLVE) so a rebinding DNS answer cannot redirect the
+     * connection to an internal address between the check and the connect.
+     */
+    private function safeFetch(string $url): \Illuminate\Http\Client\Response
+    {
+        $maxRedirects = 5;
+
+        for ($hop = 0; $hop <= $maxRedirects; $hop++) {
+            $ip = $this->assertPublicHost($url);
+            $host = parse_url($url, PHP_URL_HOST);
+            $scheme = parse_url($url, PHP_URL_SCHEME) ?: 'http';
+            $port = parse_url($url, PHP_URL_PORT) ?: ($scheme === 'https' ? 443 : 80);
+
+            $response = Http::timeout(15)
+                ->withoutRedirecting()
+                ->withHeaders(['User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'])
+                ->withOptions(['curl' => [CURLOPT_RESOLVE => ["{$host}:{$port}:{$ip}"]]])
+                ->get($url);
+
+            if (! $response->redirect()) {
+                return $response;
+            }
+
+            $location = $response->header('Location');
+
+            if ($location === '') {
+                return $response;
+            }
+
+            // Resolve relative redirects against the current URL and require http(s).
+            $next = (string) UriResolver::resolve(Utils::uriFor($url), Utils::uriFor($location));
+
+            if (! in_array(parse_url($next, PHP_URL_SCHEME), ['http', 'https'], true)) {
+                throw new \RuntimeException('Ez a cím nem érhető el.');
+            }
+
+            $url = $next;
+        }
+
+        throw new \RuntimeException('Túl sok átirányítás.');
+    }
+
     public function analyze(Request $request): JsonResponse
     {
+        $text = $request->validate(['text' => 'required|string|max:15000'])['text'];
+
         $user = $request->user();
 
         if ($user->isOnFreePlan()) {
@@ -127,59 +247,86 @@ class TextAnalysisController extends Controller
             Cache::put($cacheKey, $dailyCount + 1, now()->endOfDay());
         }
 
-        $text = $request->validate(['text' => 'required|string|max:15000'])['text'];
+        $analysis = $this->buildAnalysis($text, $user);
 
+        $newAchievements = app(AchievementService::class)
+            ->checkAndAwardAnalysis($user, $analysis['comprehension']);
+
+        return response()->json([...$analysis, 'achievements' => $newAchievements]);
+    }
+
+    /**
+     * Egy szöveg szóelemzése: megértési %, token-státuszok és top ismeretlen szavak.
+     *
+     * @return array{comprehension: int, totalWords: int, uniqueWords: int, knownCount: int, learningCount: int, tokenStatuses: array<string, string|null>, topUnknown: array<int, array{word: string, frequency: int, rank: int, meaning_hu: string|null}>}
+     */
+    /**
+     * A 9 szóalak-oszlopra futó whereIn-t kötegelve futtatja, hogy nagy szövegnél
+     * (teljes könyv / videó) se lépje át a MySQL 65 535 placeholder-limitjét.
+     *
+     * @param  array<int, string>  $tokens
+     * @param  callable(): \Illuminate\Database\Eloquent\Builder<*>  $queryFactory  friss query builder kötegenként
+     * @param  array<int, string>  $select
+     * @return Collection<int, Model>
+     */
+    private function matchByForms(array $tokens, callable $queryFactory, array $select): Collection
+    {
+        $forms = ['word', 'form_base', 'verb_past', 'verb_past_participle', 'verb_present_participle', 'verb_third_person', 'noun_plural', 'adj_comparative', 'adj_superlative'];
+
+        // 1500 token × 9 oszlop = 13 500 kötés / lekérdezés — bőven a limit alatt.
+        $results = collect();
+        foreach (array_chunk($tokens, 1500) as $chunk) {
+            $results = $results->concat(
+                $queryFactory()
+                    ->where(function ($q) use ($chunk, $forms) {
+                        foreach ($forms as $i => $col) {
+                            $i === 0 ? $q->whereIn($col, $chunk) : $q->orWhereIn($col, $chunk);
+                        }
+                    })
+                    ->get($select)
+            );
+        }
+
+        return $results->unique('id')->values();
+    }
+
+    private function buildAnalysis(string $text, User $user): array
+    {
         $tokens = $this->tokenize($text);
 
         if (empty($tokens)) {
-            return response()->json([
+            return [
                 'comprehension' => 0,
                 'totalWords' => 0,
                 'uniqueWords' => 0,
                 'knownCount' => 0,
                 'learningCount' => 0,
                 'tokenStatuses' => [],
+                'phraseStatuses' => [],
                 'topUnknown' => [],
-            ]);
+            ];
         }
 
         $uniqueTokens = array_values(array_unique($tokens));
         $tokenFrequencies = array_count_values($tokens);
 
-        $words = Word::query()
-            ->where(function ($q) use ($uniqueTokens) {
-                $q->whereIn('word', $uniqueTokens)
-                    ->orWhereIn('form_base', $uniqueTokens)
-                    ->orWhereIn('verb_past', $uniqueTokens)
-                    ->orWhereIn('verb_past_participle', $uniqueTokens)
-                    ->orWhereIn('verb_present_participle', $uniqueTokens)
-                    ->orWhereIn('verb_third_person', $uniqueTokens)
-                    ->orWhereIn('noun_plural', $uniqueTokens)
-                    ->orWhereIn('adj_comparative', $uniqueTokens)
-                    ->orWhereIn('adj_superlative', $uniqueTokens);
-            })
-            ->get(['id', 'word', 'rank', 'meaning_hu', 'form_base', 'verb_past', 'verb_past_participle', 'verb_present_participle', 'verb_third_person', 'noun_plural', 'adj_comparative', 'adj_superlative']);
+        $words = $this->matchByForms(
+            $uniqueTokens,
+            fn () => Word::query(),
+            ['id', 'word', 'rank', 'meaning_hu', 'form_base', 'verb_past', 'verb_past_participle', 'verb_present_participle', 'verb_third_person', 'noun_plural', 'adj_comparative', 'adj_superlative']
+        );
 
-        $user = $request->user();
         $userWordStatuses = $user->knownWords()
             ->whereIn('words.id', $words->pluck('id'))
             ->pluck('user_word.status', 'words.id')
             ->all();
 
         // Include user's custom words in the analysis (check all forms)
-        $customWords = UserCustomWord::where('user_id', $user->id)
-            ->where(function ($q) use ($uniqueTokens) {
-                $q->whereIn('word', $uniqueTokens)
-                    ->orWhereIn('form_base', $uniqueTokens)
-                    ->orWhereIn('verb_past', $uniqueTokens)
-                    ->orWhereIn('verb_past_participle', $uniqueTokens)
-                    ->orWhereIn('verb_present_participle', $uniqueTokens)
-                    ->orWhereIn('verb_third_person', $uniqueTokens)
-                    ->orWhereIn('noun_plural', $uniqueTokens)
-                    ->orWhereIn('adj_comparative', $uniqueTokens)
-                    ->orWhereIn('adj_superlative', $uniqueTokens);
-            })
-            ->get(['id', 'word', 'status', 'form_base', 'verb_past', 'verb_past_participle', 'verb_present_participle', 'verb_third_person', 'noun_plural', 'adj_comparative', 'adj_superlative']);
+        $customWords = $this->matchByForms(
+            $uniqueTokens,
+            fn () => UserCustomWord::where('user_id', $user->id),
+            ['id', 'word', 'status', 'form_base', 'verb_past', 'verb_past_participle', 'verb_present_participle', 'verb_third_person', 'noun_plural', 'adj_comparative', 'adj_superlative']
+        );
 
         // Build reverse map: lowercase form → Word model
         $formToWord = [];
@@ -211,6 +358,14 @@ class TextAnalysisController extends Controller
         // Build reverse map: lowercase form → custom word (all forms take priority)
         $formToCustomWord = [];
         foreach ($customWords as $customWord) {
+            // Multi-word custom phrases (e.g. "cut through") must not colour single
+            // tokens. Their conjugation columns often hold the single-word base form
+            // ("cut"), which would otherwise hijack the real word's status. A single
+            // token can never represent a phrase, so phrases are skipped here.
+            if (str_contains((string) $customWord->word, ' ')) {
+                continue;
+            }
+
             foreach (array_filter([
                 mb_strtolower($customWord->word),
                 $customWord->form_base ? mb_strtolower($customWord->form_base) : null,
@@ -265,6 +420,67 @@ class TextAnalysisController extends Controller
             }
         }
 
+        // Aposztrófos saját szavak (pl. "I'm", "can't", "we'll") párosítása a
+        // megjelenítéshez: a tokenizáló az aposztrófos alakokat kibontja/levágja,
+        // ezért a szövegben szereplő aposztrófos alakokat külön ráillesztjük a
+        // saját szó státuszával — a frontend pontosan ezekre a kulcsokra keres.
+        $normalizedText = mb_strtolower(str_replace(["\u{2018}", "\u{2019}", "\u{2032}"], "'", $text));
+
+        if (preg_match_all("/\b[a-z]+(?:'[a-z]+)+\b/", $normalizedText, $apostropheMatches)) {
+            $apostropheWords = array_flip($apostropheMatches[0]);
+
+            $customApostrophe = $user->customWords()
+                ->where(fn ($q) => $q->where('word', 'like', "%'%")
+                    ->orWhere('word', 'like', "%\u{2019}%")
+                    ->orWhere('word', 'like', "%\u{2018}%"))
+                ->get(['word', 'status']);
+
+            foreach ($customApostrophe as $customWord) {
+                $key = mb_strtolower(str_replace(["\u{2018}", "\u{2019}", "\u{2032}"], "'", $customWord->word));
+
+                if (isset($apostropheWords[$key])) {
+                    $tokenStatuses[$key] = $customWord->status;
+                }
+            }
+        }
+
+        // Többszavas saját kifejezések (pl. "cut through", "take place") a
+        // kifejezés-szintű kiemeléshez. Egyszavas token-illesztéssel ezek nem
+        // ábrázolhatók, ezért normalizált kifejezés → státusz térképet adunk, és a
+        // frontend mohó n-gram illesztéssel emeli ki őket a megjelenített szövegben.
+        $phraseStatuses = [];
+        $tokenSet = array_flip($uniqueTokens);
+
+        $phraseCustomWords = UserCustomWord::where('user_id', $user->id)
+            ->where('word', 'like', '% %')
+            ->whereNotNull('status')
+            ->where('status', '!=', '')
+            ->get(['status', 'word', 'verb_past', 'verb_past_participle', 'verb_present_participle', 'verb_third_person']);
+
+        foreach ($phraseCustomWords as $phrase) {
+            foreach (array_filter([
+                $phrase->word,
+                $phrase->verb_past,
+                $phrase->verb_past_participle,
+                $phrase->verb_present_participle,
+                $phrase->verb_third_person,
+            ]) as $form) {
+                $normalized = mb_strtolower(trim((string) preg_replace('/\s+/', ' ',
+                    str_replace(["\u{2018}", "\u{2019}", "\u{2032}"], "'", $form))));
+
+                // Csak a többszavas alakok, és csak ha minden szavuk szerepel a szövegben.
+                if (! str_contains($normalized, ' ')) {
+                    continue;
+                }
+
+                $everyWordPresent = ! array_filter(explode(' ', $normalized), fn ($w) => ! isset($tokenSet[$w]));
+
+                if ($everyWordPresent) {
+                    $phraseStatuses[$normalized] ??= $phrase->status;
+                }
+            }
+        }
+
         uasort(
             $unknownInListWords,
             fn ($a, $b) => $b['frequency'] !== $a['frequency']
@@ -273,364 +489,23 @@ class TextAnalysisController extends Controller
         );
 
         $totalTokenCount = count($tokens);
-        $comprehension = $totalTokenCount > 0 ? round(($knownTokenCount / $totalTokenCount) * 100) : 0;
+        $comprehension = $totalTokenCount > 0 ? (int) round(($knownTokenCount / $totalTokenCount) * 100) : 0;
 
-        $newAchievements = app(AchievementService::class)->checkAndAwardAnalysis($request->user(), $comprehension);
-
-        return response()->json([
+        return [
             'comprehension' => $comprehension,
             'totalWords' => $totalTokenCount,
             'uniqueWords' => count($uniqueTokens),
             'knownCount' => $knownTokenCount,
             'learningCount' => $learningTokenCount,
             'tokenStatuses' => $tokenStatuses,
+            'phraseStatuses' => $phraseStatuses,
             'topUnknown' => array_values(array_slice($unknownInListWords, 0, 20, true)),
-            'achievements' => $newAchievements,
-        ]);
-    }
-
-    private function extractYouTubeId(string $url): ?string
-    {
-        $patterns = [
-            '/youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})/',
-            '/youtu\.be\/([a-zA-Z0-9_-]{11})/',
-            '/youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/',
-            '/youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/',
         ];
-
-        foreach ($patterns as $pattern) {
-            if (preg_match($pattern, $url, $m)) {
-                return $m[1];
-            }
-        }
-
-        return null;
-    }
-
-    private function fetchYouTubeCaptions(string $videoId): string
-    {
-        // Strategy 1: InnerTube API with multiple clients
-        $text = $this->fetchViaInnertube($videoId);
-        if ($text !== '') {
-            return $text;
-        }
-
-        // Strategy 3: YouTube timedtext API
-        $text = $this->fetchViaTimedtextApi($videoId);
-        if ($text !== '') {
-            return $text;
-        }
-
-        // Strategy 4: Scrape the watch page for a signed caption URL
-        $text = $this->fetchViaPageScraping($videoId);
-        if ($text !== '') {
-            return $text;
-        }
-
-        throw new \RuntimeException('Ehhez a videóhoz nem érhetők el angol feliratok, vagy a felirat nem feldolgozható.');
-    }
-
-    private function fetchViaInnertube(string $videoId): string
-    {
-        $androidUa = 'com.google.android.youtube/20.10.38 (Linux; U; Android 11) gzip';
-
-        // Must extract the API key from the watch page — hardcoded keys return UNPLAYABLE
-        $pageResponse = Http::timeout(20)
-            ->withHeaders(['User-Agent' => $androidUa, 'Accept-Language' => 'en-US,en;q=0.9'])
-            ->get('https://www.youtube.com/watch?v='.$videoId);
-
-        if (! $pageResponse->ok()) {
-            return '';
-        }
-
-        if (! preg_match('/"INNERTUBE_API_KEY"\s*:\s*"([a-zA-Z0-9_-]+)"/', $pageResponse->body(), $keyMatch)) {
-            return '';
-        }
-
-        $apiKey = $keyMatch[1];
-
-        $playerResponse = Http::timeout(15)
-            ->withHeaders([
-                'Content-Type' => 'application/json',
-                'Accept-Language' => 'en-US',
-                'User-Agent' => $androidUa,
-            ])
-            ->post('https://www.youtube.com/youtubei/v1/player?key='.$apiKey, [
-                'context' => ['client' => ['clientName' => 'ANDROID', 'clientVersion' => '20.10.38']],
-                'videoId' => $videoId,
-            ]);
-
-        if (! $playerResponse->ok()) {
-            return '';
-        }
-
-        $tracks = $playerResponse->json('captions.playerCaptionsTracklistRenderer.captionTracks') ?? [];
-
-        if (empty($tracks)) {
-            return '';
-        }
-
-        $track = collect($tracks)->first(fn ($t) => str_starts_with($t['languageCode'] ?? '', 'en'))
-            ?? $tracks[0];
-
-        $captionUrl = $track['baseUrl'] ?? null;
-
-        if (! $captionUrl) {
-            return '';
-        }
-
-        // Try XML (default, no fmt) first — ANDROID returns timedtext XML with <p> tags
-        foreach ([$captionUrl, $captionUrl.'&fmt=json3'] as $url) {
-            $captionResponse = Http::timeout(15)->get($url);
-
-            if (! $captionResponse->ok() || mb_strlen($captionResponse->body()) < 20) {
-                continue;
-            }
-
-            $text = $this->parseCaptionBody($captionResponse->body());
-            if ($text !== '') {
-                return $text;
-            }
-        }
-
-        return '';
-    }
-
-    private function fetchViaTimedtextApi(string $videoId): string
-    {
-        $base = 'https://www.youtube.com/api/timedtext?v='.urlencode($videoId).'&lang=en';
-
-        foreach (['&fmt=json3', '&fmt=vtt', ''] as $fmtParam) {
-            $response = Http::timeout(10)
-                ->withHeaders(['User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'])
-                ->get($base.$fmtParam);
-
-            if (! $response->ok() || mb_strlen($response->body()) < 20) {
-                continue;
-            }
-
-            $text = $this->parseCaptionBody($response->body());
-            if ($text !== '') {
-                return $text;
-            }
-        }
-
-        return '';
-    }
-
-    private function fetchViaPageScraping(string $videoId): string
-    {
-        $pageResponse = Http::timeout(20)
-            ->withHeaders([
-                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-                'Accept-Language' => 'en-US,en;q=0.9',
-            ])
-            ->get('https://www.youtube.com/watch?v='.$videoId);
-
-        if (! $pageResponse->ok()) {
-            return '';
-        }
-
-        $captionUrl = $this->extractCaptionUrl($pageResponse->body());
-        if ($captionUrl === null) {
-            return '';
-        }
-
-        $json3Url = preg_replace('/([?&])fmt=[^&]*/', '$1fmt=json3', $captionUrl);
-        if (! str_contains($json3Url ?? '', 'fmt=')) {
-            $json3Url = $captionUrl.(str_contains($captionUrl, '?') ? '&' : '?').'fmt=json3';
-        }
-
-        foreach ([$json3Url, $captionUrl] as $url) {
-            $response = Http::timeout(15)->get($url);
-            if (! $response->ok() || mb_strlen($response->body()) < 20) {
-                continue;
-            }
-
-            $text = $this->parseCaptionBody($response->body());
-            if ($text !== '') {
-                return $text;
-            }
-        }
-
-        return '';
-    }
-
-    private function parseCaptionBody(string $body): string
-    {
-        $trimmed = ltrim($body);
-
-        if (str_starts_with($trimmed, '{')) {
-            $decoded = json_decode($body, true);
-            if (is_array($decoded)) {
-                return $this->parseJson3Captions($decoded);
-            }
-        }
-
-        if (str_starts_with($trimmed, 'WEBVTT')) {
-            return $this->parseVttCaptions($body);
-        }
-
-        if (str_starts_with($trimmed, '<') || str_contains($trimmed, '<?xml')) {
-            return $this->parseXmlCaptions($body);
-        }
-
-        return '';
-    }
-
-    private function parseVttCaptions(string $body): string
-    {
-        $lines = preg_split('/\r?\n/', $body) ?: [];
-        $texts = [];
-        $prev = '';
-        $pastHeader = false;
-
-        foreach ($lines as $line) {
-            $line = trim($line);
-
-            // The VTT header ends at the first blank line
-            if (! $pastHeader) {
-                if ($line === '') {
-                    $pastHeader = true;
-                }
-
-                continue;
-            }
-
-            // Skip blank lines, cue IDs (digits only), and timestamp lines
-            if ($line === '' || preg_match('/^\d+$/', $line) || str_contains($line, '-->')) {
-                continue;
-            }
-
-            // Strip inline timing tags (<00:00:00.000>, <c>, <c.color_white>, etc.)
-            $text = preg_replace('/<[^>]+>/', '', $line) ?? $line;
-            $text = html_entity_decode(trim($text), ENT_QUOTES | ENT_HTML5, 'UTF-8');
-            $text = preg_replace('/\[[^\]]*\]/', '', $text) ?? $text;
-            $text = trim(preg_replace('/\s+/', ' ', $text) ?? $text);
-
-            if ($text === '' || $text === $prev) {
-                continue;
-            }
-
-            $texts[] = $text;
-            $prev = $text;
-        }
-
-        return implode(' ', $texts);
-    }
-
-    private function extractCaptionUrl(string $html): ?string
-    {
-        $key = '"captionTracks":';
-        $start = strpos($html, $key);
-
-        if ($start === false) {
-            return null;
-        }
-
-        // Walk through the JSON array character-by-character to find its true end
-        $depth = 0;
-        $inString = false;
-        $escape = false;
-        $jsonStart = $start + strlen($key);
-        $jsonEnd = null;
-
-        for ($i = $jsonStart; $i < min($jsonStart + 100000, strlen($html)); $i++) {
-            $c = $html[$i];
-
-            if ($escape) {
-                $escape = false;
-
-                continue;
-            }
-
-            if ($c === '\\' && $inString) {
-                $escape = true;
-
-                continue;
-            }
-
-            if ($c === '"') {
-                $inString = ! $inString;
-
-                continue;
-            }
-
-            if ($inString) {
-                continue;
-            }
-
-            if ($c === '[') {
-                $depth++;
-            } elseif ($c === ']') {
-                $depth--;
-                if ($depth === 0) {
-                    $jsonEnd = $i;
-                    break;
-                }
-            }
-        }
-
-        if ($jsonEnd === null) {
-            return null;
-        }
-
-        $tracks = json_decode(substr($html, $jsonStart, $jsonEnd - $jsonStart + 1), true);
-
-        if (empty($tracks)) {
-            return null;
-        }
-
-        $track = collect($tracks)->first(fn ($t) => str_starts_with($t['languageCode'] ?? '', 'en'))
-            ?? $tracks[0];
-
-        return $track['baseUrl'] ?? null;
-    }
-
-    private function parseJson3Captions(mixed $data): string
-    {
-        if (! is_array($data) || empty($data['events'])) {
-            return '';
-        }
-
-        $lines = [];
-        foreach ($data['events'] as $event) {
-            if (! isset($event['segs'])) {
-                continue;
-            }
-            $text = implode('', array_column($event['segs'], 'utf8'));
-            // Remove sound annotations like [Music], [Applause], [Laughter], etc.
-            $text = preg_replace('/\[[^\]]*\]/', '', $text) ?? $text;
-            $text = preg_replace('/\s+/', ' ', trim($text)) ?? '';
-            if ($text !== '') {
-                $lines[] = $text;
-            }
-        }
-
-        return implode(' ', $lines);
-    }
-
-    private function parseXmlCaptions(string $body): string
-    {
-        // YouTube returns either <text> (older) or <p> (ANDROID InnerTube) tags
-        if (! preg_match_all('/<(?:text|p)[^>]*>(.*?)<\/(?:text|p)>/s', $body, $matches)) {
-            return '';
-        }
-
-        $lines = array_map(function ($line) {
-            $line = trim(html_entity_decode(strip_tags($line), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
-
-            return trim(preg_replace('/\[[^\]]*\]/', '', $line) ?? $line);
-        }, $matches[1]);
-
-        return implode(' ', array_filter($lines, fn ($l) => $l !== ''));
     }
 
     private function fetchWebpageText(string $url): string
     {
-        $response = Http::timeout(15)
-            ->withHeaders(['User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'])
-            ->get($url);
+        $response = $this->safeFetch($url);
 
         if (! $response->ok()) {
             throw new \RuntimeException('A weboldal nem érhető el (HTTP '.$response->status().').');
@@ -671,14 +546,24 @@ class TextAnalysisController extends Controller
         return null;
     }
 
+    private const BOOK_STORAGE_LIMIT = 30 * 1024 * 1024;
+
+    private function bookLimitFor(User $user): int
+    {
+        return match (true) {
+            $user->subscribed('premium') || $user->ai_access => 5,
+            $user->subscribed('default') => 3,
+            default => 1,
+        };
+    }
+
     public function listBooks(Request $request): JsonResponse
     {
         $user = $request->user();
 
-        $books = $user
-            ->hasMany(UserBook::class, 'user_id')
+        $books = UserBook::where('user_id', $user->id)
             ->orderByDesc('created_at')
-            ->get(['id', 'title', 'file_type', 'total_pages', 'created_at'])
+            ->get(['id', 'title', 'file_type', 'total_pages'])
             ->map(fn ($b) => [
                 'id' => $b->id,
                 'title' => $b->title,
@@ -686,33 +571,38 @@ class TextAnalysisController extends Controller
                 'total_pages' => $b->total_pages,
             ]);
 
-        $bookLimit = match (true) {
-            $user->subscribed('premium') || $user->ai_access => 5,
-            $user->subscribed('default') => 3,
-            default => 1,
-        };
-
-        $usedStorage = UserBook::where('user_id', $user->id)->sum('text_size');
-
         return response()->json([
             'books' => $books,
-            'bookLimit' => $bookLimit,
-            'usedStorage' => $usedStorage,
-            'storageLimit' => 30 * 1024 * 1024,
+            'bookLimit' => $this->bookLimitFor($user),
+            'usedStorage' => UserBook::where('user_id', $user->id)->sum('text_size'),
+            'storageLimit' => self::BOOK_STORAGE_LIMIT,
         ]);
+    }
+
+    /**
+     * Csak valódi szóalak kerülhet az AI promptokba (prompt injection ellen):
+     * betűk, aposztróf, kötőjel, szóköz, max 100 karakter.
+     */
+    private function sanitizeWordForPrompt(string $word): ?string
+    {
+        return preg_match("/^[\pL][\pL'\\- ]{0,99}$/u", $word) === 1 ? $word : null;
     }
 
     public function geminiFlashcard(Request $request): JsonResponse
     {
-        abort_unless(Gate::check('admin') || request()->user()?->hasAiAccess(), 403);
+        abort_unless(Gate::check('admin') || $request->user()?->hasAiAccess(), 403);
 
-        $word = $request->string('word')->trim()->value();
-
-        if (strlen($word) < 1) {
-            return response()->json(['error' => 'Hiányzó szó.'], 422);
+        if ($limited = $this->aiLimitGuard($request)) {
+            return $limited;
         }
 
-        $apiKey = env('GEMINI_API_KEY') ?: config('services.gemini.api_key');
+        $word = $this->sanitizeWordForPrompt($request->string('word')->trim()->value());
+
+        if ($word === null) {
+            return response()->json(['error' => 'Érvénytelen szó.'], 422);
+        }
+
+        $apiKey = config('services.gemini.api_key');
         $prompt = <<<PROMPT
 You are an English vocabulary flashcard generator for Hungarian learners. Generate rich flashcard content for the English word "{$word}".
 
@@ -742,7 +632,7 @@ Rules:
 - Respond ONLY with valid JSON, no markdown.
 PROMPT;
 
-        $result = $this->callGemini($apiKey, $prompt, 800, 'gemini-2.5-flash');
+        $result = $this->callGemini($apiKey, $prompt, 800, 'gemini-2.5-flash', user: $request->user());
 
         if (! $result['ok']) {
             return response()->json(['error' => $result['error']], 502);
@@ -831,7 +721,7 @@ PROMPT;
 
         $validated = $request->validate([
             'words' => ['required', 'array', 'min:1', 'max:10'],
-            'words.*.word' => ['required', 'string', 'max:100'],
+            'words.*.word' => ['required', 'string', 'max:100', "regex:/^[\pL][\pL'\\- ]*$/u"],
             'words.*.meaning_hu' => ['nullable', 'string', 'max:200'],
             'text' => ['required', 'string', 'min:5', 'max:3000'],
         ]);
@@ -839,7 +729,9 @@ PROMPT;
         $text = trim($validated['text']);
 
         $wordList = collect($validated['words'])->map(function ($w) {
-            $meaning = ! empty($w['meaning_hu']) ? " (jelentése: \"{$w['meaning_hu']}\")" : '';
+            // Idézőjelek és sortörések nélkül kerül a promptba (prompt injection ellen)
+            $cleanMeaning = str_replace(["\n", "\r", '"'], [' ', ' ', "'"], $w['meaning_hu'] ?? '');
+            $meaning = $cleanMeaning !== '' ? " (jelentése: \"{$cleanMeaning}\")" : '';
 
             return "- {$w['word']}{$meaning}";
         })->implode("\n");
@@ -881,9 +773,9 @@ Return ONLY valid JSON:
 Respond ONLY with valid JSON, no markdown.
 PROMPT;
 
-        $apiKey = env('GEMINI_API_KEY') ?: config('services.gemini.api_key');
+        $apiKey = config('services.gemini.api_key');
 
-        $response = $this->callGemini($apiKey, $prompt, 800);
+        $response = $this->callGemini($apiKey, $prompt, 800, user: $request->user());
 
         if (! $response['ok']) {
             return response()->json(['error' => $response['error']], 502);
@@ -895,6 +787,16 @@ PROMPT;
             return response()->json(['error' => 'Érvénytelen válasz.'], 502);
         }
 
+        // A modell a kért formátum ellenére néha objektumokat ad vissza
+        // a grammar_issues-ban — itt normalizáljuk stringekké.
+        $data['grammar_issues'] = collect($data['grammar_issues'] ?? [])
+            ->map(fn ($issue) => is_string($issue)
+                ? $issue
+                : ($issue['explanation_hu'] ?? $issue['issue'] ?? json_encode($issue, JSON_UNESCAPED_UNICODE)))
+            ->filter()
+            ->values()
+            ->all();
+
         return response()->json($data);
     }
 
@@ -902,8 +804,12 @@ PROMPT;
     {
         abort_unless(Gate::check('admin') || $request->user()?->hasAiAccess(), 403);
 
+        if ($limited = $this->aiLimitGuard($request)) {
+            return $limited;
+        }
+
         $validated = $request->validate([
-            'word' => ['required', 'string', 'max:100'],
+            'word' => ['required', 'string', 'max:100', "regex:/^[\pL][\pL'\\- ]*$/u"],
             'meaning_hu' => ['nullable', 'string', 'max:200'],
             'sentence' => ['required', 'string', 'min:3', 'max:500'],
         ]);
@@ -936,9 +842,9 @@ Return ONLY valid JSON with this exact structure:
 Be encouraging and educational. If the sentence is correct, celebrate it. Respond ONLY with valid JSON, no markdown.
 PROMPT;
 
-        $apiKey = env('GEMINI_API_KEY') ?: config('services.gemini.api_key');
+        $apiKey = config('services.gemini.api_key');
 
-        $response = $this->callGemini($apiKey, $prompt, 400);
+        $response = $this->callGemini($apiKey, $prompt, 400, user: $request->user());
 
         if (! $response['ok']) {
             return response()->json(['error' => $response['error']], 502);
@@ -962,15 +868,19 @@ PROMPT;
 
     public function wordInsight(Request $request): JsonResponse
     {
-        abort_unless(Gate::check('admin'), 403);
+        abort_unless(Gate::check('admin') || $request->user()?->hasAiAccess(), 403);
 
-        $word = $request->string('word')->trim()->value();
-
-        if (strlen($word) < 1) {
-            return response()->json(['error' => 'Hiányzó szó.'], 422);
+        if ($limited = $this->aiLimitGuard($request)) {
+            return $limited;
         }
 
-        $apiKey = env('GEMINI_API_KEY') ?: config('services.gemini.api_key');
+        $word = $this->sanitizeWordForPrompt($request->string('word')->trim()->value());
+
+        if ($word === null) {
+            return response()->json(['error' => 'Érvénytelen szó.'], 422);
+        }
+
+        $apiKey = config('services.gemini.api_key');
 
         $prompt = <<<PROMPT
 You are an English vocabulary educator for Hungarian learners. For the English word "{$word}", explain where and how it is used in real life.
@@ -996,7 +906,7 @@ Rules:
 - Respond ONLY with valid JSON, no markdown.
 PROMPT;
 
-        $result = $this->callGemini($apiKey, $prompt, 600);
+        $result = $this->callGemini($apiKey, $prompt, 600, user: $request->user());
 
         if (! $result['ok']) {
             return response()->json(['error' => $result['error']], 502);
@@ -1017,9 +927,11 @@ PROMPT;
 
     public function geminiListModels(): JsonResponse
     {
-        abort_unless(Gate::check('admin') || request()->user()?->hasAiAccess(), 403);
-        $apiKey = env('GEMINI_API_KEY') ?: config('services.gemini.api_key');
-        $response = Http::get("https://generativelanguage.googleapis.com/v1beta/models?key={$apiKey}");
+        // Dev tooling that proxies the raw upstream model list — admin-only.
+        abort_unless(Gate::check('admin'), 403);
+        $apiKey = config('services.gemini.api_key');
+        $response = Http::withHeaders(['x-goog-api-key' => $apiKey])
+            ->get('https://generativelanguage.googleapis.com/v1beta/models');
 
         return response()->json($response->json());
     }
@@ -1028,14 +940,18 @@ PROMPT;
     {
         abort_unless(Gate::check('admin') || request()->user()?->hasAiAccess(), 403);
 
-        $word = $request->string('word')->trim()->lower()->value();
-        $context = $request->string('context')->trim()->value();
-
-        if (strlen($word) < 1) {
-            return response()->json(['error' => 'Hiányzó szó.'], 422);
+        if ($limited = $this->aiLimitGuard($request)) {
+            return $limited;
         }
 
-        $apiKey = env('GEMINI_API_KEY') ?: config('services.gemini.api_key');
+        $word = $this->sanitizeWordForPrompt($request->string('word')->trim()->lower()->value());
+        $context = $request->string('context')->trim()->value();
+
+        if ($word === null) {
+            return response()->json(['error' => 'Érvénytelen szó.'], 422);
+        }
+
+        $apiKey = config('services.gemini.api_key');
 
         $contextBlock = $context
             ? "\nThe word appears in this sentence: \"{$context}\"\nAlso add a field:\n- context_explanation: 1-2 sentences in Hungarian explaining what \"{$word}\" specifically means in that sentence and how it is used in that context."
@@ -1062,7 +978,7 @@ You are a Hungarian-English dictionary assistant. For the English word "{$word}"
 Respond ONLY with valid JSON, no markdown, no explanation.
 PROMPT;
 
-        $result = $this->callGemini($apiKey, $prompt, 400, temperature: 0.2);
+        $result = $this->callGemini($apiKey, $prompt, 400, temperature: 0.2, user: $request->user());
 
         if (! $result['ok']) {
             return response()->json(['error' => $result['error']], 502);
@@ -1093,6 +1009,134 @@ PROMPT;
         ]);
     }
 
+    /** Hány elmentett YouTube-felirata lehet a felhasználónak (csomagtól függően). */
+    private function youtubeLimitFor(User $user): int
+    {
+        return match (true) {
+            $user->subscribed('premium') || $user->ai_access => 10,
+            $user->subscribed('default') => 3,
+            default => 1,
+        };
+    }
+
+    /**
+     * @return array{id: int, title: string, video_id: string, total_pages: int}
+     */
+    private function transcriptPayload(YoutubeTranscript $t): array
+    {
+        return [
+            'id' => $t->id,
+            'title' => $t->title,
+            'video_id' => $t->video_id,
+            'total_pages' => $t->total_pages,
+        ];
+    }
+
+    public function listYoutube(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $transcripts = YoutubeTranscript::where('user_id', $user->id)
+            ->orderByDesc('created_at')
+            ->get(['id', 'title', 'video_id', 'total_pages'])
+            ->map(fn (YoutubeTranscript $t) => $this->transcriptPayload($t));
+
+        return response()->json([
+            'transcripts' => $transcripts,
+            'youtubeLimit' => $this->youtubeLimitFor($user),
+        ]);
+    }
+
+    public function storeYoutube(Request $request): JsonResponse
+    {
+        $url = $request->validate(['url' => 'required|url:http,https|max:2000'])['url'];
+
+        $videoId = $this->captions->extractVideoId($url);
+
+        if ($videoId === null) {
+            return response()->json(['error' => 'Érvénytelen YouTube link.'], 422);
+        }
+
+        $user = $request->user();
+        $limit = $this->youtubeLimitFor($user);
+
+        if (YoutubeTranscript::where('user_id', $user->id)->count() >= $limit) {
+            return response()->json([
+                'error' => "Elérted az elmentett YouTube-feliratok maximális számát ({$limit}). Törölj egyet, vagy válts magasabb csomagra.",
+            ], 403);
+        }
+
+        try {
+            $segments = $this->captions->fetchCaptions($videoId);
+        } catch (\RuntimeException $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
+        } catch (\Throwable) {
+            return response()->json(['error' => 'A felirat nem érhető el. Próbáld újra később.'], 422);
+        }
+
+        if (empty($segments)) {
+            return response()->json(['error' => 'Ehhez a videóhoz nem érhetők el angol feliratok.'], 422);
+        }
+
+        $title = $this->captions->fetchTitle($videoId) ?? 'YouTube videó';
+        $json = json_encode(array_values($segments), JSON_UNESCAPED_UNICODE) ?: '[]';
+        $totalPages = max(1, (int) ceil(count($segments) / YoutubeTranscript::SEGMENTS_PER_PAGE));
+
+        $transcript = YoutubeTranscript::create([
+            'user_id' => $user->id,
+            'video_id' => $videoId,
+            'title' => mb_substr($title, 0, 255),
+            'compressed_segments' => gzencode($json, 6),
+            'total_pages' => $totalPages,
+            'text_size' => mb_strlen($json, '8bit'),
+        ]);
+
+        $pageData = $transcript->getPage(1);
+
+        return response()->json([
+            'transcript' => $this->transcriptPayload($transcript),
+            'page' => 1,
+            'text' => $pageData['text'],
+            'segments' => $pageData['segments'],
+        ]);
+    }
+
+    public function getYoutubePage(Request $request, YoutubeTranscript $transcript): JsonResponse
+    {
+        abort_unless($transcript->user_id === $request->user()->id, 403);
+
+        $page = max(1, min((int) $request->query('page', 1), $transcript->total_pages));
+        $data = $transcript->getPage($page);
+
+        return response()->json([
+            'page' => $page,
+            'text' => $data['text'],
+            'segments' => $data['segments'],
+        ]);
+    }
+
+    /** A TELJES videó megértési statisztikája (az összes szegmens szövegén). */
+    public function youtubeOverview(Request $request, YoutubeTranscript $transcript): JsonResponse
+    {
+        abort_unless($transcript->user_id === $request->user()->id, 403);
+
+        $fullText = implode(' ', array_map(fn ($s) => $s['x'] ?? '', $transcript->segments()));
+        $analysis = $this->buildAnalysis($fullText, $request->user());
+
+        // A teljes felirat token-státusz térképe nem kell ide, csak az összesített számok.
+        unset($analysis['tokenStatuses']);
+
+        return response()->json($analysis);
+    }
+
+    public function deleteYoutube(Request $request, YoutubeTranscript $transcript): JsonResponse
+    {
+        abort_unless($transcript->user_id === $request->user()->id, 403);
+        $transcript->delete();
+
+        return response()->json(['ok' => true]);
+    }
+
     public function uploadBook(Request $request): JsonResponse
     {
         $request->validate([
@@ -1100,13 +1144,7 @@ PROMPT;
         ]);
 
         $user = $request->user();
-        $bookLimit = match (true) {
-            $user->subscribed('premium') || $user->ai_access => 5,
-            $user->subscribed('default') => 3,
-            default => 1,
-        };
-
-        $storageLimit = 30 * 1024 * 1024; // 30 MB in bytes
+        $bookLimit = $this->bookLimitFor($user);
 
         $bookCount = UserBook::where('user_id', $user->id)->count();
         if ($bookCount >= $bookLimit) {
@@ -1116,7 +1154,7 @@ PROMPT;
         }
 
         $usedStorage = UserBook::where('user_id', $user->id)->sum('text_size');
-        if ($usedStorage >= $storageLimit) {
+        if ($usedStorage >= self::BOOK_STORAGE_LIMIT) {
             return response()->json([
                 'error' => 'Elérted a 30 MB-os tárhely limitet. Töröld valamelyik könyvet a feltöltéshez.',
             ], 403);
@@ -1126,11 +1164,17 @@ PROMPT;
         $extension = strtolower($file->getClientOriginalExtension());
         $title = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
 
-        $text = match ($extension) {
-            'pdf' => $this->extractPdfText($file->getRealPath()),
-            'epub' => $this->extractEpubText($file->getRealPath()),
-            default => throw new \RuntimeException('Nem támogatott formátum.'),
-        };
+        try {
+            $text = match ($extension) {
+                'pdf' => $this->extractPdfText($file->getRealPath()),
+                'epub' => $this->extractEpubText($file->getRealPath()),
+                default => throw new \RuntimeException('Nem támogatott formátum.'),
+            };
+        } catch (\RuntimeException $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
+        } catch (\Throwable) {
+            return response()->json(['error' => 'A fájl nem dolgozható fel. Lehet, hogy sérült vagy titkosított.'], 422);
+        }
 
         $text = preg_replace('/\s+/', ' ', trim($text)) ?? '';
 
@@ -1172,6 +1216,19 @@ PROMPT;
             'page' => $page,
             'text' => $book->getPage($page),
         ]);
+    }
+
+    /** A TELJES könyv megértési statisztikája (az összes oldal szövegén). */
+    public function bookOverview(Request $request, UserBook $book): JsonResponse
+    {
+        abort_unless($book->user_id === $request->user()->id, 403);
+
+        $fullText = gzdecode($book->compressed_text) ?: '';
+        $analysis = $this->buildAnalysis($fullText, $request->user());
+
+        unset($analysis['tokenStatuses']);
+
+        return response()->json($analysis);
     }
 
     public function deleteBook(Request $request, UserBook $book): JsonResponse
@@ -1461,13 +1518,24 @@ PROMPT;
     }
 
     /**
+     * Gemini árazás modellenként, USD / 1M token (input és output külön).
+     * A költséget ebből számoljuk mikro-dollárban (lásd lentebb).
+     *
+     * @var array<string, array{in: float, out: float}>
+     */
+    private const GEMINI_PRICING = [
+        'gemini-2.5-flash-lite' => ['in' => 0.10, 'out' => 0.40],
+        'gemini-2.5-flash' => ['in' => 0.30, 'out' => 2.50],
+    ];
+
+    /**
      * Call Gemini with retry logic and thinking disabled.
      *
-     * @return array{ok: bool, data: mixed, error: string}
+     * @return array{ok: bool, data: mixed, error: string, cost_micros?: int}
      */
-    private function callGemini(string $apiKey, string $prompt, int $maxTokens, string $model = 'gemini-2.5-flash-lite', float $temperature = 0.3): array
+    private function callGemini(string $apiKey, string $prompt, int $maxTokens, string $model = 'gemini-2.5-flash-lite', float $temperature = 0.3, ?User $user = null): array
     {
-        $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$apiKey}";
+        $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent";
         $payload = [
             'contents' => [['parts' => [['text' => $prompt]]]],
             'generationConfig' => [
@@ -1477,12 +1545,26 @@ PROMPT;
             ],
         ];
 
+        $rate = self::GEMINI_PRICING[$model] ?? self::GEMINI_PRICING['gemini-2.5-flash-lite'];
+
+        // Pre-charge an estimate (prompt input + max possible output) atomically
+        // so concurrent calls cannot all pass the budget check before any of
+        // them is recorded; reconciled to the real cost below (settle/refund).
+        $estimatedMicros = (int) round(((int) ceil(mb_strlen($prompt) / 4)) * $rate['in'] + $maxTokens * $rate['out']);
+
+        if ($user !== null && ! $this->aiUsage->reserve($user, $estimatedMicros)) {
+            return ['ok' => false, 'data' => null, 'error' => 'Elérted a havi AI-felhasználási kereted.', 'cost_micros' => 0];
+        }
+
         $lastError = 'Ismeretlen hiba.';
 
         for ($attempt = 1; $attempt <= 2; $attempt++) {
             try {
                 $response = Http::timeout(30)
-                    ->withHeaders(['Content-Type' => 'application/json'])
+                    ->withHeaders([
+                        'Content-Type' => 'application/json',
+                        'x-goog-api-key' => $apiKey,
+                    ])
                     ->post($url, $payload);
             } catch (\Exception $e) {
                 $lastError = 'Kapcsolódási hiba: '.$e->getMessage();
@@ -1503,19 +1585,81 @@ PROMPT;
             $text = preg_replace('/^```json\s*|\s*```$/s', '', trim($text));
             $data = json_decode($text, true);
 
-            return ['ok' => true, 'data' => $data, 'error' => ''];
+            if ($data === null) {
+                $lastError = 'Érvénytelen AI válasz (nem JSON).';
+
+                continue;
+            }
+
+            // Tényleges költség a Gemini válasz token-bontásából (input/output külön
+            // árazva), mikro-dollárban (1e6 = $1). Hiányzó usageMetadata esetén durva
+            // becslés a prompt + válasz hosszából (~4 karakter / token).
+            $inputTokens = (int) ($response->json('usageMetadata.promptTokenCount')
+                ?? ceil(mb_strlen($prompt) / 4));
+            $outputTokens = (int) ($response->json('usageMetadata.candidatesTokenCount')
+                ?? ceil(mb_strlen($text) / 4));
+
+            $costMicros = (int) round($inputTokens * $rate['in'] + $outputTokens * $rate['out']);
+
+            if ($user !== null) {
+                $this->aiUsage->settle($user, $estimatedMicros, $costMicros);
+            }
+
+            return ['ok' => true, 'data' => $data, 'error' => '', 'cost_micros' => $costMicros];
         }
 
-        return ['ok' => false, 'data' => null, 'error' => $lastError];
+        if ($user !== null) {
+            $this->aiUsage->refund($user, $estimatedMicros);
+        }
+
+        return ['ok' => false, 'data' => null, 'error' => $lastError, 'cost_micros' => 0];
     }
 
     /** @return string[] */
+    /**
+     * Gyakori angol összevonások kibontása valódi szavakra (a szóelemzéshez).
+     * Így az „I'm" nem két törött token lesz, hanem „am", az „I'd" → „would" stb.
+     */
+    private const CONTRACTIONS = [
+        "i'm" => 'i am', "you're" => 'you are', "we're" => 'we are', "they're" => 'they are',
+        "he's" => 'he is', "she's" => 'she is', "it's" => 'it is', "that's" => 'that is',
+        "there's" => 'there is', "here's" => 'here is', "who's" => 'who is', "what's" => 'what is',
+        "where's" => 'where is', "how's" => 'how is', "let's" => 'let us',
+        "i've" => 'i have', "you've" => 'you have', "we've" => 'we have', "they've" => 'they have',
+        "could've" => 'could have', "would've" => 'would have', "should've" => 'should have',
+        "might've" => 'might have', "must've" => 'must have',
+        "i'll" => 'i will', "you'll" => 'you will', "we'll" => 'we will', "they'll" => 'they will',
+        "he'll" => 'he will', "she'll" => 'she will', "it'll" => 'it will', "that'll" => 'that will',
+        "i'd" => 'i would', "you'd" => 'you would', "we'd" => 'we would', "they'd" => 'they would',
+        "he'd" => 'he would', "she'd" => 'she would', "it'd" => 'it would',
+        "don't" => 'do not', "doesn't" => 'does not', "didn't" => 'did not', "isn't" => 'is not',
+        "aren't" => 'are not', "wasn't" => 'was not', "weren't" => 'were not', "haven't" => 'have not',
+        "hasn't" => 'has not', "hadn't" => 'had not', "won't" => 'will not', "wouldn't" => 'would not',
+        "can't" => 'can not', "couldn't" => 'could not', "shouldn't" => 'should not',
+        "mustn't" => 'must not', "mightn't" => 'might not', "needn't" => 'need not',
+        "shan't" => 'shall not', "ain't" => 'is not',
+    ];
+
+    /**
+     * @return array<int, string>
+     */
     private function tokenize(string $text): array
     {
-        $cleaned = str_replace(['\u{2018}', '\u{2019}', '\u{2032}', "'"], ' ', $text);
-        $cleaned = preg_replace('/[^a-zA-Z ]+/', ' ', $cleaned) ?? '';
-        $words = preg_split('/\s+/', mb_strtolower(trim($cleaned))) ?: [];
+        // Aposztrófok egységesítése, kisbetűsítés
+        $cleaned = mb_strtolower(str_replace(["\u{2018}", "\u{2019}", "\u{2032}"], "'", $text));
 
-        return array_values(array_filter($words, fn ($w) => strlen($w) >= 2));
+        // Összevonások szóalakokra bontása; az ismeretlen aposztrófos szavaknál (pl. birtokos "dog's")
+        // levágjuk az aposztróf utáni részt → "dog".
+        $cleaned = preg_replace_callback(
+            "/\b[a-z]+(?:'[a-z]+)+\b/",
+            fn ($m) => self::CONTRACTIONS[$m[0]] ?? preg_replace("/'.*/", '', $m[0]),
+            $cleaned
+        ) ?? $cleaned;
+
+        $cleaned = preg_replace('/[^a-z ]+/', ' ', $cleaned) ?? '';
+        $words = preg_split('/\s+/', trim($cleaned)) ?: [];
+
+        // 1 betűs szavak közül csak a két valódi angol szót tartjuk meg ("a", "i") — a többi zaj.
+        return array_values(array_filter($words, fn ($w) => strlen($w) >= 2 || $w === 'a' || $w === 'i'));
     }
 }

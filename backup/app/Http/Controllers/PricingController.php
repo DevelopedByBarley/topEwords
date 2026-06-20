@@ -2,79 +2,113 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\Billing;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\URL;
 use Inertia\Inertia;
 use Inertia\Response;
+use Laravel\Cashier\Exceptions\IncompletePayment;
 
 class PricingController extends Controller
 {
-    // Stripe price IDs — set these in the Stripe dashboard
-    private const BASIC_PRICE_ID = 'price_1TJz7dI38BdKXLU03a7PwGE4';
-
-    private const PREMIUM_PRICE_ID = 'price_1TJz9OI38BdKXLU07komC43Z';
-
-    public function index(Request $request): Response
+    public function index(Request $request): Response|RedirectResponse
     {
         $user = $request->user();
+
+        // A Stripe Checkout megszakításakor ide tér vissza (?checkout=cancelled).
+        // Átirányítunk, hogy a flash üzenet kijusson (a share() a controller
+        // előtt fut, így az azonos kérésen belüli flash nem látszana) és a
+        // query paraméter is eltűnjön az URL-ből.
+        if ($request->query('checkout') === 'cancelled') {
+            return redirect()->route('pricing')->with('info', 'A fizetést megszakítottad – nem történt levonás. Bármikor visszatérhetsz.');
+        }
 
         return Inertia::render('pricing', [
             'hasActiveAccess' => $user?->hasActiveAccess() ?? false,
             'isOnTrial' => $user?->onTrial() ?? false,
             'trialEndsAt' => $user?->trial_ends_at?->toIso8601String(),
-            'isSubscribed' => $user?->subscribed('default') || $user?->subscribed('premium') ?? false,
-            'isPremium' => $user?->subscribed('premium') ?? false,
+            'isSubscribed' => $user?->activeSubscription() !== null,
+            'isPremium' => $user?->subscriptionPlan() === 'premium',
             'hasAiAccess' => $user?->hasAiAccess() ?? false,
-            'stripeConfigured' => config('cashier.key') !== 'pk_test_placeholder'
-                && str_starts_with(self::BASIC_PRICE_ID, 'price_'),
+            'stripeConfigured' => Billing::enabled(),
         ]);
     }
 
     public function checkout(Request $request, string $plan): RedirectResponse|\Illuminate\Http\Response
     {
+        abort_unless(Billing::enabled(), 404);
+        abort_unless(in_array($plan, ['basic', 'premium'], true), 404);
+
         $user = $request->user();
 
         if (! $user) {
             return redirect()->route('login');
         }
 
-        $successUrl = URL::temporarySignedRoute('pricing.success', now()->addMinutes(10));
+        $priceId = $plan === 'premium'
+            ? config('services.stripe.premium_price_id')
+            : config('services.stripe.basic_price_id');
 
-        if ($plan === 'basic') {
-            if ($user->subscribed('default')) {
-                return redirect()->route('pricing')->with('info', 'Már aktív alap előfizetésed van.');
+        // Meglévő előfizetésnél nem új előfizetést indítunk (dupla számlázás!),
+        // hanem a meglévőt váltjuk át a másik csomag árára.
+        $subscription = $user->activeSubscription();
+
+        if ($subscription !== null) {
+            if ($user->subscriptionPlan() === $plan) {
+                return redirect()->route('pricing')->with('info', 'Már ez az aktív csomagod.');
             }
 
-            $checkout = $user->newSubscription('default', self::BASIC_PRICE_ID)
-                ->checkout([
-                    'success_url' => $successUrl,
-                    'cancel_url' => route('pricing'),
-                ]);
-        } elseif ($plan === 'premium') {
-            if ($user->subscribed('premium')) {
-                return redirect()->route('pricing')->with('info', 'Már aktív prémium előfizetésed van.');
+            try {
+                $subscription->swap($priceId);
+            } catch (IncompletePayment) {
+                // SCA/3DS megerősítés szükséges — a számlázási portálon zárható le
+                return redirect()->route('pricing')->with('error', 'A csomagváltáshoz banki megerősítés szükséges. Kérlek fejezd be a fizetést a számlázási portálon.');
             }
 
-            $checkout = $user->newSubscription('premium', self::PREMIUM_PRICE_ID)
-                ->checkout([
-                    'success_url' => $successUrl,
-                    'cancel_url' => route('pricing'),
-                ]);
-        } else {
-            abort(404);
+            $message = $plan === 'premium'
+                ? 'Sikeres váltás Prémium csomagra! Az AI funkciók mostantól elérhetők.'
+                : 'Sikeres váltás Alap csomagra.';
+
+            return redirect()->route('pricing')->with('success', $message);
         }
+
+        // 60 perc: a Stripe Checkout sokáig nyitva maradhat — rövidebb lejárat
+        // esetén a sikeres fizetés UTÁN 403-at kapna a visszairányításkor.
+        $successUrl = URL::temporarySignedRoute('pricing.success', now()->addHour());
+
+        $subscriptionBuilder = $user->newSubscription($plan === 'premium' ? 'premium' : 'default', $priceId);
+
+        // Első előfizetéskor próbaidő: a kártyát elkérik, de csak a trial végén
+        // számláznak. A trial alatt a felhasználó a választott fizetett csomagot kapja.
+        $trialDays = (int) config('registration.subscription_trial_days');
+
+        if ($trialDays > 0) {
+            $subscriptionBuilder->trialDays($trialDays);
+        }
+
+        $checkout = $subscriptionBuilder->checkout([
+            'success_url' => $successUrl,
+            'cancel_url' => route('pricing', ['checkout' => 'cancelled']),
+        ]);
 
         return Inertia::location($checkout->url);
     }
 
     public function success(Request $request): RedirectResponse
     {
-        return redirect()->route('pricing')->with('success', 'Sikeres fizetés! Köszönjük a vásárlást.');
+        return redirect()->route('pricing')->with('success', 'Sikeres fizetés! Köszönjük az előfizetést – a funkciók azonnal elérhetők.');
     }
 
-    public function portal(Request $request): RedirectResponse
+    public function portal(Request $request): RedirectResponse|\Illuminate\Http\Response
     {
-        return $request->user()->redirectToBillingPortal(route('pricing'));
+        // Stripe ügyfél nélkül a portál hívása kivételt dobna
+        if (! $request->user()->hasStripeId()) {
+            return redirect()->route('pricing');
+        }
+
+        // A Stripe portál külső URL — Inertia POST-nál Inertia::location kell,
+        // különben a kliens nem navigál (sima redirectnél "nem történik semmi").
+        return Inertia::location($request->user()->billingPortalUrl(route('pricing')));
     }
 }

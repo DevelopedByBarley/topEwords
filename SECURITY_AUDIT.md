@@ -155,6 +155,24 @@ route-model binding (kontrollerek kompenzálnak), bulk endpoint arbitrary id (no
   `plan_override`, `ai_credit*` stb. már nem megy ki egyetlen oldalra sem. Új teszt: a shared
   `auth.user` prop nem tartalmazza a billing/entitlement mezőket. Suite zöld (189 passed).
 
+- [x] **🟡 #D3 — Hiányzó HTTP security response headerök — KÉSZ (2026-06-20)**
+  `app/Http/Middleware/SecurityHeaders.php` (új, aktív), `bootstrap/app.php`
+  Eddig az élő app **egyetlen** hardening-fejlécet sem küldött (a `backup/`-ban lévő `SecurityHeaders`
+  nem volt regisztrálva). Új middleware a `web` csoport végén:
+  - **Mindig:** `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`,
+    `Referrer-Policy: strict-origin-when-cross-origin`, `X-Permitted-Cross-Domain-Policies: none`,
+    `Permissions-Policy` (camera/mic/geo/payment/usb/cohort tiltva).
+  - **Csak prod** (`app()->isProduction()`): `Strict-Transport-Security` (1 év + preload) és egy
+    `Content-Security-Policy`. A CSP a navigációs/framing-vektorokat zárja le
+    (`frame-ancestors 'none'`, `object-src 'none'`, `base-uri 'self'`, `form-action 'self'`); az
+    inline `script`/`style` engedett (a root blade dark-mode inline scriptje + Tailwind inline stílus),
+    a font CDN (`fonts.bunny.net`) allowlistelve. Prod-only, mert a Vite dev-szerver (HMR ws + inline
+    refresh) különben törne. 3 új teszt (baseline fejlécek; CSP/HSTS nincs dev-ben; CSP/HSTS van
+    prodban). Suite zöld (205 passed).
+  *⚠ Élesítés után érdemes a böngésző-konzolban ellenőrizni, hogy a CSP nem blokkol semmit
+  (`npm run build` utáni statikus asseteknél). Ha később Stripe.js Elements / beágyazott iframe kerül
+  be, a `frame-src`/`script-src` bővítendő.*
+
 - [x] **🟡 #D2 — `APP_DEBUG=true` (prod-konfig) — KÉSZ (prodban rendezve, 2026-06-19)**
   Prodban `APP_DEBUG=false` beállítva (a felhasználó megerősítette). Lokálban marad `true`
   (dev-kényelem). Custom Inertia error oldal opcionális, nem készült.
@@ -195,6 +213,131 @@ exploit-út jelenleg nincs.*
 
 ---
 
+## Fájl-upload (EPUB/PDF könyv-feltöltés) — KÉSZ (2026-06-20)
+
+`app/Http/Controllers/TextAnalysisController.php` (`uploadBook`, `extractEpubText`, `readEpubSpine`,
+`findEpubOpfPath`). A feltöltés `auth`+onboarding mögött, throttle 10/min; minden book-endpoint
+IDOR-védett (`abort_unless($book->user_id === user->id)`).
+
+**Megerősítve BIZTONSÁGOS:**
+- **XXE — nincs.** Az EPUB OPF/XHTML **regex + `strip_tags`**-gel parse-olódik, semmilyen XML-motor
+  (DOMDocument/SimpleXML/`loadXML`) nem érinti az untrusted tartalmat; a PDF a smalot/pdfparser
+  (nem XML). Nincs external-entity feloldás.
+- **Zip-traversal — védett** (`normalizePath` kihajítja a `..` szegmenseket).
+
+- [x] **🟠 #F1 — Zip-bomb / dekompressziós DoS az EPUB-olvasásban — KÉSZ (2026-06-20)**
+  `ZipArchive::getFromName()` méret-ellenőrzés nélkül tömörített ki bejegyzéseket memóriába → egy
+  rosszindulatúan tömörített EPUB (akár 100 MB-os feltöltésből) GB-okra bomolhatott, OOM-ot okozva.
+  Bárki regisztrálttal elérhető volt (free terv = 1 könyv). Javítás: új `safeReadZipEntry()` —
+  `statName()`-mel ellenőrzi a kicsomagolt méretet, és csak a per-bejegyzés cap (`MAX_EPUB_ENTRY_BYTES`
+  = 5 MB) alatt olvas; minden olvasási hely (container.xml, OPF, spine, TOC-check) ezen megy át. A
+  spine-ciklus emellett a kumulált méretet is figyeli (`MAX_EPUB_TOTAL_BYTES` = 40 MB). 2 új teszt
+  (valid EPUB kinyeri a szöveget; >5 MB-os bejegyzés kihagyva → 422). Suite zöld (210 passed).
+
+- [x] **🟡 #F2 — Túl magas feltöltési limit — KÉSZ (2026-06-20)**
+  A `max:102400` (100 MB) inkonzisztens volt a 30 MB-os tárhely-limittel, és felerősítette az EPUB
+  zip-bomb + a smalot/pdfparser memória-DoS kockázatát (egy nagy/komplex PDF parse-olása OOM-ot
+  okozhat, amit a try/catch nem fog el). Csökkentve `max:30720` (30 MB) — egy könyvhöz bőven elég,
+  és a tárhely-limithez illeszkedik.
+
+---
+
+## Flashcard CSV-import — KÉSZ (2026-06-20)
+
+`app/Http/Controllers/FlashcardCsvController.php`. Az import-út átvizsgálva — **lényegében
+biztonságos**: IDOR (`abort_unless($deck->user_id === user->id, 403)`), fájlméret-DoS bekorlátozva
+(`max:2048` KB + `MAX_IMPORT_ROWS=5000`), stored XSS kizárva (`textToHtml` → `htmlspecialchars(ENT_QUOTES)`,
+plusz a render `sanitizeHtml`-en megy át, #X1), mass assignment biztonságos (`insert()` szerver-fix
+kulcsokkal), modern `fgetcsv(escape='')`. Formula-injection az exportnál már védve (#audit IDOR).
+
+- [x] **🟢 #C1 — CSV-import nem korlátozta a mezőhosszt — KÉSZ (2026-06-20)**
+  A web-szerkesztő és az extension `max:10000`-et kényszerít a `front`/`back`-re, a CSV-import viszont
+  nem → egy >64 KB-os cella a `text` oszlopnál (strict módban) insert-hibát dobhatott, és inkonzisztens
+  volt. Új `MAX_FIELD_LENGTH=10000` konstans; a túl hosszú mezőt tartalmazó sor a meglévő „kihagyva"
+  szemantikával átugorva. 3 új teszt (valid import; túl hosszú sor kihagyva; idegen deck → 403).
+  Suite zöld (208 passed).
+
+---
+
+## Függőségek (dependency audit)
+
+- [x] **🔴/🟠 #DEP1 — Sérülékeny Composer-függőségek — KÉSZ (2026-06-20)**
+  `composer.lock` (forrás: `composer audit`)
+  Kiindulás: **19 advisory / 10 csomag**. A lényegesek: `laravel/framework` (High — CRLF a default
+  `email` validációs szabályban + signed-URL path confusion), `symfony/mime` (High — email/SMTP
+  CRLF), `guzzlehttp/guzzle` + `guzzlehttp/psr7` (CRLF + HTTPS→cleartext proxy downgrade),
+  `symfony/http-foundation` (SSRF-bypass — **minket nem érint**, mert a `safeFetch`/`assertPublicHost`
+  natív `filter_var(FILTER_FLAG_NO_PRIV_RANGE|NO_RES_RANGE)`-et használ, nem Symfony `IpUtils`-t),
+  `symfony/routing`, `http-kernel`, `mailer`, `yaml`, `polyfill-intl-idn`.
+  Javítás: patch-szintű frissítés a meglévő constraint-eken belül —
+  `composer update laravel/framework guzzlehttp/guzzle guzzlehttp/psr7 -W` (Laravel v13.2.0→v13.16.1,
+  guzzle 7.10→7.12.1, a Symfony-komponensek vele), majd `composer update symfony/yaml` (v8.0.6→javított).
+  Eredmény: **`composer audit` → No security vulnerability advisories found.** Teljes suite zöld
+  (205 passed). *Megj.: az npm oldalon maradt 8 sérülékenység (vite/concurrently/postcss) mind
+  **dev-dependency**, prodba nem kerül — alacsony prioritás, `npm audit fix` opcionálisan.*
+  *⚠ A `composer.lock` változott → deploykor `composer install --no-dev` a szerveren.*
+
+---
+
 ## Általános környezeti megjegyzés
 `APP_DEBUG=true` lokálban rendben, de **prodban kapcsoljuk ki** (stack-trace disclosure a hibautakon).
 `SESSION_SECURE_COOKIE` legyen `true` prodban.
+
+---
+
+## Extension újra-audit — flashcard/AI-kártya, kifejezés-kiemelés, státusz/fontosság (2026-06-19)
+
+Az extension új funkcióinak átvizsgálása: státusz/fontosság a popupból, kifejezés-kiemelés
+(YouTube/Netflix/oldal), flashcard-készítés a popupból (kézi + AI), és az érintett backend.
+5 területet auditáltunk (kliens XSS/DOM, `ExtensionController`, AI/SSRF/költség, manifest/CSP/cookie,
+státusz/fontosság IDOR). **Nincs Critical/High.**
+
+- [x] **🟡 #X2 — AI-flashcard előnézet nyers `innerHTML`-lel renderelt backend-HTML-t — KÉSZ (2026-06-19)**
+  `chrome-extension/content.js`. Ma is biztonságos volt (a `buildFlashcardFront/Back` minden
+  modell-mezőt `htmlspecialchars`-el, a bemeneti szó `^[\pL][\pL'\- ]{0,99}$`-re szűrt), de
+  törékeny minta. Javítás: új `sanitizeAiHtml()` (veszélyes elemek + `on*` kezelők + `javascript:`/
+  `data:` URL-ek eltávolítása) + `replaceChildren(...)` a nyers `innerHTML` helyett.
+
+- [x] **🟢 #X3 — `esc()` nem escape-elte az idézőjeleket — KÉSZ (2026-06-19)**
+  `chrome-extension/content.js`. Latens attribútum-kontextus footgun (nem volt kihasználható).
+  Az `esc()` mostantól `"`→`&quot;` és `'`→`&#39;`-t is escape-el; a felirat-renderelő (`ytWordsToHtml`)
+  az ad-hoc `replace(/"/)` helyett az egységes `esc()`-t használja az attribútumhoz.
+
+- [x] **🟢 #X4 — `background.js` `onMessage` nem ellenőrizte a feladót — KÉSZ (2026-06-19)**
+  Hozzáadva `if (sender.id !== chrome.runtime.id) return;` (defense-in-depth). Web-origin amúgy
+  sem éri el (nincs `externally_connectable`).
+
+- [x] **🟡 #X1 — Flashcard `front`/`back` nyers HTML-renderelése — KÉSZ (2026-06-20)**
+  `POST /extension/create-flashcard` (és a webes szerkesztő) szabad stringként ment `front`/`back`-et,
+  amit a fő app a `RichTextContent` (`resources/js/components/ui/rich-text-editor.tsx`)
+  `dangerouslySetInnerHTML`-jén át renderelt — egy extensionből beküldött `<img src=x onerror=…>`
+  tárolt (jelenleg self-)XSS. **Nincs deck-megosztás/publikus pakli**, így ma csak a tulajdonost
+  érintette, de lezártuk. Javítás: új `resources/js/lib/sanitize-html.ts` (allowlist tag/attr,
+  `on*` kezelők + `javascript:`/`data:` URL-ek eltávolítása, SSR-biztos regex-fallbackkel), és a
+  `RichTextContent` mostantól ezen át renderel. Mivel ez az **egyetlen** HTML-sink a flashcardokhoz
+  (study, calibrate, preview mind `RichTextContent`-et használ; a `card-row` `plainText()`-et),
+  egy helyen minden render-út lefedve. A TipTap szerkesztő betöltéskor a saját sémájába parse-ol
+  (szerkesztési út is biztonságos). `npm run build` zöld.
+
+- [ ] **🟢 #X5 — Ingyenes flashcard-limit csak paklinként (20/pakli)**
+  `User::canAddFlashcardsTo()` paklinként számol → sok pakli létrehozásával megkerülhető.
+  Üzleti-logikai, nem biztonsági. Teendő (opcionális): globális cap és/vagy pakliszám-limit free terven.
+
+- [ ] **🟢 #X6 — Írás-throttle közös vödör (20/perc)**
+  `add-word` + `create-flashcard` egy `ext-write` vödröt oszt; fizető usernél a darabszám korlátlan
+  → saját adatra szóló tömeges beszúrás. CSRF-védett, self-scoped → alacsony.
+
+- **⚪ #X7 (by-design)** — A YouTube felirat-`baseUrl` nem fut át az `assertPublicHost`-on, de azt
+  maga a YouTube adja vissza (nem user-vezérelt). Opcionális keményítés.
+
+**Megerősítve BIZTONSÁGOS:** SSRF (`fetchSource`: privát/reserved IP-tiltás + `CURLOPT_RESOLVE`
+DNS-rebind védelem + hopponként újra-ellenőrzött manuális redirect); AI havi keret atomikusan
+kikényszerített (`reserve()` feltételes `increment`, nincs TOCTOU); AI-végpontok `hasAiAccess()`/admin
+mögött; minden extension-végpont auth-ellenőrzött; IDOR mindenhol védett (`createFlashcard` saját
+relációból kéri a decket → idegen id 404; `UserCustomWordPolicy::update` tulajdon-ellenőrzés;
+Word-pivot per-user; `FlashcardCardController` minden metódusa `abort_unless` deck+kártya tulajdonra);
+mass assignment explicit whitelisttel; SQL paraméterkötött; CSRF csak `stripe/*` kivétellel (extension
+POST-ok védettek); nincs permisszív CORS a web-route-okon (`config/cors.php` nincs → default csak
+`api/*`); cookie `http_only` + `same_site=lax`; manifest MV3 minimális jogosultságokkal
+(`activeTab, contextMenus, storage`), host scope csak `topwords.eu`, nincs CSP-felülírás /
+`web_accessible_resources` / `externally_connectable`, nincs hardcode-olt titok.

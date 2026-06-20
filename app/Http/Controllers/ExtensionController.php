@@ -9,9 +9,21 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 
 class ExtensionController extends Controller
 {
+    /**
+     * Collapse any whitespace run to a single space and trim. Captions separate
+     * phrase words with NBSP, newlines or double spaces, so the raw token sent on
+     * click ("get\u{00A0}rid\u{00A0}of") must be normalised to match how phrases
+     * are stored and how the highlight map keys them ("get rid of").
+     */
+    private function normalizePhraseWhitespace(string $word): string
+    {
+        return trim((string) preg_replace('/\s+/u', ' ', str_replace("\u{00A0}", ' ', $word)));
+    }
+
     public function lookup(Request $request): JsonResponse
     {
         if (! $request->user()) {
@@ -20,7 +32,7 @@ class ExtensionController extends Controller
 
         $hasActiveAccess = $request->user()->hasActiveAccess();
 
-        $word = $request->string('word')->trim()->value();
+        $word = $this->normalizePhraseWhitespace($request->string('word')->value());
 
         if (empty($word)) {
             return response()->json(['found' => false, 'word' => $word]);
@@ -137,6 +149,10 @@ class ExtensionController extends Controller
             'importance' => ['nullable', 'integer', 'min:1', 'max:5'],
         ]);
 
+        // Kanonikus szóköz, hogy a feliratból kattintott (NBSP-s) változat is
+        // egyezzen a tárolt kifejezéssel a lookupnál.
+        $data['word'] = $this->normalizePhraseWhitespace($data['word']);
+
         // A felvitelkor választott státusz az alapértelmezés; ha nincs megadva,
         // marad a korábbi viselkedés (a szó „Tudom" státusszal kerül be).
         $data['status'] = $data['status'] ?? 'known';
@@ -157,6 +173,82 @@ class ExtensionController extends Controller
             'id' => $custom->id,
             'word' => $custom->word,
             'meaning_hu' => $custom->meaning_hu,
+            'csrf' => csrf_token(),
+        ]);
+    }
+
+    /**
+     * A felhasználó flashcard-paklijai a popup legördülőjéhez, plusz az AI-hozzáférés.
+     */
+    public function decks(Request $request): JsonResponse
+    {
+        if (! $request->user()) {
+            return response()->json(['error' => 'unauthenticated'], 401);
+        }
+
+        $decks = $request->user()->flashcardDecks()
+            ->orderBy('name')
+            ->get(['id', 'name'])
+            ->map(fn ($deck) => ['id' => $deck->id, 'name' => $deck->name]);
+
+        return response()->json([
+            'decks' => $decks,
+            'has_ai_access' => $request->user()->hasAiAccess(),
+            'csrf' => csrf_token(),
+        ]);
+    }
+
+    /**
+     * Flashcard létrehozása a popupból a választott pakliba. Ugyanazokat a mezőket
+     * és validációt használja, mint a webes szerkesztő (StoreFlashcardRequest), így
+     * a kártya azonos módon kerül az adatbázisba.
+     */
+    public function createFlashcard(Request $request): JsonResponse
+    {
+        if (! $request->user()) {
+            return response()->json(['error' => 'unauthenticated'], 401);
+        }
+
+        $data = $request->validate([
+            'deck_id' => ['required', 'integer'],
+            'word_id' => ['nullable', 'integer', Rule::exists('words', 'id')],
+            'front' => ['required', 'string', 'max:10000'],
+            'back' => ['required', 'string', 'max:10000'],
+            'direction' => ['required', Rule::in(['front_to_back', 'back_to_front', 'both'])],
+            'front_notes' => ['nullable', 'string', 'max:5000'],
+            'front_speak' => ['nullable', 'string', 'max:1000'],
+            'back_notes' => ['nullable', 'string', 'max:5000'],
+            'back_speak' => ['nullable', 'string', 'max:1000'],
+            'color' => ['nullable', 'string', 'regex:/^#[0-9a-fA-F]{6}$/'],
+        ]);
+
+        // A pakli csak a saját paklik közül kereshető — így a tulajdon garantált.
+        $deck = $request->user()->flashcardDecks()->find($data['deck_id']);
+
+        if (! $deck) {
+            return response()->json(['error' => 'deck_not_found'], 404);
+        }
+
+        if (! $request->user()->canAddFlashcardsTo($deck)) {
+            return response()->json(['error' => 'limit']);
+        }
+
+        $flashcard = $deck->flashcards()->create([
+            'word_id' => $data['word_id'] ?? null,
+            'front' => $data['front'],
+            'back' => $data['back'],
+            'direction' => $data['direction'],
+            'front_notes' => $data['front_notes'] ?? null,
+            'front_speak' => $data['front_speak'] ?? null,
+            'back_notes' => $data['back_notes'] ?? null,
+            'back_speak' => $data['back_speak'] ?? null,
+            'color' => $data['color'] ?? null,
+        ]);
+
+        return response()->json([
+            'ok' => true,
+            'id' => $flashcard->id,
+            'deck' => $deck->name,
             'csrf' => csrf_token(),
         ]);
     }
@@ -204,7 +296,12 @@ class ExtensionController extends Controller
             }
 
             foreach ([$row->word, ...array_map(fn ($column) => $row->{$column}, $formColumns)] as $form) {
-                if ($form !== null && $form !== '') {
+                // Periphrastic comparatives/superlatives ("more desperate", "most eager")
+                // sit in the adj_* columns but contain a space. Emitting them would make
+                // the client treat them as a multi-word PHRASE (pill), even though the user
+                // only marked the single adjective. Skip multi-word forms — the base word
+                // still highlights, and "more"/"most" highlight on their own if marked.
+                if ($form !== null && $form !== '' && ! str_contains($form, ' ')) {
                     $statuses[mb_strtolower($form)] = $row->status;
                 }
             }

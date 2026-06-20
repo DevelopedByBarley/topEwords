@@ -1,4 +1,4 @@
-import { Link } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
 import type { PropsWithChildren } from 'react';
 import Heading from '@/components/heading';
 import { Button } from '@/components/ui/button';
@@ -7,12 +7,12 @@ import { useCurrentUrl } from '@/hooks/use-current-url';
 import { cn, toUrl } from '@/lib/utils';
 import { edit as editAppearance } from '@/routes/appearance';
 import { edit as editFlashcards } from '@/routes/flashcard-settings';
-import { edit as editSubscription } from '@/routes/subscription';
 import { edit } from '@/routes/profile';
 import { edit as editSecurity } from '@/routes/security';
+import { edit as editSubscription } from '@/routes/subscription';
 import type { NavItem } from '@/types';
 
-const sidebarNavItems: NavItem[] = [
+const baseNavItems: NavItem[] = [
     {
         title: 'Profile',
         href: edit(),
@@ -33,16 +33,22 @@ const sidebarNavItems: NavItem[] = [
         href: editFlashcards(),
         icon: null,
     },
-    // Payment temporarily disabled — subscription settings hidden
-    // {
-    //     title: 'Előfizetés',
-    //     href: editSubscription(),
-    //     icon: null,
-    // },
 ];
+
+const subscriptionNavItem: NavItem = {
+    title: 'Előfizetés',
+    href: editSubscription(),
+    icon: null,
+};
 
 export default function SettingsLayout({ children }: PropsWithChildren) {
     const { isCurrentOrParentUrl } = useCurrentUrl();
+    const { billingEnabled } = usePage().props;
+
+    // Az előfizetés tab csak akkor látszik, ha a fizetés él
+    const sidebarNavItems = billingEnabled
+        ? [...baseNavItems, subscriptionNavItem]
+        : baseNavItems;
 
     return (
         <div className="px-4 py-6">

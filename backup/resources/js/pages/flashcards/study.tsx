@@ -53,10 +53,10 @@ type Card = {
 type Deck = { id: number; name: string };
 
 const RATING_BUTTONS = [
-    { rating: 1, label: 'Nem tudtam', previewKey: 'again' as const, shortcut: '1', className: 'border-destructive/50 text-destructive hover:bg-destructive/10',               textClass: 'text-destructive' },
-    { rating: 2, label: 'Nehéz',      previewKey: 'hard'  as const, shortcut: '2', className: 'border-amber-500/50 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950', textClass: 'text-amber-600' },
-    { rating: 3, label: 'Jó',         previewKey: 'good'  as const, shortcut: '3', className: 'border-blue-500/50 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950',     textClass: 'text-blue-600' },
-    { rating: 4, label: 'Könnyű',     previewKey: 'easy'  as const, shortcut: '4', className: 'border-green-500/50 text-green-600 hover:bg-green-50 dark:hover:bg-green-950', textClass: 'text-green-600' },
+    { rating: 1, label: 'Nem tudtam', previewKey: 'again' as const, shortcut: '1', className: 'bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-950/60',             textClass: 'text-destructive' },
+    { rating: 2, label: 'Nehéz',      previewKey: 'hard'  as const, shortcut: '2', className: 'bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-300 dark:hover:bg-amber-950/60', textClass: 'text-amber-600' },
+    { rating: 3, label: 'Jó',         previewKey: 'good'  as const, shortcut: '3', className: 'bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-950/60',       textClass: 'text-blue-600' },
+    { rating: 4, label: 'Könnyű',     previewKey: 'easy'  as const, shortcut: '4', className: 'bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-950/40 dark:text-green-300 dark:hover:bg-green-950/60', textClass: 'text-green-600' },
 ];
 
 function stateLabel(state: string): string {
@@ -83,10 +83,21 @@ function InfoRow({ label, children }: { label: string; children: React.ReactNode
 
 function formatRelativeTime(isoString: string): string {
     const diff = Math.round((new Date(isoString).getTime() - Date.now()) / 60000);
-    if (diff <= 0) return 'most esedékes';
-    if (diff < 60) return `${diff} perc múlva`;
+
+    if (diff <= 0) {
+return 'most esedékes';
+}
+
+    if (diff < 60) {
+return `${diff} perc múlva`;
+}
+
     const hours = Math.round(diff / 60);
-    if (hours < 24) return `${hours} óra múlva`;
+
+    if (hours < 24) {
+return `${hours} óra múlva`;
+}
+
     return `${Math.round(hours / 24)} nap múlva`;
 }
 
@@ -100,11 +111,12 @@ type HistoryEntry = { id: number; direction: string };
 
 function getXsrfToken(): string {
     const cookie = document.cookie.split('; ').find((r) => r.startsWith('XSRF-TOKEN='));
+
     return cookie ? decodeURIComponent(cookie.substring('XSRF-TOKEN='.length)) : '';
 }
 
 export default function FlashcardStudy({ deck, cards }: { deck: Deck; cards: Card[] }) {
-    const [queue, setQueue] = useState<Card[]>(cards);
+    const [queue] = useState<Card[]>(cards);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [revealed, setRevealed] = useState(false);
     const [undoing, setUndoing] = useState(false);
@@ -120,16 +132,25 @@ export default function FlashcardStudy({ deck, cards }: { deck: Deck; cards: Car
     const sides = current ? resolveCardSides(current) : null;
 
     const speak = useCallback((html: string, speakOverride?: string | null, lang = 'en-US') => {
-        if (!window.speechSynthesis) return;
+        if (!window.speechSynthesis) {
+return;
+}
+
         const raw = speakOverride?.trim() || html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-        if (!raw) return;
+
+        if (!raw) {
+return;
+}
 
         window.speechSynthesis.cancel();
 
         const parts = raw.split('\n').map((p) => p.trim()).filter(Boolean);
 
         const speakPart = (index: number) => {
-            if (index >= parts.length) return;
+            if (index >= parts.length) {
+return;
+}
+
             const u = new SpeechSynthesisUtterance(parts[index]);
             u.lang = lang;
             u.rate = 0.9;
@@ -153,7 +174,9 @@ export default function FlashcardStudy({ deck, cards }: { deck: Deck; cards: Car
 
     const handleRate = useCallback(
         (ratingValue: number) => {
-            if (!current || submitting) return;
+            if (!current || submitting) {
+return;
+}
 
             const cardId = current.id;
             const direction = current.study_direction;
@@ -164,6 +187,7 @@ export default function FlashcardStudy({ deck, cards }: { deck: Deck; cards: Car
             // Advance immediately — never block on the network
             setHistory((prev) => [...prev, { id: cardId, direction }]);
             const next = currentIndex + 1;
+
             if (next >= queue.length) {
                 setDone(true);
             } else {
@@ -199,7 +223,9 @@ export default function FlashcardStudy({ deck, cards }: { deck: Deck; cards: Car
     );
 
     const handleUndo = useCallback(async () => {
-        if (history.length === 0 || undoing) return;
+        if (history.length === 0 || undoing) {
+return;
+}
 
         const last = history[history.length - 1];
         const key = `${last.id}-${last.direction}`;
@@ -236,20 +262,29 @@ export default function FlashcardStudy({ deck, cards }: { deck: Deck; cards: Car
     // Keyboard shortcuts
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
-            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+return;
+}
+
             if (e.key === ' ' || e.key === 'Enter') {
                 e.preventDefault();
-                if (!revealed) handleReveal();
+
+                if (!revealed) {
+handleReveal();
+}
             }
+
             if (revealed && ['1', '2', '3', '4'].includes(e.key)) {
                 handleRate(Number(e.key));
             }
+
             if (e.key === 'Backspace' && history.length > 0) {
                 e.preventDefault();
                 handleUndo();
             }
         };
         window.addEventListener('keydown', handler);
+
         return () => window.removeEventListener('keydown', handler);
     }, [revealed, handleReveal, handleRate, handleUndo, history.length, undoing]);
 
@@ -327,13 +362,15 @@ export default function FlashcardStudy({ deck, cards }: { deck: Deck; cards: Car
                 <div className="flex-1 flex flex-col gap-4">
                     {/* Question */}
                     <div
-                        className="relative flex-1 flex flex-col items-center justify-center rounded-2xl border bg-card shadow-sm p-5 sm:p-8 text-center min-h-48 cursor-pointer select-none"
-                        style={current.color ? { borderColor: current.color, borderWidth: 2 } : {}}
+                        className="relative flex-1 flex flex-col items-center justify-center rounded-3xl bg-card shadow-sm p-5 sm:p-8 text-center min-h-48 cursor-pointer select-none"
+                        style={current.color ? { boxShadow: `inset 0 0 0 2px ${current.color}` } : {}}
                         onClick={handleReveal}
                     >
                         <div className="absolute top-3 right-3 flex flex-col items-end gap-1">
                             <button
-                                onClick={(e) => { e.stopPropagation(); setShowInfo(true); }}
+                                onClick={(e) => {
+ e.stopPropagation(); setShowInfo(true); 
+}}
                                 className="rounded-full p-1 text-muted-foreground/50 hover:bg-muted hover:text-foreground transition-colors"
                                 title="Statisztika"
                             >
@@ -350,7 +387,9 @@ export default function FlashcardStudy({ deck, cards }: { deck: Deck; cards: Car
                         </div>
                         {sides!.questionSpeak && (
                             <button
-                                onClick={(e) => { e.stopPropagation(); speak(sides!.question, sides!.questionSpeak); }}
+                                onClick={(e) => {
+ e.stopPropagation(); speak(sides!.question, sides!.questionSpeak); 
+}}
                                 className="absolute top-3 left-3 rounded-full p-1.5 text-muted-foreground/50 hover:bg-muted hover:text-foreground transition-colors"
                                 title="Felolvasás"
                             >
@@ -370,14 +409,17 @@ export default function FlashcardStudy({ deck, cards }: { deck: Deck; cards: Car
 
                         {!revealed && (
                             <p className="mt-6 text-xs text-muted-foreground">
-                                Kattints vagy nyomj <kbd className="px-1.5 py-0.5 rounded border text-xs">Space</kbd> a megjelenítéshez
+                                <span className="sm:hidden">Koppints a válasz megjelenítéséhez</span>
+                                <span className="hidden sm:inline">
+                                    Kattints vagy nyomj <kbd className="px-1.5 py-0.5 rounded border text-xs">Space</kbd> a megjelenítéshez
+                                </span>
                             </p>
                         )}
                     </div>
 
                     {/* Answer */}
                     {revealed && (
-                        <div ref={answerRef} className="relative rounded-2xl border border-dashed bg-muted/30 p-6 text-center animate-in fade-in slide-in-from-bottom-2 duration-200">
+                        <div ref={answerRef} className="relative rounded-3xl bg-accent/60 p-6 text-center animate-in fade-in slide-in-from-bottom-2 duration-200">
                             {sides!.answerSpeak && (
                                 <button
                                     onClick={() => speak(sides!.answer, sides!.answerSpeak)}
@@ -402,9 +444,9 @@ export default function FlashcardStudy({ deck, cards }: { deck: Deck; cards: Car
                                     key={rating}
                                     disabled={undoing || submitting}
                                     onClick={() => handleRate(rating)}
-                                    className={`flex flex-col items-center justify-center gap-1 rounded-xl border-2 py-3 px-2 text-sm font-medium transition-colors disabled:opacity-50 ${className}`}
+                                    className={`flex flex-col items-center justify-center gap-1 rounded-2xl py-3.5 px-2 text-sm font-semibold shadow-sm transition-all hover:shadow active:scale-95 disabled:opacity-50 ${className}`}
                                 >
-                                    <span className="text-xs opacity-50">{shortcut}</span>
+                                    <span className="hidden text-xs opacity-50 sm:inline">{shortcut}</span>
                                     {label}
                                     <span className="text-xs font-normal opacity-70">
                                         {current.previews[previewKey]}

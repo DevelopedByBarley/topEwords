@@ -71,7 +71,13 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 
 // ── Message handler (from content script) ────────────────────────────────────
 
-chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    // Csak a saját extensionünk content scriptjeitől/popupjától fogadunk üzenetet
+    // (defense-in-depth). Web-origin amúgy sem érheti el — nincs externally_connectable.
+    if (sender.id !== chrome.runtime.id) {
+        return;
+    }
+
     if (msg.type === 'LOOKUP_WORD') {
         fetch(
             `${APP_URL}/extension/lookup?word=${encodeURIComponent(msg.word)}`,
@@ -225,6 +231,58 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
             body: JSON.stringify({ importance: msg.importance ?? null }),
         })
             .then((r) => sendResponse({ ok: r.ok }))
+            .catch(() => sendResponse({ error: 'network' }));
+
+        return true;
+    }
+
+    if (msg.type === 'GET_DECKS') {
+        fetch(`${APP_URL}/extension/decks`, {
+            credentials: 'include',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                Accept: 'application/json',
+            },
+        })
+            .then((r) => r.json())
+            .then((data) => sendResponse(data))
+            .catch(() => sendResponse({ error: 'network' }));
+
+        return true;
+    }
+
+    if (msg.type === 'CREATE_FLASHCARD') {
+        fetch(`${APP_URL}/extension/create-flashcard`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': msg.csrf,
+                'X-Requested-With': 'XMLHttpRequest',
+                Accept: 'application/json',
+            },
+            body: JSON.stringify(msg.card),
+        })
+            .then((r) => r.json())
+            .then((data) => sendResponse(data))
+            .catch(() => sendResponse({ error: 'network' }));
+
+        return true;
+    }
+
+    if (msg.type === 'GEMINI_FLASHCARD') {
+        fetch(
+            `${APP_URL}/text-analysis/gemini-flashcard?word=${encodeURIComponent(msg.word)}`,
+            {
+                credentials: 'include',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    Accept: 'application/json',
+                },
+            },
+        )
+            .then((r) => r.json())
+            .then((data) => sendResponse(data))
             .catch(() => sendResponse({ error: 'network' }));
 
         return true;

@@ -12,6 +12,13 @@ class FlashcardCsvController extends Controller
 {
     private const MAX_IMPORT_ROWS = 5000;
 
+    /**
+     * Per-field character cap, matching the max:10000 enforced on front/back by
+     * the web editor and the extension API. Without it a CSV cell could exceed
+     * the TEXT column (64 KB) and abort the whole import transaction.
+     */
+    private const MAX_FIELD_LENGTH = 10000;
+
     public function import(Request $request, FlashcardDeck $deck): RedirectResponse
     {
         abort_unless($deck->user_id === $request->user()->id, 403);
@@ -53,6 +60,12 @@ class FlashcardCsvController extends Controller
             $back = trim($row[1]);
 
             if ($front === '' && $back === '') {
+                $skipped++;
+
+                continue;
+            }
+
+            if (mb_strlen($front) > self::MAX_FIELD_LENGTH || mb_strlen($back) > self::MAX_FIELD_LENGTH) {
                 $skipped++;
 
                 continue;

@@ -543,7 +543,7 @@ privacy.form = privacyForm
 
 /**
 * @see \App\Http\Controllers\PricingController::pricing
-* @see app/Http/Controllers/PricingController.php:18
+* @see app/Http/Controllers/PricingController.php:15
 * @route '/pricing'
 */
 export const pricing = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -558,7 +558,7 @@ pricing.definition = {
 
 /**
 * @see \App\Http\Controllers\PricingController::pricing
-* @see app/Http/Controllers/PricingController.php:18
+* @see app/Http/Controllers/PricingController.php:15
 * @route '/pricing'
 */
 pricing.url = (options?: RouteQueryOptions) => {
@@ -567,7 +567,7 @@ pricing.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\PricingController::pricing
-* @see app/Http/Controllers/PricingController.php:18
+* @see app/Http/Controllers/PricingController.php:15
 * @route '/pricing'
 */
 pricing.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -577,7 +577,7 @@ pricing.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 
 /**
 * @see \App\Http\Controllers\PricingController::pricing
-* @see app/Http/Controllers/PricingController.php:18
+* @see app/Http/Controllers/PricingController.php:15
 * @route '/pricing'
 */
 pricing.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -587,7 +587,7 @@ pricing.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
 /**
 * @see \App\Http\Controllers\PricingController::pricing
-* @see app/Http/Controllers/PricingController.php:18
+* @see app/Http/Controllers/PricingController.php:15
 * @route '/pricing'
 */
 const pricingForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -597,7 +597,7 @@ const pricingForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> =>
 
 /**
 * @see \App\Http\Controllers\PricingController::pricing
-* @see app/Http/Controllers/PricingController.php:18
+* @see app/Http/Controllers/PricingController.php:15
 * @route '/pricing'
 */
 pricingForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -607,7 +607,7 @@ pricingForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => (
 
 /**
 * @see \App\Http\Controllers\PricingController::pricing
-* @see app/Http/Controllers/PricingController.php:18
+* @see app/Http/Controllers/PricingController.php:15
 * @route '/pricing'
 */
 pricingForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -623,7 +623,7 @@ pricingForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => 
 pricing.form = pricingForm
 
 /**
-* @see routes/web.php:45
+* @see routes/web.php:25
 * @route '/sitemap.xml'
 */
 export const sitemap = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -637,7 +637,7 @@ sitemap.definition = {
 } satisfies RouteDefinition<["get","head"]>
 
 /**
-* @see routes/web.php:45
+* @see routes/web.php:25
 * @route '/sitemap.xml'
 */
 sitemap.url = (options?: RouteQueryOptions) => {
@@ -645,7 +645,7 @@ sitemap.url = (options?: RouteQueryOptions) => {
 }
 
 /**
-* @see routes/web.php:45
+* @see routes/web.php:25
 * @route '/sitemap.xml'
 */
 sitemap.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -654,7 +654,7 @@ sitemap.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 })
 
 /**
-* @see routes/web.php:45
+* @see routes/web.php:25
 * @route '/sitemap.xml'
 */
 sitemap.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -663,7 +663,7 @@ sitemap.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 })
 
 /**
-* @see routes/web.php:45
+* @see routes/web.php:25
 * @route '/sitemap.xml'
 */
 const sitemapForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -672,7 +672,7 @@ const sitemapForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> =>
 })
 
 /**
-* @see routes/web.php:45
+* @see routes/web.php:25
 * @route '/sitemap.xml'
 */
 sitemapForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -681,7 +681,7 @@ sitemapForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => (
 })
 
 /**
-* @see routes/web.php:45
+* @see routes/web.php:25
 * @route '/sitemap.xml'
 */
 sitemapForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -698,7 +698,7 @@ sitemap.form = sitemapForm
 
 /**
 * @see \App\Http\Controllers\AdminController::admin
-* @see app/Http/Controllers/AdminController.php:14
+* @see app/Http/Controllers/AdminController.php:16
 * @route '/admin'
 */
 export const admin = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -713,7 +713,7 @@ admin.definition = {
 
 /**
 * @see \App\Http\Controllers\AdminController::admin
-* @see app/Http/Controllers/AdminController.php:14
+* @see app/Http/Controllers/AdminController.php:16
 * @route '/admin'
 */
 admin.url = (options?: RouteQueryOptions) => {
@@ -722,7 +722,7 @@ admin.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\AdminController::admin
-* @see app/Http/Controllers/AdminController.php:14
+* @see app/Http/Controllers/AdminController.php:16
 * @route '/admin'
 */
 admin.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -732,7 +732,7 @@ admin.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 
 /**
 * @see \App\Http\Controllers\AdminController::admin
-* @see app/Http/Controllers/AdminController.php:14
+* @see app/Http/Controllers/AdminController.php:16
 * @route '/admin'
 */
 admin.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -742,7 +742,7 @@ admin.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
 /**
 * @see \App\Http\Controllers\AdminController::admin
-* @see app/Http/Controllers/AdminController.php:14
+* @see app/Http/Controllers/AdminController.php:16
 * @route '/admin'
 */
 const adminForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -752,7 +752,7 @@ const adminForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => (
 
 /**
 * @see \App\Http\Controllers\AdminController::admin
-* @see app/Http/Controllers/AdminController.php:14
+* @see app/Http/Controllers/AdminController.php:16
 * @route '/admin'
 */
 adminForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -762,7 +762,7 @@ adminForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
 
 /**
 * @see \App\Http\Controllers\AdminController::admin
-* @see app/Http/Controllers/AdminController.php:14
+* @see app/Http/Controllers/AdminController.php:16
 * @route '/admin'
 */
 adminForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({

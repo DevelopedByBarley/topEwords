@@ -1,7 +1,7 @@
 import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition, applyUrlDefaults } from './../../../wayfinder'
 /**
 * @see \App\Http\Controllers\FlashcardCardController::store
-* @see app/Http/Controllers/FlashcardCardController.php:16
+* @see app/Http/Controllers/FlashcardCardController.php:19
 * @route '/flashcards/{deck}/cards'
 */
 export const store = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -16,7 +16,7 @@ store.definition = {
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::store
-* @see app/Http/Controllers/FlashcardCardController.php:16
+* @see app/Http/Controllers/FlashcardCardController.php:19
 * @route '/flashcards/{deck}/cards'
 */
 store.url = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -49,7 +49,7 @@ store.url = (args: { deck: number | { id: number } } | [deck: number | { id: num
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::store
-* @see app/Http/Controllers/FlashcardCardController.php:16
+* @see app/Http/Controllers/FlashcardCardController.php:19
 * @route '/flashcards/{deck}/cards'
 */
 store.post = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -59,7 +59,7 @@ store.post = (args: { deck: number | { id: number } } | [deck: number | { id: nu
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::store
-* @see app/Http/Controllers/FlashcardCardController.php:16
+* @see app/Http/Controllers/FlashcardCardController.php:19
 * @route '/flashcards/{deck}/cards'
 */
 const storeForm = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -69,7 +69,7 @@ const storeForm = (args: { deck: number | { id: number } } | [deck: number | { i
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::store
-* @see app/Http/Controllers/FlashcardCardController.php:16
+* @see app/Http/Controllers/FlashcardCardController.php:19
 * @route '/flashcards/{deck}/cards'
 */
 storeForm.post = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -81,7 +81,7 @@ store.form = storeForm
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::importMethod
-* @see app/Http/Controllers/FlashcardCardController.php:29
+* @see app/Http/Controllers/FlashcardCardController.php:32
 * @route '/flashcards/{deck}/cards/import'
 */
 export const importMethod = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -96,7 +96,7 @@ importMethod.definition = {
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::importMethod
-* @see app/Http/Controllers/FlashcardCardController.php:29
+* @see app/Http/Controllers/FlashcardCardController.php:32
 * @route '/flashcards/{deck}/cards/import'
 */
 importMethod.url = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -129,7 +129,7 @@ importMethod.url = (args: { deck: number | { id: number } } | [deck: number | { 
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::importMethod
-* @see app/Http/Controllers/FlashcardCardController.php:29
+* @see app/Http/Controllers/FlashcardCardController.php:32
 * @route '/flashcards/{deck}/cards/import'
 */
 importMethod.post = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -139,7 +139,7 @@ importMethod.post = (args: { deck: number | { id: number } } | [deck: number | {
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::importMethod
-* @see app/Http/Controllers/FlashcardCardController.php:29
+* @see app/Http/Controllers/FlashcardCardController.php:32
 * @route '/flashcards/{deck}/cards/import'
 */
 const importMethodForm = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -149,7 +149,7 @@ const importMethodForm = (args: { deck: number | { id: number } } | [deck: numbe
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::importMethod
-* @see app/Http/Controllers/FlashcardCardController.php:29
+* @see app/Http/Controllers/FlashcardCardController.php:32
 * @route '/flashcards/{deck}/cards/import'
 */
 importMethodForm.post = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -161,7 +161,7 @@ importMethod.form = importMethodForm
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::update
-* @see app/Http/Controllers/FlashcardCardController.php:68
+* @see app/Http/Controllers/FlashcardCardController.php:75
 * @route '/flashcards/{deck}/cards/{flashcard}'
 */
 export const update = (args: { deck: number | { id: number }, flashcard: number | { id: number } } | [deck: number | { id: number }, flashcard: number | { id: number } ], options?: RouteQueryOptions): RouteDefinition<'patch'> => ({
@@ -176,7 +176,7 @@ update.definition = {
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::update
-* @see app/Http/Controllers/FlashcardCardController.php:68
+* @see app/Http/Controllers/FlashcardCardController.php:75
 * @route '/flashcards/{deck}/cards/{flashcard}'
 */
 update.url = (args: { deck: number | { id: number }, flashcard: number | { id: number } } | [deck: number | { id: number }, flashcard: number | { id: number } ], options?: RouteQueryOptions) => {
@@ -206,7 +206,7 @@ update.url = (args: { deck: number | { id: number }, flashcard: number | { id: n
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::update
-* @see app/Http/Controllers/FlashcardCardController.php:68
+* @see app/Http/Controllers/FlashcardCardController.php:75
 * @route '/flashcards/{deck}/cards/{flashcard}'
 */
 update.patch = (args: { deck: number | { id: number }, flashcard: number | { id: number } } | [deck: number | { id: number }, flashcard: number | { id: number } ], options?: RouteQueryOptions): RouteDefinition<'patch'> => ({
@@ -216,7 +216,7 @@ update.patch = (args: { deck: number | { id: number }, flashcard: number | { id:
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::update
-* @see app/Http/Controllers/FlashcardCardController.php:68
+* @see app/Http/Controllers/FlashcardCardController.php:75
 * @route '/flashcards/{deck}/cards/{flashcard}'
 */
 const updateForm = (args: { deck: number | { id: number }, flashcard: number | { id: number } } | [deck: number | { id: number }, flashcard: number | { id: number } ], options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -231,7 +231,7 @@ const updateForm = (args: { deck: number | { id: number }, flashcard: number | {
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::update
-* @see app/Http/Controllers/FlashcardCardController.php:68
+* @see app/Http/Controllers/FlashcardCardController.php:75
 * @route '/flashcards/{deck}/cards/{flashcard}'
 */
 updateForm.patch = (args: { deck: number | { id: number }, flashcard: number | { id: number } } | [deck: number | { id: number }, flashcard: number | { id: number } ], options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -248,7 +248,7 @@ update.form = updateForm
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::reset
-* @see app/Http/Controllers/FlashcardCardController.php:78
+* @see app/Http/Controllers/FlashcardCardController.php:85
 * @route '/flashcards/{deck}/cards/{flashcard}/reset'
 */
 export const reset = (args: { deck: number | { id: number }, flashcard: number | { id: number } } | [deck: number | { id: number }, flashcard: number | { id: number } ], options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -263,7 +263,7 @@ reset.definition = {
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::reset
-* @see app/Http/Controllers/FlashcardCardController.php:78
+* @see app/Http/Controllers/FlashcardCardController.php:85
 * @route '/flashcards/{deck}/cards/{flashcard}/reset'
 */
 reset.url = (args: { deck: number | { id: number }, flashcard: number | { id: number } } | [deck: number | { id: number }, flashcard: number | { id: number } ], options?: RouteQueryOptions) => {
@@ -293,7 +293,7 @@ reset.url = (args: { deck: number | { id: number }, flashcard: number | { id: nu
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::reset
-* @see app/Http/Controllers/FlashcardCardController.php:78
+* @see app/Http/Controllers/FlashcardCardController.php:85
 * @route '/flashcards/{deck}/cards/{flashcard}/reset'
 */
 reset.post = (args: { deck: number | { id: number }, flashcard: number | { id: number } } | [deck: number | { id: number }, flashcard: number | { id: number } ], options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -303,7 +303,7 @@ reset.post = (args: { deck: number | { id: number }, flashcard: number | { id: n
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::reset
-* @see app/Http/Controllers/FlashcardCardController.php:78
+* @see app/Http/Controllers/FlashcardCardController.php:85
 * @route '/flashcards/{deck}/cards/{flashcard}/reset'
 */
 const resetForm = (args: { deck: number | { id: number }, flashcard: number | { id: number } } | [deck: number | { id: number }, flashcard: number | { id: number } ], options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -313,7 +313,7 @@ const resetForm = (args: { deck: number | { id: number }, flashcard: number | { 
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::reset
-* @see app/Http/Controllers/FlashcardCardController.php:78
+* @see app/Http/Controllers/FlashcardCardController.php:85
 * @route '/flashcards/{deck}/cards/{flashcard}/reset'
 */
 resetForm.post = (args: { deck: number | { id: number }, flashcard: number | { id: number } } | [deck: number | { id: number }, flashcard: number | { id: number } ], options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -325,7 +325,7 @@ reset.form = resetForm
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::move
-* @see app/Http/Controllers/FlashcardCardController.php:88
+* @see app/Http/Controllers/FlashcardCardController.php:95
 * @route '/flashcards/{deck}/cards/{flashcard}/move'
 */
 export const move = (args: { deck: number | { id: number }, flashcard: number | { id: number } } | [deck: number | { id: number }, flashcard: number | { id: number } ], options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -340,7 +340,7 @@ move.definition = {
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::move
-* @see app/Http/Controllers/FlashcardCardController.php:88
+* @see app/Http/Controllers/FlashcardCardController.php:95
 * @route '/flashcards/{deck}/cards/{flashcard}/move'
 */
 move.url = (args: { deck: number | { id: number }, flashcard: number | { id: number } } | [deck: number | { id: number }, flashcard: number | { id: number } ], options?: RouteQueryOptions) => {
@@ -370,7 +370,7 @@ move.url = (args: { deck: number | { id: number }, flashcard: number | { id: num
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::move
-* @see app/Http/Controllers/FlashcardCardController.php:88
+* @see app/Http/Controllers/FlashcardCardController.php:95
 * @route '/flashcards/{deck}/cards/{flashcard}/move'
 */
 move.post = (args: { deck: number | { id: number }, flashcard: number | { id: number } } | [deck: number | { id: number }, flashcard: number | { id: number } ], options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -380,7 +380,7 @@ move.post = (args: { deck: number | { id: number }, flashcard: number | { id: nu
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::move
-* @see app/Http/Controllers/FlashcardCardController.php:88
+* @see app/Http/Controllers/FlashcardCardController.php:95
 * @route '/flashcards/{deck}/cards/{flashcard}/move'
 */
 const moveForm = (args: { deck: number | { id: number }, flashcard: number | { id: number } } | [deck: number | { id: number }, flashcard: number | { id: number } ], options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -390,7 +390,7 @@ const moveForm = (args: { deck: number | { id: number }, flashcard: number | { i
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::move
-* @see app/Http/Controllers/FlashcardCardController.php:88
+* @see app/Http/Controllers/FlashcardCardController.php:95
 * @route '/flashcards/{deck}/cards/{flashcard}/move'
 */
 moveForm.post = (args: { deck: number | { id: number }, flashcard: number | { id: number } } | [deck: number | { id: number }, flashcard: number | { id: number } ], options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -402,7 +402,7 @@ move.form = moveForm
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::duplicate
-* @see app/Http/Controllers/FlashcardCardController.php:105
+* @see app/Http/Controllers/FlashcardCardController.php:112
 * @route '/flashcards/{deck}/cards/{flashcard}/duplicate'
 */
 export const duplicate = (args: { deck: number | { id: number }, flashcard: number | { id: number } } | [deck: number | { id: number }, flashcard: number | { id: number } ], options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -417,7 +417,7 @@ duplicate.definition = {
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::duplicate
-* @see app/Http/Controllers/FlashcardCardController.php:105
+* @see app/Http/Controllers/FlashcardCardController.php:112
 * @route '/flashcards/{deck}/cards/{flashcard}/duplicate'
 */
 duplicate.url = (args: { deck: number | { id: number }, flashcard: number | { id: number } } | [deck: number | { id: number }, flashcard: number | { id: number } ], options?: RouteQueryOptions) => {
@@ -447,7 +447,7 @@ duplicate.url = (args: { deck: number | { id: number }, flashcard: number | { id
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::duplicate
-* @see app/Http/Controllers/FlashcardCardController.php:105
+* @see app/Http/Controllers/FlashcardCardController.php:112
 * @route '/flashcards/{deck}/cards/{flashcard}/duplicate'
 */
 duplicate.post = (args: { deck: number | { id: number }, flashcard: number | { id: number } } | [deck: number | { id: number }, flashcard: number | { id: number } ], options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -457,7 +457,7 @@ duplicate.post = (args: { deck: number | { id: number }, flashcard: number | { i
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::duplicate
-* @see app/Http/Controllers/FlashcardCardController.php:105
+* @see app/Http/Controllers/FlashcardCardController.php:112
 * @route '/flashcards/{deck}/cards/{flashcard}/duplicate'
 */
 const duplicateForm = (args: { deck: number | { id: number }, flashcard: number | { id: number } } | [deck: number | { id: number }, flashcard: number | { id: number } ], options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -467,7 +467,7 @@ const duplicateForm = (args: { deck: number | { id: number }, flashcard: number 
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::duplicate
-* @see app/Http/Controllers/FlashcardCardController.php:105
+* @see app/Http/Controllers/FlashcardCardController.php:112
 * @route '/flashcards/{deck}/cards/{flashcard}/duplicate'
 */
 duplicateForm.post = (args: { deck: number | { id: number }, flashcard: number | { id: number } } | [deck: number | { id: number }, flashcard: number | { id: number } ], options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -479,7 +479,7 @@ duplicate.form = duplicateForm
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::destroy
-* @see app/Http/Controllers/FlashcardCardController.php:125
+* @see app/Http/Controllers/FlashcardCardController.php:136
 * @route '/flashcards/{deck}/cards/{flashcard}'
 */
 export const destroy = (args: { deck: number | { id: number }, flashcard: number | { id: number } } | [deck: number | { id: number }, flashcard: number | { id: number } ], options?: RouteQueryOptions): RouteDefinition<'delete'> => ({
@@ -494,7 +494,7 @@ destroy.definition = {
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::destroy
-* @see app/Http/Controllers/FlashcardCardController.php:125
+* @see app/Http/Controllers/FlashcardCardController.php:136
 * @route '/flashcards/{deck}/cards/{flashcard}'
 */
 destroy.url = (args: { deck: number | { id: number }, flashcard: number | { id: number } } | [deck: number | { id: number }, flashcard: number | { id: number } ], options?: RouteQueryOptions) => {
@@ -524,7 +524,7 @@ destroy.url = (args: { deck: number | { id: number }, flashcard: number | { id: 
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::destroy
-* @see app/Http/Controllers/FlashcardCardController.php:125
+* @see app/Http/Controllers/FlashcardCardController.php:136
 * @route '/flashcards/{deck}/cards/{flashcard}'
 */
 destroy.delete = (args: { deck: number | { id: number }, flashcard: number | { id: number } } | [deck: number | { id: number }, flashcard: number | { id: number } ], options?: RouteQueryOptions): RouteDefinition<'delete'> => ({
@@ -534,7 +534,7 @@ destroy.delete = (args: { deck: number | { id: number }, flashcard: number | { i
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::destroy
-* @see app/Http/Controllers/FlashcardCardController.php:125
+* @see app/Http/Controllers/FlashcardCardController.php:136
 * @route '/flashcards/{deck}/cards/{flashcard}'
 */
 const destroyForm = (args: { deck: number | { id: number }, flashcard: number | { id: number } } | [deck: number | { id: number }, flashcard: number | { id: number } ], options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -549,7 +549,7 @@ const destroyForm = (args: { deck: number | { id: number }, flashcard: number | 
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::destroy
-* @see app/Http/Controllers/FlashcardCardController.php:125
+* @see app/Http/Controllers/FlashcardCardController.php:136
 * @route '/flashcards/{deck}/cards/{flashcard}'
 */
 destroyForm.delete = (args: { deck: number | { id: number }, flashcard: number | { id: number } } | [deck: number | { id: number }, flashcard: number | { id: number } ], options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -566,7 +566,7 @@ destroy.form = destroyForm
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::bulkDelete
-* @see app/Http/Controllers/FlashcardCardController.php:135
+* @see app/Http/Controllers/FlashcardCardController.php:146
 * @route '/flashcards/{deck}/cards/bulk-delete'
 */
 export const bulkDelete = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -581,7 +581,7 @@ bulkDelete.definition = {
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::bulkDelete
-* @see app/Http/Controllers/FlashcardCardController.php:135
+* @see app/Http/Controllers/FlashcardCardController.php:146
 * @route '/flashcards/{deck}/cards/bulk-delete'
 */
 bulkDelete.url = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -614,7 +614,7 @@ bulkDelete.url = (args: { deck: number | { id: number } } | [deck: number | { id
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::bulkDelete
-* @see app/Http/Controllers/FlashcardCardController.php:135
+* @see app/Http/Controllers/FlashcardCardController.php:146
 * @route '/flashcards/{deck}/cards/bulk-delete'
 */
 bulkDelete.post = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -624,7 +624,7 @@ bulkDelete.post = (args: { deck: number | { id: number } } | [deck: number | { i
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::bulkDelete
-* @see app/Http/Controllers/FlashcardCardController.php:135
+* @see app/Http/Controllers/FlashcardCardController.php:146
 * @route '/flashcards/{deck}/cards/bulk-delete'
 */
 const bulkDeleteForm = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -634,7 +634,7 @@ const bulkDeleteForm = (args: { deck: number | { id: number } } | [deck: number 
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::bulkDelete
-* @see app/Http/Controllers/FlashcardCardController.php:135
+* @see app/Http/Controllers/FlashcardCardController.php:146
 * @route '/flashcards/{deck}/cards/bulk-delete'
 */
 bulkDeleteForm.post = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -646,7 +646,7 @@ bulkDelete.form = bulkDeleteForm
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::bulkReset
-* @see app/Http/Controllers/FlashcardCardController.php:149
+* @see app/Http/Controllers/FlashcardCardController.php:160
 * @route '/flashcards/{deck}/cards/bulk-reset'
 */
 export const bulkReset = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -661,7 +661,7 @@ bulkReset.definition = {
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::bulkReset
-* @see app/Http/Controllers/FlashcardCardController.php:149
+* @see app/Http/Controllers/FlashcardCardController.php:160
 * @route '/flashcards/{deck}/cards/bulk-reset'
 */
 bulkReset.url = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -694,7 +694,7 @@ bulkReset.url = (args: { deck: number | { id: number } } | [deck: number | { id:
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::bulkReset
-* @see app/Http/Controllers/FlashcardCardController.php:149
+* @see app/Http/Controllers/FlashcardCardController.php:160
 * @route '/flashcards/{deck}/cards/bulk-reset'
 */
 bulkReset.post = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -704,7 +704,7 @@ bulkReset.post = (args: { deck: number | { id: number } } | [deck: number | { id
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::bulkReset
-* @see app/Http/Controllers/FlashcardCardController.php:149
+* @see app/Http/Controllers/FlashcardCardController.php:160
 * @route '/flashcards/{deck}/cards/bulk-reset'
 */
 const bulkResetForm = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -714,7 +714,7 @@ const bulkResetForm = (args: { deck: number | { id: number } } | [deck: number |
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::bulkReset
-* @see app/Http/Controllers/FlashcardCardController.php:149
+* @see app/Http/Controllers/FlashcardCardController.php:160
 * @route '/flashcards/{deck}/cards/bulk-reset'
 */
 bulkResetForm.post = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -726,7 +726,7 @@ bulkReset.form = bulkResetForm
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::bulkMove
-* @see app/Http/Controllers/FlashcardCardController.php:206
+* @see app/Http/Controllers/FlashcardCardController.php:223
 * @route '/flashcards/{deck}/cards/bulk-move'
 */
 export const bulkMove = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -741,7 +741,7 @@ bulkMove.definition = {
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::bulkMove
-* @see app/Http/Controllers/FlashcardCardController.php:206
+* @see app/Http/Controllers/FlashcardCardController.php:223
 * @route '/flashcards/{deck}/cards/bulk-move'
 */
 bulkMove.url = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -774,7 +774,7 @@ bulkMove.url = (args: { deck: number | { id: number } } | [deck: number | { id: 
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::bulkMove
-* @see app/Http/Controllers/FlashcardCardController.php:206
+* @see app/Http/Controllers/FlashcardCardController.php:223
 * @route '/flashcards/{deck}/cards/bulk-move'
 */
 bulkMove.post = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -784,7 +784,7 @@ bulkMove.post = (args: { deck: number | { id: number } } | [deck: number | { id:
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::bulkMove
-* @see app/Http/Controllers/FlashcardCardController.php:206
+* @see app/Http/Controllers/FlashcardCardController.php:223
 * @route '/flashcards/{deck}/cards/bulk-move'
 */
 const bulkMoveForm = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -794,7 +794,7 @@ const bulkMoveForm = (args: { deck: number | { id: number } } | [deck: number | 
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::bulkMove
-* @see app/Http/Controllers/FlashcardCardController.php:206
+* @see app/Http/Controllers/FlashcardCardController.php:223
 * @route '/flashcards/{deck}/cards/bulk-move'
 */
 bulkMoveForm.post = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -806,7 +806,7 @@ bulkMove.form = bulkMoveForm
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::bulkReverse
-* @see app/Http/Controllers/FlashcardCardController.php:166
+* @see app/Http/Controllers/FlashcardCardController.php:175
 * @route '/flashcards/{deck}/cards/bulk-reverse'
 */
 export const bulkReverse = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -821,7 +821,7 @@ bulkReverse.definition = {
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::bulkReverse
-* @see app/Http/Controllers/FlashcardCardController.php:166
+* @see app/Http/Controllers/FlashcardCardController.php:175
 * @route '/flashcards/{deck}/cards/bulk-reverse'
 */
 bulkReverse.url = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -854,7 +854,7 @@ bulkReverse.url = (args: { deck: number | { id: number } } | [deck: number | { i
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::bulkReverse
-* @see app/Http/Controllers/FlashcardCardController.php:166
+* @see app/Http/Controllers/FlashcardCardController.php:175
 * @route '/flashcards/{deck}/cards/bulk-reverse'
 */
 bulkReverse.post = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -864,7 +864,7 @@ bulkReverse.post = (args: { deck: number | { id: number } } | [deck: number | { 
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::bulkReverse
-* @see app/Http/Controllers/FlashcardCardController.php:166
+* @see app/Http/Controllers/FlashcardCardController.php:175
 * @route '/flashcards/{deck}/cards/bulk-reverse'
 */
 const bulkReverseForm = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -874,7 +874,7 @@ const bulkReverseForm = (args: { deck: number | { id: number } } | [deck: number
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::bulkReverse
-* @see app/Http/Controllers/FlashcardCardController.php:166
+* @see app/Http/Controllers/FlashcardCardController.php:175
 * @route '/flashcards/{deck}/cards/bulk-reverse'
 */
 bulkReverseForm.post = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -886,7 +886,7 @@ bulkReverse.form = bulkReverseForm
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::bulkDirection
-* @see app/Http/Controllers/FlashcardCardController.php:191
+* @see app/Http/Controllers/FlashcardCardController.php:208
 * @route '/flashcards/{deck}/cards/bulk-direction'
 */
 export const bulkDirection = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -901,7 +901,7 @@ bulkDirection.definition = {
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::bulkDirection
-* @see app/Http/Controllers/FlashcardCardController.php:191
+* @see app/Http/Controllers/FlashcardCardController.php:208
 * @route '/flashcards/{deck}/cards/bulk-direction'
 */
 bulkDirection.url = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -934,7 +934,7 @@ bulkDirection.url = (args: { deck: number | { id: number } } | [deck: number | {
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::bulkDirection
-* @see app/Http/Controllers/FlashcardCardController.php:191
+* @see app/Http/Controllers/FlashcardCardController.php:208
 * @route '/flashcards/{deck}/cards/bulk-direction'
 */
 bulkDirection.post = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -944,7 +944,7 @@ bulkDirection.post = (args: { deck: number | { id: number } } | [deck: number | 
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::bulkDirection
-* @see app/Http/Controllers/FlashcardCardController.php:191
+* @see app/Http/Controllers/FlashcardCardController.php:208
 * @route '/flashcards/{deck}/cards/bulk-direction'
 */
 const bulkDirectionForm = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -954,7 +954,7 @@ const bulkDirectionForm = (args: { deck: number | { id: number } } | [deck: numb
 
 /**
 * @see \App\Http\Controllers\FlashcardCardController::bulkDirection
-* @see app/Http/Controllers/FlashcardCardController.php:191
+* @see app/Http/Controllers/FlashcardCardController.php:208
 * @route '/flashcards/{deck}/cards/bulk-direction'
 */
 bulkDirectionForm.post = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({

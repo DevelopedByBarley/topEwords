@@ -9,7 +9,13 @@ import { Spinner } from '@/components/ui/spinner';
 import { login } from '@/routes';
 import { store } from '@/routes/register';
 
-export default function Register() {
+export default function Register({
+    inviteOnly = false,
+    invite = '',
+}: {
+    inviteOnly?: boolean;
+    invite?: string;
+}) {
     return (
         <>
             <Head title="Regisztráció" />
@@ -23,6 +29,22 @@ export default function Register() {
                 {({ processing, errors }) => (
                     <>
                         <div className="grid gap-6">
+                            {inviteOnly && (
+                                <div className="grid gap-2">
+                                    <Label htmlFor="invite">Meghívókód</Label>
+                                    <Input
+                                        id="invite"
+                                        type="text"
+                                        required
+                                        name="invite"
+                                        defaultValue={invite}
+                                        autoComplete="off"
+                                        placeholder="Meghívókód"
+                                    />
+                                    <InputError message={errors.invite} />
+                                </div>
+                            )}
+
                             <div className="grid gap-2">
                                 <Label htmlFor="name">Teljes név</Label>
                                 <Input
@@ -69,7 +91,10 @@ export default function Register() {
                                     <li>Legalább 12 karakter</li>
                                     <li>Nagy- és kisbetű egyaránt</li>
                                     <li>Legalább egy szám</li>
-                                    <li>Legalább egy speciális karakter (pl. !@#$%)</li>
+                                    <li>
+                                        Legalább egy speciális karakter (pl.
+                                        !@#$%)
+                                    </li>
                                 </ul>
                                 <InputError message={errors.password} />
                             </div>

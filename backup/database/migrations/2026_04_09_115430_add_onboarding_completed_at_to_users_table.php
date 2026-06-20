@@ -8,6 +8,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasColumn('users', 'onboarding_completed_at')) {
+            return;
+        }
+
         Schema::table('users', function (Blueprint $table) {
             $table->timestamp('onboarding_completed_at')->nullable()->after('last_activity_date');
         });

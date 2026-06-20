@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreFlashcardDeckRequest;
 use App\Http\Requests\UpdateFlashcardDeckRequest;
 use App\Http\Requests\UpdateFlashcardDeckSettingsRequest;
+use App\Models\Flashcard;
 use App\Models\FlashcardDeck;
 use App\Services\AchievementService;
 use App\Services\FlashcardSrsService;
@@ -107,6 +108,7 @@ class FlashcardDeckController extends Controller
     {
         abort_unless($deck->user_id === $request->user()->id, 403);
 
+        // A session lock korai feloldása, hogy a deferred props párhuzamos kérése ne blokkolódjon
         session()->save();
 
         $effectiveSettings = $deck->deckSettings ?? $request->user()->flashcardSettings ?? $srs->defaultSettings();
@@ -174,27 +176,14 @@ class FlashcardDeckController extends Controller
                 ->where('flashcards.deck_id', $deck->id)
                 ->where('flashcard_reviews.due_at', '>', now())
                 ->min('flashcard_reviews.due_at'),
-            'uncalibratedCount' => (function () use ($deck) {
-                $activeStates = ['learning', 'review', 'relearning'];
-                $cards = $deck->flashcards()
-                    ->where('is_imported', true)
-                    ->where(function ($q) use ($activeStates) {
-                        $q->where(function ($q2) use ($activeStates) {
-                            $q2->where('direction', '!=', 'both')
-                                ->whereDoesntHave('reviews', fn ($r) => $r->whereIn('state', $activeStates));
-                        })->orWhere(function ($q2) use ($activeStates) {
-                            $q2->where('direction', 'both')
-                                ->whereRaw(
-                                    '(SELECT COUNT(*) FROM flashcard_reviews WHERE flashcard_reviews.flashcard_id = flashcards.id AND flashcard_reviews.state IN (?, ?, ?)) < 2',
-                                    $activeStates
-                                );
-                        });
-                    })
-                    ->selectRaw('direction, (SELECT COUNT(*) FROM flashcard_reviews WHERE flashcard_reviews.flashcard_id = flashcards.id AND flashcard_reviews.state IN (?, ?, ?)) as rated_count', $activeStates)
-                    ->get();
-
-                return $cards->sum(fn ($c) => $c->direction === 'both' ? 2 - $c->rated_count : 1);
-            })(),
+            'uncalibratedCount' => $deck->flashcards()
+                ->uncalibrated()
+                ->selectRaw(
+                    'direction, (SELECT COUNT(*) FROM flashcard_reviews WHERE flashcard_reviews.flashcard_id = flashcards.id AND flashcard_reviews.state IN (?, ?, ?)) as rated_count',
+                    Flashcard::ACTIVE_REVIEW_STATES
+                )
+                ->get()
+                ->sum(fn ($c) => $c->direction === 'both' ? 2 - $c->rated_count : 1),
             'deckSettings' => $deck->deckSettings,
             'otherDecks' => $request->user()->flashcardDecks()
                 ->where('id', '!=', $deck->id)

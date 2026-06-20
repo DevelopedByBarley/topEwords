@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { usePage } from '@inertiajs/react';
-import { driver } from 'driver.js';
+import { driver, type DriveStep } from 'driver.js';
 import 'driver.js/dist/driver.css';
 
 export default function OnboardingTour() {
@@ -12,7 +12,7 @@ export default function OnboardingTour() {
             return;
         }
 
-        const allSteps = [
+        const allSteps: DriveStep[] = [
                 {
                     element: '#tour-dashboard',
                     popover: {

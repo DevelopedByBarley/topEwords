@@ -13,6 +13,7 @@ class FlashcardFolderDeckController extends Controller
     public function update(Request $request, FlashcardFolder $flashcardFolder, FlashcardDeck $flashcardDeck): RedirectResponse
     {
         Gate::authorize('update', $flashcardFolder);
+        abort_unless($flashcardDeck->user_id === $request->user()->id, 403);
 
         $inFolder = $request->validate(['in_folder' => 'required|boolean'])['in_folder'];
 

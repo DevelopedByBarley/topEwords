@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Flashcard;
 use App\Models\FlashcardDeck;
 use App\Models\FlashcardReview;
 use App\Models\FlashcardSetting;
@@ -19,22 +20,9 @@ class FlashcardCalibrationController extends Controller
         abort_unless($deck->user_id === $request->user()->id, 403);
 
         $batchSize = 50;
-        $activeStates = ['learning', 'review', 'relearning'];
+        $activeStates = Flashcard::ACTIVE_REVIEW_STATES;
 
-        $baseQuery = $deck->flashcards()
-            ->where('is_imported', true)
-            ->where(function ($q) use ($activeStates) {
-                $q->where(function ($q2) use ($activeStates) {
-                    $q2->where('direction', '!=', 'both')
-                        ->whereDoesntHave('reviews', fn ($r) => $r->whereIn('state', $activeStates));
-                })->orWhere(function ($q2) use ($activeStates) {
-                    $q2->where('direction', 'both')
-                        ->whereRaw(
-                            '(SELECT COUNT(*) FROM flashcard_reviews WHERE flashcard_reviews.flashcard_id = flashcards.id AND flashcard_reviews.state IN (?, ?, ?)) < 2',
-                            $activeStates
-                        );
-                });
-            });
+        $baseQuery = $deck->flashcards()->uncalibrated();
 
         $totalRemaining = $baseQuery->count();
 
@@ -47,17 +35,7 @@ class FlashcardCalibrationController extends Controller
             ->with(['reviews' => fn ($q) => $q->whereIn('state', $activeStates)])
             ->get(['id', 'front', 'front_notes', 'back', 'back_notes', 'direction', 'color']);
 
-        $settings = FlashcardSetting::firstOrCreate(
-            ['user_id' => $request->user()->id],
-            [
-                'calib_somewhat_min' => 3,
-                'calib_somewhat_max' => 7,
-                'calib_know_min' => 8,
-                'calib_know_max' => 21,
-                'calib_well_min' => 22,
-                'calib_well_max' => 50,
-            ]
-        )->refresh();
+        $settings = FlashcardSetting::firstOrCreate(['user_id' => $request->user()->id]);
 
         $expandedCards = $uncalibratedCards->flatMap(function ($card) {
             $base = [
@@ -93,12 +71,12 @@ class FlashcardCalibrationController extends Controller
             'totalRemaining' => $totalRemaining,
             'cards' => $expandedCards->shuffle()->values()->all(),
             'calibIntervals' => [
-                'somewhat_min' => $settings->calib_somewhat_min ?? 3,
-                'somewhat_max' => $settings->calib_somewhat_max ?? 7,
-                'know_min' => $settings->calib_know_min ?? 8,
-                'know_max' => $settings->calib_know_max ?? 21,
-                'well_min' => $settings->calib_well_min ?? 22,
-                'well_max' => $settings->calib_well_max ?? 50,
+                'somewhat_min' => $settings->calib_somewhat_min,
+                'somewhat_max' => $settings->calib_somewhat_max,
+                'know_min' => $settings->calib_know_min,
+                'know_max' => $settings->calib_know_max,
+                'well_min' => $settings->calib_well_min,
+                'well_max' => $settings->calib_well_max,
             ],
         ]);
     }
@@ -112,25 +90,15 @@ class FlashcardCalibrationController extends Controller
             'rating' => ['required', 'integer', 'between:1,4'],
             'direction' => ['required', 'in:front_to_back,back_to_front'],
             'is_last_direction' => ['required', 'boolean'],
-            'somewhat_min' => ['sometimes', 'integer', 'min:1', 'max:365'],
-            'somewhat_max' => ['sometimes', 'integer', 'min:1', 'max:365'],
-            'know_min' => ['sometimes', 'integer', 'min:1', 'max:365'],
-            'know_max' => ['sometimes', 'integer', 'min:1', 'max:365'],
-            'well_min' => ['sometimes', 'integer', 'min:1', 'max:365'],
-            'well_max' => ['sometimes', 'integer', 'min:1', 'max:365'],
+            'somewhat_min' => ['sometimes', 'integer', 'min:1', 'max:255'],
+            'somewhat_max' => ['sometimes', 'integer', 'min:1', 'max:255'],
+            'know_min' => ['sometimes', 'integer', 'min:1', 'max:255'],
+            'know_max' => ['sometimes', 'integer', 'min:1', 'max:255'],
+            'well_min' => ['sometimes', 'integer', 'min:1', 'max:255'],
+            'well_max' => ['sometimes', 'integer', 'min:1', 'max:255'],
         ]);
 
-        $settings = FlashcardSetting::firstOrCreate(
-            ['user_id' => $request->user()->id],
-            [
-                'calib_somewhat_min' => 3,
-                'calib_somewhat_max' => 7,
-                'calib_know_min' => 8,
-                'calib_know_max' => 21,
-                'calib_well_min' => 22,
-                'calib_well_max' => 50,
-            ]
-        )->refresh();
+        $settings = FlashcardSetting::firstOrCreate(['user_id' => $request->user()->id]);
 
         $intervalKeys = ['somewhat_min', 'somewhat_max', 'know_min', 'know_max', 'well_min', 'well_max'];
         $updates = [];
@@ -165,6 +133,10 @@ class FlashcardCalibrationController extends Controller
             3 => [(int) round(($knowMin + $knowMax) / 2), $knowMin, $knowMax],
             4 => [(int) round(($wellMin + $wellMax) / 2), $wellMin, $wellMax],
         };
+
+        if ($spreadMin > $spreadMax) {
+            [$spreadMin, $spreadMax] = [$spreadMax, $spreadMin];
+        }
 
         $daysOffset = random_int($spreadMin, $spreadMax);
 

@@ -1,7 +1,7 @@
 import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition, applyUrlDefaults } from './../../wayfinder'
 /**
 * @see \App\Http\Controllers\PricingController::success
-* @see app/Http/Controllers/PricingController.php:71
+* @see app/Http/Controllers/PricingController.php:98
 * @route '/pricing/success'
 */
 export const success = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -16,7 +16,7 @@ success.definition = {
 
 /**
 * @see \App\Http\Controllers\PricingController::success
-* @see app/Http/Controllers/PricingController.php:71
+* @see app/Http/Controllers/PricingController.php:98
 * @route '/pricing/success'
 */
 success.url = (options?: RouteQueryOptions) => {
@@ -25,7 +25,7 @@ success.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\PricingController::success
-* @see app/Http/Controllers/PricingController.php:71
+* @see app/Http/Controllers/PricingController.php:98
 * @route '/pricing/success'
 */
 success.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -35,7 +35,7 @@ success.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 
 /**
 * @see \App\Http\Controllers\PricingController::success
-* @see app/Http/Controllers/PricingController.php:71
+* @see app/Http/Controllers/PricingController.php:98
 * @route '/pricing/success'
 */
 success.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -45,7 +45,7 @@ success.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
 /**
 * @see \App\Http\Controllers\PricingController::success
-* @see app/Http/Controllers/PricingController.php:71
+* @see app/Http/Controllers/PricingController.php:98
 * @route '/pricing/success'
 */
 const successForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -55,7 +55,7 @@ const successForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> =>
 
 /**
 * @see \App\Http\Controllers\PricingController::success
-* @see app/Http/Controllers/PricingController.php:71
+* @see app/Http/Controllers/PricingController.php:98
 * @route '/pricing/success'
 */
 successForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -65,7 +65,7 @@ successForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => (
 
 /**
 * @see \App\Http\Controllers\PricingController::success
-* @see app/Http/Controllers/PricingController.php:71
+* @see app/Http/Controllers/PricingController.php:98
 * @route '/pricing/success'
 */
 successForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -82,7 +82,7 @@ success.form = successForm
 
 /**
 * @see \App\Http\Controllers\PricingController::checkout
-* @see app/Http/Controllers/PricingController.php:34
+* @see app/Http/Controllers/PricingController.php:38
 * @route '/pricing/checkout/{plan}'
 */
 export const checkout = (args: { plan: string | number } | [plan: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -97,7 +97,7 @@ checkout.definition = {
 
 /**
 * @see \App\Http\Controllers\PricingController::checkout
-* @see app/Http/Controllers/PricingController.php:34
+* @see app/Http/Controllers/PricingController.php:38
 * @route '/pricing/checkout/{plan}'
 */
 checkout.url = (args: { plan: string | number } | [plan: string | number ] | string | number, options?: RouteQueryOptions) => {
@@ -124,7 +124,7 @@ checkout.url = (args: { plan: string | number } | [plan: string | number ] | str
 
 /**
 * @see \App\Http\Controllers\PricingController::checkout
-* @see app/Http/Controllers/PricingController.php:34
+* @see app/Http/Controllers/PricingController.php:38
 * @route '/pricing/checkout/{plan}'
 */
 checkout.post = (args: { plan: string | number } | [plan: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -134,7 +134,7 @@ checkout.post = (args: { plan: string | number } | [plan: string | number ] | st
 
 /**
 * @see \App\Http\Controllers\PricingController::checkout
-* @see app/Http/Controllers/PricingController.php:34
+* @see app/Http/Controllers/PricingController.php:38
 * @route '/pricing/checkout/{plan}'
 */
 const checkoutForm = (args: { plan: string | number } | [plan: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -144,7 +144,7 @@ const checkoutForm = (args: { plan: string | number } | [plan: string | number ]
 
 /**
 * @see \App\Http\Controllers\PricingController::checkout
-* @see app/Http/Controllers/PricingController.php:34
+* @see app/Http/Controllers/PricingController.php:38
 * @route '/pricing/checkout/{plan}'
 */
 checkoutForm.post = (args: { plan: string | number } | [plan: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -156,7 +156,7 @@ checkout.form = checkoutForm
 
 /**
 * @see \App\Http\Controllers\PricingController::portal
-* @see app/Http/Controllers/PricingController.php:76
+* @see app/Http/Controllers/PricingController.php:103
 * @route '/pricing/portal'
 */
 export const portal = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -171,7 +171,7 @@ portal.definition = {
 
 /**
 * @see \App\Http\Controllers\PricingController::portal
-* @see app/Http/Controllers/PricingController.php:76
+* @see app/Http/Controllers/PricingController.php:103
 * @route '/pricing/portal'
 */
 portal.url = (options?: RouteQueryOptions) => {
@@ -180,7 +180,7 @@ portal.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\PricingController::portal
-* @see app/Http/Controllers/PricingController.php:76
+* @see app/Http/Controllers/PricingController.php:103
 * @route '/pricing/portal'
 */
 portal.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -190,7 +190,7 @@ portal.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
 
 /**
 * @see \App\Http\Controllers\PricingController::portal
-* @see app/Http/Controllers/PricingController.php:76
+* @see app/Http/Controllers/PricingController.php:103
 * @route '/pricing/portal'
 */
 const portalForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -200,7 +200,7 @@ const portalForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> =>
 
 /**
 * @see \App\Http\Controllers\PricingController::portal
-* @see app/Http/Controllers/PricingController.php:76
+* @see app/Http/Controllers/PricingController.php:103
 * @route '/pricing/portal'
 */
 portalForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({

@@ -33,6 +33,7 @@ class UserFactory extends Factory
             'two_factor_secret' => null,
             'two_factor_recovery_codes' => null,
             'two_factor_confirmed_at' => null,
+            'onboarding_completed_at' => now(),
         ];
     }
 
@@ -47,6 +48,16 @@ class UserFactory extends Factory
     }
 
     /**
+     * Indicate that the user has not completed onboarding yet.
+     */
+    public function withoutOnboarding(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'onboarding_completed_at' => null,
+        ]);
+    }
+
+    /**
      * Indicate that the model has two-factor authentication configured.
      */
     public function withTwoFactor(): static
@@ -55,6 +66,26 @@ class UserFactory extends Factory
             'two_factor_secret' => encrypt('secret'),
             'two_factor_recovery_codes' => encrypt(json_encode(['recovery-code-1'])),
             'two_factor_confirmed_at' => now(),
+        ]);
+    }
+
+    /**
+     * Basic csomag (admin felülírással) — nincsenek korlátozások.
+     */
+    public function basic(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'plan_override' => 'basic',
+        ]);
+    }
+
+    /**
+     * Premium csomag (admin felülírással) — korlátlan + AI.
+     */
+    public function premium(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'plan_override' => 'premium',
         ]);
     }
 }

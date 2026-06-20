@@ -1,1 +1,0 @@
-<title>TopEwords</title><?php /**PATH /Applications/XAMPP/xamppfiles/htdocs/topEwords/storage/framework/views/e28a9d0144f2621826b9a2ad0a504fc8.blade.php ENDPATH**/ ?>

@@ -1,7 +1,7 @@
 import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition, applyUrlDefaults } from './../../../wayfinder'
 /**
 * @see \App\Http\Controllers\FlashcardDeckController::update
-* @see app/Http/Controllers/FlashcardDeckController.php:215
+* @see app/Http/Controllers/FlashcardDeckController.php:204
 * @route '/flashcards/{deck}/settings'
 */
 export const update = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'put'> => ({
@@ -16,7 +16,7 @@ update.definition = {
 
 /**
 * @see \App\Http\Controllers\FlashcardDeckController::update
-* @see app/Http/Controllers/FlashcardDeckController.php:215
+* @see app/Http/Controllers/FlashcardDeckController.php:204
 * @route '/flashcards/{deck}/settings'
 */
 update.url = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -49,7 +49,7 @@ update.url = (args: { deck: number | { id: number } } | [deck: number | { id: nu
 
 /**
 * @see \App\Http\Controllers\FlashcardDeckController::update
-* @see app/Http/Controllers/FlashcardDeckController.php:215
+* @see app/Http/Controllers/FlashcardDeckController.php:204
 * @route '/flashcards/{deck}/settings'
 */
 update.put = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'put'> => ({
@@ -59,7 +59,7 @@ update.put = (args: { deck: number | { id: number } } | [deck: number | { id: nu
 
 /**
 * @see \App\Http\Controllers\FlashcardDeckController::update
-* @see app/Http/Controllers/FlashcardDeckController.php:215
+* @see app/Http/Controllers/FlashcardDeckController.php:204
 * @route '/flashcards/{deck}/settings'
 */
 const updateForm = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -74,7 +74,7 @@ const updateForm = (args: { deck: number | { id: number } } | [deck: number | { 
 
 /**
 * @see \App\Http\Controllers\FlashcardDeckController::update
-* @see app/Http/Controllers/FlashcardDeckController.php:215
+* @see app/Http/Controllers/FlashcardDeckController.php:204
 * @route '/flashcards/{deck}/settings'
 */
 updateForm.put = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -91,7 +91,7 @@ update.form = updateForm
 
 /**
 * @see \App\Http\Controllers\FlashcardDeckController::destroy
-* @see app/Http/Controllers/FlashcardDeckController.php:227
+* @see app/Http/Controllers/FlashcardDeckController.php:216
 * @route '/flashcards/{deck}/settings'
 */
 export const destroy = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'delete'> => ({
@@ -106,7 +106,7 @@ destroy.definition = {
 
 /**
 * @see \App\Http\Controllers\FlashcardDeckController::destroy
-* @see app/Http/Controllers/FlashcardDeckController.php:227
+* @see app/Http/Controllers/FlashcardDeckController.php:216
 * @route '/flashcards/{deck}/settings'
 */
 destroy.url = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -139,7 +139,7 @@ destroy.url = (args: { deck: number | { id: number } } | [deck: number | { id: n
 
 /**
 * @see \App\Http\Controllers\FlashcardDeckController::destroy
-* @see app/Http/Controllers/FlashcardDeckController.php:227
+* @see app/Http/Controllers/FlashcardDeckController.php:216
 * @route '/flashcards/{deck}/settings'
 */
 destroy.delete = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'delete'> => ({
@@ -149,7 +149,7 @@ destroy.delete = (args: { deck: number | { id: number } } | [deck: number | { id
 
 /**
 * @see \App\Http\Controllers\FlashcardDeckController::destroy
-* @see app/Http/Controllers/FlashcardDeckController.php:227
+* @see app/Http/Controllers/FlashcardDeckController.php:216
 * @route '/flashcards/{deck}/settings'
 */
 const destroyForm = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -164,7 +164,7 @@ const destroyForm = (args: { deck: number | { id: number } } | [deck: number | {
 
 /**
 * @see \App\Http\Controllers\FlashcardDeckController::destroy
-* @see app/Http/Controllers/FlashcardDeckController.php:227
+* @see app/Http/Controllers/FlashcardDeckController.php:216
 * @route '/flashcards/{deck}/settings'
 */
 destroyForm.delete = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({

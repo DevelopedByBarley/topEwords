@@ -8,6 +8,7 @@ import { Color } from '@tiptap/extension-color';
 import { Bold, Italic, Underline as UnderlineIcon, Link as LinkIcon, List, ListOrdered, Code, Strikethrough, Undo, Redo, Palette, Bookmark, X } from 'lucide-react';
 import { forwardRef, useImperativeHandle, useRef, useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
+import { sanitizeHtml } from '@/lib/sanitize-html';
 
 const PRESET_COLORS = [
     '#ef4444', '#f97316', '#eab308', '#22c55e',
@@ -313,7 +314,7 @@ export function RichTextContent({ html, className }: RichTextContentProps) {
     return (
         <div
             className={cn('prose prose-sm dark:prose-invert max-w-none', className)}
-            dangerouslySetInnerHTML={{ __html: html }}
+            dangerouslySetInnerHTML={{ __html: sanitizeHtml(html) }}
         />
     );
 }

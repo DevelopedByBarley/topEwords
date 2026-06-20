@@ -6,9 +6,12 @@ use App\Models\FlashcardDeck;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 
 class FlashcardCsvController extends Controller
 {
+    private const MAX_IMPORT_ROWS = 5000;
+
     public function import(Request $request, FlashcardDeck $deck): RedirectResponse
     {
         abort_unless($deck->user_id === $request->user()->id, 403);
@@ -18,7 +21,7 @@ class FlashcardCsvController extends Controller
             'direction' => ['nullable', 'in:front_to_back,back_to_front,both'],
         ]);
 
-        $direction = $request->input('direction', 'front_to_back');
+        $direction = $request->input('direction') ?? 'front_to_back';
 
         $path = $request->file('csv_file')->getRealPath();
         $handle = fopen($path, 'r');
@@ -29,10 +32,17 @@ class FlashcardCsvController extends Controller
             rewind($handle);
         }
 
-        $imported = 0;
+        $now = now();
+        $rows = [];
         $skipped = 0;
+        $truncated = false;
 
-        while (($row = fgetcsv($handle)) !== false) {
+        while (($row = fgetcsv($handle, null, ',', '"', '')) !== false) {
+            if (count($rows) >= self::MAX_IMPORT_ROWS) {
+                $truncated = true;
+                break;
+            }
+
             if (count($row) < 2) {
                 $skipped++;
 
@@ -48,21 +58,36 @@ class FlashcardCsvController extends Controller
                 continue;
             }
 
-            $deck->flashcards()->create([
+            $rows[] = [
+                'deck_id' => $deck->id,
                 'front' => $this->textToHtml($front),
                 'back' => $this->textToHtml($back),
                 'direction' => $direction,
                 'is_imported' => true,
-            ]);
-
-            $imported++;
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
         }
 
         fclose($handle);
 
+        if (! $request->user()->canAddFlashcardsTo($deck, count($rows))) {
+            return back()->with('error', 'Ingyenes fiókkal paklinként max 20 kártyát adhatsz hozzá. Frissíts prémiumra a korlátlan hozzáféréshez.');
+        }
+
+        DB::transaction(function () use ($rows, $deck) {
+            foreach (array_chunk($rows, 500) as $chunk) {
+                $deck->flashcards()->insert($chunk);
+            }
+        });
+
+        $imported = count($rows);
         $message = "{$imported} kártya importálva";
         if ($skipped > 0) {
             $message .= ", {$skipped} kihagyva";
+        }
+        if ($truncated) {
+            $message .= ' (a fájl több mint '.self::MAX_IMPORT_ROWS.' sort tartalmazott, a többi nem került be)';
         }
 
         return to_route('flashcards.show', $deck)
@@ -124,6 +149,11 @@ class FlashcardCsvController extends Controller
     private function csvRow(array $fields): string
     {
         $escaped = array_map(function (string $field): string {
+            // Formula injection elleni védelem: Excel a =,+,-,@ kezdetű cellákat képletként futtatná
+            if ($field !== '' && in_array($field[0], ['=', '+', '-', '@'], true)) {
+                $field = "'".$field;
+            }
+
             $field = str_replace('"', '""', $field);
 
             return '"'.$field.'"';

@@ -8,13 +8,17 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('user_word', function (Blueprint $table) {
-            $table->unsignedTinyInteger('importance')->nullable()->after('status');
-        });
+        if (! Schema::hasColumn('user_word', 'importance')) {
+            Schema::table('user_word', function (Blueprint $table) {
+                $table->unsignedTinyInteger('importance')->nullable()->after('status');
+            });
+        }
 
-        Schema::table('user_custom_words', function (Blueprint $table) {
-            $table->unsignedTinyInteger('importance')->nullable()->after('status');
-        });
+        if (! Schema::hasColumn('user_custom_words', 'importance')) {
+            Schema::table('user_custom_words', function (Blueprint $table) {
+                $table->unsignedTinyInteger('importance')->nullable()->after('status');
+            });
+        }
     }
 
     public function down(): void

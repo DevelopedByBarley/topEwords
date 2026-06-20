@@ -13,9 +13,11 @@ Route::middleware('throttle:120,1,ext-read')->group(function () {
     Route::get('extension/search', [ExtensionController::class, 'search'])->name('extension.search');
     Route::get('extension/statuses', [ExtensionController::class, 'statuses'])->name('extension.statuses');
     Route::get('extension/badge', [ExtensionController::class, 'badge'])->name('extension.badge');
+    Route::get('extension/decks', [ExtensionController::class, 'decks'])->name('extension.decks');
 });
 
 Route::post('extension/add-word', [ExtensionController::class, 'addWord'])->name('extension.add-word')->middleware('throttle:20,1,ext-write');
+Route::post('extension/create-flashcard', [ExtensionController::class, 'createFlashcard'])->name('extension.create-flashcard')->middleware('throttle:20,1,ext-write');
 
 // Felirat-letöltés (YouTube-ot ér el, ezért szigorúbb limit).
 Route::get('extension/youtube-transcript', [ExtensionController::class, 'youtubeTranscript'])->name('extension.youtube-transcript')->middleware('throttle:30,1,ext-yt');

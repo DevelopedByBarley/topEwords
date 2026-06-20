@@ -1,7 +1,7 @@
 import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition, applyUrlDefaults } from './../../../wayfinder'
 /**
 * @see \App\Http\Controllers\FlashcardCsvController::importMethod
-* @see app/Http/Controllers/FlashcardCsvController.php:12
+* @see app/Http/Controllers/FlashcardCsvController.php:15
 * @route '/flashcards/{deck}/csv-import'
 */
 export const importMethod = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -16,7 +16,7 @@ importMethod.definition = {
 
 /**
 * @see \App\Http\Controllers\FlashcardCsvController::importMethod
-* @see app/Http/Controllers/FlashcardCsvController.php:12
+* @see app/Http/Controllers/FlashcardCsvController.php:15
 * @route '/flashcards/{deck}/csv-import'
 */
 importMethod.url = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -49,7 +49,7 @@ importMethod.url = (args: { deck: number | { id: number } } | [deck: number | { 
 
 /**
 * @see \App\Http\Controllers\FlashcardCsvController::importMethod
-* @see app/Http/Controllers/FlashcardCsvController.php:12
+* @see app/Http/Controllers/FlashcardCsvController.php:15
 * @route '/flashcards/{deck}/csv-import'
 */
 importMethod.post = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -59,7 +59,7 @@ importMethod.post = (args: { deck: number | { id: number } } | [deck: number | {
 
 /**
 * @see \App\Http\Controllers\FlashcardCsvController::importMethod
-* @see app/Http/Controllers/FlashcardCsvController.php:12
+* @see app/Http/Controllers/FlashcardCsvController.php:15
 * @route '/flashcards/{deck}/csv-import'
 */
 const importMethodForm = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -69,7 +69,7 @@ const importMethodForm = (args: { deck: number | { id: number } } | [deck: numbe
 
 /**
 * @see \App\Http\Controllers\FlashcardCsvController::importMethod
-* @see app/Http/Controllers/FlashcardCsvController.php:12
+* @see app/Http/Controllers/FlashcardCsvController.php:15
 * @route '/flashcards/{deck}/csv-import'
 */
 importMethodForm.post = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -81,7 +81,7 @@ importMethod.form = importMethodForm
 
 /**
 * @see \App\Http\Controllers\FlashcardCsvController::exportMethod
-* @see app/Http/Controllers/FlashcardCsvController.php:73
+* @see app/Http/Controllers/FlashcardCsvController.php:98
 * @route '/flashcards/{deck}/csv-export'
 */
 export const exportMethod = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -96,7 +96,7 @@ exportMethod.definition = {
 
 /**
 * @see \App\Http\Controllers\FlashcardCsvController::exportMethod
-* @see app/Http/Controllers/FlashcardCsvController.php:73
+* @see app/Http/Controllers/FlashcardCsvController.php:98
 * @route '/flashcards/{deck}/csv-export'
 */
 exportMethod.url = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -129,7 +129,7 @@ exportMethod.url = (args: { deck: number | { id: number } } | [deck: number | { 
 
 /**
 * @see \App\Http\Controllers\FlashcardCsvController::exportMethod
-* @see app/Http/Controllers/FlashcardCsvController.php:73
+* @see app/Http/Controllers/FlashcardCsvController.php:98
 * @route '/flashcards/{deck}/csv-export'
 */
 exportMethod.get = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -139,7 +139,7 @@ exportMethod.get = (args: { deck: number | { id: number } } | [deck: number | { 
 
 /**
 * @see \App\Http\Controllers\FlashcardCsvController::exportMethod
-* @see app/Http/Controllers/FlashcardCsvController.php:73
+* @see app/Http/Controllers/FlashcardCsvController.php:98
 * @route '/flashcards/{deck}/csv-export'
 */
 exportMethod.head = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -149,7 +149,7 @@ exportMethod.head = (args: { deck: number | { id: number } } | [deck: number | {
 
 /**
 * @see \App\Http\Controllers\FlashcardCsvController::exportMethod
-* @see app/Http/Controllers/FlashcardCsvController.php:73
+* @see app/Http/Controllers/FlashcardCsvController.php:98
 * @route '/flashcards/{deck}/csv-export'
 */
 const exportMethodForm = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -159,7 +159,7 @@ const exportMethodForm = (args: { deck: number | { id: number } } | [deck: numbe
 
 /**
 * @see \App\Http\Controllers\FlashcardCsvController::exportMethod
-* @see app/Http/Controllers/FlashcardCsvController.php:73
+* @see app/Http/Controllers/FlashcardCsvController.php:98
 * @route '/flashcards/{deck}/csv-export'
 */
 exportMethodForm.get = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -169,7 +169,7 @@ exportMethodForm.get = (args: { deck: number | { id: number } } | [deck: number 
 
 /**
 * @see \App\Http\Controllers\FlashcardCsvController::exportMethod
-* @see app/Http/Controllers/FlashcardCsvController.php:73
+* @see app/Http/Controllers/FlashcardCsvController.php:98
 * @route '/flashcards/{deck}/csv-export'
 */
 exportMethodForm.head = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({

@@ -7,7 +7,7 @@ import studyB7e146 from './study'
 import folders from './folders'
 /**
 * @see \App\Http\Controllers\FlashcardDeckController::index
-* @see app/Http/Controllers/FlashcardDeckController.php:19
+* @see app/Http/Controllers/FlashcardDeckController.php:20
 * @route '/flashcards'
 */
 export const index = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -22,7 +22,7 @@ index.definition = {
 
 /**
 * @see \App\Http\Controllers\FlashcardDeckController::index
-* @see app/Http/Controllers/FlashcardDeckController.php:19
+* @see app/Http/Controllers/FlashcardDeckController.php:20
 * @route '/flashcards'
 */
 index.url = (options?: RouteQueryOptions) => {
@@ -31,7 +31,7 @@ index.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\FlashcardDeckController::index
-* @see app/Http/Controllers/FlashcardDeckController.php:19
+* @see app/Http/Controllers/FlashcardDeckController.php:20
 * @route '/flashcards'
 */
 index.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -41,7 +41,7 @@ index.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 
 /**
 * @see \App\Http\Controllers\FlashcardDeckController::index
-* @see app/Http/Controllers/FlashcardDeckController.php:19
+* @see app/Http/Controllers/FlashcardDeckController.php:20
 * @route '/flashcards'
 */
 index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -51,7 +51,7 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
 /**
 * @see \App\Http\Controllers\FlashcardDeckController::index
-* @see app/Http/Controllers/FlashcardDeckController.php:19
+* @see app/Http/Controllers/FlashcardDeckController.php:20
 * @route '/flashcards'
 */
 const indexForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -61,7 +61,7 @@ const indexForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => (
 
 /**
 * @see \App\Http\Controllers\FlashcardDeckController::index
-* @see app/Http/Controllers/FlashcardDeckController.php:19
+* @see app/Http/Controllers/FlashcardDeckController.php:20
 * @route '/flashcards'
 */
 indexForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -71,7 +71,7 @@ indexForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
 
 /**
 * @see \App\Http\Controllers\FlashcardDeckController::index
-* @see app/Http/Controllers/FlashcardDeckController.php:19
+* @see app/Http/Controllers/FlashcardDeckController.php:20
 * @route '/flashcards'
 */
 indexForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -88,7 +88,7 @@ index.form = indexForm
 
 /**
 * @see \App\Http\Controllers\FlashcardDeckController::store
-* @see app/Http/Controllers/FlashcardDeckController.php:78
+* @see app/Http/Controllers/FlashcardDeckController.php:79
 * @route '/flashcards'
 */
 export const store = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -103,7 +103,7 @@ store.definition = {
 
 /**
 * @see \App\Http\Controllers\FlashcardDeckController::store
-* @see app/Http/Controllers/FlashcardDeckController.php:78
+* @see app/Http/Controllers/FlashcardDeckController.php:79
 * @route '/flashcards'
 */
 store.url = (options?: RouteQueryOptions) => {
@@ -112,7 +112,7 @@ store.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\FlashcardDeckController::store
-* @see app/Http/Controllers/FlashcardDeckController.php:78
+* @see app/Http/Controllers/FlashcardDeckController.php:79
 * @route '/flashcards'
 */
 store.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -122,7 +122,7 @@ store.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
 
 /**
 * @see \App\Http\Controllers\FlashcardDeckController::store
-* @see app/Http/Controllers/FlashcardDeckController.php:78
+* @see app/Http/Controllers/FlashcardDeckController.php:79
 * @route '/flashcards'
 */
 const storeForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -132,7 +132,7 @@ const storeForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => 
 
 /**
 * @see \App\Http\Controllers\FlashcardDeckController::store
-* @see app/Http/Controllers/FlashcardDeckController.php:78
+* @see app/Http/Controllers/FlashcardDeckController.php:79
 * @route '/flashcards'
 */
 storeForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -144,7 +144,7 @@ store.form = storeForm
 
 /**
 * @see \App\Http\Controllers\FlashcardDeckController::show
-* @see app/Http/Controllers/FlashcardDeckController.php:106
+* @see app/Http/Controllers/FlashcardDeckController.php:107
 * @route '/flashcards/{deck}'
 */
 export const show = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -159,7 +159,7 @@ show.definition = {
 
 /**
 * @see \App\Http\Controllers\FlashcardDeckController::show
-* @see app/Http/Controllers/FlashcardDeckController.php:106
+* @see app/Http/Controllers/FlashcardDeckController.php:107
 * @route '/flashcards/{deck}'
 */
 show.url = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -192,7 +192,7 @@ show.url = (args: { deck: number | { id: number } } | [deck: number | { id: numb
 
 /**
 * @see \App\Http\Controllers\FlashcardDeckController::show
-* @see app/Http/Controllers/FlashcardDeckController.php:106
+* @see app/Http/Controllers/FlashcardDeckController.php:107
 * @route '/flashcards/{deck}'
 */
 show.get = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -202,7 +202,7 @@ show.get = (args: { deck: number | { id: number } } | [deck: number | { id: numb
 
 /**
 * @see \App\Http\Controllers\FlashcardDeckController::show
-* @see app/Http/Controllers/FlashcardDeckController.php:106
+* @see app/Http/Controllers/FlashcardDeckController.php:107
 * @route '/flashcards/{deck}'
 */
 show.head = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -212,7 +212,7 @@ show.head = (args: { deck: number | { id: number } } | [deck: number | { id: num
 
 /**
 * @see \App\Http\Controllers\FlashcardDeckController::show
-* @see app/Http/Controllers/FlashcardDeckController.php:106
+* @see app/Http/Controllers/FlashcardDeckController.php:107
 * @route '/flashcards/{deck}'
 */
 const showForm = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -222,7 +222,7 @@ const showForm = (args: { deck: number | { id: number } } | [deck: number | { id
 
 /**
 * @see \App\Http\Controllers\FlashcardDeckController::show
-* @see app/Http/Controllers/FlashcardDeckController.php:106
+* @see app/Http/Controllers/FlashcardDeckController.php:107
 * @route '/flashcards/{deck}'
 */
 showForm.get = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -232,7 +232,7 @@ showForm.get = (args: { deck: number | { id: number } } | [deck: number | { id: 
 
 /**
 * @see \App\Http\Controllers\FlashcardDeckController::show
-* @see app/Http/Controllers/FlashcardDeckController.php:106
+* @see app/Http/Controllers/FlashcardDeckController.php:107
 * @route '/flashcards/{deck}'
 */
 showForm.head = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -249,7 +249,7 @@ show.form = showForm
 
 /**
 * @see \App\Http\Controllers\FlashcardDeckController::update
-* @see app/Http/Controllers/FlashcardDeckController.php:206
+* @see app/Http/Controllers/FlashcardDeckController.php:195
 * @route '/flashcards/{deck}'
 */
 export const update = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'patch'> => ({
@@ -264,7 +264,7 @@ update.definition = {
 
 /**
 * @see \App\Http\Controllers\FlashcardDeckController::update
-* @see app/Http/Controllers/FlashcardDeckController.php:206
+* @see app/Http/Controllers/FlashcardDeckController.php:195
 * @route '/flashcards/{deck}'
 */
 update.url = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -297,7 +297,7 @@ update.url = (args: { deck: number | { id: number } } | [deck: number | { id: nu
 
 /**
 * @see \App\Http\Controllers\FlashcardDeckController::update
-* @see app/Http/Controllers/FlashcardDeckController.php:206
+* @see app/Http/Controllers/FlashcardDeckController.php:195
 * @route '/flashcards/{deck}'
 */
 update.patch = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'patch'> => ({
@@ -307,7 +307,7 @@ update.patch = (args: { deck: number | { id: number } } | [deck: number | { id: 
 
 /**
 * @see \App\Http\Controllers\FlashcardDeckController::update
-* @see app/Http/Controllers/FlashcardDeckController.php:206
+* @see app/Http/Controllers/FlashcardDeckController.php:195
 * @route '/flashcards/{deck}'
 */
 const updateForm = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -322,7 +322,7 @@ const updateForm = (args: { deck: number | { id: number } } | [deck: number | { 
 
 /**
 * @see \App\Http\Controllers\FlashcardDeckController::update
-* @see app/Http/Controllers/FlashcardDeckController.php:206
+* @see app/Http/Controllers/FlashcardDeckController.php:195
 * @route '/flashcards/{deck}'
 */
 updateForm.patch = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -339,7 +339,7 @@ update.form = updateForm
 
 /**
 * @see \App\Http\Controllers\FlashcardDeckController::destroy
-* @see app/Http/Controllers/FlashcardDeckController.php:236
+* @see app/Http/Controllers/FlashcardDeckController.php:225
 * @route '/flashcards/{deck}'
 */
 export const destroy = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'delete'> => ({
@@ -354,7 +354,7 @@ destroy.definition = {
 
 /**
 * @see \App\Http\Controllers\FlashcardDeckController::destroy
-* @see app/Http/Controllers/FlashcardDeckController.php:236
+* @see app/Http/Controllers/FlashcardDeckController.php:225
 * @route '/flashcards/{deck}'
 */
 destroy.url = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -387,7 +387,7 @@ destroy.url = (args: { deck: number | { id: number } } | [deck: number | { id: n
 
 /**
 * @see \App\Http\Controllers\FlashcardDeckController::destroy
-* @see app/Http/Controllers/FlashcardDeckController.php:236
+* @see app/Http/Controllers/FlashcardDeckController.php:225
 * @route '/flashcards/{deck}'
 */
 destroy.delete = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'delete'> => ({
@@ -397,7 +397,7 @@ destroy.delete = (args: { deck: number | { id: number } } | [deck: number | { id
 
 /**
 * @see \App\Http\Controllers\FlashcardDeckController::destroy
-* @see app/Http/Controllers/FlashcardDeckController.php:236
+* @see app/Http/Controllers/FlashcardDeckController.php:225
 * @route '/flashcards/{deck}'
 */
 const destroyForm = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -412,7 +412,7 @@ const destroyForm = (args: { deck: number | { id: number } } | [deck: number | {
 
 /**
 * @see \App\Http\Controllers\FlashcardDeckController::destroy
-* @see app/Http/Controllers/FlashcardDeckController.php:236
+* @see app/Http/Controllers/FlashcardDeckController.php:225
 * @route '/flashcards/{deck}'
 */
 destroyForm.delete = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -429,7 +429,7 @@ destroy.form = destroyForm
 
 /**
 * @see \App\Http\Controllers\FlashcardCalibrationController::calibrate
-* @see app/Http/Controllers/FlashcardCalibrationController.php:17
+* @see app/Http/Controllers/FlashcardCalibrationController.php:18
 * @route '/flashcards/{deck}/calibrate'
 */
 export const calibrate = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -444,7 +444,7 @@ calibrate.definition = {
 
 /**
 * @see \App\Http\Controllers\FlashcardCalibrationController::calibrate
-* @see app/Http/Controllers/FlashcardCalibrationController.php:17
+* @see app/Http/Controllers/FlashcardCalibrationController.php:18
 * @route '/flashcards/{deck}/calibrate'
 */
 calibrate.url = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -477,7 +477,7 @@ calibrate.url = (args: { deck: number | { id: number } } | [deck: number | { id:
 
 /**
 * @see \App\Http\Controllers\FlashcardCalibrationController::calibrate
-* @see app/Http/Controllers/FlashcardCalibrationController.php:17
+* @see app/Http/Controllers/FlashcardCalibrationController.php:18
 * @route '/flashcards/{deck}/calibrate'
 */
 calibrate.get = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -487,7 +487,7 @@ calibrate.get = (args: { deck: number | { id: number } } | [deck: number | { id:
 
 /**
 * @see \App\Http\Controllers\FlashcardCalibrationController::calibrate
-* @see app/Http/Controllers/FlashcardCalibrationController.php:17
+* @see app/Http/Controllers/FlashcardCalibrationController.php:18
 * @route '/flashcards/{deck}/calibrate'
 */
 calibrate.head = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -497,7 +497,7 @@ calibrate.head = (args: { deck: number | { id: number } } | [deck: number | { id
 
 /**
 * @see \App\Http\Controllers\FlashcardCalibrationController::calibrate
-* @see app/Http/Controllers/FlashcardCalibrationController.php:17
+* @see app/Http/Controllers/FlashcardCalibrationController.php:18
 * @route '/flashcards/{deck}/calibrate'
 */
 const calibrateForm = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -507,7 +507,7 @@ const calibrateForm = (args: { deck: number | { id: number } } | [deck: number |
 
 /**
 * @see \App\Http\Controllers\FlashcardCalibrationController::calibrate
-* @see app/Http/Controllers/FlashcardCalibrationController.php:17
+* @see app/Http/Controllers/FlashcardCalibrationController.php:18
 * @route '/flashcards/{deck}/calibrate'
 */
 calibrateForm.get = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -517,7 +517,7 @@ calibrateForm.get = (args: { deck: number | { id: number } } | [deck: number | {
 
 /**
 * @see \App\Http\Controllers\FlashcardCalibrationController::calibrate
-* @see app/Http/Controllers/FlashcardCalibrationController.php:17
+* @see app/Http/Controllers/FlashcardCalibrationController.php:18
 * @route '/flashcards/{deck}/calibrate'
 */
 calibrateForm.head = (args: { deck: number | { id: number } } | [deck: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({

@@ -1,7 +1,7 @@
 import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition } from './../../../../wayfinder'
 /**
 * @see \App\Http\Controllers\ExtensionController::lookup
-* @see app/Http/Controllers/ExtensionController.php:14
+* @see app/Http/Controllers/ExtensionController.php:15
 * @route '/extension/lookup'
 */
 export const lookup = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -16,7 +16,7 @@ lookup.definition = {
 
 /**
 * @see \App\Http\Controllers\ExtensionController::lookup
-* @see app/Http/Controllers/ExtensionController.php:14
+* @see app/Http/Controllers/ExtensionController.php:15
 * @route '/extension/lookup'
 */
 lookup.url = (options?: RouteQueryOptions) => {
@@ -25,7 +25,7 @@ lookup.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\ExtensionController::lookup
-* @see app/Http/Controllers/ExtensionController.php:14
+* @see app/Http/Controllers/ExtensionController.php:15
 * @route '/extension/lookup'
 */
 lookup.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -35,7 +35,7 @@ lookup.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 
 /**
 * @see \App\Http\Controllers\ExtensionController::lookup
-* @see app/Http/Controllers/ExtensionController.php:14
+* @see app/Http/Controllers/ExtensionController.php:15
 * @route '/extension/lookup'
 */
 lookup.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -45,7 +45,7 @@ lookup.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
 /**
 * @see \App\Http\Controllers\ExtensionController::lookup
-* @see app/Http/Controllers/ExtensionController.php:14
+* @see app/Http/Controllers/ExtensionController.php:15
 * @route '/extension/lookup'
 */
 const lookupForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -55,7 +55,7 @@ const lookupForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => 
 
 /**
 * @see \App\Http\Controllers\ExtensionController::lookup
-* @see app/Http/Controllers/ExtensionController.php:14
+* @see app/Http/Controllers/ExtensionController.php:15
 * @route '/extension/lookup'
 */
 lookupForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -65,7 +65,7 @@ lookupForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
 
 /**
 * @see \App\Http\Controllers\ExtensionController::lookup
-* @see app/Http/Controllers/ExtensionController.php:14
+* @see app/Http/Controllers/ExtensionController.php:15
 * @route '/extension/lookup'
 */
 lookupForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -82,7 +82,7 @@ lookup.form = lookupForm
 
 /**
 * @see \App\Http\Controllers\ExtensionController::search
-* @see app/Http/Controllers/ExtensionController.php:185
+* @see app/Http/Controllers/ExtensionController.php:257
 * @route '/extension/search'
 */
 export const search = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -97,7 +97,7 @@ search.definition = {
 
 /**
 * @see \App\Http\Controllers\ExtensionController::search
-* @see app/Http/Controllers/ExtensionController.php:185
+* @see app/Http/Controllers/ExtensionController.php:257
 * @route '/extension/search'
 */
 search.url = (options?: RouteQueryOptions) => {
@@ -106,7 +106,7 @@ search.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\ExtensionController::search
-* @see app/Http/Controllers/ExtensionController.php:185
+* @see app/Http/Controllers/ExtensionController.php:257
 * @route '/extension/search'
 */
 search.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -116,7 +116,7 @@ search.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 
 /**
 * @see \App\Http\Controllers\ExtensionController::search
-* @see app/Http/Controllers/ExtensionController.php:185
+* @see app/Http/Controllers/ExtensionController.php:257
 * @route '/extension/search'
 */
 search.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -126,7 +126,7 @@ search.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
 /**
 * @see \App\Http\Controllers\ExtensionController::search
-* @see app/Http/Controllers/ExtensionController.php:185
+* @see app/Http/Controllers/ExtensionController.php:257
 * @route '/extension/search'
 */
 const searchForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -136,7 +136,7 @@ const searchForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => 
 
 /**
 * @see \App\Http\Controllers\ExtensionController::search
-* @see app/Http/Controllers/ExtensionController.php:185
+* @see app/Http/Controllers/ExtensionController.php:257
 * @route '/extension/search'
 */
 searchForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -146,7 +146,7 @@ searchForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
 
 /**
 * @see \App\Http\Controllers\ExtensionController::search
-* @see app/Http/Controllers/ExtensionController.php:185
+* @see app/Http/Controllers/ExtensionController.php:257
 * @route '/extension/search'
 */
 searchForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -163,7 +163,7 @@ search.form = searchForm
 
 /**
 * @see \App\Http\Controllers\ExtensionController::statuses
-* @see app/Http/Controllers/ExtensionController.php:142
+* @see app/Http/Controllers/ExtensionController.php:156
 * @route '/extension/statuses'
 */
 export const statuses = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -178,7 +178,7 @@ statuses.definition = {
 
 /**
 * @see \App\Http\Controllers\ExtensionController::statuses
-* @see app/Http/Controllers/ExtensionController.php:142
+* @see app/Http/Controllers/ExtensionController.php:156
 * @route '/extension/statuses'
 */
 statuses.url = (options?: RouteQueryOptions) => {
@@ -187,7 +187,7 @@ statuses.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\ExtensionController::statuses
-* @see app/Http/Controllers/ExtensionController.php:142
+* @see app/Http/Controllers/ExtensionController.php:156
 * @route '/extension/statuses'
 */
 statuses.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -197,7 +197,7 @@ statuses.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 
 /**
 * @see \App\Http\Controllers\ExtensionController::statuses
-* @see app/Http/Controllers/ExtensionController.php:142
+* @see app/Http/Controllers/ExtensionController.php:156
 * @route '/extension/statuses'
 */
 statuses.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -207,7 +207,7 @@ statuses.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
 /**
 * @see \App\Http\Controllers\ExtensionController::statuses
-* @see app/Http/Controllers/ExtensionController.php:142
+* @see app/Http/Controllers/ExtensionController.php:156
 * @route '/extension/statuses'
 */
 const statusesForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -217,7 +217,7 @@ const statusesForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> =
 
 /**
 * @see \App\Http\Controllers\ExtensionController::statuses
-* @see app/Http/Controllers/ExtensionController.php:142
+* @see app/Http/Controllers/ExtensionController.php:156
 * @route '/extension/statuses'
 */
 statusesForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -227,7 +227,7 @@ statusesForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => 
 
 /**
 * @see \App\Http\Controllers\ExtensionController::statuses
-* @see app/Http/Controllers/ExtensionController.php:142
+* @see app/Http/Controllers/ExtensionController.php:156
 * @route '/extension/statuses'
 */
 statusesForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -244,7 +244,7 @@ statuses.form = statusesForm
 
 /**
 * @see \App\Http\Controllers\ExtensionController::badge
-* @see app/Http/Controllers/ExtensionController.php:167
+* @see app/Http/Controllers/ExtensionController.php:239
 * @route '/extension/badge'
 */
 export const badge = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -259,7 +259,7 @@ badge.definition = {
 
 /**
 * @see \App\Http\Controllers\ExtensionController::badge
-* @see app/Http/Controllers/ExtensionController.php:167
+* @see app/Http/Controllers/ExtensionController.php:239
 * @route '/extension/badge'
 */
 badge.url = (options?: RouteQueryOptions) => {
@@ -268,7 +268,7 @@ badge.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\ExtensionController::badge
-* @see app/Http/Controllers/ExtensionController.php:167
+* @see app/Http/Controllers/ExtensionController.php:239
 * @route '/extension/badge'
 */
 badge.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -278,7 +278,7 @@ badge.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 
 /**
 * @see \App\Http\Controllers\ExtensionController::badge
-* @see app/Http/Controllers/ExtensionController.php:167
+* @see app/Http/Controllers/ExtensionController.php:239
 * @route '/extension/badge'
 */
 badge.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -288,7 +288,7 @@ badge.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
 /**
 * @see \App\Http\Controllers\ExtensionController::badge
-* @see app/Http/Controllers/ExtensionController.php:167
+* @see app/Http/Controllers/ExtensionController.php:239
 * @route '/extension/badge'
 */
 const badgeForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -298,7 +298,7 @@ const badgeForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => (
 
 /**
 * @see \App\Http\Controllers\ExtensionController::badge
-* @see app/Http/Controllers/ExtensionController.php:167
+* @see app/Http/Controllers/ExtensionController.php:239
 * @route '/extension/badge'
 */
 badgeForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -308,7 +308,7 @@ badgeForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
 
 /**
 * @see \App\Http\Controllers\ExtensionController::badge
-* @see app/Http/Controllers/ExtensionController.php:167
+* @see app/Http/Controllers/ExtensionController.php:239
 * @route '/extension/badge'
 */
 badgeForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -325,7 +325,7 @@ badge.form = badgeForm
 
 /**
 * @see \App\Http\Controllers\ExtensionController::addWord
-* @see app/Http/Controllers/ExtensionController.php:97
+* @see app/Http/Controllers/ExtensionController.php:111
 * @route '/extension/add-word'
 */
 export const addWord = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -340,7 +340,7 @@ addWord.definition = {
 
 /**
 * @see \App\Http\Controllers\ExtensionController::addWord
-* @see app/Http/Controllers/ExtensionController.php:97
+* @see app/Http/Controllers/ExtensionController.php:111
 * @route '/extension/add-word'
 */
 addWord.url = (options?: RouteQueryOptions) => {
@@ -349,7 +349,7 @@ addWord.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\ExtensionController::addWord
-* @see app/Http/Controllers/ExtensionController.php:97
+* @see app/Http/Controllers/ExtensionController.php:111
 * @route '/extension/add-word'
 */
 addWord.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -359,7 +359,7 @@ addWord.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
 
 /**
 * @see \App\Http\Controllers\ExtensionController::addWord
-* @see app/Http/Controllers/ExtensionController.php:97
+* @see app/Http/Controllers/ExtensionController.php:111
 * @route '/extension/add-word'
 */
 const addWordForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -369,7 +369,7 @@ const addWordForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> =
 
 /**
 * @see \App\Http\Controllers\ExtensionController::addWord
-* @see app/Http/Controllers/ExtensionController.php:97
+* @see app/Http/Controllers/ExtensionController.php:111
 * @route '/extension/add-word'
 */
 addWordForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -379,6 +379,87 @@ addWordForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> =>
 
 addWord.form = addWordForm
 
-const ExtensionController = { lookup, search, statuses, badge, addWord }
+/**
+* @see \App\Http\Controllers\ExtensionController::youtubeTranscript
+* @see app/Http/Controllers/ExtensionController.php:208
+* @route '/extension/youtube-transcript'
+*/
+export const youtubeTranscript = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
+    url: youtubeTranscript.url(options),
+    method: 'get',
+})
+
+youtubeTranscript.definition = {
+    methods: ["get","head"],
+    url: '/extension/youtube-transcript',
+} satisfies RouteDefinition<["get","head"]>
+
+/**
+* @see \App\Http\Controllers\ExtensionController::youtubeTranscript
+* @see app/Http/Controllers/ExtensionController.php:208
+* @route '/extension/youtube-transcript'
+*/
+youtubeTranscript.url = (options?: RouteQueryOptions) => {
+    return youtubeTranscript.definition.url + queryParams(options)
+}
+
+/**
+* @see \App\Http\Controllers\ExtensionController::youtubeTranscript
+* @see app/Http/Controllers/ExtensionController.php:208
+* @route '/extension/youtube-transcript'
+*/
+youtubeTranscript.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
+    url: youtubeTranscript.url(options),
+    method: 'get',
+})
+
+/**
+* @see \App\Http\Controllers\ExtensionController::youtubeTranscript
+* @see app/Http/Controllers/ExtensionController.php:208
+* @route '/extension/youtube-transcript'
+*/
+youtubeTranscript.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
+    url: youtubeTranscript.url(options),
+    method: 'head',
+})
+
+/**
+* @see \App\Http\Controllers\ExtensionController::youtubeTranscript
+* @see app/Http/Controllers/ExtensionController.php:208
+* @route '/extension/youtube-transcript'
+*/
+const youtubeTranscriptForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    action: youtubeTranscript.url(options),
+    method: 'get',
+})
+
+/**
+* @see \App\Http\Controllers\ExtensionController::youtubeTranscript
+* @see app/Http/Controllers/ExtensionController.php:208
+* @route '/extension/youtube-transcript'
+*/
+youtubeTranscriptForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    action: youtubeTranscript.url(options),
+    method: 'get',
+})
+
+/**
+* @see \App\Http\Controllers\ExtensionController::youtubeTranscript
+* @see app/Http/Controllers/ExtensionController.php:208
+* @route '/extension/youtube-transcript'
+*/
+youtubeTranscriptForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    action: youtubeTranscript.url({
+        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+            _method: 'HEAD',
+            ...(options?.query ?? options?.mergeQuery ?? {}),
+        }
+    }),
+    method: 'get',
+})
+
+youtubeTranscript.form = youtubeTranscriptForm
+
+const ExtensionController = { lookup, search, statuses, badge, addWord, youtubeTranscript }
 
 export default ExtensionController
