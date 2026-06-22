@@ -22,6 +22,7 @@ import CardPreviewDialog from '@/components/flashcards/card-preview-dialog';
 import CardRow from '@/components/flashcards/card-row';
 import CardStatsDialog from '@/components/flashcards/card-stats-dialog';
 import DeckSettingsDialog from '@/components/flashcards/deck-settings-dialog';
+import MoveConfirmDialog from '@/components/flashcards/move-confirm-dialog';
 import {
     CsvImport,
     WordSearchImport,
@@ -227,6 +228,7 @@ export default function FlashcardShow({
     const [search, setSearch] = useState('');
     const [stateFilter, setStateFilter] = useState('');
     const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+    const [bulkMoveTarget, setBulkMoveTarget] = useState<{ id: number; name: string } | null>(null);
     const PAGE_SIZE = 50;
     const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
@@ -730,17 +732,7 @@ export default function FlashcardShow({
                                                     {otherDecks.map((d) => (
                                                         <DropdownMenuItem
                                                             key={d.id}
-                                                            onClick={() =>
-                                                                bulkAction(
-                                                                    bulkMoveCards(
-                                                                        deck.id,
-                                                                    ).url,
-                                                                    {
-                                                                        target_deck_id:
-                                                                            d.id,
-                                                                    },
-                                                                )
-                                                            }
+                                                            onClick={() => setBulkMoveTarget({ id: d.id, name: d.name })}
                                                         >
                                                             {d.name}
                                                         </DropdownMenuItem>
@@ -1011,6 +1003,22 @@ export default function FlashcardShow({
                     />
                 </DialogContent>
             </Dialog>
+
+            {bulkMoveTarget && (
+                <MoveConfirmDialog
+                    open
+                    onClose={() => setBulkMoveTarget(null)}
+                    targetDeckName={bulkMoveTarget.name}
+                    cardCount={selectedIds.size}
+                    onConfirm={(resetProgress) => {
+                        setBulkMoveTarget(null);
+                        bulkAction(bulkMoveCards(deck.id).url, {
+                            target_deck_id: bulkMoveTarget.id,
+                            reset_progress: resetProgress,
+                        });
+                    }}
+                />
+            )}
         </>
     );
 }

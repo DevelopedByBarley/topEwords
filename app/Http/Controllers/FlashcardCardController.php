@@ -97,14 +97,19 @@ class FlashcardCardController extends Controller
         abort_unless($deck->user_id === $request->user()->id, 403);
         abort_unless($flashcard->deck_id === $deck->id, 403);
 
-        $targetDeckId = $request->validate([
+        $validated = $request->validate([
             'target_deck_id' => ['required', 'integer', 'exists:flashcard_decks,id'],
-        ])['target_deck_id'];
+            'reset_progress' => ['boolean'],
+        ]);
 
-        $targetDeck = FlashcardDeck::findOrFail($targetDeckId);
+        $targetDeck = FlashcardDeck::findOrFail($validated['target_deck_id']);
         abort_unless($targetDeck->user_id === $request->user()->id, 403);
 
-        $flashcard->update(['deck_id' => $targetDeckId]);
+        $flashcard->update(['deck_id' => $validated['target_deck_id']]);
+
+        if ($validated['reset_progress'] ?? false) {
+            $flashcard->reviews()->delete();
+        }
 
         return to_route('flashcards.show', $deck);
     }
@@ -228,12 +233,18 @@ class FlashcardCardController extends Controller
             'ids' => ['required', 'array'],
             'ids.*' => ['integer'],
             'target_deck_id' => ['required', 'integer', 'exists:flashcard_decks,id'],
+            'reset_progress' => ['boolean'],
         ]);
 
         $targetDeck = FlashcardDeck::findOrFail($validated['target_deck_id']);
         abort_unless($targetDeck->user_id === $request->user()->id, 403);
 
-        $moved = $deck->flashcards()->whereIn('id', $validated['ids'])->update(['deck_id' => $targetDeck->id]);
+        $ownedIds = $deck->flashcards()->whereIn('id', $validated['ids'])->pluck('id');
+        $moved = $deck->flashcards()->whereIn('id', $ownedIds)->update(['deck_id' => $targetDeck->id]);
+
+        if (($validated['reset_progress'] ?? false) && $ownedIds->isNotEmpty()) {
+            FlashcardReview::whereIn('flashcard_id', $ownedIds)->delete();
+        }
 
         return to_route('flashcards.show', $deck)->with('success', $moved.' kártya áthelyezve.');
     }

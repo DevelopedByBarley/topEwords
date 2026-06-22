@@ -1,6 +1,7 @@
 import {     router } from '@inertiajs/react';
 import {  ArrowLeftRight,   Copy,  Edit2,   Info,  MoreHorizontal, MoveRight,  RotateCcw,    Sparkles, Trash2 } from 'lucide-react';
-import React, {} from 'react';
+import React, { useState } from 'react';
+import MoveConfirmDialog from '@/components/flashcards/move-confirm-dialog';
 import {
     
     
@@ -42,10 +43,12 @@ export default function CardRow({ card, deck, otherDecks, onEdit, onPreview, onP
     onSelect: (id: number, checked: boolean) => void;
     now: number;
 }) {
+    const [moveTarget, setMoveTarget] = useState<{ id: number; name: string } | null>(null);
     const isBoth = card.direction === 'both';
     const reviewState = card.review?.state ?? 'new';
 
     return (
+        <>
         <div
             className={`flex items-center gap-2 rounded-2xl border px-3 py-3 transition-colors sm:px-4 ${
                 selected
@@ -166,11 +169,7 @@ export default function CardRow({ card, deck, otherDecks, onEdit, onPreview, onP
                                     {otherDecks.map((d) => (
                                         <DropdownMenuItem
                                             key={d.id}
-                                            onClick={() => router.post(
-                                                moveCard({ deck: deck.id, flashcard: card.id }),
-                                                { target_deck_id: d.id },
-                                                { preserveScroll: true },
-                                            )}
+                                            onClick={() => setMoveTarget({ id: d.id, name: d.name })}
                                         >
                                             {d.name}
                                         </DropdownMenuItem>
@@ -213,5 +212,23 @@ return;
                 </DropdownMenu>
             </div>
         </div>
+
+        {moveTarget && (
+            <MoveConfirmDialog
+                open
+                onClose={() => setMoveTarget(null)}
+                targetDeckName={moveTarget.name}
+                cardCount={1}
+                onConfirm={(resetProgress) => {
+                    setMoveTarget(null);
+                    router.post(
+                        moveCard({ deck: deck.id, flashcard: card.id }),
+                        { target_deck_id: moveTarget.id, reset_progress: resetProgress },
+                        { preserveScroll: true },
+                    );
+                }}
+            />
+        )}
+        </>
     );
 }

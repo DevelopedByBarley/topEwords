@@ -1,0 +1,34 @@
+{
+    "manifest_version": 3,
+    "name": "TopWords",
+    "version": "1.9",
+    "description": "Look up English words instantly on any webpage, on YouTube and Netflix subtitles, and track your vocabulary progress with spaced repetition.",
+    "homepage_url": "https://topwords.eu",
+    "minimum_chrome_version": "110",
+    "permissions": ["activeTab", "contextMenus", "storage"],
+    "host_permissions": ["https://topwords.eu/*"],
+    "icons": {
+        "16": "icon16.png",
+        "48": "icon48.png",
+        "128": "icon128.png"
+    },
+    "action": {
+        "default_title": "TopWords",
+        "default_icon": {
+            "16": "icon16.png",
+            "48": "icon48.png",
+            "128": "icon128.png"
+        },
+        "default_popup": "popup.html"
+    },
+    "background": {
+        "service_worker": "background.js"
+    },
+    "content_scripts": [
+        {
+            "matches": ["<all_urls>"],
+            "js": ["content.js"],
+            "run_at": "document_idle"
+        }
+    ]
+}

@@ -284,43 +284,68 @@ export default function WordsPractice({
     return (
         <>
             <Head title="Szabad írás gyakorlás" />
-            <div className="space-y-6 px-4 py-6">
+            <div className="space-y-6 px-4 py-6 lg:px-8">
                 {/* Hero */}
-                <div className="relative overflow-hidden rounded-3xl bg-orange-500 p-6 md:p-8">
-                    <div className="pointer-events-none absolute -top-14 -right-14 size-56 rounded-full bg-white/15" />
-                    <div className="pointer-events-none absolute right-32 -bottom-20 size-40 rounded-full bg-white/10" />
-                    <div className="relative max-w-xl">
-                        <h1 className="text-2xl font-bold tracking-tight text-white md:text-3xl">
-                            Szabad írás gyakorlás
-                        </h1>
-                        <p className="mt-1.5 text-sm text-white/85 md:text-base">
-                            Adj hozzá célszavakat, írj szabadon, az AI ellenőrzi
-                            a szóhasználatot és a grammatikát.
-                        </p>
+                <div className="relative overflow-hidden rounded-3xl bg-orange-500 p-6 md:p-10">
+                    <div className="pointer-events-none absolute -top-16 -right-16 size-64 rounded-full bg-white/15" />
+                    <div className="pointer-events-none absolute right-40 -bottom-24 size-48 rounded-full bg-white/10" />
+                    <div className="relative flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
+                        <div>
+                            <p className="mb-1 text-xs font-semibold tracking-widest text-white/60 uppercase">
+                                AI-alapú gyakorlás
+                            </p>
+                            <h1 className="text-2xl font-bold tracking-tight text-white md:text-3xl lg:text-4xl">
+                                Szabad írás
+                            </h1>
+                            <p className="mt-2 max-w-lg text-sm text-white/85 md:text-base">
+                                Adj hozzá célszavakat, írj szabadon — az AI
+                                ellenőrzi a szóhasználatot és a grammatikát.
+                            </p>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-3 rounded-2xl bg-white/15 px-5 py-3 backdrop-blur-sm">
+                            <div className="text-center">
+                                <p className="text-2xl font-bold text-white">
+                                    {targetWords.length}
+                                </p>
+                                <p className="text-xs text-white/70">
+                                    célszó
+                                </p>
+                            </div>
+                            <div className="h-8 w-px bg-white/30" />
+                            <div className="text-center">
+                                <p className="text-2xl font-bold text-white">
+                                    {text.length}
+                                </p>
+                                <p className="text-xs text-white/70">
+                                    karakter
+                                </p>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
+                <div className="grid gap-6 lg:grid-cols-[380px_1fr] xl:grid-cols-[420px_1fr]">
                     {/* Left: target words */}
-                    <div className="space-y-4 lg:sticky lg:top-4 lg:self-start">
-                        <div className="space-y-3 rounded-3xl bg-card p-5 shadow-sm">
-                            <p className="text-sm font-semibold">
-                                Célszavak{' '}
-                                <span className="font-normal text-muted-foreground">
-                                    ({targetWords.length}/10)
+                    <div className="flex flex-col gap-4 lg:sticky lg:top-4 lg:self-start lg:max-h-[calc(100vh-7rem)]">
+                        <div className="flex flex-col gap-4 overflow-y-auto rounded-3xl bg-card p-6 shadow-sm">
+                            {/* Section header */}
+                            <div className="flex items-center justify-between">
+                                <p className="font-semibold">Célszavak</p>
+                                <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
+                                    {targetWords.length} / 10
                                 </span>
-                            </p>
+                            </div>
 
                             {/* Practice-status words */}
                             {practiceWords.length > 0 && (
-                                <div className="space-y-2">
+                                <div className="space-y-2.5">
                                     <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-                                        Gyakorlásra jelölt szavak
-                                        <span className="ml-1 font-normal">
+                                        Gyakorlásra jelölt
+                                        <span className="ml-1 font-normal opacity-70">
                                             ({practiceWords.length})
                                         </span>
                                     </p>
-                                    <div className="max-h-36 overflow-y-auto pr-0.5">
+                                    <div className="max-h-44 overflow-y-auto pr-0.5">
                                         <div className="flex flex-wrap gap-1.5">
                                             {practiceWords.map((pw) => {
                                                 const alreadyAdded =
@@ -389,6 +414,7 @@ export default function WordsPractice({
                                             })}
                                         </div>
                                     </div>
+                                    <div className="border-t border-border" />
                                 </div>
                             )}
 
@@ -397,9 +423,9 @@ export default function WordsPractice({
                                 <div className="flex gap-2">
                                     <div className="relative flex-1">
                                         {searching ? (
-                                            <Loader2 className="absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 animate-spin text-muted-foreground" />
+                                            <Loader2 className="absolute top-1/2 left-3 size-4 -translate-y-1/2 animate-spin text-muted-foreground" />
                                         ) : (
-                                            <Search className="absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                                            <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
                                         )}
                                         <input
                                             type="text"
@@ -418,8 +444,8 @@ export default function WordsPractice({
                                                     setShowDropdown(false);
                                                 }
                                             }}
-                                            placeholder="Szó keresése..."
-                                            className="w-full rounded-xl border bg-background py-1.5 pr-3 pl-8 text-base outline-none focus:ring-2 focus:ring-ring md:text-sm"
+                                            placeholder="Szó keresése vagy beírása..."
+                                            className="w-full rounded-xl border bg-background py-2 pr-3 pl-9 text-sm outline-none focus:ring-2 focus:ring-ring"
                                             disabled={targetWords.length >= 10}
                                         />
                                     </div>
@@ -429,7 +455,7 @@ export default function WordsPractice({
                                             !wordInput.trim() ||
                                             targetWords.length >= 10
                                         }
-                                        className="rounded-xl border bg-primary px-2.5 text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-40"
+                                        className="rounded-xl border bg-primary px-3 text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-40"
                                         title="Hozzáadás"
                                     >
                                         <Plus className="size-4" />
@@ -438,7 +464,7 @@ export default function WordsPractice({
 
                                 {/* Dropdown */}
                                 {showDropdown && searchResults.length > 0 && (
-                                    <div className="absolute top-full right-0 left-0 z-50 mt-1 overflow-hidden rounded-xl border bg-popover shadow-md">
+                                    <div className="absolute top-full right-0 left-0 z-50 mt-1 overflow-hidden rounded-xl border bg-popover shadow-lg">
                                         {searchResults.map((r) => (
                                             <button
                                                 key={`${r.is_custom ? 'c' : 'w'}-${r.id}`}
@@ -448,13 +474,13 @@ export default function WordsPractice({
                                                         r.meaning_hu,
                                                     )
                                                 }
-                                                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-accent"
+                                                className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm transition-colors hover:bg-accent"
                                             >
                                                 <span className="flex-1 font-medium">
                                                     {r.word}
                                                 </span>
                                                 {r.meaning_hu && (
-                                                    <span className="max-w-25 truncate text-xs text-muted-foreground">
+                                                    <span className="max-w-28 truncate text-xs text-muted-foreground">
                                                         {r.meaning_hu}
                                                     </span>
                                                 )}
@@ -464,14 +490,18 @@ export default function WordsPractice({
                                 )}
                             </div>
 
-                            {/* Word chips */}
+                            {/* Word list */}
                             {targetWords.length === 0 ? (
-                                <p className="py-4 text-center text-xs text-muted-foreground">
-                                    Adj hozzá szavakat a szólistából vagy gépeld
-                                    be kézzel.
-                                </p>
+                                <div className="rounded-2xl border border-dashed border-border py-8 text-center">
+                                    <p className="text-sm text-muted-foreground">
+                                        Adj hozzá szavakat a szólistából
+                                    </p>
+                                    <p className="mt-0.5 text-xs text-muted-foreground/60">
+                                        vagy gépeld be kézzel
+                                    </p>
+                                </div>
                             ) : (
-                                <ul className="space-y-1.5">
+                                <ul className="space-y-2">
                                     {targetWords.map((w) => {
                                         const wordResult = result?.words.find(
                                             (r) =>
@@ -482,33 +512,38 @@ export default function WordsPractice({
                                         return (
                                             <li
                                                 key={w.word}
-                                                className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm transition-colors ${
+                                                className={`flex items-start gap-3 rounded-2xl border px-4 py-3 text-sm transition-colors ${
                                                     wordResult
                                                         ? wordResult.correct
                                                             ? 'border-green-300 bg-green-50 dark:border-green-800 dark:bg-green-950/30'
                                                             : wordResult.used
                                                               ? 'border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30'
                                                               : 'border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950/30'
-                                                        : 'border-border bg-muted/30'
+                                                        : 'border-border bg-muted/20'
                                                 }`}
                                             >
-                                                {wordResult &&
-                                                    (wordResult.correct ? (
-                                                        <CheckCircle2 className="size-3.5 shrink-0 text-green-600" />
+                                                <div className="mt-0.5 shrink-0">
+                                                    {wordResult ? (
+                                                        wordResult.correct ? (
+                                                            <CheckCircle2 className="size-4 text-green-600" />
+                                                        ) : (
+                                                            <XCircle className="size-4 text-red-500" />
+                                                        )
                                                     ) : (
-                                                        <XCircle className="size-3.5 shrink-0 text-red-500" />
-                                                    ))}
+                                                        <div className="size-4 rounded-full border-2 border-muted-foreground/30" />
+                                                    )}
+                                                </div>
                                                 <div className="min-w-0 flex-1">
-                                                    <span className="font-medium">
+                                                    <span className="font-semibold">
                                                         {w.word}
                                                     </span>
                                                     {w.meaning_hu && (
-                                                        <span className="ml-1.5 truncate text-xs text-muted-foreground">
+                                                        <span className="ml-1.5 text-xs text-muted-foreground">
                                                             {w.meaning_hu}
                                                         </span>
                                                     )}
                                                     {wordResult && (
-                                                        <p className="mt-0.5 text-xs leading-snug text-muted-foreground">
+                                                        <p className="mt-1 text-xs leading-snug text-muted-foreground">
                                                             {
                                                                 wordResult.feedback_hu
                                                             }
@@ -519,7 +554,7 @@ export default function WordsPractice({
                                                     onClick={() =>
                                                         removeWord(w.word)
                                                     }
-                                                    className="shrink-0 rounded p-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                                                    className="mt-0.5 shrink-0 rounded-lg p-0.5 text-muted-foreground/50 transition-colors hover:bg-accent hover:text-foreground"
                                                 >
                                                     <X className="size-3.5" />
                                                 </button>
@@ -543,12 +578,18 @@ export default function WordsPractice({
 
                     {/* Right: writing area */}
                     <div className="space-y-4">
-                        <div className="space-y-3 rounded-3xl bg-card p-5 shadow-sm">
+                        <div className="space-y-4 rounded-3xl bg-card p-6 shadow-sm">
                             <div className="flex items-center justify-between">
-                                <p className="text-sm font-semibold">
-                                    Írj szabadon
-                                </p>
-                                <span className="text-xs text-muted-foreground">
+                                <div>
+                                    <p className="font-semibold">Írj szabadon</p>
+                                    <p className="mt-0.5 text-xs text-muted-foreground">
+                                        Próbáld beleépíteni a célszavakat
+                                        természetes módon.
+                                    </p>
+                                </div>
+                                <span
+                                    className={`text-xs tabular-nums ${text.length > 2700 ? 'text-rose-500' : 'text-muted-foreground'}`}
+                                >
                                     {text.length} / 3000
                                 </span>
                             </div>
@@ -558,8 +599,8 @@ export default function WordsPractice({
                                     setText(e.target.value.slice(0, 3000));
                                     setResult(null);
                                 }}
-                                placeholder="Írj mondatokat, bekezdést, bármit — próbáld beleépíteni a célszavakat természetes módon..."
-                                className="min-h-96 resize-y rounded-xl text-base leading-relaxed"
+                                placeholder="Kezdj el írni..."
+                                className="min-h-[calc(100vh-22rem)] resize-y rounded-xl text-base leading-relaxed"
                             />
                             <div className="flex items-center gap-3">
                                 <Button
@@ -580,6 +621,12 @@ export default function WordsPractice({
                                         Adj hozzá legalább 1 célszót.
                                     </p>
                                 )}
+                                {targetWords.length > 0 &&
+                                    text.trim().length < 5 && (
+                                        <p className="text-xs text-muted-foreground">
+                                            Írj legalább néhány szót.
+                                        </p>
+                                    )}
                             </div>
                         </div>
 
@@ -593,12 +640,12 @@ export default function WordsPractice({
 
                         {/* Result */}
                         {result && (
-                            <div className="animate-in space-y-4 duration-300 fade-in slide-in-from-bottom-2">
+                            <div className="animate-in space-y-3 duration-300 fade-in slide-in-from-bottom-2">
                                 {/* Overall */}
-                                <div className="rounded-2xl bg-orange-50 px-4 py-3 dark:bg-orange-950/30">
-                                    <div className="flex items-start gap-2">
-                                        <Sparkles className="mt-0.5 size-4 shrink-0 text-orange-600" />
-                                        <p className="text-sm text-orange-800 dark:text-orange-300">
+                                <div className="rounded-2xl bg-orange-50 px-5 py-4 dark:bg-orange-950/30">
+                                    <div className="flex items-start gap-3">
+                                        <Sparkles className="mt-0.5 size-4 shrink-0 text-orange-500" />
+                                        <p className="text-sm leading-relaxed text-orange-800 dark:text-orange-300">
                                             {result.overall_hu}
                                         </p>
                                     </div>
@@ -606,18 +653,18 @@ export default function WordsPractice({
 
                                 {/* Grammar issues */}
                                 {result.grammar_issues.length > 0 && (
-                                    <div className="space-y-1 rounded-2xl bg-amber-50 px-4 py-3 dark:bg-amber-950/30">
-                                        <p className="text-xs font-semibold tracking-wide text-amber-800 uppercase dark:text-amber-300">
+                                    <div className="rounded-2xl bg-amber-50 px-5 py-4 dark:bg-amber-950/30">
+                                        <p className="mb-2.5 text-xs font-semibold tracking-wide text-amber-700 uppercase dark:text-amber-400">
                                             Grammatikai megjegyzések
                                         </p>
-                                        <ul className="space-y-1">
+                                        <ul className="space-y-2">
                                             {result.grammar_issues.map(
                                                 (issue, i) => (
                                                     <li
                                                         key={i}
-                                                        className="flex items-start gap-1.5 text-sm text-amber-700 dark:text-amber-400"
+                                                        className="flex items-start gap-2 text-sm text-amber-700 dark:text-amber-400"
                                                     >
-                                                        <span className="mt-1 size-1 shrink-0 rounded-full bg-amber-500" />
+                                                        <span className="mt-2 size-1.5 shrink-0 rounded-full bg-amber-500" />
                                                         {issue}
                                                     </li>
                                                 ),
@@ -628,8 +675,8 @@ export default function WordsPractice({
 
                                 {/* Corrected text */}
                                 {result.corrected_text && (
-                                    <div className="space-y-1 rounded-2xl bg-blue-50 px-4 py-3 dark:bg-blue-950/30">
-                                        <p className="text-xs font-semibold tracking-wide text-blue-800 uppercase dark:text-blue-300">
+                                    <div className="rounded-2xl bg-blue-50 px-5 py-4 dark:bg-blue-950/30">
+                                        <p className="mb-2.5 text-xs font-semibold tracking-wide text-blue-700 uppercase dark:text-blue-400">
                                             Javított változat
                                         </p>
                                         <p className="text-sm leading-relaxed whitespace-pre-wrap text-blue-700 dark:text-blue-300">
@@ -640,7 +687,7 @@ export default function WordsPractice({
 
                                 {result.grammar_issues.length === 0 &&
                                     !result.corrected_text && (
-                                        <div className="flex items-center gap-2 rounded-2xl bg-green-50 px-4 py-3 text-sm text-green-700 dark:bg-green-950/30 dark:text-green-400">
+                                        <div className="flex items-center gap-2.5 rounded-2xl bg-green-50 px-5 py-4 text-sm text-green-700 dark:bg-green-950/30 dark:text-green-400">
                                             <CheckCircle2 className="size-4 shrink-0" />
                                             Grammatikailag helyes szöveg!
                                         </div>

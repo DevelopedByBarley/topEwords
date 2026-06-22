@@ -59,6 +59,8 @@ class UserCustomWordController extends Controller
             'noun_plural' => ['nullable', 'string', 'max:100'],
             'adj_comparative' => ['nullable', 'string', 'max:100'],
             'adj_superlative' => ['nullable', 'string', 'max:100'],
+            'status' => ['nullable', 'in:known,learning,saved,pronunciation,practice'],
+            'importance' => ['nullable', 'integer', 'min:1', 'max:5'],
         ]);
 
         $customWord->update($data);

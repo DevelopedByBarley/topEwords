@@ -1,33 +1,8 @@
 import { Head, Link, usePage } from '@inertiajs/react';
-import { Clock, Play } from 'lucide-react';
+import { BookOpen, Clock, Play } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { dashboard, guide, login, pricing, privacy, register, terms } from '@/routes';
-
-function MI({ n, f = false, s = 22 }: { n: string; f?: boolean; s?: number }) {
-    return (
-        <span
-            aria-hidden="true"
-            style={{
-                fontFamily: '"Material Symbols Outlined"',
-                fontWeight: 'normal',
-                fontStyle: 'normal',
-                fontSize: s,
-                lineHeight: 1,
-                letterSpacing: 'normal',
-                textTransform: 'none',
-                display: 'inline-block',
-                whiteSpace: 'nowrap',
-                userSelect: 'none',
-                fontVariationSettings: f
-                    ? '"FILL" 1, "wght" 400, "GRAD" 0, "opsz" 24'
-                    : '"FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24',
-            }}
-        >
-            {n}
-        </span>
-    );
-}
 
 type CategoryKey =
     | 'Összes'
@@ -216,7 +191,7 @@ export default function Guide() {
                             className="flex items-center gap-2.5 text-[20px] font-extrabold leading-none tracking-tight text-neutral-800 dark:text-neutral-100"
                         >
                             <span className="flex size-9 items-center justify-center rounded-xl bg-violet-600 text-white">
-                                <MI n="menu_book" s={22} />
+                                <BookOpen size={22} />
                             </span>
                             TopWords
                         </Link>

@@ -45,7 +45,7 @@ interface Folder {
 
 interface Filters {
     status: string;
-    difficulty: string;
+    level: number | null;
     folder: number | null;
     count: number;
     ids: string;
@@ -67,16 +67,20 @@ const STATUS_LABELS: Record<string, string> = {
     saved: 'Elmentettem',
     known: 'Tudom',
     pronunciation: 'Kiejtés',
+    practice: 'Gyakorlásra',
     marked: 'Minden jelölt',
     '': 'Összes szó',
 };
 
-const DIFFICULTY_LABELS: Record<string, string> = {
-    '': 'Minden szint',
-    beginner: 'Kezdő (1–2 000)',
-    intermediate: 'Középhaladó (2 001–6 000)',
-    advanced: 'Haladó (6 001–10 000)',
-};
+const LEVEL_LABELS: Array<{ value: number | null; label: string }> = [
+    { value: null, label: 'Minden szint' },
+    { value: 1, label: 'Top 1 000' },
+    { value: 2, label: '1 001 – 2 000' },
+    { value: 3, label: '2 001 – 4 000' },
+    { value: 4, label: '4 001 – 6 000' },
+    { value: 5, label: '6 001 – 8 000' },
+    { value: 6, label: '8 001 – 10 000' },
+];
 
 const FILTER_OPTION_CLASS = (active: boolean) =>
     `rounded-xl border-2 px-4 py-2.5 text-left text-sm font-semibold transition-colors ${
@@ -136,7 +140,7 @@ function ClozeSetup({
     freeClozeLimit: number | null;
     onStart: (
         status: string,
-        difficulty: string,
+        level: number | null,
         folder: number | null,
         count: number,
     ) => void;
@@ -154,7 +158,7 @@ function ClozeSetup({
             clozeRoute(),
             {
                 status: next.status,
-                difficulty: next.difficulty,
+                ...(next.level ? { level: next.level } : {}),
                 ...(next.folder ? { folder: next.folder } : {}),
                 count: 0,
             },
@@ -167,7 +171,7 @@ function ClozeSetup({
         );
     }
 
-    const { status, difficulty, folder } = filters;
+    const { status, level, folder } = filters;
 
     const q = search.toLowerCase();
     const filteredWords = selectableWords.filter(
@@ -229,7 +233,7 @@ function ClozeSetup({
                     </div>
                 </div>
 
-                <div className="grid gap-6 lg:grid-cols-4">
+                <div className={`grid gap-6 ${folders.length > 0 ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
                     {/* Folder filter */}
                     {folders.length > 0 && (
                         <div className="rounded-3xl bg-card p-5 shadow-sm">
@@ -289,27 +293,21 @@ function ClozeSetup({
                         </div>
                     </div>
 
-                    {/* Difficulty filter */}
+                    {/* Level filter */}
                     <div className="rounded-3xl bg-card p-5 shadow-sm">
-                        <p className="mb-3 text-sm font-semibold">
-                            Nehézségi szint
-                        </p>
-                        <div className="flex flex-col gap-2">
-                            {Object.entries(DIFFICULTY_LABELS).map(
-                                ([value, label]) => (
-                                    <button
-                                        key={value}
-                                        onClick={() =>
-                                            updateFilter({ difficulty: value })
-                                        }
-                                        className={FILTER_OPTION_CLASS(
-                                            difficulty === value,
-                                        )}
-                                    >
-                                        {label}
-                                    </button>
-                                ),
-                            )}
+                        <p className="mb-3 text-sm font-semibold">Szint</p>
+                        <div className="grid grid-cols-2 gap-2">
+                            {LEVEL_LABELS.map(({ value, label }) => (
+                                <button
+                                    key={value ?? 'all'}
+                                    onClick={() =>
+                                        updateFilter({ level: value })
+                                    }
+                                    className={`${value === null ? 'col-span-2' : ''} ${FILTER_OPTION_CLASS(level === value)}`}
+                                >
+                                    {label}
+                                </button>
+                            ))}
                         </div>
                     </div>
 
@@ -368,7 +366,7 @@ function ClozeSetup({
                             className="mt-4 w-full"
                             disabled={pickedIds.size > 0}
                             onClick={() =>
-                                onStart(status, difficulty, folder, count)
+                                onStart(status, level, folder, count)
                             }
                         >
                             Indítás
@@ -563,13 +561,13 @@ export default function Cloze({
 
     function startCloze(
         status: string,
-        difficulty: string,
+        level: number | null,
         folder: number | null,
         count: number,
     ) {
         router.get(
             clozeRoute(),
-            { status, difficulty, ...(folder ? { folder } : {}), count },
+            { status, ...(level ? { level } : {}), ...(folder ? { folder } : {}), count },
             { preserveScroll: false },
         );
     }
@@ -579,7 +577,7 @@ export default function Cloze({
             clozeRoute(),
             {
                 status: filters.status,
-                difficulty: filters.difficulty,
+                ...(filters.level ? { level: filters.level } : {}),
                 ...(filters.folder ? { folder: filters.folder } : {}),
                 ids,
             },
@@ -637,7 +635,7 @@ export default function Cloze({
         } else {
             startCloze(
                 filters.status,
-                filters.difficulty,
+                filters.level,
                 filters.folder,
                 filters.count,
             );

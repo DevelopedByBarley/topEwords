@@ -2075,6 +2075,18 @@ function showSearchDetail(data) {
         }
 
         detail.querySelector('#add-btn').addEventListener('click', () => {
+            const meaning = detail.querySelector('#add-meaning').value.trim();
+
+            if (!meaning) {
+                const fb = detail.querySelector('#add-feedback');
+                fb.textContent = 'A magyar jelentés megadása kötelező.';
+                fb.style.color = '#f97316';
+                fb.style.display = 'block';
+                detail.querySelector('#add-meaning').focus();
+
+                return;
+            }
+
             const pos = posSelect.value;
             const btn = detail.querySelector('#add-btn');
             btn.disabled = true;

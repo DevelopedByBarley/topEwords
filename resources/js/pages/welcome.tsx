@@ -1,5 +1,48 @@
 import { Head, Link, usePage } from '@inertiajs/react';
-import { Menu, Moon, Sun, X } from 'lucide-react';
+import {
+    ArrowLeftRight,
+    ArrowRight,
+    BarChart3,
+    Bookmark,
+    BookOpen,
+    Check,
+    CheckCircle2,
+    Download,
+    FileText,
+    Filter,
+    Flame,
+    Folder,
+    GraduationCap,
+    Highlighter,
+    HelpCircle,
+    History,
+    Keyboard,
+    Layers,
+    List,
+    Lock,
+    LogIn,
+    Menu,
+    Moon,
+    MousePointerClick,
+    Percent,
+    Play,
+    PlayCircle,
+    PlusCircle,
+    Puzzle,
+    RefreshCw,
+    Shuffle,
+    SlidersHorizontal,
+    Sparkles,
+    Sun,
+    Tag,
+    TrendingUp,
+    Upload,
+    Volume2,
+    X,
+    XCircle,
+    Zap,
+} from 'lucide-react';
+import type { LucideProps } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import BetaBanner from '@/components/beta-banner';
 import ChromeExtensionsLink from '@/components/chrome-extensions-link';
@@ -11,29 +54,59 @@ import { index as wordsIndex } from '@/routes/words';
 type Status = 'tudom' | 'tanulom' | 'later' | null;
 type WordTab = 'all' | 'tanulom' | 'tudom';
 
-function MI({ n, f = false, s = 22 }: { n: string; f?: boolean; s?: number }) {
-    return (
-        <span
-            aria-hidden="true"
-            style={{
-                fontFamily: '"Material Symbols Outlined"',
-                fontWeight: 'normal',
-                fontStyle: 'normal',
-                fontSize: s,
-                lineHeight: 1,
-                letterSpacing: 'normal',
-                textTransform: 'none',
-                display: 'inline-block',
-                whiteSpace: 'nowrap',
-                userSelect: 'none',
-                fontVariationSettings: f
-                    ? '"FILL" 1, "wght" 400, "GRAD" 0, "opsz" 24'
-                    : '"FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24',
-            }}
-        >
-            {n}
-        </span>
-    );
+const ICON_MAP: Record<string, React.ComponentType<LucideProps>> = {
+    ads_click: MousePointerClick,
+    add_circle: PlusCircle,
+    arrow_forward: ArrowRight,
+    article: FileText,
+    auto_awesome: Sparkles,
+    bolt: Zap,
+    bookmark: Bookmark,
+    cancel: XCircle,
+    check: Check,
+    check_circle: CheckCircle2,
+    close: X,
+    download: Download,
+    extension: Puzzle,
+    filter_alt: Filter,
+    folder: Folder,
+    format_color_text: Highlighter,
+    format_list_bulleted: List,
+    history: History,
+    keyboard: Keyboard,
+    layers: Layers,
+    local_fire_department: Flame,
+    lock: Lock,
+    login: LogIn,
+    menu_book: BookOpen,
+    percent: Percent,
+    play_arrow: Play,
+    play_circle: PlayCircle,
+    quiz: HelpCircle,
+    refresh: RefreshCw,
+    right_click: MousePointerClick,
+    school: GraduationCap,
+    shuffle: Shuffle,
+    stairs: BarChart3,
+    style: Layers,
+    subtitles: FileText,
+    sync_alt: ArrowLeftRight,
+    tag: Tag,
+    touch_app: MousePointerClick,
+    trending_up: TrendingUp,
+    tune: SlidersHorizontal,
+    upload: Upload,
+    volume_up: Volume2,
+};
+
+function MI({ n, s = 22, style, className }: { n: string; f?: boolean; s?: number; style?: React.CSSProperties; className?: string }) {
+    const Icon = ICON_MAP[n];
+
+    if (!Icon) {
+        return null;
+    }
+
+    return <Icon size={s} style={style} className={className} />;
 }
 
 const DEMO_WORDS = [

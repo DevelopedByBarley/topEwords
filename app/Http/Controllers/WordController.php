@@ -150,11 +150,8 @@ class WordController extends Controller
         $customPractice = $customStatusCounts['practice'] ?? 0;
 
         // Filter custom words to match current active filters so they appear inline
-        $customWords = $allCustomWords->filter(function ($cw) use ($search, $letter, $statusFilter, $importanceFilter, $folderId, $level) {
+        $customWords = $allCustomWords->filter(function ($cw) use ($search, $letter, $statusFilter, $importanceFilter, $folderId) {
             if ($folderId !== null) {
-                return false;
-            }
-            if ($level !== null) {
                 return false;
             }
             if ($search !== '' && ! str_contains(mb_strtolower($cw->word), $search)) {
@@ -261,7 +258,7 @@ class WordController extends Controller
     public function quiz(Request $request): Response
     {
         $status = $request->string('status')->trim()->lower()->value();
-        $difficulty = $request->string('difficulty')->trim()->lower()->value();
+        $level = $request->integer('level') ?: null;
         $folderId = $request->integer('folder') ?: null;
         $user = $request->user();
         $freeQuizLimit = 10;
@@ -305,28 +302,22 @@ class WordController extends Controller
             $query->whereIn('id', array_keys($wordStatuses));
         }
 
-        if ($difficulty === 'beginner') {
-            $query->whereBetween('rank', [1, 2000]);
-        } elseif ($difficulty === 'intermediate') {
-            $query->whereBetween('rank', [2001, 6000]);
-        } elseif ($difficulty === 'advanced') {
-            $query->whereBetween('rank', [6001, 10000]);
+        if ($level !== null) {
+            $query->where('level', $level);
         }
 
         if ($folderWordIds !== null) {
             $query->whereIn('id', $folderWordIds);
         }
 
-        // Custom words are included when no difficulty/folder filter is active
-        $includeCustom = $difficulty === '' && $folderWordIds === null;
+        // Custom words are included when no level/folder filter is active
+        $includeCustom = $level === null && $folderWordIds === null;
         $customWordQuery = $includeCustom
             ? UserCustomWord::where('user_id', $user->id)->whereNotNull('meaning_hu')
             : null;
 
         if ($customWordQuery && in_array($status, ['known', 'learning', 'saved', 'pronunciation', 'practice'])) {
             $customWordQuery->where('status', $status);
-        } elseif ($customWordQuery && $status === 'marked') {
-            // all custom words count as marked
         }
 
         $customAvailable = $customWordQuery?->count() ?? 0;
@@ -478,7 +469,7 @@ class WordController extends Controller
             'selectableWords' => $selectableWords,
             'filters' => [
                 'status' => $status,
-                'difficulty' => $difficulty,
+                'level' => $level,
                 'folder' => $folderId,
                 'count' => $count,
                 'ids' => implode(',', $selectedIds),

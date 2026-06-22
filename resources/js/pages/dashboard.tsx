@@ -238,12 +238,17 @@ export default function Dashboard({ levelStats, totalKnown, totalWords, totalPer
 
                 {/* Saját szavak */}
                 <div className="rounded-3xl bg-card p-5 shadow-sm ring-1 ring-border/60">
-                    <div className="mb-3 flex items-center justify-between">
+                    <div className="mb-4 flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <span className="flex size-9 items-center justify-center rounded-xl bg-muted">
                                 <NotebookPen className="size-4 text-muted-foreground" />
                             </span>
-                            <span className="font-semibold">Saját szavak</span>
+                            <div>
+                                <span className="font-semibold">Saját szavak</span>
+                                {customStats.total > 0 && (
+                                    <p className="text-xs text-muted-foreground">{customStats.total.toLocaleString()} szó hozzáadva</p>
+                                )}
+                            </div>
                         </div>
                         <Link
                             href={`${wordsIndex.url()}#custom-words`}
@@ -254,39 +259,72 @@ export default function Dashboard({ levelStats, totalKnown, totalWords, totalPer
                     </div>
 
                     {customStats.total === 0 ? (
-                        <p className="text-sm text-muted-foreground">
-                            Még nem adtál hozzá saját szót.{' '}
-                            <Link href={`${wordsIndex.url()}#custom-words`} className="text-primary underline underline-offset-2">
+                        <div className="rounded-2xl border border-dashed p-6 text-center">
+                            <NotebookPen className="mx-auto mb-2 size-8 text-muted-foreground/50" />
+                            <p className="text-sm font-medium text-muted-foreground">Még nincs saját szavad</p>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                                Adj hozzá szavakat, amiket külön szeretnél nyomon követni.
+                            </p>
+                            <Link
+                                href={`${wordsIndex.url()}#custom-words`}
+                                className="mt-3 inline-flex items-center gap-1 rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:opacity-90"
+                            >
                                 Hozzáadás →
                             </Link>
-                        </p>
-                    ) : (
-                        <div className="flex flex-col gap-1 text-xs text-muted-foreground">
-                            <div className="flex justify-between">
-                                <span className="flex items-center gap-1">
-                                    <CheckCheck className="size-3 text-green-500" /> Tudom
-                                </span>
-                                <span>{customStats.known.toLocaleString()} / {customStats.total.toLocaleString()}</span>
-                            </div>
-                            <div className="flex justify-between">
-                                <span className="flex items-center gap-1">
-                                    <Clock className="size-3 text-blue-500" /> Tanulom
-                                </span>
-                                <span>{customStats.learning.toLocaleString()}</span>
-                            </div>
-                            <div className="flex justify-between">
-                                <span className="flex items-center gap-1">
-                                    <BookMarked className="size-3 text-orange-500" /> Később
-                                </span>
-                                <span>{customStats.saved.toLocaleString()}</span>
-                            </div>
-                            <div className="flex justify-between">
-                                <span className="flex items-center gap-1">
-                                    <Mic className="size-3 text-violet-500" /> Kiejtés
-                                </span>
-                                <span>{customStats.pronunciation.toLocaleString()}</span>
-                            </div>
                         </div>
+                    ) : (
+                        <>
+                            <div className="mb-4 flex items-center justify-between text-sm">
+                                <span className="font-medium tabular-nums">{customStats.known.toLocaleString()} ismert</span>
+                                <span className="text-xs text-muted-foreground tabular-nums">
+                                    {customStats.total > 0 ? Math.round((customStats.known / customStats.total) * 100) : 0}%
+                                </span>
+                            </div>
+                            <div className="bg-secondary mb-4 h-2 w-full overflow-hidden rounded-full">
+                                <div
+                                    className="h-2 rounded-full bg-linear-to-r from-primary to-primary-shade transition-all duration-500"
+                                    style={{ width: `${customStats.total > 0 ? Math.round((customStats.known / customStats.total) * 100) : 0}%` }}
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                                <div className="flex flex-col gap-1 rounded-2xl bg-green-100 p-3 ring-1 ring-inset ring-green-300 dark:bg-green-950 dark:ring-green-800">
+                                    <div className="flex items-center gap-1.5">
+                                        <CheckCheck className="size-3.5 text-green-600 dark:text-green-400" />
+                                        <span className="text-xs font-medium text-green-700 dark:text-green-300">Tudom</span>
+                                    </div>
+                                    <span className="text-2xl font-bold tabular-nums text-green-600 dark:text-green-400">
+                                        {customStats.known.toLocaleString()}
+                                    </span>
+                                </div>
+                                <div className="flex flex-col gap-1 rounded-2xl bg-blue-100 p-3 ring-1 ring-inset ring-blue-300 dark:bg-blue-950 dark:ring-blue-800">
+                                    <div className="flex items-center gap-1.5">
+                                        <Clock className="size-3.5 text-blue-600 dark:text-blue-400" />
+                                        <span className="text-xs font-medium text-blue-700 dark:text-blue-300">Tanulom</span>
+                                    </div>
+                                    <span className="text-2xl font-bold tabular-nums text-blue-600 dark:text-blue-400">
+                                        {customStats.learning.toLocaleString()}
+                                    </span>
+                                </div>
+                                <div className="flex flex-col gap-1 rounded-2xl bg-orange-100 p-3 ring-1 ring-inset ring-orange-300 dark:bg-orange-950 dark:ring-orange-800">
+                                    <div className="flex items-center gap-1.5">
+                                        <BookMarked className="size-3.5 text-orange-600 dark:text-orange-400" />
+                                        <span className="text-xs font-medium text-orange-700 dark:text-orange-300">Később</span>
+                                    </div>
+                                    <span className="text-2xl font-bold tabular-nums text-orange-600 dark:text-orange-400">
+                                        {customStats.saved.toLocaleString()}
+                                    </span>
+                                </div>
+                                <div className="flex flex-col gap-1 rounded-2xl bg-violet-100 p-3 ring-1 ring-inset ring-violet-300 dark:bg-violet-950 dark:ring-violet-800">
+                                    <div className="flex items-center gap-1.5">
+                                        <Mic className="size-3.5 text-violet-600 dark:text-violet-400" />
+                                        <span className="text-xs font-medium text-violet-700 dark:text-violet-300">Kiejtés</span>
+                                    </div>
+                                    <span className="text-2xl font-bold tabular-nums text-violet-600 dark:text-violet-400">
+                                        {customStats.pronunciation.toLocaleString()}
+                                    </span>
+                                </div>
+                            </div>
+                        </>
                     )}
                 </div>
 

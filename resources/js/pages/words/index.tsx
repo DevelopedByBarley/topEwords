@@ -11,6 +11,7 @@ import {
     Loader2,
     Mic,
     Pencil,
+    PenLine,
     Plus,
     Search,
     Sparkles,
@@ -125,6 +126,8 @@ interface Props {
         total: number;
         known: number;
         learning: number;
+        saved: number;
+        pronunciation: number;
         practice: number;
     };
     markedPages: number[];
@@ -211,8 +214,16 @@ export default function WordsIndex({
 
         const pageFirst = words.data[0]?.word ?? '';
         const pageLast = words.data[words.data.length - 1]?.word ?? '';
+
+        // When active filters are applied (level, status, importance), the alphabetical
+        // page range doesn't apply to custom words — show all matching custom words.
+        const hasActiveFilter =
+            filters.level !== null ||
+            filters.status !== '' ||
+            filters.importance !== null;
+
         const customForPage =
-            pageFirst === ''
+            hasActiveFilter || pageFirst === ''
                 ? customWords
                 : customWords.filter((cw) => {
                       const afterFirst =
@@ -239,7 +250,7 @@ export default function WordsIndex({
                 sensitivity: 'base',
             }),
         );
-    }, [customFilter, customWords, words.data]);
+    }, [customFilter, customWords, words.data, filters.level, filters.status, filters.importance]);
 
     const STORAGE_KEY = 'words_filters';
 
@@ -609,7 +620,7 @@ export default function WordsIndex({
             return;
         }
 
-        const payload: Record<string, string | boolean | null> = {
+        const payload: Record<string, string | boolean | number | null> = {
             word: customWordForm.word.trim(),
             meaning_hu: customWordForm.meaning_hu.trim() || null,
             extra_meanings: customWordForm.extra_meanings.trim() || null,
@@ -617,6 +628,8 @@ export default function WordsIndex({
             part_of_speech: customWordForm.part_of_speech || null,
             example_en: customWordForm.example_en.trim() || null,
             example_hu: customWordForm.example_hu.trim() || null,
+            status: customWordForm.status ?? null,
+            importance: customWordForm.importance,
         };
 
         if (customWordForm.part_of_speech === 'verb') {
@@ -734,8 +747,11 @@ export default function WordsIndex({
             />
 
             <div className="flex h-full flex-1 flex-col gap-4 p-4 pb-24 md:px-6 md:pt-6 md:pb-28">
-                {/* Hero + progress */}
-                <div className="relative overflow-hidden rounded-3xl bg-primary p-6 md:p-8">
+                {/* Hero + progress + custom words */}
+                <div
+                    id="custom-words"
+                    className="relative overflow-hidden rounded-3xl bg-primary p-6 md:p-8"
+                >
                     <div className="pointer-events-none absolute -top-14 -right-14 size-56 rounded-full bg-white/15" />
                     <div className="relative flex items-start justify-between gap-3">
                         <div className="flex flex-col gap-1">
@@ -761,13 +777,9 @@ export default function WordsIndex({
                     </div>
                     <div className="relative mt-5">
                         <div className="mb-2 flex items-center justify-between text-sm">
-                            <span className="font-bold text-white">
-                                Haladás
-                            </span>
+                            <span className="font-bold text-white">Haladás</span>
                             <span className="text-white/85">
-                                {stats.known.toLocaleString()} /{' '}
-                                {stats.total.toLocaleString()} (
-                                {progressPercent}%)
+                                {stats.known.toLocaleString()} / {stats.total.toLocaleString()} ({progressPercent}%)
                             </span>
                         </div>
                         <div className="h-3 w-full overflow-hidden rounded-full bg-black/15">
@@ -793,7 +805,54 @@ export default function WordsIndex({
                                 <Mic className="size-3.5 text-violet-600" />
                                 Kiejtés: {stats.pronunciation.toLocaleString()}
                             </span>
+                            <span className="flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-bold text-zinc-700">
+                                <PenLine className="size-3.5 text-rose-600" />
+                                Gyakorlásra: {stats.practice.toLocaleString()}
+                            </span>
                         </div>
+                    </div>
+                    {/* Custom words sub-section */}
+                    <div className="relative mt-5 border-t border-white/20 pt-4">
+                        <div className="mb-2 flex items-center justify-between text-sm">
+                            <span className="font-bold text-white">Saját szavak</span>
+                            <span className="text-white/85">
+                                {customStats.total === 0
+                                    ? 'Még nincs hozzáadott szó'
+                                    : `${customStats.total} szó hozzáadva`}
+                            </span>
+                        </div>
+                        {customStats.total > 0 && (
+                            <>
+                                <div className="h-2 w-full overflow-hidden rounded-full bg-black/15">
+                                    <div
+                                        className="h-2 rounded-full bg-white transition-all duration-300"
+                                        style={{ width: `${Math.round((customStats.known / customStats.total) * 100)}%` }}
+                                    />
+                                </div>
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                    <span className="flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-bold text-zinc-700">
+                                        <CheckCheck className="size-3.5 text-green-600" />
+                                        Tudom: {customStats.known.toLocaleString()}
+                                    </span>
+                                    <span className="flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-bold text-zinc-700">
+                                        <Clock className="size-3.5 text-blue-600" />
+                                        Tanulom: {customStats.learning.toLocaleString()}
+                                    </span>
+                                    <span className="flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-bold text-zinc-700">
+                                        <BookMarked className="size-3.5 text-orange-600" />
+                                        Később: {customStats.saved.toLocaleString()}
+                                    </span>
+                                    <span className="flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-bold text-zinc-700">
+                                        <Mic className="size-3.5 text-violet-600" />
+                                        Kiejtés: {customStats.pronunciation.toLocaleString()}
+                                    </span>
+                                    <span className="flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-bold text-zinc-700">
+                                        <PenLine className="size-3.5 text-rose-600" />
+                                        Gyakorlásra: {customStats.practice.toLocaleString()}
+                                    </span>
+                                </div>
+                            </>
+                        )}
                     </div>
                 </div>
 
@@ -841,6 +900,30 @@ export default function WordsIndex({
                                         )
                                     }
                                 />
+                                <div className="space-y-3 border-t pt-3">
+                                    <div>
+                                        <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Státusz</p>
+                                        <StatusButtons
+                                            variant="modal"
+                                            current={customWordForm.status}
+                                            onSelect={(s) =>
+                                                setCustomWordForm((prev) => ({
+                                                    ...prev,
+                                                    status: prev.status === s ? null : s,
+                                                }))
+                                            }
+                                        />
+                                    </div>
+                                    <ImportanceStars
+                                        value={customWordForm.importance}
+                                        onChange={(v) =>
+                                            setCustomWordForm((prev) => ({
+                                                ...prev,
+                                                importance: v,
+                                            }))
+                                        }
+                                    />
+                                </div>
                             </div>
                             <div className="flex gap-2 border-t px-6 py-4">
                                 <Button
@@ -1815,6 +1898,30 @@ export default function WordsIndex({
                             onChange={setEditCustomWordForm}
                             autoFocus
                         />
+                        <div className="space-y-3 border-t pt-3">
+                            <div>
+                                <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Státusz</p>
+                                <StatusButtons
+                                    variant="modal"
+                                    current={editCustomWordForm.status}
+                                    onSelect={(s) =>
+                                        setEditCustomWordForm((prev) => ({
+                                            ...prev,
+                                            status: prev.status === s ? null : s,
+                                        }))
+                                    }
+                                />
+                            </div>
+                            <ImportanceStars
+                                value={editCustomWordForm.importance}
+                                onChange={(v) =>
+                                    setEditCustomWordForm((prev) => ({
+                                        ...prev,
+                                        importance: v,
+                                    }))
+                                }
+                            />
+                        </div>
                     </div>
                     <div className="flex gap-2 border-t px-6 py-4">
                         <Button

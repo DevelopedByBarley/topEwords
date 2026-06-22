@@ -14,7 +14,7 @@ class ClozeController extends Controller
     public function index(Request $request): Response
     {
         $status = $request->string('status')->trim()->lower()->value();
-        $difficulty = $request->string('difficulty')->trim()->lower()->value();
+        $level = $request->integer('level') ?: null;
         $folderId = $request->integer('folder') ?: null;
         $user = $request->user();
         $freeClozeLimit = 5;
@@ -51,33 +51,29 @@ class ClozeController extends Controller
 
         $query = Word::whereNotNull('example_en')->where('example_en', '!=', '');
 
-        if (in_array($status, ['known', 'learning', 'saved', 'pronunciation'])) {
+        if (in_array($status, ['known', 'learning', 'saved', 'pronunciation', 'practice'])) {
             $ids = array_keys(array_filter($wordStatuses, fn ($s) => $s === $status));
             $query->whereIn('id', $ids);
         } elseif ($status === 'marked') {
             $query->whereIn('id', array_keys($wordStatuses));
         }
 
-        if ($difficulty === 'beginner') {
-            $query->whereBetween('rank', [1, 2000]);
-        } elseif ($difficulty === 'intermediate') {
-            $query->whereBetween('rank', [2001, 6000]);
-        } elseif ($difficulty === 'advanced') {
-            $query->whereBetween('rank', [6001, 10000]);
+        if ($level !== null) {
+            $query->where('level', $level);
         }
 
         if ($folderWordIds !== null) {
             $query->whereIn('id', $folderWordIds);
         }
 
-        $includeCustom = $difficulty === '' && $folderWordIds === null;
+        $includeCustom = $level === null && $folderWordIds === null;
         $customWordQuery = $includeCustom
             ? UserCustomWord::where('user_id', $user->id)
                 ->whereNotNull('example_en')
                 ->where('example_en', '!=', '')
             : null;
 
-        if ($customWordQuery && in_array($status, ['known', 'learning', 'saved', 'pronunciation'])) {
+        if ($customWordQuery && in_array($status, ['known', 'learning', 'saved', 'pronunciation', 'practice'])) {
             $customWordQuery->where('status', $status);
         }
 
@@ -205,7 +201,7 @@ class ClozeController extends Controller
             'selectableWords' => $selectableWords,
             'filters' => [
                 'status' => $status,
-                'difficulty' => $difficulty,
+                'level' => $level,
                 'folder' => $folderId,
                 'count' => $count,
                 'ids' => $idsParam,

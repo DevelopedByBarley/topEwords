@@ -14,15 +14,15 @@ export default function Profile() {
 
     return (
         <>
-            <Head title="Profile settings" />
+            <Head title="Profil beállítások" />
 
-            <h1 className="sr-only">Profile settings</h1>
+            <h1 className="sr-only">Profil beállítások</h1>
 
             <div className="space-y-6">
                 <Heading
                     variant="small"
-                    title="Profile information"
-                    description="Update your name and email address"
+                    title="Profil adatok"
+                    description="Frissítse nevét és e-mail címét"
                 />
 
                 <Form
@@ -36,7 +36,7 @@ export default function Profile() {
                     {({ processing, recentlySuccessful, errors }) => (
                         <>
                             <div className="grid gap-2">
-                                <Label htmlFor="name">Name</Label>
+                                <Label htmlFor="name">Név</Label>
 
                                 <Input
                                     id="name"
@@ -45,7 +45,7 @@ export default function Profile() {
                                     name="name"
                                     required
                                     autoComplete="name"
-                                    placeholder="Full name"
+                                    placeholder="Teljes név"
                                 />
 
                                 <InputError
@@ -55,7 +55,7 @@ export default function Profile() {
                             </div>
 
                             <div className="grid gap-2">
-                                <Label htmlFor="email">Email address</Label>
+                                <Label htmlFor="email">E-mail cím</Label>
 
                                 <Input
                                     id="email"
@@ -65,7 +65,7 @@ export default function Profile() {
                                     name="email"
                                     required
                                     autoComplete="username"
-                                    placeholder="Email address"
+                                    placeholder="E-mail cím"
                                 />
 
                                 <InputError
@@ -79,7 +79,7 @@ export default function Profile() {
                                     disabled={processing}
                                     data-test="update-profile-button"
                                 >
-                                    Save
+                                    Mentés
                                 </Button>
 
                                 <Transition
@@ -90,7 +90,7 @@ export default function Profile() {
                                     leaveTo="opacity-0"
                                 >
                                     <p className="text-sm text-neutral-600">
-                                        Saved
+                                        Mentve
                                     </p>
                                 </Transition>
                             </div>
@@ -107,7 +107,7 @@ export default function Profile() {
 Profile.layout = {
     breadcrumbs: [
         {
-            title: 'Profile settings',
+            title: 'Profil beállítások',
             href: edit(),
         },
     ],

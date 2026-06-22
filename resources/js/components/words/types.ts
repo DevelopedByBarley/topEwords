@@ -64,6 +64,8 @@ export type WordFormData = {
     noun_plural: string;
     adj_comparative: string;
     adj_superlative: string;
+    status: WordStatus;
+    importance: number | null;
 };
 
 export const EMPTY_WORD_FORM: WordFormData = {
@@ -72,6 +74,7 @@ export const EMPTY_WORD_FORM: WordFormData = {
     form_base: '', verb_past: '', verb_past_participle: '',
     verb_present_participle: '', verb_third_person: '',
     is_irregular: false, noun_plural: '', adj_comparative: '', adj_superlative: '',
+    status: null, importance: null,
 };
 
 export function wordToFormData(w: Word | CustomWord): WordFormData {
@@ -92,6 +95,8 @@ export function wordToFormData(w: Word | CustomWord): WordFormData {
         noun_plural: w.noun_plural ?? '',
         adj_comparative: w.adj_comparative ?? '',
         adj_superlative: w.adj_superlative ?? '',
+        status: w.status,
+        importance: w.importance,
     };
 }
 
