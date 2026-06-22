@@ -107,7 +107,7 @@ export default function Pricing({
                 <meta
                     head-key="description"
                     name="description"
-                    content="TopWords árazási csomagok – ingyenes, alap és prémium (AI) csomag."
+                    content="TopWords árazási csomagok – alap és prémium (AI) csomag."
                 />
             </Head>
 
@@ -179,12 +179,12 @@ export default function Pricing({
                         </h1>
                         {stripeConfigured ? (
                             <p className="text-muted-foreground">
-                                5 nap ingyenes próbaidőszak, utána döntsd el
+                                5 napos próbaidőszak, utána döntsd el
                                 melyik csomag illik hozzád.
                             </p>
                         ) : (
                             <p className="text-muted-foreground">
-                                Jelenleg minden funkció ingyenesen használható.
+                                Válaszd ki a hozzád illő csomagot.
                             </p>
                         )}
                     </div>
@@ -198,8 +198,7 @@ export default function Pricing({
                                 Az előfizetés hamarosan elérhető
                             </p>
                             <p className="text-sm text-muted-foreground">
-                                Most minden funkciót szabadon kipróbálhatsz.
-                                Amint elindulnak a csomagok, itt találod őket.
+                                Az előfizetési csomagok hamarosan elérhetők lesznek.
                             </p>
                             <Link
                                 href={isLoggedIn ? dashboard() : register()}
@@ -208,7 +207,7 @@ export default function Pricing({
                                 <Button>
                                     {isLoggedIn
                                         ? 'Irány az alkalmazás'
-                                        : 'Regisztrálok ingyen'}
+                                        : 'Regisztrálás'}
                                 </Button>
                             </Link>
                         </div>
@@ -265,13 +264,13 @@ export default function Pricing({
                                 <div className="rounded-2xl border bg-card p-6">
                                     <div className="mb-4">
                                         <p className="text-sm font-medium text-muted-foreground">
-                                            Ingyenes
+                                            Alap
                                         </p>
                                         <p className="mt-1 text-3xl font-bold">
                                             0 Ft
                                         </p>
                                         <p className="mt-1 text-xs text-muted-foreground">
-                                            örökké
+                                            &nbsp;
                                         </p>
                                     </div>
                                     <ul className="mb-6 space-y-2.5">
@@ -291,7 +290,7 @@ export default function Pricing({
                                                 variant="outline"
                                                 className="w-full"
                                             >
-                                                Regisztrálok ingyen
+                                                Regisztrálás
                                             </Button>
                                         </Link>
                                     ) : (

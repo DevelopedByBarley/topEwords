@@ -26,40 +26,48 @@ export function ExtensionBanner() {
         'Azonnali fordítás dupla kattintással, kiejtéssel',
         'Tanult szavak kiemelése bármely oldalon',
         'Gyors kereső (Ctrl+Shift+F) AI-kitöltéssel',
-        'YouTube-feliratok színezése és átirat',
+        'YouTube- és Netflix-feliratok színezése és átirat',
     ];
 
     const steps: React.ReactNode[] = [
         'Töltsd le a .zip-et, és csomagold ki egy mappába',
         <>
-            Nyisd meg: <ChromeExtensionsLink />
+            Másold a címsorba: <ChromeExtensionsLink />
         </>,
         'Kapcsold be a Fejlesztői módot (jobb felső sarok)',
-        'Kicsomagolt bővítmény betöltése → válaszd a kicsomagolt mappát',
+        'Kattints a „Kicsomagolt bővítmény betöltése" gombra → válaszd a mappát',
     ];
 
     return (
-        <div className="relative overflow-hidden rounded-2xl border border-violet-200 bg-violet-50 p-5 dark:border-violet-800 dark:bg-violet-950/20">
+        <div className="relative overflow-hidden rounded-2xl border-2 border-violet-300 bg-linear-to-br from-violet-50 via-fuchsia-50 to-violet-100 p-5 shadow-lg shadow-violet-500/10 dark:border-violet-700 dark:from-violet-950/40 dark:via-fuchsia-950/20 dark:to-violet-950/30">
+            {/* decorative glow */}
+            <div className="pointer-events-none absolute -top-10 -right-10 size-36 rounded-full bg-fuchsia-400/20 blur-3xl dark:bg-fuchsia-500/10" />
+
             <button
                 onClick={dismiss}
-                className="absolute top-3 right-3 rounded-md p-1.5 text-violet-500 transition-colors hover:bg-violet-100 hover:text-violet-700 dark:text-violet-400 dark:hover:bg-violet-900/40 dark:hover:text-violet-200"
+                className="absolute top-3 right-3 z-10 rounded-md p-1.5 text-violet-500 transition-colors hover:bg-violet-100 hover:text-violet-700 dark:text-violet-400 dark:hover:bg-violet-900/40 dark:hover:text-violet-200"
                 aria-label="Bezárás"
                 title="Ne mutasd újra"
             >
                 <X className="size-4" />
             </button>
 
-            <div className="flex items-center gap-3">
-                <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-violet-100 dark:bg-violet-900/40">
-                    <Puzzle className="size-5 text-violet-600 dark:text-violet-400" />
+            <div className="relative flex items-center gap-3">
+                <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-linear-to-br from-violet-600 to-fuchsia-600 shadow-md shadow-violet-500/30">
+                    <Puzzle className="size-6 text-white" />
                 </div>
-                <div>
-                    <p className="font-semibold text-violet-900 dark:text-violet-100">
-                        Telepítsd a TopWords böngészőbővítményt
-                    </p>
+                <div className="pr-6">
+                    <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-lg font-bold text-violet-900 dark:text-violet-100">
+                            Telepítsd a TopWords böngészőbővítményt
+                        </p>
+                        <span className="inline-flex items-center rounded-full bg-violet-600 px-2 py-0.5 text-[10px] font-bold tracking-wide text-white uppercase">
+                            Ingyenes
+                        </span>
+                    </div>
                     <p className="text-sm text-violet-700 dark:text-violet-300">
-                        Telepítsd, és élvezd az előnyeit — a szótanulás beépül a
-                        mindennapi böngészésedbe.
+                        Szótanulás a böngészésben — weboldalakon, YouTube-on és
+                        Netflixen is.
                     </p>
                 </div>
             </div>
@@ -99,7 +107,7 @@ export function ExtensionBanner() {
                     Bővítmény letöltése (.zip)
                 </a>
                 <Link
-                    href="/guide#extension"
+                    href="/handbook#extension"
                     className="inline-flex items-center gap-1.5 rounded-lg border border-violet-300 px-3 py-2 text-sm font-medium text-violet-700 transition-colors hover:bg-violet-100 dark:border-violet-700 dark:text-violet-300 dark:hover:bg-violet-900/30"
                 >
                     <BookOpen className="size-4" />

@@ -352,7 +352,7 @@ function ClozeSetup({
 
                         {freeClozeLimit !== null && (
                             <p className="mt-3 text-xs text-muted-foreground">
-                                Ingyenes csomaggal legfeljebb {freeClozeLimit}{' '}
+                                Alap csomaggal legfeljebb {freeClozeLimit}{' '}
                                 mondatos gyakorlás indítható.{' '}
                                 <Link
                                     href={pricing()}
@@ -479,7 +479,7 @@ function ClozeSetup({
                                     {freeClozeLimit !== null &&
                                         pickedIds.size > freeClozeLimit && (
                                             <p className="text-xs text-muted-foreground">
-                                                Ingyenes csomaggal legfeljebb{' '}
+                                                Alap csomaggal legfeljebb{' '}
                                                 {freeClozeLimit} szót
                                                 választhatsz ki.
                                             </p>

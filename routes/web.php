@@ -17,6 +17,7 @@ Route::inertia('/', 'welcome', [
 ])->name('home');
 
 Route::inertia('/guide', 'guide')->name('guide');
+Route::inertia('/handbook', 'handbook')->name('handbook');
 Route::inertia('/terms', 'legal/terms')->name('terms');
 Route::inertia('/privacy', 'legal/privacy')->name('privacy');
 Route::get('/pricing', [PricingController::class, 'index'])->name('pricing');

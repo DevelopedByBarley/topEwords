@@ -2293,18 +2293,30 @@ const SKIP_TAGS = new Set([
 
 function initHighlight() {
     storageGet({ hlEnabled: false }, ({ hlEnabled }) => {
-        if (hlEnabled) {
-            highlightEnabled = true;
+        if (!hlEnabled) {
+            return;
+        }
 
-            if (document.readyState === 'complete') {
-                loadAndApplyHighlights();
-            } else {
-                window.addEventListener(
-                    'load',
-                    () => loadAndApplyHighlights(),
-                    { once: true },
-                );
-            }
+        highlightEnabled = true;
+
+        // document_idle guarantees the DOM is already at least 'interactive'
+        // (text nodes are present), so apply highlights immediately instead of
+        // waiting for the full 'load' event (which fires only after images/fonts).
+        loadAndApplyHighlights();
+
+        // After all resources finish loading, re-apply if JS frameworks rendered
+        // additional text nodes after DOMContentLoaded.
+        if (document.readyState !== 'complete') {
+            window.addEventListener(
+                'load',
+                () => {
+                    if (highlightEnabled && hlWordMap) {
+                        removeHighlights();
+                        applyHighlights();
+                    }
+                },
+                { once: true },
+            );
         }
     });
 }

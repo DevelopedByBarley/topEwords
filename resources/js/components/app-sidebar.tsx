@@ -1,5 +1,20 @@
 import { Link, usePage } from '@inertiajs/react';
-import { BookOpen, FolderOpen, Globe, LayoutGrid, Languages, Layers, Medal, NotebookPen, PenLine, Puzzle, ScanText, Shuffle, Sparkles, Swords } from 'lucide-react';
+import {
+    BookOpen,
+    FolderOpen,
+    Globe,
+    LayoutGrid,
+    Languages,
+    Layers,
+    Medal,
+    NotebookPen,
+    PenLine,
+    Puzzle,
+    ScanText,
+    Shuffle,
+    Sparkles,
+    Swords,
+} from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
@@ -27,8 +42,20 @@ import { index as wordsIndex, quiz as wordsQuiz } from '@/routes/words';
 import type { NavItem } from '@/types';
 
 const tanulasTailItems: NavItem[] = [
-    { title: 'Flashcards', href: flashcardsIndex(), icon: Layers, tourId: 'tour-flashcards', isAi: true },
-    { title: 'Szövegelemzés', href: textAnalysisShow(), icon: ScanText, tourId: 'tour-text-analysis', isAi: true },
+    {
+        title: 'Flashcards',
+        href: flashcardsIndex(),
+        icon: Layers,
+        tourId: 'tour-flashcards',
+        isAi: true,
+    },
+    {
+        title: 'Szövegelemzés',
+        href: textAnalysisShow(),
+        icon: ScanText,
+        tourId: 'tour-text-analysis',
+        isAi: true,
+    },
 ];
 
 const navGroups: { label?: string; items: NavItem[] }[] = [
@@ -71,7 +98,7 @@ const navGroups: { label?: string; items: NavItem[] }[] = [
     {
         label: 'Gyakorlás',
         items: [
-{
+            {
                 title: 'Kvíz',
                 href: wordsQuiz(),
                 icon: Swords,
@@ -102,7 +129,7 @@ const navGroups: { label?: string; items: NavItem[] }[] = [
             },
             {
                 title: 'Kézikönyv',
-                href: '/guide',
+                href: '/handbook',
                 icon: BookOpen,
             },
         ],
@@ -122,7 +149,11 @@ export function AppSidebar() {
     const { isCurrentUrl } = useCurrentUrl();
     const isAdmin: boolean = (props as any)?.auth?.isAdmin ?? false;
     const extensionInstalled = useExtensionInstalled();
-    const isOnWordsPage = url.startsWith(wordsIndex.url()) && !url.startsWith(wordsQuiz.url()) && !url.startsWith(wordsCloze.url()) && !url.startsWith(wordsPractice.url());
+    const isOnWordsPage =
+        url.startsWith(wordsIndex.url()) &&
+        !url.startsWith(wordsQuiz.url()) &&
+        !url.startsWith(wordsCloze.url()) &&
+        !url.startsWith(wordsPractice.url());
 
     return (
         <Sidebar collapsible="icon" variant="inset">
@@ -138,7 +169,7 @@ export function AppSidebar() {
                             href="https://codebarley.hu"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="px-2 truncate text-xs text-sidebar-foreground/50 hover:text-sidebar-foreground/80 group-data-[collapsible=icon]:hidden"
+                            className="truncate px-2 text-xs text-sidebar-foreground/50 group-data-[collapsible=icon]:hidden hover:text-sidebar-foreground/80"
                         >
                             by CodeBarley
                         </a>
@@ -158,12 +189,18 @@ export function AppSidebar() {
                                 isActive={isCurrentUrl(wordsIndex.url())}
                                 tooltip={{ children: 'Angol szavak' }}
                             >
-                                <Link href={wordsIndex.url()} prefetch className="flex items-center justify-between w-full">
-                                    <span className="flex items-center gap-2 min-w-0">
+                                <Link
+                                    href={wordsIndex.url()}
+                                    prefetch
+                                    className="flex w-full items-center justify-between"
+                                >
+                                    <span className="flex min-w-0 items-center gap-2">
                                         <Languages className="shrink-0" />
-                                        <span className="truncate">Angol szavak</span>
+                                        <span className="truncate">
+                                            Angol szavak
+                                        </span>
                                     </span>
-                                    <span className="group-data-[collapsible=icon]:hidden ml-auto flex items-center gap-1 rounded-md bg-violet-100 px-1.5 py-0.5 text-[10px] font-semibold text-violet-600 dark:bg-violet-900/40 dark:text-violet-400 shrink-0">
+                                    <span className="ml-auto flex shrink-0 items-center gap-1 rounded-md bg-violet-100 px-1.5 py-0.5 text-[10px] font-semibold text-violet-600 group-data-[collapsible=icon]:hidden dark:bg-violet-900/40 dark:text-violet-400">
                                         <Sparkles className="size-3" />
                                         AI
                                     </span>
@@ -174,7 +211,13 @@ export function AppSidebar() {
                             <SidebarMenuItem>
                                 <SidebarMenuButton
                                     tooltip={{ children: 'Mappák' }}
-                                    onClick={() => window.dispatchEvent(new CustomEvent('open-folder-sheet'))}
+                                    onClick={() =>
+                                        window.dispatchEvent(
+                                            new CustomEvent(
+                                                'open-folder-sheet',
+                                            ),
+                                        )
+                                    }
                                     className="pl-8 text-muted-foreground"
                                 >
                                     <FolderOpen />
@@ -189,13 +232,21 @@ export function AppSidebar() {
                                     isActive={isCurrentUrl(item.href)}
                                     tooltip={{ children: item.title }}
                                 >
-                                    <Link href={item.href} prefetch className="flex items-center justify-between w-full">
-                                        <span className="flex items-center gap-2 min-w-0">
-                                            {item.icon && <item.icon className="shrink-0" />}
-                                            <span className="truncate">{item.title}</span>
+                                    <Link
+                                        href={item.href}
+                                        prefetch
+                                        className="flex w-full items-center justify-between"
+                                    >
+                                        <span className="flex min-w-0 items-center gap-2">
+                                            {item.icon && (
+                                                <item.icon className="shrink-0" />
+                                            )}
+                                            <span className="truncate">
+                                                {item.title}
+                                            </span>
                                         </span>
                                         {item.isAi && (
-                                            <span className="group-data-[collapsible=icon]:hidden ml-auto flex items-center gap-1 rounded-md bg-violet-100 px-1.5 py-0.5 text-[10px] font-semibold text-violet-600 dark:bg-violet-900/40 dark:text-violet-400 shrink-0">
+                                            <span className="ml-auto flex shrink-0 items-center gap-1 rounded-md bg-violet-100 px-1.5 py-0.5 text-[10px] font-semibold text-violet-600 group-data-[collapsible=icon]:hidden dark:bg-violet-900/40 dark:text-violet-400">
                                                 <Sparkles className="size-3" />
                                                 AI
                                             </span>
@@ -207,26 +258,44 @@ export function AppSidebar() {
                     </SidebarMenu>
                 </SidebarGroup>
 
-                <NavMain label={navGroups[2].label} items={[
-                    ...navGroups[2].items,
-                    ...(isAdmin ? [{ title: 'Szabad írás', href: wordsPractice(), icon: NotebookPen, isAi: true, tourId: 'tour-practice' }] : []),
-                ]} />
-                <NavMain label={navGroups[3].label} items={navGroups[3].items} />
+                <NavMain
+                    label={navGroups[2].label}
+                    items={[
+                        ...navGroups[2].items,
+                        ...(isAdmin
+                            ? [
+                                  {
+                                      title: 'Szabad írás',
+                                      href: wordsPractice(),
+                                      icon: NotebookPen,
+                                      isAi: true,
+                                      tourId: 'tour-practice',
+                                  },
+                              ]
+                            : []),
+                    ]}
+                />
+                <NavMain
+                    label={navGroups[3].label}
+                    items={navGroups[3].items}
+                />
 
                 {extensionInstalled === false && (
-                    <SidebarGroup className="hidden md:block px-2 py-0 pb-2">
+                    <SidebarGroup className="hidden px-2 py-0 pb-2 md:block">
                         <SidebarMenu>
                             <SidebarMenuItem>
                                 <SidebarMenuButton
                                     asChild
-                                    tooltip={{ children: 'Bővítmény telepítése' }}
-                                    className="text-violet-600 dark:text-violet-400 hover:text-violet-700 dark:hover:text-violet-300 hover:bg-violet-50 dark:hover:bg-violet-950/20"
+                                    tooltip={{
+                                        children: 'Bővítmény telepítése',
+                                    }}
+                                    className="text-violet-600 hover:bg-violet-50 hover:text-violet-700 dark:text-violet-400 dark:hover:bg-violet-950/20 dark:hover:text-violet-300"
                                 >
-                                    <a href="https://chrome.google.com/webstore" target="_blank" rel="noopener noreferrer">
+                                    <Link href="/handbook#extension">
                                         <Puzzle className="animate-pulse" />
                                         <span>Bővítmény telepítése</span>
-                                        <span className="ml-auto size-2 rounded-full bg-violet-500 animate-pulse group-data-[collapsible=icon]:hidden" />
-                                    </a>
+                                        <span className="ml-auto size-2 animate-pulse rounded-full bg-violet-500 group-data-[collapsible=icon]:hidden" />
+                                    </Link>
                                 </SidebarMenuButton>
                             </SidebarMenuItem>
                         </SidebarMenu>

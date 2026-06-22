@@ -837,7 +837,7 @@ function QuizSetup({
 
                         {freeQuizLimit !== null && (
                             <p className="mt-3 text-xs text-muted-foreground">
-                                Ingyenes csomaggal legfeljebb {freeQuizLimit}{' '}
+                                Alap csomaggal legfeljebb {freeQuizLimit}{' '}
                                 szavas kvíz indítható.{' '}
                                 <Link
                                     href={pricing()}
@@ -964,7 +964,7 @@ function QuizSetup({
                                     {freeQuizLimit !== null &&
                                         pickedIds.size > freeQuizLimit && (
                                             <p className="text-xs text-muted-foreground">
-                                                Ingyenes csomaggal legfeljebb{' '}
+                                                Alap csomaggal legfeljebb{' '}
                                                 {freeQuizLimit} szót
                                                 választhatsz ki.
                                             </p>

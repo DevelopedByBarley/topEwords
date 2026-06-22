@@ -1,25 +1,31 @@
 import { Head, router } from '@inertiajs/react';
 import {
-    BookMarked,
     BookOpen,
     Brain,
-    CheckCheck,
+    CalendarCheck,
     CheckCircle2,
+    ChevronLeft,
     ChevronRight,
     Circle,
-    Clock,
-    Flame,
+    Keyboard,
     Layers,
-    Mic,
+    Menu,
     Monitor,
     Moon,
-    Puzzle,
+    MousePointerClick,
+    PencilLine,
+    Plus,
+    Repeat,
+    RotateCw,
     ScanText,
     Sparkles,
     Sun,
     Trophy,
+    Tv,
+    Youtube,
 } from 'lucide-react';
 import { useState } from 'react';
+import { STATUS_CONFIG } from '@/components/words/types';
 import type { Appearance } from '@/hooks/use-appearance';
 import { useAppearance } from '@/hooks/use-appearance';
 import { complete as onboardingComplete } from '@/routes/onboarding';
@@ -34,6 +40,7 @@ interface Word {
 interface Props {
     wordsByLevel: Record<number, Word[]>;
     levelTotals: Record<number, number>;
+    testEnabled?: boolean;
 }
 
 const LEVEL_LABELS: Record<
@@ -80,78 +87,306 @@ const LEVEL_LABELS: Record<
 
 type Step = 'ask-test' | 'test' | 'result' | 'features' | 'theme' | 'done';
 
-const APP_FEATURES = [
+const statusEntry = (value: string) =>
+    STATUS_CONFIG.find((s) => s.value === value) ?? STATUS_CONFIG[0];
+
+const STATUS_DEMO_WORDS = [
+    { word: 'achieve', meaning: 'elér, megvalósít', value: 'known' },
+    { word: 'consider', meaning: 'fontolóra vesz', value: 'learning' },
+    { word: 'reluctant', meaning: 'vonakodó', value: 'saved' },
+    { word: 'thorough', meaning: 'alapos', value: 'pronunciation' },
+    { word: 'gather', meaning: 'összegyűjt', value: 'practice' },
+] as const;
+
+function WordListVisual() {
+    return (
+        <div className="space-y-1.5 rounded-2xl border bg-muted/30 p-3">
+            {STATUS_DEMO_WORDS.map(({ word, meaning, value }) => {
+                const s = statusEntry(value);
+                const StatusIcon = s.icon;
+
+                return (
+                    <div
+                        key={word}
+                        className="flex items-center justify-between rounded-xl border bg-card px-3 py-2"
+                    >
+                        <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold">
+                                {word}
+                            </p>
+                            <p className="truncate text-xs text-muted-foreground">
+                                {meaning}
+                            </p>
+                        </div>
+                        <span
+                            className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium ${s.pillActive}`}
+                        >
+                            <StatusIcon className="size-3" />
+                            {s.label}
+                        </span>
+                    </div>
+                );
+            })}
+        </div>
+    );
+}
+
+function PracticeVisual() {
+    const quiz = [
+        { t: 'javít', ok: true },
+        { t: 'akadályoz', ok: false },
+        { t: 'elhalaszt', ok: false },
+        { t: 'megtagad', ok: false },
+    ];
+
+    return (
+        <div className="rounded-2xl border bg-muted/30 p-4">
+            <div className="mx-auto mb-3 flex aspect-[5/3] max-w-[16rem] flex-col items-center justify-center rounded-2xl border bg-card shadow-sm">
+                <p className="text-2xl font-bold">improve</p>
+                <p className="mt-1.5 flex items-center gap-1 text-xs text-muted-foreground">
+                    <RotateCw className="size-3" />
+                    kattints a megfordításhoz
+                </p>
+            </div>
+            <div className="grid grid-cols-2 gap-1.5">
+                {quiz.map(({ t, ok }) => (
+                    <div
+                        key={t}
+                        className={`rounded-lg border px-3 py-2 text-center text-xs font-medium ${
+                            ok
+                                ? 'border-green-400 bg-green-50 text-green-700 dark:border-green-700 dark:bg-green-950/30 dark:text-green-400'
+                                : 'bg-card text-muted-foreground'
+                        }`}
+                    >
+                        {t}
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+function AnalysisVisual() {
+    const sentence: { t: string; status?: string }[] = [
+        { t: 'The' },
+        { t: 'scientists', status: 'learning' },
+        { t: 'gathered', status: 'practice' },
+        { t: 'enough' },
+        { t: 'evidence', status: 'saved' },
+        { t: 'to' },
+        { t: 'confirm', status: 'known' },
+        { t: 'the' },
+        { t: 'theory', status: 'pronunciation' },
+        { t: 'almost' },
+        { t: 'immediately.' },
+    ];
+
+    return (
+        <div className="rounded-2xl border bg-muted/30 p-4">
+            <div className="mb-3 flex items-center justify-center gap-3">
+                <div className="flex size-16 items-center justify-center rounded-full border-4 border-green-500/40">
+                    <span className="text-lg font-bold text-green-600 dark:text-green-400">
+                        88%
+                    </span>
+                </div>
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                    ennyit értenél
+                    <br />
+                    ebből a szövegből
+                </p>
+            </div>
+            <p className="text-sm leading-7">
+                {sentence.map((w, i) => (
+                    <span key={i}>
+                        {w.status ? (
+                            <span
+                                className={`rounded px-1 font-medium ${statusEntry(w.status).pillActive}`}
+                            >
+                                {w.t}
+                            </span>
+                        ) : (
+                            w.t
+                        )}{' '}
+                    </span>
+                ))}
+            </p>
+        </div>
+    );
+}
+
+function ExtensionVisual() {
+    const popupStatuses = ['known', 'learning', 'saved'];
+
+    return (
+        <div className="rounded-2xl border bg-muted/30 p-4">
+            <div className="rounded-xl border bg-card p-4">
+                <p className="text-sm leading-relaxed text-muted-foreground">
+                    …you are reading an article and hit an{' '}
+                    <span className="rounded bg-primary/15 px-1 font-medium text-foreground underline decoration-dotted underline-offset-2">
+                        unfamiliar
+                    </span>{' '}
+                    word.
+                </p>
+                <div className="mt-3 w-52 rounded-xl border bg-background p-3 shadow-lg">
+                    <p className="text-sm font-bold">unfamiliar</p>
+                    <p className="mb-2 text-xs text-muted-foreground">
+                        ismeretlen, idegen
+                    </p>
+                    <div className="flex gap-1.5">
+                        {popupStatuses.map((v) => {
+                            const e = statusEntry(v);
+                            const Icon = e.icon;
+
+                            return (
+                                <span
+                                    key={v}
+                                    className={`inline-flex items-center justify-center rounded-full p-1.5 ${e.pillActive}`}
+                                >
+                                    <Icon className="size-3.5" />
+                                </span>
+                            );
+                        })}
+                    </div>
+                </div>
+            </div>
+            <div className="mt-3 flex items-center justify-center gap-2 text-xs font-medium text-muted-foreground">
+                <Youtube className="size-4 text-red-500" />
+                YouTube
+                <span className="text-muted-foreground/40">·</span>
+                <Tv className="size-4 text-red-600" />
+                Netflix felirat
+            </div>
+        </div>
+    );
+}
+
+const FEATURE_SLIDES = [
     {
-        Icon: BookOpen,
-        title: 'Top 10 000 szó',
-        desc: 'Gyakoriság szerint rendezett szólista szintekkel, szűrőkkel és mappákkal.',
+        id: 'vocab',
+        title: 'A szókincsed, egy helyen',
+        subtitle: 'A 10 000 leggyakoribb angol szó, öt státusszal követve.',
+        Visual: WordListVisual,
+        features: [
+            {
+                Icon: BookOpen,
+                title: 'Top 10 000 szó',
+                desc: 'Gyakoriság szerint rendezett szólista szintekkel, szűrőkkel és mappákkal — jelöld a szavakat öt státusszal.',
+            },
+            {
+                Icon: Plus,
+                title: 'Saját szavak',
+                desc: 'Vedd fel a top 10 000-en kívüli szavaidat is, és tanuld őket ugyanúgy, mint a többit.',
+            },
+            {
+                Icon: Repeat,
+                title: 'Rendhagyó igék',
+                desc: 'Kereshető táblázat az angol rendhagyó igék mindhárom alakjával — gyors átnézésre.',
+            },
+        ],
     },
     {
-        Icon: Layers,
-        title: 'Flashcard (SRS)',
-        desc: 'Intelligens ismétlés: a kártyák akkor jönnek elő, amikor épp felejtenéd őket.',
+        id: 'practice',
+        title: 'Sokféleképpen gyakorolhatsz',
+        subtitle:
+            'Flashcard, kvíz, mondatkiegészítés — mind a státuszaidra épül.',
+        Visual: PracticeVisual,
+        features: [
+            {
+                Icon: Layers,
+                title: 'Flashcard (SRS)',
+                desc: 'Intelligens ismétlés: a kártyák akkor jönnek elő, amikor épp felejtenéd őket. Importálhatsz a szólistából vagy CSV-ből is.',
+            },
+            {
+                Icon: Brain,
+                title: 'Kvíz',
+                desc: 'Feleletválasztós teszt — szűrhetsz szint, státusz és mappa szerint, 10-től akár az összes szóig.',
+            },
+            {
+                Icon: PencilLine,
+                title: 'Mondatkiegészítés',
+                desc: 'Egészítsd ki a hiányos példamondatokat a megfelelő szóval, kontextusban gyakorolva.',
+            },
+            {
+                Icon: CalendarCheck,
+                title: 'Napi ismétlés',
+                desc: 'Naponta összeállított gyakorló-sor a státuszaid alapján, ami tartja a sorozatodat.',
+            },
+        ],
     },
     {
-        Icon: Brain,
-        title: 'Kvíz és mondatkiegészítés',
-        desc: 'Teszteld magad feleletválasztóssal, vagy egészítsd ki a példamondatokat.',
+        id: 'analysis',
+        title: 'Lásd, mennyit értesz',
+        subtitle:
+            'Bármilyen szöveg vagy videó — azonnali érthetőségi százalék.',
+        Visual: AnalysisVisual,
+        features: [
+            {
+                Icon: ScanText,
+                title: 'Szöveg- és videóelemzés',
+                desc: 'Illessz be angol szöveget, URL-t vagy YouTube-videót, és lásd, hány százalékát érted — a szavak a státuszod szerint színeződnek.',
+            },
+            {
+                Icon: Trophy,
+                title: 'Streak és teljesítmények',
+                desc: 'Napi sorozatok és jelvények tartják fenn a motivációt, ahogy nő a szókincsed.',
+            },
+        ],
     },
     {
-        Icon: ScanText,
-        title: 'Szövegelemzés',
-        desc: 'Illessz be angol szöveget vagy könyvet, és lásd, mennyit értesz belőle.',
-    },
-    {
-        Icon: Puzzle,
-        title: 'Chrome bővítmény',
-        desc: 'Szókeresés és kiemelés bármely weboldalon, YouTube felirat-támogatással.',
-    },
-    {
-        Icon: Flame,
-        title: 'Streak és teljesítmények',
-        desc: 'Napi ismétlés, sorozatok és jelvények tartják fenn a motivációt.',
+        id: 'extension',
+        title: 'Tanulj bárhol a neten',
+        subtitle:
+            'A Chrome bővítmény bármely oldalon, YouTube-on és Netflixen is működik.',
+        Visual: ExtensionVisual,
+        features: [
+            {
+                Icon: MousePointerClick,
+                title: 'Dupla kattintás + tartás',
+                desc: 'Bármely weboldalon dupla kattints egy szóra és tartsd nyomva — azonnal megjelenik a jelentés és a státusz gombok.',
+            },
+            {
+                Icon: Keyboard,
+                title: 'Option+W gyorsbillentyű',
+                desc: 'Az Option+W (Mac) / Alt+W (Windows) megnyit egy keresőmezőt — gépeld be a szót, és máris ott a jelentése.',
+            },
+            {
+                Icon: Menu,
+                title: 'Jobb kattintás menü',
+                desc: 'Jelölj ki egy szót, jobb klikk → „Szó keresése", és megnyílik a TopWords az adott szóra szűrve.',
+            },
+            {
+                Icon: ScanText,
+                title: 'Oldal elemzése egy kattintással',
+                desc: 'Az extension ikonjára kattintva az aktuális oldal szövege egyből megnyílik a szövegelemzőben.',
+            },
+            {
+                Icon: Youtube,
+                title: 'YouTube és Netflix feliratok',
+                desc: 'Elemezd a videók és sorozatok feliratát, és nézd meg, mennyit értenél belőle a szókincseddel.',
+            },
+        ],
     },
 ];
 
-const STATUS_INFO = [
-    {
-        Icon: CheckCheck,
-        label: 'Tudom',
-        desc: 'ezt már nem kell gyakorolnod',
-        cls: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400',
-    },
-    {
-        Icon: Clock,
-        label: 'Tanulom',
-        desc: 'ezekből épülnek a gyakorlások',
-        cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400',
-    },
-    {
-        Icon: BookMarked,
-        label: 'Később',
-        desc: 'félreteszed, majd visszatérsz rá',
-        cls: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400',
-    },
-    {
-        Icon: Mic,
-        label: 'Kiejtés',
-        desc: 'a jelentést tudod, a kiejtést gyakorlod',
-        cls: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-400',
-    },
-];
-
-export default function Onboarding({ wordsByLevel, levelTotals }: Props) {
+export default function Onboarding({
+    wordsByLevel,
+    levelTotals,
+    testEnabled = true,
+}: Props) {
     const { appearance, updateAppearance } = useAppearance();
     const levels = Object.keys(wordsByLevel)
         .map(Number)
         .sort((a, b) => a - b);
     const allWords = levels.flatMap((l) => wordsByLevel[l]);
 
-    const [step, setStep] = useState<Step>('ask-test');
+    const [step, setStep] = useState<Step>(
+        testEnabled ? 'ask-test' : 'features',
+    );
     const [currentLevelIndex, setCurrentLevelIndex] = useState(0);
     const [knownIds, setKnownIds] = useState<Set<number>>(new Set());
     const [applyResults, setApplyResults] = useState(true);
     const [submitting, setSubmitting] = useState(false);
+    const [featureSlide, setFeatureSlide] = useState(0);
 
     const currentLevel = levels[currentLevelIndex];
     const currentWords = currentLevel ? wordsByLevel[currentLevel] : [];
@@ -462,84 +697,111 @@ export default function Onboarding({ wordsByLevel, levelTotals }: Props) {
                     )}
 
                     {/* STEP: features */}
-                    {step === 'features' && (
-                        <div>
-                            <div className="mb-6 text-center">
-                                <div className="mb-4 flex justify-center">
-                                    <div className="rounded-2xl bg-primary/10 p-5">
-                                        <Sparkles className="size-10 text-primary" />
-                                    </div>
-                                </div>
-                                <h2 className="mb-1 text-2xl font-bold">
-                                    Ez vár rád
-                                </h2>
-                                <p className="text-muted-foreground">
-                                    Rövid áttekintés a fő eszközökről — mindet a
-                                    menüből éred majd el.
-                                </p>
-                            </div>
+                    {step === 'features' &&
+                        (() => {
+                            const slide = FEATURE_SLIDES[featureSlide];
+                            const SlideVisual = slide.Visual;
+                            const isLastSlide =
+                                featureSlide === FEATURE_SLIDES.length - 1;
 
-                            <div className="mb-6 grid gap-2 sm:grid-cols-2">
-                                {APP_FEATURES.map(({ Icon, title, desc }) => (
-                                    <div
-                                        key={title}
-                                        className="rounded-xl border bg-card p-4"
-                                    >
-                                        <div className="mb-2 flex items-center gap-2">
-                                            <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10">
-                                                <Icon className="size-4 text-primary" />
-                                            </div>
-                                            <p className="text-sm font-semibold">
-                                                {title}
-                                            </p>
-                                        </div>
-                                        <p className="text-xs text-muted-foreground">
-                                            {desc}
+                            return (
+                                <div>
+                                    {/* Progress dots */}
+                                    <div className="mb-5 flex items-center justify-center gap-2">
+                                        {FEATURE_SLIDES.map((s, i) => (
+                                            <span
+                                                key={s.id}
+                                                className={`h-1.5 rounded-full transition-all ${
+                                                    i === featureSlide
+                                                        ? 'w-6 bg-primary'
+                                                        : i < featureSlide
+                                                          ? 'w-1.5 bg-primary/50'
+                                                          : 'w-1.5 bg-secondary'
+                                                }`}
+                                            />
+                                        ))}
+                                    </div>
+
+                                    {/* Visual mockup */}
+                                    <div className="mb-5">
+                                        <SlideVisual />
+                                    </div>
+
+                                    <div className="mb-4 text-center">
+                                        <h2 className="mb-1 text-2xl font-bold">
+                                            {slide.title}
+                                        </h2>
+                                        <p className="text-sm text-muted-foreground">
+                                            {slide.subtitle}
                                         </p>
                                     </div>
-                                ))}
-                            </div>
 
-                            <div className="mb-6 rounded-xl border bg-card p-4">
-                                <p className="mb-3 text-sm font-semibold">
-                                    A szavaidat négy státusszal követed
-                                </p>
-                                <div className="grid gap-2 sm:grid-cols-2">
-                                    {STATUS_INFO.map(
-                                        ({ Icon, label, desc, cls }) => (
-                                            <div
-                                                key={label}
-                                                className="flex items-center gap-2.5"
-                                            >
-                                                <span
-                                                    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${cls}`}
+                                    <div className="mb-6 grid gap-2 sm:grid-cols-2">
+                                        {slide.features.map(
+                                            ({ Icon, title, desc }) => (
+                                                <div
+                                                    key={title}
+                                                    className="rounded-xl border bg-card p-4"
                                                 >
-                                                    <Icon className="size-3.5" />
-                                                    {label}
-                                                </span>
-                                                <span className="text-xs text-muted-foreground">
-                                                    {desc}
-                                                </span>
-                                            </div>
-                                        ),
-                                    )}
-                                </div>
-                                <p className="mt-3 text-xs text-muted-foreground">
-                                    A kvíz, a mondatkiegészítés, a flashcardok
-                                    és a napi ismétlés is ezekre a státuszokra
-                                    épül — ezért érdemes jelölgetni.
-                                </p>
-                            </div>
+                                                    <div className="mb-2 flex items-center gap-2">
+                                                        <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10">
+                                                            <Icon className="size-4 text-primary" />
+                                                        </div>
+                                                        <p className="text-sm font-semibold">
+                                                            {title}
+                                                        </p>
+                                                    </div>
+                                                    <p className="text-xs text-muted-foreground">
+                                                        {desc}
+                                                    </p>
+                                                </div>
+                                            ),
+                                        )}
+                                    </div>
 
-                            <button
-                                onClick={() => setStep('theme')}
-                                className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-6 py-4 font-semibold text-primary-foreground transition-opacity hover:opacity-90"
-                            >
-                                Tovább
-                                <ChevronRight className="size-4" />
-                            </button>
-                        </div>
-                    )}
+                                    <div className="flex gap-3">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setFeatureSlide((i) => i - 1);
+                                                window.scrollTo({
+                                                    top: 0,
+                                                    behavior: 'smooth',
+                                                });
+                                            }}
+                                            disabled={featureSlide === 0}
+                                            className="flex items-center justify-center gap-1.5 rounded-xl border px-5 py-3.5 font-medium text-muted-foreground transition-colors hover:bg-accent disabled:pointer-events-none disabled:opacity-40"
+                                        >
+                                            <ChevronLeft className="size-4" />
+                                            Vissza
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                if (isLastSlide) {
+                                                    setStep('theme');
+                                                } else {
+                                                    setFeatureSlide(
+                                                        (i) => i + 1,
+                                                    );
+                                                }
+
+                                                window.scrollTo({
+                                                    top: 0,
+                                                    behavior: 'smooth',
+                                                });
+                                            }}
+                                            className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3.5 font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+                                        >
+                                            {isLastSlide
+                                                ? 'Tovább a témához'
+                                                : 'Következő'}
+                                            <ChevronRight className="size-4" />
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        })()}
 
                     {/* STEP: theme */}
                     {step === 'theme' && (

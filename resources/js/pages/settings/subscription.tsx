@@ -219,7 +219,7 @@ export default function Subscription({
                 {/* No subscription */}
                 {!isSubscribed && !isOnTrial && (
                     <div className="rounded-xl border p-5">
-                        <p className="mb-1 font-semibold">Ingyenes csomag</p>
+                        <p className="mb-1 font-semibold">Alap csomag</p>
                         <p className="mb-4 text-sm text-muted-foreground">
                             Váltj prémiumra a korlátlan hozzáférésért, vagy alap
                             csomagra az AI nélküli funkcionalitásért.

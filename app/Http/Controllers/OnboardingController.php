@@ -14,39 +14,35 @@ class OnboardingController extends Controller
 {
     private const WORDS_PER_LEVEL = 20;
 
-    public function show(Request $request): Response|RedirectResponse
+    public function show(Request $request): Response
     {
-        if (config('app.onboarding_enabled', true) === false) {
-            $request->user()->update(['onboarding_completed_at' => now()]);
-
-            session()->flash('show_tour', true);
-
-            return redirect()->route('dashboard');
-        }
+        $testEnabled = config('app.onboarding_enabled', true) !== false;
 
         $wordsByLevel = collect();
-
-        $availableLevels = Word::selectRaw('level, COUNT(*) as count')
-            ->groupBy('level')
-            ->having('count', '>=', self::WORDS_PER_LEVEL)
-            ->orderBy('level')
-            ->pluck('level');
-
         $levelTotals = [];
 
-        foreach ($availableLevels as $level) {
-            $words = Word::where('level', $level)
-                ->inRandomOrder()
-                ->take(self::WORDS_PER_LEVEL)
-                ->get(['id', 'word', 'meaning_hu', 'level']);
+        if ($testEnabled) {
+            $availableLevels = Word::selectRaw('level, COUNT(*) as count')
+                ->groupBy('level')
+                ->having('count', '>=', self::WORDS_PER_LEVEL)
+                ->orderBy('level')
+                ->pluck('level');
 
-            $wordsByLevel->put($level, $words->values());
-            $levelTotals[$level] = Word::where('level', $level)->count();
+            foreach ($availableLevels as $level) {
+                $words = Word::where('level', $level)
+                    ->inRandomOrder()
+                    ->take(self::WORDS_PER_LEVEL)
+                    ->get(['id', 'word', 'meaning_hu', 'level']);
+
+                $wordsByLevel->put($level, $words->values());
+                $levelTotals[$level] = Word::where('level', $level)->count();
+            }
         }
 
         return Inertia::render('onboarding/index', [
             'wordsByLevel' => $wordsByLevel,
             'levelTotals' => $levelTotals,
+            'testEnabled' => $testEnabled,
         ]);
     }
 
