@@ -44,6 +44,19 @@ class ProfileController extends Controller
     {
         $user = $request->user();
 
+        // Cancel every still-live Stripe subscription before deleting the user. Cashier
+        // does not cancel automatically on model deletion, so an orphaned subscription
+        // would keep charging the customer's card after their account is gone. We cancel
+        // anything that is not already terminally dead — this deliberately includes
+        // past_due/incomplete subscriptions (which valid() would skip) because Stripe may
+        // still be attempting to collect on those. If a cancellation fails, the exception
+        // propagates and the account is NOT deleted, so the user can retry instead of
+        // ending up with a live subscription and no account.
+        $user->subscriptions()
+            ->whereNotIn('stripe_status', ['canceled', 'incomplete_expired'])
+            ->get()
+            ->each->cancelNow();
+
         Auth::logout();
 
         $user->delete();

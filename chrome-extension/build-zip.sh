@@ -9,11 +9,21 @@ cd "$(dirname "$0")"
 VERSION=$(grep -m1 '"version"' manifest.json | sed -E 's/.*"version" *: *"([^"]+)".*/\1/')
 OUT="topwords-extension-${VERSION}.zip"
 
-# Csak a bővítményhez tartozó fájlok kerülnek a csomagba
+# Csak a bővítményhez tartozó fájlok kerülnek a csomagba.
+# A content script több, fókuszált modulra van bontva a src/ alatt — a betöltési
+# sorrendet a manifest.json content_scripts.js tömbje rögzíti.
 FILES=(
     manifest.json
     background.js
-    content.js
+    src/shared.js
+    src/styles.js
+    src/tokenizer.js
+    src/lookup-popup.js
+    src/search-modal.js
+    src/flashcard-modal.js
+    src/page-highlight.js
+    src/youtube.js
+    src/netflix.js
     popup.html
     popup.css
     popup.js

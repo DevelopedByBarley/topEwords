@@ -41,8 +41,8 @@ import {
     X,
     XCircle,
     Zap,
+    type LucideProps,
 } from 'lucide-react';
-import type { LucideProps } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import BetaBanner from '@/components/beta-banner';
 import ChromeExtensionsLink from '@/components/chrome-extensions-link';
@@ -101,11 +101,7 @@ const ICON_MAP: Record<string, React.ComponentType<LucideProps>> = {
 
 function MI({ n, s = 22, style, className }: { n: string; f?: boolean; s?: number; style?: React.CSSProperties; className?: string }) {
     const Icon = ICON_MAP[n];
-
-    if (!Icon) {
-        return null;
-    }
-
+    if (!Icon) return null;
     return <Icon size={s} style={style} className={className} />;
 }
 
@@ -257,7 +253,7 @@ export default function Welcome({ canRegister = true }: { canRegister?: boolean 
                 <header className="sticky top-0 z-50 border-b border-neutral-200 bg-neutral-50/80 backdrop-blur-md dark:border-neutral-700 dark:bg-neutral-900/80">
                     <div className="mx-auto flex max-w-[1200px] items-center gap-5 px-6 py-3">
                         <Link href="/" className="flex items-center gap-2.5 text-[20px] font-extrabold tracking-tight leading-none text-neutral-800 dark:text-neutral-100">
-                            <span className="flex size-9 items-center justify-center rounded-xl bg-violet-600 text-white">
+                            <span className="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-violet-400 text-white">
                                 <MI n="menu_book" s={22} />
                             </span>
                             TopWords
@@ -294,7 +290,7 @@ export default function Welcome({ canRegister = true }: { canRegister?: boolean 
                                 </Button>
                             )}
                             {auth.user ? (
-                                <Button asChild className="bg-violet-600 text-white hover:bg-violet-700">
+                                <Button asChild className="bg-gradient-to-br from-violet-500 to-violet-400 text-white hover:bg-violet-700">
                                     <Link href={dashboard()}>Irány az alkalmazás</Link>
                                 </Button>
                             ) : (
@@ -303,7 +299,7 @@ export default function Welcome({ canRegister = true }: { canRegister?: boolean 
                                         <Link href={login()}>Bejelentkezés</Link>
                                     </Button>
                                     {canRegister && (
-                                        <Button asChild className="hidden sm:inline-flex bg-violet-600 text-white hover:bg-violet-700">
+                                        <Button asChild className="hidden sm:inline-flex bg-gradient-to-br from-violet-500 to-violet-400 text-white hover:bg-violet-700">
                                             <Link href={register()}>Regisztrálás</Link>
                                         </Button>
                                     )}
@@ -362,7 +358,7 @@ export default function Welcome({ canRegister = true }: { canRegister?: boolean 
                                     </Button>
                                 )}
                                 {auth.user ? (
-                                    <Button asChild className="w-full bg-violet-600 text-white hover:bg-violet-700">
+                                    <Button asChild className="w-full bg-gradient-to-br from-violet-500 to-violet-400 text-white hover:bg-violet-700">
                                         <Link href={dashboard()}>Irány az alkalmazás</Link>
                                     </Button>
                                 ) : (
@@ -371,7 +367,7 @@ export default function Welcome({ canRegister = true }: { canRegister?: boolean 
                                             <Link href={login()} onClick={() => setMobileOpen(false)}>Bejelentkezés</Link>
                                         </Button>
                                         {canRegister && (
-                                            <Button asChild className="w-full bg-violet-600 text-white hover:bg-violet-700">
+                                            <Button asChild className="w-full bg-gradient-to-br from-violet-500 to-violet-400 text-white hover:bg-violet-700">
                                                 <Link href={register()} onClick={() => setMobileOpen(false)}>Regisztrálás</Link>
                                             </Button>
                                         )}
@@ -400,14 +396,14 @@ export default function Welcome({ canRegister = true }: { canRegister?: boolean 
                             </p>
                             <div className="mt-8 flex flex-wrap items-center gap-3">
                                 {auth.user ? (
-                                    <Button size="lg" asChild className="bg-violet-600 text-white hover:bg-violet-700">
+                                    <Button size="lg" asChild className="bg-gradient-to-br from-violet-500 to-violet-400 text-white hover:bg-violet-700">
                                         <Link href={wordsIndex()} className="flex items-center gap-2">
                                             Szavak böngészése <MI n="arrow_forward" s={20} />
                                         </Link>
                                     </Button>
                                 ) : (
                                     <>
-                                        <Button size="lg" asChild className="bg-violet-600 text-white hover:bg-violet-700">
+                                        <Button size="lg" asChild className="bg-gradient-to-br from-violet-500 to-violet-400 text-white hover:bg-violet-700">
                                                 <Link href={login()} className="flex items-center gap-2">
                                                     Belépés <MI n="arrow_forward" s={20} />
                                                 </Link>
@@ -467,7 +463,7 @@ export default function Welcome({ canRegister = true }: { canRegister?: boolean 
                                 </div>
                                 <div className="mt-2.5 h-3 w-full overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-700">
                                     <div
-                                        className="relative h-full rounded-full bg-violet-600 overflow-hidden"
+                                        className="relative h-full rounded-full bg-gradient-to-br from-violet-500 to-violet-400 overflow-hidden"
                                         style={{ width: '41%' }}
                                     >
                                         <div className="absolute inset-0 w-2/5 bg-gradient-to-r from-transparent via-white/40 to-transparent animate-[shimmer_2.6s_ease-in-out_infinite]" />
@@ -513,7 +509,7 @@ export default function Welcome({ canRegister = true }: { canRegister?: boolean 
                 {/* ===================== FEATURES ===================== */}
                 <section
                     id="features"
-                    className="relative overflow-hidden bg-violet-600"
+                    className="relative overflow-hidden bg-gradient-to-r from-violet-400 to-violet-600"
                 >
                     <div className="pointer-events-none absolute -top-24 -left-24 size-[420px] rounded-full bg-white/15" />
                     <div className="pointer-events-none absolute -bottom-20 right-0 size-[360px] rounded-full bg-white/10" />
@@ -840,7 +836,7 @@ export default function Welcome({ canRegister = true }: { canRegister?: boolean 
                 </section>
 
                 {/* ===================== QUIZ ===================== */}
-                <section id="quiz" className="relative overflow-hidden bg-violet-600">
+                <section id="quiz" className="relative overflow-hidden bg-gradient-to-r from-violet-600 to-violet-400">
                     <div className="pointer-events-none absolute -top-16 right-10 size-95 rounded-full bg-white/15" />
                     <div className="pointer-events-none absolute bottom-0 -left-16 size-80 rounded-full bg-white/10" />
                     <div className="mx-auto max-w-[1200px] px-4 py-14 sm:px-6 md:py-24 relative">
@@ -928,7 +924,7 @@ export default function Welcome({ canRegister = true }: { canRegister?: boolean 
                                     </div>
                                     <button
                                         onClick={() => setQuizAnswer(null)}
-                                        className="flex items-center gap-1.5 rounded-xl bg-violet-600 px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-violet-700"
+                                        className="flex items-center gap-1.5 rounded-xl bg-gradient-to-br from-violet-500 to-violet-400 px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-violet-700"
                                     >
                                         Következő <MI n="arrow_forward" s={18} />
                                     </button>
@@ -1064,7 +1060,7 @@ export default function Welcome({ canRegister = true }: { canRegister?: boolean 
                                     Nézd meg lépésről lépésre, hogyan használd a szólistát, a flashcardokat, a kvízt és a bővítményt —
                                     rövid videós tutorialokban.
                                 </p>
-                                <Button asChild className="mt-7 bg-violet-600 text-white hover:bg-violet-700">
+                                <Button asChild className="mt-7 bg-gradient-to-br from-violet-500 to-violet-400 text-white hover:bg-violet-700">
                                     <Link href={guide()} className="flex items-center gap-2">
                                         <MI n="play_circle" s={21} /> Útmutatók megnyitása
                                     </Link>
@@ -1126,7 +1122,7 @@ export default function Welcome({ canRegister = true }: { canRegister?: boolean 
                                         <MI n="lock" s={14} />
                                         en.wikipedia.org
                                     </div>
-                                    <div className="flex size-6 items-center justify-center rounded-lg bg-violet-600">
+                                    <div className="flex size-6 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 to-violet-400">
                                         <MI n="menu_book" s={15} style={{ color: '#fff' } as React.CSSProperties} />
                                     </div>
                                 </div>
@@ -1215,14 +1211,14 @@ export default function Welcome({ canRegister = true }: { canRegister?: boolean 
                                     <a
                                         href="/downloads/topwords-extension.zip"
                                         download
-                                        className="mt-4 inline-flex items-center gap-2 rounded-xl bg-violet-600 px-5 py-3 text-sm font-bold text-white shadow-md transition-all hover:bg-violet-700 hover:-translate-y-0.5"
+                                        className="mt-4 inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-violet-500 to-violet-400 px-5 py-3 text-sm font-bold text-white shadow-md transition-all hover:bg-violet-700 hover:-translate-y-0.5"
                                     >
                                         <MI n="download" s={20} /> Bővítmény letöltése (.zip)
                                     </a>
                                 ) : (
                                     <Link
                                         href={login()}
-                                        className="mt-4 inline-flex items-center gap-2 rounded-xl bg-violet-600 px-5 py-3 text-sm font-bold text-white shadow-md transition-all hover:bg-violet-700 hover:-translate-y-0.5"
+                                        className="mt-4 inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-violet-500 to-violet-400 px-5 py-3 text-sm font-bold text-white shadow-md transition-all hover:bg-violet-700 hover:-translate-y-0.5"
                                     >
                                         <MI n="login" s={20} /> Jelentkezz be a letöltéshez
                                     </Link>
@@ -1298,7 +1294,7 @@ export default function Welcome({ canRegister = true }: { canRegister?: boolean 
                             {/* Basic */}
                             <div className="relative rounded-[22px] border-2 border-purple-400 bg-white p-6 dark:border-purple-600 dark:bg-neutral-800">
                                 <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                                    <span className="rounded-full bg-violet-600 px-3 py-1 text-xs font-bold text-white">Legnépszerűbb</span>
+                                    <span className="rounded-full bg-gradient-to-br from-violet-500 to-violet-400 px-3 py-1 text-xs font-bold text-white">Legnépszerűbb</span>
                                 </div>
                                 <p className="text-sm font-medium text-neutral-400 dark:text-neutral-500">Alap</p>
                                 <p className="mt-1 text-3xl font-extrabold tracking-tight">1 500 Ft</p>
@@ -1319,7 +1315,7 @@ export default function Welcome({ canRegister = true }: { canRegister?: boolean 
                                     ))}
                                 </ul>
                                 <Link href={pricing()}>
-                                    <Button className="w-full bg-violet-600 text-white hover:bg-violet-700">Előfizetek</Button>
+                                    <Button className="w-full bg-gradient-to-br from-violet-500 to-violet-400 text-white hover:bg-violet-700">Előfizetek</Button>
                                 </Link>
                             </div>
 
@@ -1346,7 +1342,7 @@ export default function Welcome({ canRegister = true }: { canRegister?: boolean 
                                     ))}
                                 </ul>
                                 <Link href={pricing()}>
-                                    <Button className="w-full bg-violet-600 text-white hover:bg-violet-700">Prémiumra váltok</Button>
+                                    <Button className="w-full bg-gradient-to-br from-violet-500 to-violet-400 text-white hover:bg-violet-700">Prémiumra váltok</Button>
                                 </Link>
                             </div>
                         </div>
@@ -1363,7 +1359,7 @@ export default function Welcome({ canRegister = true }: { canRegister?: boolean 
 
                 {/* ===================== CTA ===================== */}
                 {!auth.user && (
-                    <section className="relative overflow-hidden bg-violet-600">
+                    <section className="relative overflow-hidden  bg-gradient-to-br from-violet-600 to-violet-400">
                         <div className="pointer-events-none absolute -top-20 left-1/4 size-96 rounded-full bg-white/15" />
                         <div className="pointer-events-none absolute -bottom-16 right-1/4 size-80 rounded-full bg-white/10" />
                         <div className="mx-auto max-w-[1200px] px-4 py-16 text-center sm:px-6 md:py-24 relative">
@@ -1391,7 +1387,7 @@ export default function Welcome({ canRegister = true }: { canRegister?: boolean 
                 <footer className="border-t border-neutral-200 dark:border-neutral-700">
                     <div className="mx-auto flex max-w-[1200px] flex-wrap items-center justify-between gap-4 px-4 py-6 text-sm text-neutral-400 sm:px-6 dark:text-neutral-500">
                         <div className="flex items-center gap-2 font-bold text-neutral-700 dark:text-neutral-300">
-                            <span className="flex size-6 items-center justify-center rounded-md bg-violet-600">
+                            <span className="flex size-6 items-center justify-center rounded-md bg-gradient-to-br from-violet-500 to-violet-400">
                                 <MI n="menu_book" s={15} style={{ color: '#fff' } as React.CSSProperties} />
                             </span>
                             TopWords

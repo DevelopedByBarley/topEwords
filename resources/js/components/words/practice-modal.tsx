@@ -99,7 +99,7 @@ return;
                         autoFocus
                         value={text}
                         onChange={(e) => {
- setText(e.target.value); setResult(null); 
+ setText(e.target.value); setResult(null);
 }}
                         placeholder={`Írj mondatokat a "${word?.word}" szóval...`}
                         className="min-h-32 resize-none text-base leading-relaxed"
@@ -107,7 +107,7 @@ return;
                     <Button
                         onClick={handleCheck}
                         disabled={text.trim().length < 5 || loading}
-                        className="w-full gap-2 bg-violet-600 hover:bg-violet-700 text-white"
+                        className="w-full gap-2 bg-gradient-to-br from-violet-500 to-violet-400 hover:bg-violet-700 text-white"
                     >
                         {loading ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
                         {loading ? 'Ellenőrzés...' : 'Ellenőrzés'}

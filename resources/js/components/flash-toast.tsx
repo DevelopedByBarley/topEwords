@@ -1,9 +1,9 @@
 import { Link, usePage } from '@inertiajs/react';
-import { AlertCircle, Info, X } from 'lucide-react';
+import { AlertCircle, CheckCircle, Info, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { pricing } from '@/routes';
 
-type ToastKind = 'error' | 'info';
+type ToastKind = 'error' | 'info' | 'success';
 
 interface Toast {
     kind: ToastKind;
@@ -24,11 +24,14 @@ export default function FlashToast() {
 
     const error = flash?.error ?? null;
     const info = flash?.info ?? null;
+    const success = flash?.success ?? null;
     const incoming: Toast | null = error
         ? { kind: 'error', message: error }
         : info
           ? { kind: 'info', message: info }
-          : null;
+          : success
+            ? { kind: 'success', message: success }
+            : null;
 
     // Render közbeni state-igazítás (React-ajánlott minta effect helyett)
     if (incoming && incoming.message !== seen) {
@@ -63,11 +66,15 @@ export default function FlashToast() {
                 className={`flex items-start gap-3 rounded-2xl border px-4 py-3.5 shadow-lg ${
                     toast.kind === 'error'
                         ? 'border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950'
-                        : 'border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950'
+                        : toast.kind === 'success'
+                          ? 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950'
+                          : 'border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950'
                 }`}
             >
                 {toast.kind === 'error' ? (
                     <AlertCircle className="mt-0.5 size-5 shrink-0 text-amber-600 dark:text-amber-400" />
+                ) : toast.kind === 'success' ? (
+                    <CheckCircle className="mt-0.5 size-5 shrink-0 text-green-600 dark:text-green-400" />
                 ) : (
                     <Info className="mt-0.5 size-5 shrink-0 text-blue-600 dark:text-blue-400" />
                 )}
@@ -76,7 +83,9 @@ export default function FlashToast() {
                         className={`text-sm ${
                             toast.kind === 'error'
                                 ? 'text-amber-800 dark:text-amber-200'
-                                : 'text-blue-800 dark:text-blue-200'
+                                : toast.kind === 'success'
+                                  ? 'text-green-800 dark:text-green-200'
+                                  : 'text-blue-800 dark:text-blue-200'
                         }`}
                     >
                         {toast.message}
@@ -95,7 +104,9 @@ export default function FlashToast() {
                     className={`shrink-0 rounded-full p-1 transition-colors ${
                         toast.kind === 'error'
                             ? 'text-amber-500 hover:bg-amber-100 dark:hover:bg-amber-900'
-                            : 'text-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900'
+                            : toast.kind === 'success'
+                              ? 'text-green-500 hover:bg-green-100 dark:hover:bg-green-900'
+                              : 'text-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900'
                     }`}
                 >
                     <X className="size-4" />

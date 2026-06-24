@@ -130,7 +130,7 @@ class ExtensionController extends Controller
 
         $data = $request->validate([
             'word' => ['required', 'string', 'max:100'],
-            'meaning_hu' => ['nullable', 'string', 'max:255'],
+            'meaning_hu' => ['required', 'string', 'max:255'],
             'extra_meanings' => ['nullable', 'string', 'max:500'],
             'synonyms' => ['nullable', 'string', 'max:255'],
             'part_of_speech' => ['nullable', 'string', 'max:20'],
@@ -284,13 +284,21 @@ class ExtensionController extends Controller
         foreach ($markedWords->concat($customWords) as $row) {
             $word = (string) $row->word;
 
-            // Multi-word phrase (e.g. "used to", "cut through"): store ONLY the phrase
-            // itself, never its single-word conjugation columns — those would otherwise
-            // map a plain token ("use", "to") to the phrase's status, hijacking the real
-            // word. The client recognises a phrase automatically by the space in the key
-            // and matches it greedily (longest phrase first) before single words.
+            // Multi-word phrase (e.g. "used to", "cut through"): store the base phrase
+            // AND any multi-word conjugated forms (e.g. "made for" for "make for").
+            // Single-word form columns are intentionally skipped — emitting them would
+            // let "cut" hijack the status of "cut through" for any plain occurrence.
+            // The client recognises a phrase by the space in the key and matches it
+            // greedily (longest phrase first) before single words.
             if (str_contains($word, ' ')) {
                 $statuses[mb_strtolower($word)] = $row->status;
+
+                foreach (array_map(fn ($col) => $row->{$col}, $formColumns) as $form) {
+                    if ($form !== null && $form !== '' && str_contains((string) $form, ' ')) {
+                        $normalized = mb_strtolower(trim((string) preg_replace('/\s+/', ' ', $form)));
+                        $statuses[$normalized] ??= $row->status;
+                    }
+                }
 
                 continue;
             }

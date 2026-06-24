@@ -1,11 +1,19 @@
-import { Head, Link, router } from '@inertiajs/react';
-import { ArrowLeft, CheckCircle, Info, RotateCcw, Undo2, Volume2 } from 'lucide-react';
+import { Head, Link } from '@inertiajs/react';
+import { ArrowLeft, CheckCircle, Info, Undo2, Volume2 } from 'lucide-react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import { RichTextContent } from '@/components/ui/rich-text-editor';
 import { index, show } from '@/routes/flashcards';
-import { submit as submitReview, undo as undoReview } from '@/routes/flashcards/study';
+import {
+    submit as submitReview,
+    undo as undoReview,
+} from '@/routes/flashcards/study';
 
 type PreviousState = {
     state: string;
@@ -53,26 +61,79 @@ type Card = {
 type Deck = { id: number; name: string };
 
 const RATING_BUTTONS = [
-    { rating: 1, label: 'Nem tudtam', previewKey: 'again' as const, shortcut: '1', className: 'bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-950/60',             textClass: 'text-destructive' },
-    { rating: 2, label: 'Nehéz',      previewKey: 'hard'  as const, shortcut: '2', className: 'bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-300 dark:hover:bg-amber-950/60', textClass: 'text-amber-600' },
-    { rating: 3, label: 'Jó',         previewKey: 'good'  as const, shortcut: '3', className: 'bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-950/60',       textClass: 'text-blue-600' },
-    { rating: 4, label: 'Könnyű',     previewKey: 'easy'  as const, shortcut: '4', className: 'bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-950/40 dark:text-green-300 dark:hover:bg-green-950/60', textClass: 'text-green-600' },
+    {
+        rating: 1,
+        label: 'Nem tudtam',
+        previewKey: 'again' as const,
+        shortcut: '1',
+        className:
+            'bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-950/60',
+        textClass: 'text-destructive',
+    },
+    {
+        rating: 2,
+        label: 'Nehéz',
+        previewKey: 'hard' as const,
+        shortcut: '2',
+        className:
+            'bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-300 dark:hover:bg-amber-950/60',
+        textClass: 'text-amber-600',
+    },
+    {
+        rating: 3,
+        label: 'Jó',
+        previewKey: 'good' as const,
+        shortcut: '3',
+        className:
+            'bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-950/60',
+        textClass: 'text-blue-600',
+    },
+    {
+        rating: 4,
+        label: 'Könnyű',
+        previewKey: 'easy' as const,
+        shortcut: '4',
+        className:
+            'bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-950/40 dark:text-green-300 dark:hover:bg-green-950/60',
+        textClass: 'text-green-600',
+    },
 ];
 
 function stateLabel(state: string): string {
-    return ({ new: 'Új kártya', learning: 'Tanulás', review: 'Ismétlés', relearning: 'Újratanulás' } as Record<string, string>)[state] ?? state;
+    return (
+        (
+            {
+                new: 'Új kártya',
+                learning: 'Tanulás',
+                review: 'Ismétlés',
+                relearning: 'Újratanulás',
+            } as Record<string, string>
+        )[state] ?? state
+    );
 }
 
 function stateBadgeClass(state: string): string {
-    return ({
-        new:        'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300',
-        learning:   'bg-blue-100   text-blue-700   dark:bg-blue-900/40   dark:text-blue-300',
-        review:     'bg-green-100  text-green-700  dark:bg-green-900/40  dark:text-green-300',
-        relearning: 'bg-amber-100  text-amber-700  dark:bg-amber-900/40  dark:text-amber-300',
-    } as Record<string, string>)[state] ?? 'bg-muted text-muted-foreground';
+    return (
+        (
+            {
+                new: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300',
+                learning:
+                    'bg-blue-100   text-blue-700   dark:bg-blue-900/40   dark:text-blue-300',
+                review: 'bg-green-100  text-green-700  dark:bg-green-900/40  dark:text-green-300',
+                relearning:
+                    'bg-amber-100  text-amber-700  dark:bg-amber-900/40  dark:text-amber-300',
+            } as Record<string, string>
+        )[state] ?? 'bg-muted text-muted-foreground'
+    );
 }
 
-function InfoRow({ label, children }: { label: string; children: React.ReactNode }) {
+function InfoRow({
+    label,
+    children,
+}: {
+    label: string;
+    children: React.ReactNode;
+}) {
     return (
         <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">{label}</span>
@@ -82,40 +143,73 @@ function InfoRow({ label, children }: { label: string; children: React.ReactNode
 }
 
 function formatRelativeTime(isoString: string): string {
-    const diff = Math.round((new Date(isoString).getTime() - Date.now()) / 60000);
+    const diff = Math.round(
+        (new Date(isoString).getTime() - Date.now()) / 60000,
+    );
 
     if (diff <= 0) {
-return 'most esedékes';
-}
+        return 'most esedékes';
+    }
 
     if (diff < 60) {
-return `${diff} perc múlva`;
-}
+        return `${diff} perc múlva`;
+    }
 
     const hours = Math.round(diff / 60);
 
     if (hours < 24) {
-return `${hours} óra múlva`;
-}
+        return `${hours} óra múlva`;
+    }
 
     return `${Math.round(hours / 24)} nap múlva`;
 }
 
-function resolveCardSides(card: Card): { question: string; questionNotes: string | null; questionSpeak: string | null; answer: string; answerNotes: string | null; answerSpeak: string | null } {
+function resolveCardSides(card: Card): {
+    question: string;
+    questionNotes: string | null;
+    questionSpeak: string | null;
+    answer: string;
+    answerNotes: string | null;
+    answerSpeak: string | null;
+} {
     return card.study_direction === 'back_to_front'
-        ? { question: card.back, questionNotes: card.back_notes, questionSpeak: card.back_speak, answer: card.front, answerNotes: card.front_notes, answerSpeak: card.front_speak }
-        : { question: card.front, questionNotes: card.front_notes, questionSpeak: card.front_speak, answer: card.back, answerNotes: card.back_notes, answerSpeak: card.back_speak };
+        ? {
+              question: card.back,
+              questionNotes: card.back_notes,
+              questionSpeak: card.back_speak,
+              answer: card.front,
+              answerNotes: card.front_notes,
+              answerSpeak: card.front_speak,
+          }
+        : {
+              question: card.front,
+              questionNotes: card.front_notes,
+              questionSpeak: card.front_speak,
+              answer: card.back,
+              answerNotes: card.back_notes,
+              answerSpeak: card.back_speak,
+          };
 }
 
 type HistoryEntry = { id: number; direction: string };
 
 function getXsrfToken(): string {
-    const cookie = document.cookie.split('; ').find((r) => r.startsWith('XSRF-TOKEN='));
+    const cookie = document.cookie
+        .split('; ')
+        .find((r) => r.startsWith('XSRF-TOKEN='));
 
-    return cookie ? decodeURIComponent(cookie.substring('XSRF-TOKEN='.length)) : '';
+    return cookie
+        ? decodeURIComponent(cookie.substring('XSRF-TOKEN='.length))
+        : '';
 }
 
-export default function FlashcardStudy({ deck, cards }: { deck: Deck; cards: Card[] }) {
+export default function FlashcardStudy({
+    deck,
+    cards,
+}: {
+    deck: Deck;
+    cards: Card[];
+}) {
     const [queue] = useState<Card[]>(cards);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [revealed, setRevealed] = useState(false);
@@ -131,52 +225,70 @@ export default function FlashcardStudy({ deck, cards }: { deck: Deck; cards: Car
     const current = queue[currentIndex] ?? null;
     const sides = current ? resolveCardSides(current) : null;
 
-    const speak = useCallback((html: string, speakOverride?: string | null, lang = 'en-US') => {
-        if (!window.speechSynthesis) {
-return;
-}
+    const speak = useCallback(
+        (html: string, speakOverride?: string | null, lang = 'en-US') => {
+            if (!window.speechSynthesis) {
+                return;
+            }
 
-        const raw = speakOverride?.trim() || html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+            const raw =
+                speakOverride?.trim() ||
+                html
+                    .replace(/<[^>]+>/g, ' ')
+                    .replace(/\s+/g, ' ')
+                    .trim();
 
-        if (!raw) {
-return;
-}
+            if (!raw) {
+                return;
+            }
 
-        window.speechSynthesis.cancel();
+            window.speechSynthesis.cancel();
 
-        const parts = raw.split('\n').map((p) => p.trim()).filter(Boolean);
+            const parts = raw
+                .split('\n')
+                .map((p) => p.trim())
+                .filter(Boolean);
 
-        const speakPart = (index: number) => {
-            if (index >= parts.length) {
-return;
-}
-
-            const u = new SpeechSynthesisUtterance(parts[index]);
-            u.lang = lang;
-            u.rate = 0.9;
-            u.onend = () => {
-                if (index < parts.length - 1) {
-                    setTimeout(() => speakPart(index + 1), 700);
+            const speakPart = (index: number) => {
+                if (index >= parts.length) {
+                    return;
                 }
-            };
-            window.speechSynthesis.speak(u);
-        };
 
-        speakPart(0);
-    }, []);
+                const u = new SpeechSynthesisUtterance(parts[index]);
+                u.lang = lang;
+                u.rate = 0.9;
+                u.onend = () => {
+                    if (index < parts.length - 1) {
+                        setTimeout(() => speakPart(index + 1), 700);
+                    }
+                };
+                window.speechSynthesis.speak(u);
+            };
+
+            speakPart(0);
+        },
+        [],
+    );
 
     const handleReveal = useCallback(() => {
         if (!revealed) {
             setRevealed(true);
-            setTimeout(() => answerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50);
+            setTimeout(
+                () =>
+                    answerRef.current?.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'nearest',
+                    }),
+                50,
+            );
         }
     }, [revealed]);
 
     const handleRate = useCallback(
         (ratingValue: number) => {
             if (!current || submitting) {
-return;
-}
+                return;
+            }
 
             const cardId = current.id;
             const direction = current.study_direction;
@@ -203,12 +315,23 @@ return;
                     'X-Requested-With': 'XMLHttpRequest',
                     'X-XSRF-TOKEN': getXsrfToken(),
                 },
-                body: JSON.stringify({ flashcard_id: cardId, direction, rating: ratingValue }),
+                body: JSON.stringify({
+                    flashcard_id: cardId,
+                    direction,
+                    rating: ratingValue,
+                }),
             })
                 .then((res) => res.json())
                 .then((data) => {
-                    if (Array.isArray(data?.achievements) && data.achievements.length > 0) {
-                        window.dispatchEvent(new CustomEvent('achievements-unlocked', { detail: data.achievements }));
+                    if (
+                        Array.isArray(data?.achievements) &&
+                        data.achievements.length > 0
+                    ) {
+                        window.dispatchEvent(
+                            new CustomEvent('achievements-unlocked', {
+                                detail: data.achievements,
+                            }),
+                        );
                     }
                 })
                 .catch(() => {})
@@ -224,8 +347,8 @@ return;
 
     const handleUndo = useCallback(async () => {
         if (history.length === 0 || undoing) {
-return;
-}
+            return;
+        }
 
         const last = history[history.length - 1];
         const key = `${last.id}-${last.direction}`;
@@ -245,7 +368,10 @@ return;
                     'X-Requested-With': 'XMLHttpRequest',
                     'X-XSRF-TOKEN': getXsrfToken(),
                 },
-                body: JSON.stringify({ flashcard_id: last.id, direction: last.direction }),
+                body: JSON.stringify({
+                    flashcard_id: last.id,
+                    direction: last.direction,
+                }),
             });
         } catch {
             // continue anyway
@@ -262,16 +388,19 @@ return;
     // Keyboard shortcuts
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
-            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
-return;
-}
+            if (
+                e.target instanceof HTMLInputElement ||
+                e.target instanceof HTMLTextAreaElement
+            ) {
+                return;
+            }
 
             if (e.key === ' ' || e.key === 'Enter') {
                 e.preventDefault();
 
                 if (!revealed) {
-handleReveal();
-}
+                    handleReveal();
+                }
             }
 
             if (revealed && ['1', '2', '3', '4'].includes(e.key)) {
@@ -286,17 +415,24 @@ handleReveal();
         window.addEventListener('keydown', handler);
 
         return () => window.removeEventListener('keydown', handler);
-    }, [revealed, handleReveal, handleRate, handleUndo, history.length, undoing]);
+    }, [
+        revealed,
+        handleReveal,
+        handleRate,
+        handleUndo,
+        history.length,
+        undoing,
+    ]);
 
     if (done || queue.length === 0) {
         return (
             <>
                 <Head title="Kész!" />
-                <div className="flex min-h-[80vh] flex-col items-center justify-center gap-6 text-center px-4">
+                <div className="flex min-h-[80vh] flex-col items-center justify-center gap-6 px-4 text-center">
                     <CheckCircle className="size-16 text-green-500" />
                     <div>
                         <h2 className="text-2xl font-bold">Szuper!</h2>
-                        <p className="text-muted-foreground mt-1">
+                        <p className="mt-1 text-muted-foreground">
                             {queue.length === 0
                                 ? 'Nincs esedékes kártya ebben a deckben.'
                                 : `${queue.length} kártyát átnéztél.`}
@@ -305,14 +441,10 @@ handleReveal();
                     <div className="flex gap-3">
                         <Link href={show(deck.id)}>
                             <Button variant="outline">
-                                <ArrowLeft className="size-4 mr-2" />
+                                <ArrowLeft className="mr-2 size-4" />
                                 Vissza a deckhez
                             </Button>
                         </Link>
-                        <Button onClick={() => router.reload()}>
-                            <RotateCcw className="size-4 mr-2" />
-                            Újratöltés
-                        </Button>
                     </div>
                 </div>
             </>
@@ -325,10 +457,13 @@ handleReveal();
         <>
             <Head title={`Tanulás · ${deck.name}`} />
 
-            <div className="flex flex-col min-h-[80vh] px-4 py-6 max-w-2xl mx-auto">
+            <div className="mx-auto flex min-h-[80vh] max-w-2xl min-w-90 flex-col pb-20 px-4 md:py-6 xl:min-w-2xl">
                 {/* Header */}
-                <div className="flex items-center justify-between mb-6">
-                    <Link href={show(deck.id)} className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1">
+                <div className="mb-6 flex items-center justify-between">
+                    <Link
+                        href={show(deck.id)}
+                        className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+                    >
                         <ArrowLeft className="size-4" />
                         {deck.name}
                     </Link>
@@ -338,7 +473,7 @@ handleReveal();
                                 onClick={handleUndo}
                                 disabled={undoing}
                                 title="Vissza (Backspace)"
-                                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-40 transition-colors"
+                                className="flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
                             >
                                 <Undo2 className="size-3.5" />
                                 Vissza
@@ -351,67 +486,101 @@ handleReveal();
                 </div>
 
                 {/* Progress bar */}
-                <div className="h-1 w-full bg-muted rounded-full mb-8 overflow-hidden">
+                <div className="mb-8 h-1 w-full overflow-hidden rounded-full bg-muted">
                     <div
-                        className="h-full bg-primary rounded-full transition-all duration-500"
+                        className="h-full rounded-full bg-primary transition-all duration-500"
                         style={{ width: `${progress}%` }}
                     />
                 </div>
 
                 {/* Card */}
-                <div className="flex-1 flex flex-col gap-4">
+                <div className="flex flex-1 flex-col gap-4">
                     {/* Question */}
                     <div
-                        className="relative flex-1 flex flex-col items-center justify-center rounded-3xl bg-card shadow-sm p-5 sm:p-8 text-center min-h-48 cursor-pointer select-none"
-                        style={current.color ? { boxShadow: `inset 0 0 0 2px ${current.color}` } : {}}
+                        className="relative flex min-h-64 cursor-pointer flex-col items-center justify-center rounded-3xl bg-card p-5 text-center shadow-sm select-none sm:p-8"
+                        style={
+                            current.color
+                                ? {
+                                      boxShadow: `inset 0 0 0 2px ${current.color}`,
+                                  }
+                                : {}
+                        }
                         onClick={handleReveal}
                     >
                         <div className="absolute top-3 right-3 flex flex-col items-end gap-1">
                             <button
                                 onClick={(e) => {
- e.stopPropagation(); setShowInfo(true); 
-}}
-                                className="rounded-full p-1 text-muted-foreground/50 hover:bg-muted hover:text-foreground transition-colors"
+                                    e.stopPropagation();
+                                    setShowInfo(true);
+                                }}
+                                className="rounded-full p-1 text-muted-foreground/50 transition-colors hover:bg-muted hover:text-foreground"
                                 title="Statisztika"
                             >
                                 <Info className="size-3.5" />
                             </button>
                             {current.review.is_leech && (
-                                <span className="text-xs text-destructive font-medium">⚠ leech</span>
+                                <span className="text-xs font-medium text-destructive">
+                                    ⚠ leech
+                                </span>
                             )}
                             {current.other_side_due_at && (
-                                <span className="text-xs text-muted-foreground/60" title="A másik irány esedékessége">
-                                    ↔ {formatRelativeTime(current.other_side_due_at)}
+                                <span
+                                    className="text-xs text-muted-foreground/60"
+                                    title="A másik irány esedékessége"
+                                >
+                                    ↔{' '}
+                                    {formatRelativeTime(
+                                        current.other_side_due_at,
+                                    )}
                                 </span>
                             )}
                         </div>
                         {sides!.questionSpeak && (
                             <button
                                 onClick={(e) => {
- e.stopPropagation(); speak(sides!.question, sides!.questionSpeak); 
-}}
-                                className="absolute top-3 left-3 rounded-full p-1.5 text-muted-foreground/50 hover:bg-muted hover:text-foreground transition-colors"
+                                    e.stopPropagation();
+                                    speak(
+                                        sides!.question,
+                                        sides!.questionSpeak,
+                                    );
+                                }}
+                                className="absolute top-3 left-3 rounded-full p-1.5 text-muted-foreground/50 transition-colors hover:bg-muted hover:text-foreground"
                                 title="Felolvasás"
                             >
                                 <Volume2 className="size-4" />
                             </button>
                         )}
-                        <span className="text-xs text-muted-foreground uppercase tracking-wide mb-3">
-                            {current.review.state === 'new' ? 'Új kártya' :
-                             current.review.state === 'learning' ? 'Tanulás' :
-                             current.review.state === 'relearning' ? 'Újratanulás' :
-                             `Ismétlés · ${current.review.interval} nap`}
+                        <span className="mb-3 text-xs tracking-wide text-muted-foreground uppercase">
+                            {current.review.state === 'new'
+                                ? 'Új kártya'
+                                : current.review.state === 'learning'
+                                  ? 'Tanulás'
+                                  : current.review.state === 'relearning'
+                                    ? 'Újratanulás'
+                                    : `Ismétlés · ${current.review.interval} nap`}
                         </span>
-                        <RichTextContent html={sides!.question} className="text-lg font-semibold" />
+                        <RichTextContent
+                            html={sides!.question}
+                            className="text-lg font-semibold"
+                        />
                         {sides!.questionNotes && (
-                            <RichTextContent html={sides!.questionNotes} className="mt-3 text-sm text-muted-foreground" />
+                            <RichTextContent
+                                html={sides!.questionNotes}
+                                className="mt-3 text-sm text-muted-foreground"
+                            />
                         )}
 
                         {!revealed && (
                             <p className="mt-6 text-xs text-muted-foreground">
-                                <span className="sm:hidden">Koppints a válasz megjelenítéséhez</span>
+                                <span className="sm:hidden">
+                                    Koppints a válasz megjelenítéséhez
+                                </span>
                                 <span className="hidden sm:inline">
-                                    Kattints vagy nyomj <kbd className="px-1.5 py-0.5 rounded border text-xs">Space</kbd> a megjelenítéshez
+                                    Kattints vagy nyomj{' '}
+                                    <kbd className="rounded border px-1.5 py-0.5 text-xs">
+                                        Space
+                                    </kbd>{' '}
+                                    a megjelenítéshez
                                 </span>
                             </p>
                         )}
@@ -419,40 +588,61 @@ handleReveal();
 
                     {/* Answer */}
                     {revealed && (
-                        <div ref={answerRef} className="relative rounded-3xl bg-accent/60 p-6 text-center animate-in fade-in slide-in-from-bottom-2 duration-200">
+                        <div
+                            ref={answerRef}
+                            className="relative flex min-h-64 animate-in flex-col items-center justify-center rounded-3xl bg-accent/60 p-6 text-center duration-200 fade-in slide-in-from-bottom-2"
+                        >
                             {sides!.answerSpeak && (
                                 <button
-                                    onClick={() => speak(sides!.answer, sides!.answerSpeak)}
-                                    className="absolute top-3 left-3 rounded-full p-1.5 text-muted-foreground/50 hover:bg-muted hover:text-foreground transition-colors"
+                                    onClick={() =>
+                                        speak(sides!.answer, sides!.answerSpeak)
+                                    }
+                                    className="absolute top-3 left-3 rounded-full p-1.5 text-muted-foreground/50 transition-colors hover:bg-muted hover:text-foreground"
                                     title="Felolvasás"
                                 >
                                     <Volume2 className="size-4" />
                                 </button>
                             )}
-                            <RichTextContent html={sides!.answer} className="text-base" />
+                            <RichTextContent
+                                html={sides!.answer}
+                                className="text-base"
+                            />
                             {sides!.answerNotes && (
-                                <RichTextContent html={sides!.answerNotes} className="mt-3 text-sm text-muted-foreground" />
+                                <RichTextContent
+                                    html={sides!.answerNotes}
+                                    className="mt-3 text-sm text-muted-foreground"
+                                />
                             )}
                         </div>
                     )}
 
                     {/* Rating buttons */}
                     {revealed && (
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2 animate-in fade-in slide-in-from-bottom-2 duration-200">
-                            {RATING_BUTTONS.map(({ rating, label, previewKey, shortcut, className }) => (
-                                <button
-                                    key={rating}
-                                    disabled={undoing || submitting}
-                                    onClick={() => handleRate(rating)}
-                                    className={`flex flex-col items-center justify-center gap-1 rounded-2xl py-3.5 px-2 text-sm font-semibold shadow-sm transition-all hover:shadow active:scale-95 disabled:opacity-50 ${className}`}
-                                >
-                                    <span className="hidden text-xs opacity-50 sm:inline">{shortcut}</span>
-                                    {label}
-                                    <span className="text-xs font-normal opacity-70">
-                                        {current.previews[previewKey]}
-                                    </span>
-                                </button>
-                            ))}
+                        <div className="mt-2 grid animate-in grid-cols-2 gap-2 duration-200 fade-in slide-in-from-bottom-2 sm:grid-cols-4">
+                            {RATING_BUTTONS.map(
+                                ({
+                                    rating,
+                                    label,
+                                    previewKey,
+                                    shortcut,
+                                    className,
+                                }) => (
+                                    <button
+                                        key={rating}
+                                        disabled={undoing || submitting}
+                                        onClick={() => handleRate(rating)}
+                                        className={`flex flex-col items-center justify-center gap-1 rounded-2xl px-2 py-3.5 text-sm font-semibold shadow-sm transition-all hover:shadow active:scale-95 disabled:opacity-50 ${className}`}
+                                    >
+                                        <span className="hidden text-xs opacity-50 sm:inline">
+                                            {shortcut}
+                                        </span>
+                                        {label}
+                                        <span className="text-xs font-normal opacity-70">
+                                            {current.previews[previewKey]}
+                                        </span>
+                                    </button>
+                                ),
+                            )}
                         </div>
                     )}
                 </div>
@@ -460,82 +650,147 @@ handleReveal();
             {/* Card info dialog */}
             {current && (
                 <Dialog open={showInfo} onOpenChange={setShowInfo}>
-                    <DialogContent className="sm:max-w-xs w-[calc(100vw-2rem)] max-h-[85vh] overflow-y-auto">
+                    <DialogContent className="max-h-[85vh] w-[calc(100vw-2rem)] overflow-y-auto sm:max-w-xs">
                         <DialogHeader>
-                            <DialogTitle className="text-base">Kártya statisztika</DialogTitle>
+                            <DialogTitle className="text-base">
+                                Kártya statisztika
+                            </DialogTitle>
                         </DialogHeader>
 
                         <div className="space-y-4 pt-1">
                             {/* Current state */}
                             <div>
-                                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Jelenlegi állapot</p>
+                                <p className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                                    Jelenlegi állapot
+                                </p>
                                 <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
                                     <InfoRow label="Állapot">
-                                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${stateBadgeClass(current.review.state)}`}>
+                                        <span
+                                            className={`rounded-full px-2 py-0.5 text-xs font-medium ${stateBadgeClass(current.review.state)}`}
+                                        >
                                             {stateLabel(current.review.state)}
                                         </span>
                                     </InfoRow>
-                                    {(current.review.state === 'learning' || current.review.state === 'relearning') && (
+                                    {(current.review.state === 'learning' ||
+                                        current.review.state ===
+                                            'relearning') && (
                                         <InfoRow label="Tanulási lépés">
-                                            <span className="font-medium">{current.review.learning_step + 1}. lépés</span>
+                                            <span className="font-medium">
+                                                {current.review.learning_step +
+                                                    1}
+                                                . lépés
+                                            </span>
                                         </InfoRow>
                                     )}
                                     {current.review.state === 'review' && (
                                         <InfoRow label="Intervallum">
-                                            <span className="font-medium">{current.review.interval} nap</span>
+                                            <span className="font-medium">
+                                                {current.review.interval} nap
+                                            </span>
                                         </InfoRow>
                                     )}
                                     <InfoRow label="Ease factor">
-                                        <span className="font-medium">{(current.review.ease_factor / 100).toFixed(2)}</span>
+                                        <span className="font-medium">
+                                            {(
+                                                current.review.ease_factor / 100
+                                            ).toFixed(2)}
+                                        </span>
                                     </InfoRow>
                                     <InfoRow label="Ismétlések">
-                                        <span className="font-medium">{current.review.repetitions}</span>
+                                        <span className="font-medium">
+                                            {current.review.repetitions}
+                                        </span>
                                     </InfoRow>
                                     <InfoRow label="Tévesztések">
-                                        <span className="font-medium">{current.review.lapses}</span>
+                                        <span className="font-medium">
+                                            {current.review.lapses}
+                                        </span>
                                     </InfoRow>
                                     {current.review.introduced_on && (
                                         <InfoRow label="Bevezetve">
-                                            <span className="font-medium">{current.review.introduced_on}</span>
+                                            <span className="font-medium">
+                                                {current.review.introduced_on}
+                                            </span>
                                         </InfoRow>
                                     )}
                                     {current.review.reviewed_on && (
                                         <InfoRow label="Utolsó ismétlés">
-                                            <span className="font-medium">{current.review.reviewed_on}</span>
+                                            <span className="font-medium">
+                                                {current.review.reviewed_on}
+                                            </span>
                                         </InfoRow>
                                     )}
                                     {current.review.is_leech && (
-                                        <p className="text-xs text-destructive">⚠ Leech — sokat tévesztett kártya</p>
+                                        <p className="text-xs text-destructive">
+                                            ⚠ Leech — sokat tévesztett kártya
+                                        </p>
                                     )}
                                 </div>
-                                <p className="mt-1.5 text-[11px] text-muted-foreground/60 text-center">A statisztika a munkamenet kezdeti állapotát tükrözi.</p>
+                                <p className="mt-1.5 text-center text-[11px] text-muted-foreground/60">
+                                    A statisztika a munkamenet kezdeti állapotát
+                                    tükrözi.
+                                </p>
                             </div>
 
                             {/* Previous state */}
                             {current.review.previous_state && (
                                 <div>
-                                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Előző állapot</p>
+                                    <p className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                                        Előző állapot
+                                    </p>
                                     <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
                                         <InfoRow label="Állapot">
-                                            <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${stateBadgeClass(current.review.previous_state.state)}`}>
-                                                {stateLabel(current.review.previous_state.state)}
+                                            <span
+                                                className={`rounded-full px-2 py-0.5 text-xs font-medium ${stateBadgeClass(current.review.previous_state.state)}`}
+                                            >
+                                                {stateLabel(
+                                                    current.review
+                                                        .previous_state.state,
+                                                )}
                                             </span>
                                         </InfoRow>
-                                        {(current.review.previous_state.state === 'learning' || current.review.previous_state.state === 'relearning') && (
+                                        {(current.review.previous_state
+                                            .state === 'learning' ||
+                                            current.review.previous_state
+                                                .state === 'relearning') && (
                                             <InfoRow label="Tanulási lépés volt">
-                                                <span className="font-medium">{current.review.previous_state.learning_step + 1}. lépés</span>
+                                                <span className="font-medium">
+                                                    {current.review
+                                                        .previous_state
+                                                        .learning_step + 1}
+                                                    . lépés
+                                                </span>
                                             </InfoRow>
                                         )}
-                                        {current.review.previous_state.interval > 0 && (
+                                        {current.review.previous_state
+                                            .interval > 0 && (
                                             <InfoRow label="Intervallum volt">
-                                                <span className="font-medium">{current.review.previous_state.interval} nap</span>
+                                                <span className="font-medium">
+                                                    {
+                                                        current.review
+                                                            .previous_state
+                                                            .interval
+                                                    }{' '}
+                                                    nap
+                                                </span>
                                             </InfoRow>
                                         )}
                                         <InfoRow label="Ease factor volt">
-                                            <span className="font-medium">{(current.review.previous_state.ease_factor / 100).toFixed(2)}</span>
+                                            <span className="font-medium">
+                                                {(
+                                                    current.review
+                                                        .previous_state
+                                                        .ease_factor / 100
+                                                ).toFixed(2)}
+                                            </span>
                                         </InfoRow>
                                         <InfoRow label="Tévesztések volt">
-                                            <span className="font-medium">{current.review.previous_state.lapses}</span>
+                                            <span className="font-medium">
+                                                {
+                                                    current.review
+                                                        .previous_state.lapses
+                                                }
+                                            </span>
                                         </InfoRow>
                                     </div>
                                 </div>
@@ -543,21 +798,46 @@ handleReveal();
 
                             {/* Next steps */}
                             <div>
-                                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Következő lépések</p>
+                                <p className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                                    Következő lépések
+                                </p>
                                 {revealed ? (
                                     <div className="overflow-hidden rounded-lg border">
-                                        {RATING_BUTTONS.map(({ rating, label, previewKey, textClass }, i) => (
-                                            <div
-                                                key={rating}
-                                                className={`flex items-center justify-between px-3 py-2 text-sm ${i < RATING_BUTTONS.length - 1 ? 'border-b' : ''}`}
-                                            >
-                                                <span className={`font-medium ${textClass}`}>{label}</span>
-                                                <span className="text-muted-foreground">{current.previews[previewKey]}</span>
-                                            </div>
-                                        ))}
+                                        {RATING_BUTTONS.map(
+                                            (
+                                                {
+                                                    rating,
+                                                    label,
+                                                    previewKey,
+                                                    textClass,
+                                                },
+                                                i,
+                                            ) => (
+                                                <div
+                                                    key={rating}
+                                                    className={`flex items-center justify-between px-3 py-2 text-sm ${i < RATING_BUTTONS.length - 1 ? 'border-b' : ''}`}
+                                                >
+                                                    <span
+                                                        className={`font-medium ${textClass}`}
+                                                    >
+                                                        {label}
+                                                    </span>
+                                                    <span className="text-muted-foreground">
+                                                        {
+                                                            current.previews[
+                                                                previewKey
+                                                            ]
+                                                        }
+                                                    </span>
+                                                </div>
+                                            ),
+                                        )}
                                     </div>
                                 ) : (
-                                    <p className="text-xs text-muted-foreground">Fedezd fel a kártyát az értékek megtekintéséhez.</p>
+                                    <p className="text-xs text-muted-foreground">
+                                        Fedezd fel a kártyát az értékek
+                                        megtekintéséhez.
+                                    </p>
                                 )}
                             </div>
                         </div>

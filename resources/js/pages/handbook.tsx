@@ -1,5 +1,4 @@
 import { Head } from '@inertiajs/react';
-import { useEffect, useRef, useState } from 'react';
 import {
     BookOpen,
     Zap,
@@ -14,7 +13,6 @@ import {
     ChevronRight,
     Lightbulb,
     AlertCircle,
-    CheckCircle2,
     Star,
     RefreshCw,
     ListChecks,
@@ -23,6 +21,7 @@ import {
     Tv2,
     Youtube,
 } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import ChromeExtensionsLink from '@/components/chrome-extensions-link';
 
 const sections = [
@@ -184,6 +183,7 @@ function Badge({
         purple: 'bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300',
         default: 'bg-muted text-foreground',
     };
+
     return (
         <span
             className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold ${colors[color]}`}
@@ -215,6 +215,7 @@ function InfoBox({
         },
     };
     const s = styles[type];
+    
     return (
         <div
             className={`flex gap-2.5 rounded-xl border px-4 py-3 text-sm ${s.wrap}`}
@@ -269,15 +270,21 @@ export default function Handbook() {
         observerRef.current = new IntersectionObserver(
             (entries) => {
                 for (const entry of entries) {
-                    if (entry.isIntersecting) setActiveId(entry.target.id);
+                    if (entry.isIntersecting) {
+                        setActiveId(entry.target.id);
+                    }
                 }
             },
             { root, rootMargin: '-20% 0px -70% 0px' },
         );
         sections.forEach(({ id }) => {
             const el = document.getElementById(id);
-            if (el) observerRef.current?.observe(el);
+
+            if (el) {
+                observerRef.current?.observe(el);
+            }
         });
+
         return () => observerRef.current?.disconnect();
     }, []);
 
@@ -1674,22 +1681,23 @@ export default function Handbook() {
 
                             <Sub title="Oldalon lévő szavak kiemelése">
                                 <P>
-                                    A bővítmény képes aláhúzni az oldalon az
+                                    A bővítmény képes kiemelni az oldalon az
                                     összes szót, amelyhez van státuszod — így
                                     azonnal látod, mit tanultál már és mit nem.
                                 </P>
                                 <Table
-                                    headers={['Szín', 'Státusz']}
+                                    headers={['Példa', 'Státusz']}
                                     rows={[
                                         [
                                             <span
                                                 className="font-medium"
                                                 style={{
-                                                    borderBottom:
-                                                        '2px solid #22c55e',
+                                                    backgroundColor: '#22c55e33',
+                                                    borderRadius: '3px',
+                                                    padding: '1px 6px',
                                                 }}
                                             >
-                                                zöld aláhúzás
+                                                zöld háttér
                                             </span>,
                                             'Tudom',
                                         ],
@@ -1697,11 +1705,12 @@ export default function Handbook() {
                                             <span
                                                 className="font-medium"
                                                 style={{
-                                                    borderBottom:
-                                                        '2px solid #3b82f6',
+                                                    backgroundColor: '#3b82f633',
+                                                    borderRadius: '3px',
+                                                    padding: '1px 6px',
                                                 }}
                                             >
-                                                kék aláhúzás
+                                                kék háttér
                                             </span>,
                                             'Tanulom',
                                         ],
@@ -1709,11 +1718,12 @@ export default function Handbook() {
                                             <span
                                                 className="font-medium"
                                                 style={{
-                                                    borderBottom:
-                                                        '2px solid #f97316',
+                                                    backgroundColor: '#f9731633',
+                                                    borderRadius: '3px',
+                                                    padding: '1px 6px',
                                                 }}
                                             >
-                                                narancs aláhúzás
+                                                narancs háttér
                                             </span>,
                                             'Mentett',
                                         ],
@@ -1721,13 +1731,27 @@ export default function Handbook() {
                                             <span
                                                 className="font-medium"
                                                 style={{
-                                                    borderBottom:
-                                                        '2px solid #8b5cf6',
+                                                    backgroundColor: '#8b5cf633',
+                                                    borderRadius: '3px',
+                                                    padding: '1px 6px',
                                                 }}
                                             >
-                                                lila aláhúzás
+                                                lila háttér
                                             </span>,
                                             'Kiejtés',
+                                        ],
+                                        [
+                                            <span
+                                                className="font-medium"
+                                                style={{
+                                                    backgroundColor: '#f43f5e33',
+                                                    borderRadius: '3px',
+                                                    padding: '1px 6px',
+                                                }}
+                                            >
+                                                piros háttér
+                                            </span>,
+                                            'Gyakorlásra',
                                         ],
                                     ]}
                                 />

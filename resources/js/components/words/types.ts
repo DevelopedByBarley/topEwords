@@ -168,7 +168,7 @@ export const STATUS_CONFIG: StatusConfigEntry[] = [
         pillHover: 'hover:bg-violet-100 hover:text-violet-700',
         rowBg: 'bg-violet-50 dark:bg-violet-950/20',
         rowText: 'text-violet-700 decoration-violet-400 dark:text-violet-400',
-        filterActive: 'bg-violet-600 hover:bg-violet-700',
+        filterActive: 'bg-gradient-to-br from-violet-500 to-violet-400 hover:bg-violet-700',
         filterHover: 'hover:border-violet-500 hover:text-violet-700',
     },
     {

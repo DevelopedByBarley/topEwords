@@ -2,15 +2,19 @@
 
 namespace App\Http\Controllers;
 
+use App\Concerns\TogglesWordStatus;
 use App\Http\Requests\StoreUserCustomWordRequest;
 use App\Models\UserCustomWord;
 use App\Services\AchievementService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 
 class UserCustomWordController extends Controller
 {
+    use TogglesWordStatus;
+
     private const WORD_FIELDS = [
         'word', 'meaning_hu', 'extra_meanings', 'synonyms', 'part_of_speech',
         'example_en', 'example_hu', 'form_base', 'verb_past', 'verb_past_participle',
@@ -68,28 +72,31 @@ class UserCustomWordController extends Controller
         return back();
     }
 
-    public function status(Request $request, UserCustomWord $customWord): RedirectResponse
+    public function status(Request $request, UserCustomWord $customWord): RedirectResponse|JsonResponse
     {
         Gate::authorize('update', $customWord);
 
-        $status = $request->validate(['status' => 'required|in:known,learning,saved,pronunciation,practice'])['status'];
+        $status = $this->validatedToggleStatus($request);
 
-        if ($customWord->status === $status) {
+        // Üres státusz, vagy az aktív gomb újrakattintása → levétel.
+        if ($status === null || $customWord->status === $status) {
             $customWord->update(['status' => null]);
-        } else {
-            $customWord->update(['status' => $status]);
 
-            if ($request->user()->updateStreak()) {
-                session()->flash('streak_triggered', $request->user()->streak);
-            }
-
-            $newAchievements = app(AchievementService::class)->checkAndAward($request->user(), ['streak', 'vocab', 'known', 'custom']);
-            if ($newAchievements) {
-                session()->flash('achievements', $newAchievements);
-            }
+            return $this->statusToggleResponse($request, null);
         }
 
-        return back();
+        $customWord->update(['status' => $status]);
+
+        if ($request->user()->updateStreak()) {
+            session()->flash('streak_triggered', $request->user()->streak);
+        }
+
+        $newAchievements = app(AchievementService::class)->checkAndAward($request->user(), ['streak', 'vocab', 'known', 'custom']);
+        if ($newAchievements) {
+            session()->flash('achievements', $newAchievements);
+        }
+
+        return $this->statusToggleResponse($request, $status);
     }
 
     public function importance(Request $request, UserCustomWord $customWord): RedirectResponse

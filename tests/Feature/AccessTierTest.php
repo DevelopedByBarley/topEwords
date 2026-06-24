@@ -118,13 +118,19 @@ test('checkout redirects with info when buying the already active plan', functio
         'services.stripe.premium_price_id' => 'price_premium',
         'cashier.key' => 'pk_test_real',
     ]);
-    $user = User::factory()->create();
+    // withBilling(): a checkout számlázási kapuőrén át kell jutnia, hogy elérje a
+    // "már ez az aktív csomagod" ágat (különben a billing.edit-re irányítana).
+    $user = User::factory()->withBilling()->create();
     makeSubscription($user, 'default', 'price_basic');
 
+    // accept_terms: a checkout kötelező consent-ellenőrzésén is át kell jutni.
     $this->actingAs($user)
-        ->post(route('pricing.checkout', 'basic'))
+        ->post(route('pricing.checkout', 'basic'), ['accept_terms' => true])
         ->assertRedirect(route('pricing'))
         ->assertSessionHas('info');
+
+    // A hozzájárulás naplózódott.
+    expect($user->fresh()->terms_accepted_at)->not->toBeNull();
 });
 
 test('canceled subscription past its end date no longer grants access', function () {
@@ -225,6 +231,15 @@ test('cancelled checkout redirects with an info message', function () {
 
 test('success route flashes a confirmation message', function () {
     $user = User::factory()->create();
+    // Aktív előfizetés kell a "sikeres" üzenethez — webhook nélkül a success oldal
+    // "feldolgozás alatt" (info) üzenetet ad (lásd PricingController::success, Kö1).
+    $user->subscriptions()->create([
+        'type' => 'default',
+        'stripe_id' => 'sub_'.uniqid(),
+        'stripe_status' => 'active',
+        'stripe_price' => 'price_basic',
+        'quantity' => 1,
+    ]);
 
     $this->actingAs($user)
         ->get(URL::temporarySignedRoute('pricing.success', now()->addMinutes(10)))

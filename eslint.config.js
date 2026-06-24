@@ -30,6 +30,13 @@ export default [
     reactHooks.configs.flat['recommended-latest'],
     ...typescript.configs.recommended,
     {
+        languageOptions: {
+            parserOptions: {
+                tsconfigRootDir: import.meta.dirname,
+            },
+        },
+    },
+    {
         ...react.configs.flat.recommended,
         ...react.configs.flat['jsx-runtime'], // Required for React 17+
         languageOptions: {
@@ -111,6 +118,19 @@ export default [
                 ...globals.browser,
                 ...globals.webextensions,
             },
+        },
+    },
+    {
+        // A content script több fájlra van bontva (src/), de a Chrome ezeket
+        // KÖZÖS globális scope-ban futtatja (nem ES module-ok) — egy fájl
+        // függvényei/konstansai a többiből is elérhetők. Ezért a fájlonkénti
+        // no-undef (másik fájl globálisa) és no-unused-vars (másik fájlban
+        // használt deklaráció) itt félrevezető; a betöltési sorrendet a
+        // manifest.json content_scripts.js tömbje garantálja.
+        files: ['chrome-extension/src/**/*.js'],
+        rules: {
+            'no-undef': 'off',
+            '@typescript-eslint/no-unused-vars': 'off',
         },
     },
     {

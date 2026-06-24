@@ -119,7 +119,10 @@ const CATEGORIES: CategoryKey[] = [
 ];
 
 function categoryCount(cat: CategoryKey): number {
-    if (cat === 'Összes') return VIDEOS.length;
+    if (cat === 'Összes') {
+        return VIDEOS.length;
+    }
+
     return VIDEOS.filter((v) => v.category === cat).length;
 }
 
@@ -190,7 +193,7 @@ export default function Guide() {
                             href="/"
                             className="flex items-center gap-2.5 text-[20px] font-extrabold leading-none tracking-tight text-neutral-800 dark:text-neutral-100"
                         >
-                            <span className="flex size-9 items-center justify-center rounded-xl bg-violet-600 text-white">
+                            <span className="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-violet-400 text-white">
                                 <BookOpen size={22} />
                             </span>
                             TopWords
@@ -235,7 +238,7 @@ export default function Guide() {
                             {auth.user ? (
                                 <Button
                                     asChild
-                                    className="bg-violet-600 text-white hover:bg-violet-700"
+                                    className="bg-gradient-to-br from-violet-500 to-violet-400 text-white hover:bg-violet-700"
                                 >
                                     <Link href={dashboard()}>
                                         Irány az alkalmazás
@@ -254,7 +257,7 @@ export default function Guide() {
                                     </Button>
                                     <Button
                                         asChild
-                                        className="bg-violet-600 text-white hover:bg-violet-700"
+                                        className="bg-gradient-to-br from-violet-500 to-violet-400 text-white hover:bg-violet-700"
                                     >
                                         <Link href={register()}>
                                             Regisztrálás
@@ -287,7 +290,7 @@ export default function Guide() {
                                 onClick={() => setActiveCategory(cat)}
                                 className={`inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-semibold transition-colors ${
                                     activeCategory === cat
-                                        ? 'bg-violet-600 text-white'
+                                        ? 'bg-gradient-to-br from-violet-500 to-violet-400 text-white'
                                         : 'bg-white text-neutral-600 hover:bg-neutral-100 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700'
                                 }`}
                             >

@@ -47,9 +47,16 @@ class SubscriptionController extends Controller
     {
         $subscription = $request->user()->activeSubscription();
 
-        if ($subscription !== null && ! $subscription->onGracePeriod()) {
-            $subscription->cancel();
+        if ($subscription === null) {
+            return back();
         }
+
+        // Már lemondva (grace period) — ne adjunk hamis "sikeresen lemondva" visszajelzést.
+        if ($subscription->onGracePeriod()) {
+            return back()->with('info', 'Az előfizetésed már le van mondva, az időszak végéig aktív marad.');
+        }
+
+        $subscription->cancel();
 
         return back()->with('success', 'Előfizetésed lemondva. Az időszak végéig még hozzáférsz a funkciókhoz.');
     }
@@ -64,7 +71,7 @@ class SubscriptionController extends Controller
             return back()->with('success', 'Lemondás visszavonva, az előfizetésed aktív marad.');
         }
 
-        return back();
+        return back()->with('info', 'Nincs visszavonható lemondás.');
     }
 
     public function portal(Request $request): RedirectResponse|\Illuminate\Http\Response

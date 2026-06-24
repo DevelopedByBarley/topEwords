@@ -1,24 +1,9 @@
-import {     router } from '@inertiajs/react';
-import {  ArrowLeftRight,   Copy,  Edit2,   Info,  MoreHorizontal, MoveRight,  RotateCcw,    Sparkles, Trash2 } from 'lucide-react';
+import { router } from '@inertiajs/react';
+import { ArrowLeftRight, Copy, Edit2, Info, MoreHorizontal, MoveRight, RotateCcw, Sparkles, Trash2 } from 'lucide-react';
 import React, { useState } from 'react';
 import MoveConfirmDialog from '@/components/flashcards/move-confirm-dialog';
-import {
-    
-    
-    
-    
-    STATE_LABELS,
-    formatDue,
-    
-    plainText,
-    stateBadgeClass
-    
-    
-    
-    
-    
-     } from '@/components/flashcards/types';
-import type {Deck, Flashcard, OtherDeck} from '@/components/flashcards/types';
+import { STATE_LABELS, formatDue, plainText, stateBadgeClass } from '@/components/flashcards/types';
+import type { Deck, Flashcard, OtherDeck } from '@/components/flashcards/types';
 import {
     DropdownMenu,
     DropdownMenuContent,

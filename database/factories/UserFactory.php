@@ -88,4 +88,19 @@ class UserFactory extends Factory
             'plan_override' => 'premium',
         ]);
     }
+
+    /**
+     * User with complete billing details filled in.
+     */
+    public function withBilling(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'billing_name' => fake()->name(),
+            'billing_zip' => fake()->postcode(),
+            'billing_city' => fake()->city(),
+            'billing_address' => fake()->streetAddress(),
+            'billing_country' => 'HU',
+            'billing_type' => 'individual',
+        ]);
+    }
 }

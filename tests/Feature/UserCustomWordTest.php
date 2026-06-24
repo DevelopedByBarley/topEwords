@@ -42,10 +42,23 @@ test('different users can have the same custom word', function () {
 
     $this->post(route('custom-words.store'), [
         'word' => 'ephemeral',
+        'meaning_hu' => 'illékony',
         'status' => 'known',
     ])->assertRedirect();
 
     expect(UserCustomWord::where('word', 'ephemeral')->count())->toBe(2);
+});
+
+test('meaning_hu is required when adding a custom word', function () {
+    $this->post(route('custom-words.store'), [
+        'word' => 'ephemeral',
+        'status' => 'known',
+    ])->assertSessionHasErrors('meaning_hu');
+
+    $this->assertDatabaseMissing('user_custom_words', [
+        'user_id' => $this->user->id,
+        'word' => 'ephemeral',
+    ]);
 });
 
 test('user can update their custom word', function () {
@@ -97,6 +110,34 @@ test('toggling same status removes the status (sets to null)', function () {
 
     $this->post(route('custom-words.status', $word), ['status' => 'known'])
         ->assertRedirect();
+
+    expect($word->fresh()->status)->toBeNull();
+});
+
+test('extension JSON request gets a JSON ack for custom word status', function () {
+    $word = UserCustomWord::create([
+        'user_id' => $this->user->id,
+        'word' => 'ephemeral',
+        'status' => null,
+    ]);
+
+    $this->postJson(route('custom-words.status', $word), ['status' => 'known'])
+        ->assertOk()
+        ->assertExactJson(['ok' => true, 'status' => 'known']);
+
+    expect($word->fresh()->status)->toBe('known');
+});
+
+test('empty status removes a custom word status (extension un-toggle)', function () {
+    $word = UserCustomWord::create([
+        'user_id' => $this->user->id,
+        'word' => 'ephemeral',
+        'status' => 'saved',
+    ]);
+
+    $this->postJson(route('custom-words.status', $word), ['status' => ''])
+        ->assertOk()
+        ->assertExactJson(['ok' => true, 'status' => null]);
 
     expect($word->fresh()->status)->toBeNull();
 });

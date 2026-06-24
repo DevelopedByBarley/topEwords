@@ -32,6 +32,7 @@ class PricingController extends Controller
             'isPremium' => $user?->subscriptionPlan() === 'premium',
             'hasAiAccess' => $user?->hasAiAccess() ?? false,
             'stripeConfigured' => Billing::enabled(),
+            'trialDays' => (int) config('registration.subscription_trial_days'),
         ]);
     }
 
@@ -45,6 +46,17 @@ class PricingController extends Controller
         if (! $user) {
             return redirect()->route('login');
         }
+
+        if (! $user->hasBillingDetails()) {
+            return redirect()->route('billing.edit')->with('info', 'Kérlek add meg a számlázási adataidat a fizetés előtt.');
+        }
+
+        // A 14 napos elállási jogról való lemondás kifejezett hozzájárulása kötelező, és
+        // szerveroldalon is kikényszerítjük — a kliensoldali pipa közvetlen POST-tal megkerülhető.
+        $request->validate(['accept_terms' => ['accepted']]);
+
+        // Naplózható nyomot hagyunk a hozzájárulásról (terms_accepted_at nem fillable).
+        $user->forceFill(['terms_accepted_at' => now()])->save();
 
         $priceId = $plan === 'premium'
             ? config('services.stripe.premium_price_id')
@@ -84,7 +96,9 @@ class PricingController extends Controller
         $trialDays = (int) config('registration.subscription_trial_days');
 
         if ($trialDays > 0) {
-            $subscriptionBuilder->trialDays($trialDays);
+            // A Stripe Checkout minimum 48 óra (2 nap) próbaidőt enged — kisebb beállított
+            // értéket felkerekítünk, különben a Checkout session létrehozása hibára futna.
+            $subscriptionBuilder->trialDays(max(2, $trialDays));
         }
 
         $checkout = $subscriptionBuilder->checkout([
@@ -97,6 +111,13 @@ class PricingController extends Controller
 
     public function success(Request $request): RedirectResponse
     {
+        // Az előfizetést a Stripe webhook (checkout.session.completed) hozza létre, ami a
+        // visszairányításhoz képest pár másodperc késéssel futhat le. Ha még nincs aktív
+        // előfizetés, "feldolgozás alatt" üzenetet adunk a megtévesztő "azonnal elérhető" helyett.
+        if ($request->user()?->activeSubscription() === null) {
+            return redirect()->route('pricing')->with('info', 'Köszönjük a fizetést! Az előfizetésed feldolgozás alatt – pár pillanat múlva aktívvá válik. Frissítsd az oldalt, ha még nem látod.');
+        }
+
         return redirect()->route('pricing')->with('success', 'Sikeres fizetés! Köszönjük az előfizetést – a funkciók azonnal elérhetők.');
     }
 

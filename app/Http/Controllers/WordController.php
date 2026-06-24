@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Concerns\TogglesWordStatus;
 use App\Models\Folder;
 use App\Models\UserCustomWord;
 use App\Models\Word;
@@ -15,6 +16,8 @@ use Inertia\Response;
 
 class WordController extends Controller
 {
+    use TogglesWordStatus;
+
     private const ALLOWED_PER_PAGE = [20, 50, 100, 200, 300, 400, 500, 1000];
 
     private const DEFAULT_PER_PAGE = 50;
@@ -508,11 +511,12 @@ class WordController extends Controller
 
     public function status(Request $request, Word $word): RedirectResponse|JsonResponse
     {
-        $status = $request->validate(['status' => 'required|in:known,learning,saved,pronunciation,practice'])['status'];
+        $status = $this->validatedToggleStatus($request);
 
         $existing = $request->user()->knownWords()->wherePivot('word_id', $word->id)->first();
 
-        if (! $existing && $request->user()->isOnFreePlan()) {
+        // Az ingyenes mentési limit csak új státusz felvételekor érvényes, levételkor nem.
+        if ($status !== null && ! $existing && $request->user()->isOnFreePlan()) {
             $savedCount = $request->user()->knownWords()->count();
             if ($savedCount >= 50) {
                 if ($request->expectsJson()) {
@@ -523,24 +527,28 @@ class WordController extends Controller
             }
         }
 
-        if ($existing && $existing->pivot->status === $status) {
+        // Üres státusz, vagy az aktív gomb újrakattintása → levétel.
+        if ($status === null || ($existing && $existing->pivot->status === $status)) {
             $request->user()->knownWords()->detach($word->id);
-        } else {
-            $request->user()->knownWords()->syncWithoutDetaching([$word->id => ['status' => $status]]);
-            if ($request->user()->updateStreak()) {
-                session()->flash('streak_triggered', $request->user()->streak);
-            }
 
-            $newAchievements = app(AchievementService::class)->checkAndAward(
-                $request->user(),
-                ['streak', 'vocab', 'known']
-            );
-            if ($newAchievements) {
-                session()->flash('achievements', $newAchievements);
-            }
+            return $this->statusToggleResponse($request, null);
         }
 
-        return back();
+        $request->user()->knownWords()->syncWithoutDetaching([$word->id => ['status' => $status]]);
+
+        if ($request->user()->updateStreak()) {
+            session()->flash('streak_triggered', $request->user()->streak);
+        }
+
+        $newAchievements = app(AchievementService::class)->checkAndAward(
+            $request->user(),
+            ['streak', 'vocab', 'known']
+        );
+        if ($newAchievements) {
+            session()->flash('achievements', $newAchievements);
+        }
+
+        return $this->statusToggleResponse($request, $status);
     }
 
     public function importance(Request $request, Word $word): RedirectResponse

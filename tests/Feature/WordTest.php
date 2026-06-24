@@ -99,6 +99,34 @@ test('setting the same status again removes it', function () {
     expect($this->user->knownWords()->where('word_id', $word->id)->exists())->toBeFalse();
 });
 
+test('extension JSON request gets a JSON ack instead of a redirect', function () {
+    $word = Word::where('word', 'the')->first();
+
+    $this->postJson(route('words.status', $word), ['status' => 'known'])
+        ->assertOk()
+        ->assertExactJson(['ok' => true, 'status' => 'known']);
+
+    expect($this->user->knownWords()->wherePivot('status', 'known')->where('word_id', $word->id)->exists())->toBeTrue();
+});
+
+test('empty status removes the word (extension un-toggle)', function () {
+    $word = Word::where('word', 'the')->first();
+    $this->user->knownWords()->attach($word->id, ['status' => 'saved']);
+
+    $this->postJson(route('words.status', $word), ['status' => ''])
+        ->assertOk()
+        ->assertExactJson(['ok' => true, 'status' => null]);
+
+    expect($this->user->knownWords()->where('word_id', $word->id)->exists())->toBeFalse();
+});
+
+test('inertia request still receives a redirect, not JSON', function () {
+    $word = Word::where('word', 'the')->first();
+
+    $this->post(route('words.status', $word), ['status' => 'known'], ['X-Inertia' => 'true', 'X-Requested-With' => 'XMLHttpRequest'])
+        ->assertRedirect();
+});
+
 test('words index shows correct status counts', function () {
     $words = Word::whereIn('word', ['the', 'of', 'apple'])->get()->keyBy('word');
     $this->user->knownWords()->attach($words['the']->id, ['status' => 'known']);

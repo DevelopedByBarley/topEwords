@@ -18,10 +18,10 @@ use Laravel\Cashier\Subscription;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 
 // Entitlement/billing columns (lifetime_access, ai_access, plan_override, trial_ends_at,
-// invite_id, stripe_*, ai_credit*) are intentionally NOT fillable — they are set explicitly
-// server-side (admin actions, registration via forceFill, Cashier) so no request payload can
-// grant itself paid access via mass assignment.
-#[Fillable(['name', 'email', 'password', 'streak', 'last_activity_date', 'quiz_completions', 'text_analyses', 'onboarding_completed_at'])]
+// invite_id, stripe_*, ai_credit*, terms_accepted_at) are intentionally NOT fillable — they are
+// set explicitly server-side (admin actions, registration via forceFill, Cashier, checkout) so no
+// request payload can grant itself paid access or forge consent via mass assignment.
+#[Fillable(['name', 'email', 'password', 'streak', 'last_activity_date', 'quiz_completions', 'text_analyses', 'onboarding_completed_at', 'billing_name', 'billing_tax_number', 'billing_country', 'billing_zip', 'billing_city', 'billing_address', 'billing_type'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -160,6 +160,14 @@ class User extends Authenticatable
         return ! $this->hasActiveAccess();
     }
 
+    public function hasBillingDetails(): bool
+    {
+        return filled($this->billing_name)
+            && filled($this->billing_zip)
+            && filled($this->billing_city)
+            && filled($this->billing_address);
+    }
+
     public const FREE_FLASHCARD_LIMIT = 20;
 
     /**
@@ -204,6 +212,7 @@ class User extends Authenticatable
             'ai_access' => 'boolean',
             'ai_credits_reset_at' => 'datetime',
             'onboarding_completed_at' => 'datetime',
+            'terms_accepted_at' => 'datetime',
         ];
     }
 }

@@ -22,6 +22,7 @@ interface Props {
     isPremium: boolean;
     hasAiAccess: boolean;
     stripeConfigured: boolean;
+    trialDays: number;
 }
 
 const FREE_FEATURES = [
@@ -54,14 +55,13 @@ const PREMIUM_FEATURES = [
     'Minden jövőbeli AI funkció',
 ];
 
-const PAGE_LOADED_AT = Date.now();
-
 export default function Pricing({
     isOnTrial,
     trialEndsAt,
     isSubscribed,
     isPremium,
     stripeConfigured,
+    trialDays,
 }: Props) {
     const { auth, flash } = usePage<{
         auth: { user: { name: string } | null };
@@ -73,7 +73,7 @@ export default function Pricing({
         ? Math.max(
               0,
               Math.ceil(
-                  (new Date(trialEndsAt).getTime() - PAGE_LOADED_AT) / 86400000,
+                  (new Date(trialEndsAt).getTime() - Date.now()) / 86400000,
               ),
           )
         : 0;
@@ -94,7 +94,7 @@ export default function Pricing({
             return;
         }
 
-        router.post(checkout({ plan }).url);
+        router.post(checkout({ plan }).url, { accept_terms: true });
     }
 
     function handlePortal() {
@@ -179,7 +179,7 @@ export default function Pricing({
                         </h1>
                         {stripeConfigured ? (
                             <p className="text-muted-foreground">
-                                5 napos próbaidőszak, utána döntsd el
+                                {trialDays} napos próbaidőszak, utána döntsd el
                                 melyik csomag illik hozzád.
                             </p>
                         ) : (
@@ -222,7 +222,11 @@ export default function Pricing({
                                         <strong>
                                             {trialDaysLeft} napig
                                         </strong>{' '}
-                                        tart – élvezd a prémium funkciókat!
+                                        tart – élvezd{' '}
+                                        {isPremium
+                                            ? 'a prémium funkciókat'
+                                            : 'a választott csomagod funkcióit'}
+                                        !
                                     </p>
                                 </div>
                             )}
@@ -409,7 +413,7 @@ export default function Pricing({
                                         </Button>
                                     ) : (
                                         <Button
-                                            className="w-full bg-violet-600 text-white hover:bg-violet-700"
+                                            className="w-full bg-gradient-to-br from-violet-500 to-violet-400 text-white hover:bg-violet-700"
                                             onClick={() =>
                                                 handleCheckout('premium')
                                             }
@@ -433,17 +437,23 @@ export default function Pricing({
                                         tartalmazzák). A terhelés euróban
                                         történik.
                                     </p>
-                                    <label className="flex cursor-pointer items-start gap-2 rounded-xl border bg-card px-4 py-3 text-left text-xs text-muted-foreground">
+                                    <label
+                                        className={`flex cursor-pointer items-start gap-3 rounded-xl border px-4 py-3 text-left text-xs transition-colors ${
+                                            consentError
+                                                ? 'border-red-400 bg-red-50 ring-2 ring-red-400 dark:border-red-600 dark:bg-red-950/40 dark:ring-red-600'
+                                                : 'border bg-card text-muted-foreground'
+                                        }`}
+                                    >
                                         <input
                                             type="checkbox"
-                                            className="mt-0.5 size-4 shrink-0"
+                                            className={`mt-0.5 size-4 shrink-0 accent-primary ${consentError ? 'outline-2 outline-red-400' : ''}`}
                                             checked={consent}
                                             onChange={(e) => {
                                                 setConsent(e.target.checked);
                                                 setConsentError(false);
                                             }}
                                         />
-                                        <span>
+                                        <span className={consentError ? 'text-red-700 dark:text-red-300' : ''}>
                                             Tudomásul veszem, hogy a szolgáltatás
                                             a fizetés után azonnal elérhetővé
                                             válik; kifejezetten hozzájárulok a
@@ -453,14 +463,14 @@ export default function Pricing({
                                             jogomat. Elfogadom az{' '}
                                             <Link
                                                 href="/terms"
-                                                className="text-primary underline underline-offset-2"
+                                                className="underline underline-offset-2"
                                             >
                                                 ÁSZF
                                             </Link>
                                             -et és az{' '}
                                             <Link
                                                 href="/privacy"
-                                                className="text-primary underline underline-offset-2"
+                                                className="underline underline-offset-2"
                                             >
                                                 Adatkezelési tájékoztatót
                                             </Link>
@@ -468,10 +478,12 @@ export default function Pricing({
                                         </span>
                                     </label>
                                     {consentError && (
-                                        <p className="text-center text-xs text-red-500">
-                                            A folytatáshoz fogadd el a
-                                            feltételeket.
-                                        </p>
+                                        <div className="flex items-center justify-center gap-1.5 rounded-lg bg-red-50 px-4 py-2.5 dark:bg-red-950/40">
+                                            <AlertCircle className="size-4 shrink-0 text-red-500" />
+                                            <p className="text-sm font-medium text-red-600 dark:text-red-400">
+                                                A folytatáshoz pipáld ki a fenti nyilatkozatot.
+                                            </p>
+                                        </div>
                                     )}
                                 </div>
                             )}
@@ -485,7 +497,7 @@ export default function Pricing({
                                     {[
                                         {
                                             q: 'Mikor kezdődik a számlázás?',
-                                            a: 'A 5 napos próbaidőszak után, ha úgy döntesz hogy fizetsz.',
+                                            a: `A ${trialDays} napos próbaidőszak után, ha úgy döntesz hogy fizetsz.`,
                                         },
                                         {
                                             q: 'Bármikor lemondhatom?',

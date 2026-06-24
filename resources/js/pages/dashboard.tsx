@@ -49,7 +49,7 @@ export default function Dashboard({ levelStats, totalKnown, totalWords, totalPer
 
             <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
                 {/* Hero */}
-                <div className="relative overflow-hidden rounded-3xl bg-linear-to-br from-primary to-(--color-primary-shade) p-6 md:p-8">
+                <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-violet-600 to-violet-400 p-6 md:p-8">
                     <div className="pointer-events-none absolute -top-16 -right-16 size-64 rounded-full bg-white/15 blur-2xl" />
                     <div className="pointer-events-none absolute -bottom-24 right-28 size-48 rounded-full bg-white/10 blur-2xl" />
                     <div className="relative flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">

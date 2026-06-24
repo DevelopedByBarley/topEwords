@@ -43,7 +43,7 @@ class StoreUserCustomWordRequest extends FormRequest
                     }
                 },
             ],
-            'meaning_hu' => ['nullable', 'string', 'max:255'],
+            'meaning_hu' => ['required', 'string', 'max:255'],
             'extra_meanings' => ['nullable', 'string', 'max:500'],
             'synonyms' => ['nullable', 'string', 'max:255'],
             'part_of_speech' => ['nullable', 'string', 'max:20'],

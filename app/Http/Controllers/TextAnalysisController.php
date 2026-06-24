@@ -19,6 +19,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Inertia\Response;
 use Smalot\PdfParser\Parser as PdfParser;
@@ -951,7 +952,15 @@ PROMPT;
         }
 
         $word = $this->sanitizeWordForPrompt($request->string('word')->trim()->lower()->value());
-        $context = $request->string('context')->trim()->value();
+
+        // A context szabad szöveg, ezért nem szűrhető betűkre, de a promptba kerül:
+        // idézőjeleket aposztrófra cserélünk és kötegelt szóközzé normalizáljuk
+        // (kitörés/utasítás-injektálás ellen), és 300 karakterre vágjuk (költség-korlát).
+        $context = mb_substr(
+            trim((string) preg_replace('/\s+/', ' ', str_replace('"', "'", $request->string('context')->value()))),
+            0,
+            300
+        );
 
         if ($word === null) {
             return response()->json(['error' => 'Érvénytelen szó.'], 422);
@@ -1588,23 +1597,43 @@ PROMPT;
         }
 
         $lastError = 'Ismeretlen hiba.';
+        $maxAttempts = 3;
 
-        for ($attempt = 1; $attempt <= 2; $attempt++) {
+        for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
             try {
-                $response = Http::timeout(30)
+                $response = Http::connectTimeout(10)
+                    ->timeout(20)
                     ->withHeaders([
                         'Content-Type' => 'application/json',
                         'x-goog-api-key' => $apiKey,
                     ])
                     ->post($url, $payload);
-            } catch (\Exception $e) {
-                $lastError = 'Kapcsolódási hiba: '.$e->getMessage();
+            } catch (\Throwable $e) {
+                // Hálózati hiba (timeout, DNS, kapcsolat) — átmeneti, újrapróbáljuk.
+                $lastError = 'Kapcsolódási hiba.';
+                Log::warning('Gemini connection error', [
+                    'model' => $model, 'attempt' => $attempt, 'message' => $e->getMessage(),
+                ]);
+                $this->backoff($attempt);
 
                 continue;
             }
 
             if (! $response->successful()) {
-                $lastError = 'Gemini API hiba ('.$response->status().')';
+                $status = $response->status();
+                $lastError = 'Gemini API hiba ('.$status.')';
+                Log::warning('Gemini API error', [
+                    'model' => $model, 'attempt' => $attempt, 'status' => $status,
+                    'body' => mb_substr($response->body(), 0, 500),
+                ]);
+
+                // 4xx (a 429 kivételével) végleges kérés-hiba: nincs értelme újrapróbálni.
+                if ($status < 500 && $status !== 429) {
+                    break;
+                }
+
+                // 429 (kvóta) / 5xx (túlterhelt modell): visszalépéssel újrapróbáljuk.
+                $this->backoff($attempt, $response->header('Retry-After'));
 
                 continue;
             }
@@ -1644,6 +1673,25 @@ PROMPT;
         }
 
         return ['ok' => false, 'data' => null, 'error' => $lastError, 'cost_micros' => 0];
+    }
+
+    /**
+     * Rövid, exponenciálisan növekvő várakozás újrapróbálás előtt. A felhasználó
+     * szinkron kérésében fut, ezért szándékosan rövid (max ~2 mp), hogy a webszerver
+     * gateway-timeoutját (502/504) ne lépje túl. Tesztek alatt nem alszik.
+     * A Gemini 429-nél küldött Retry-After fejlécet tiszteletben tartja, de korlátozza.
+     */
+    private function backoff(int $attempt, ?string $retryAfter = null): void
+    {
+        if (app()->runningUnitTests()) {
+            return;
+        }
+
+        $seconds = is_numeric($retryAfter)
+            ? min((float) $retryAfter, 2.0)
+            : min(0.4 * (2 ** ($attempt - 1)), 2.0);
+
+        usleep((int) ($seconds * 1_000_000));
     }
 
     /** @return string[] */

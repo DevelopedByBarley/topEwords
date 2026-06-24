@@ -1,6 +1,8 @@
 <?php
 
 use App\Models\User;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Laravel\Cashier\Subscription;
 
 test('profile page is displayed', function () {
     $user = User::factory()->create();
@@ -64,6 +66,53 @@ test('user can delete their account', function () {
         ->assertRedirect(route('home'));
 
     $this->assertGuest();
+    expect($user->fresh())->toBeNull();
+});
+
+test('deleting an account cancels every still-live stripe subscription', function () {
+    $user = User::factory()->create();
+
+    // Két élő előfizetést szimulálunk (pl. egy active + egy past_due) — a destroy()-nak
+    // MINDET le kell mondania a törlés előtt, nem csak az elsőt/aktívat. A lekérdezést
+    // és az előfizetéseket kimockoljuk, hogy ne induljon valódi Stripe-hívás.
+    $activeSub = Mockery::mock(Subscription::class);
+    $activeSub->shouldReceive('cancelNow')->once();
+
+    $pastDueSub = Mockery::mock(Subscription::class);
+    $pastDueSub->shouldReceive('cancelNow')->once();
+
+    // A subscriptions() visszatérési típusa HasMany, ezért a relációt is annak mockoljuk.
+    $query = Mockery::mock(HasMany::class);
+    $query->shouldReceive('whereNotIn')
+        ->with('stripe_status', ['canceled', 'incomplete_expired'])
+        ->andReturnSelf();
+    $query->shouldReceive('get')->andReturn(collect([$activeSub, $pastDueSub]));
+
+    $userMock = Mockery::mock($user)->makePartial();
+    $userMock->shouldReceive('subscriptions')->andReturn($query);
+
+    $this->actingAs($userMock)
+        ->delete(route('profile.destroy'), [
+            'password' => 'password',
+        ])
+        ->assertRedirect(route('home'));
+
+    $this->assertGuest();
+    expect($user->fresh())->toBeNull();
+});
+
+test('deleting an account without a subscription works (no stripe call)', function () {
+    $user = User::factory()->create();
+
+    expect($user->activeSubscription())->toBeNull();
+
+    $this->actingAs($user)
+        ->delete(route('profile.destroy'), [
+            'password' => 'password',
+        ])
+        ->assertSessionHasNoErrors()
+        ->assertRedirect(route('home'));
+
     expect($user->fresh())->toBeNull();
 });
 

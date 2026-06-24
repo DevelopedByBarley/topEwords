@@ -26,8 +26,6 @@ interface Props {
     } | null;
 }
 
-const PAGE_LOADED_AT = Date.now();
-
 export default function Subscription({
     isSubscribed,
     isPremium,
@@ -43,7 +41,7 @@ export default function Subscription({
         ? Math.max(
               0,
               Math.ceil(
-                  (new Date(trialEndsAt).getTime() - PAGE_LOADED_AT) / 86400000,
+                  (new Date(trialEndsAt).getTime() - Date.now()) / 86400000,
               ),
           )
         : 0;

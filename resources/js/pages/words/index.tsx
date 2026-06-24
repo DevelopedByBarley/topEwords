@@ -620,9 +620,15 @@ export default function WordsIndex({
             return;
         }
 
+        if (!customWordForm.meaning_hu.trim()) {
+            setCustomWordErrors({ meaning_hu: 'A magyar jelentés megadása kötelező.' });
+
+            return;
+        }
+
         const payload: Record<string, string | boolean | number | null> = {
             word: customWordForm.word.trim(),
-            meaning_hu: customWordForm.meaning_hu.trim() || null,
+            meaning_hu: customWordForm.meaning_hu.trim(),
             extra_meanings: customWordForm.extra_meanings.trim() || null,
             synonyms: customWordForm.synonyms.trim() || null,
             part_of_speech: customWordForm.part_of_speech || null,
@@ -750,7 +756,7 @@ export default function WordsIndex({
                 {/* Hero + progress + custom words */}
                 <div
                     id="custom-words"
-                    className="relative overflow-hidden rounded-3xl bg-primary p-6 md:p-8"
+                    className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-violet-600 to-violet-400 p-6 md:p-8"
                 >
                     <div className="pointer-events-none absolute -top-14 -right-14 size-56 rounded-full bg-white/15" />
                     <div className="relative flex items-start justify-between gap-3">

@@ -295,3 +295,51 @@ test('looking up a plain word does not return a multi-word custom phrase', funct
         ->assertJsonPath('word', 'cut')
         ->assertJsonPath('status', 'known');
 });
+
+function geminiSuccess(array $payload): array
+{
+    return ['candidates' => [['content' => ['parts' => [['text' => json_encode($payload)]]]]]];
+}
+
+test('gemini lookup retries a transient 503 then succeeds', function () {
+    $this->user->forceFill(['ai_access' => true])->save();
+
+    Http::fake([
+        'generativelanguage.googleapis.com/*' => Http::sequence()
+            ->push(['error' => 'overloaded'], 503)
+            ->push(geminiSuccess(['meaning_hu' => 'kutya', 'part_of_speech' => 'noun']), 200),
+    ]);
+
+    $this->getJson(route('text-analysis.gemini-lookup', ['word' => 'dog']))
+        ->assertOk()
+        ->assertJsonPath('meaning_hu', 'kutya')
+        ->assertJsonPath('part_of_speech', 'noun');
+
+    Http::assertSentCount(2);
+});
+
+test('gemini lookup returns 502 after exhausting retries on repeated 503', function () {
+    $this->user->forceFill(['ai_access' => true])->save();
+
+    Http::fake([
+        'generativelanguage.googleapis.com/*' => Http::response(['error' => 'overloaded'], 503),
+    ]);
+
+    $this->getJson(route('text-analysis.gemini-lookup', ['word' => 'dog']))
+        ->assertStatus(502);
+
+    Http::assertSentCount(3);
+});
+
+test('gemini lookup does not retry a non-retryable 400', function () {
+    $this->user->forceFill(['ai_access' => true])->save();
+
+    Http::fake([
+        'generativelanguage.googleapis.com/*' => Http::response(['error' => 'bad request'], 400),
+    ]);
+
+    $this->getJson(route('text-analysis.gemini-lookup', ['word' => 'dog']))
+        ->assertStatus(502);
+
+    Http::assertSentCount(1);
+});

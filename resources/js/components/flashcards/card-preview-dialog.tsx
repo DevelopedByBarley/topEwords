@@ -1,21 +1,6 @@
-import {  ArrowLeftRight,     Edit2 } from 'lucide-react';
-import React, {} from 'react';
-import {
-    
-    
-    STATE_COLORS,
-    
-    STATE_LABELS,
-    formatDue
-    
-    
-    
-    
-    
-    
-    
-     } from '@/components/flashcards/types';
-import type {Flashcard} from '@/components/flashcards/types';
+import { ArrowLeftRight, Edit2 } from 'lucide-react';
+import { STATE_COLORS, STATE_LABELS, formatDue } from '@/components/flashcards/types';
+import type { Flashcard } from '@/components/flashcards/types';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,

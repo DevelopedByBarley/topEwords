@@ -43,7 +43,10 @@ export default function WordFormFields({ form, onChange, errors = {}, autoFocus 
 
             {afterWordSlot}
 
-            <Input placeholder="Magyar jelentés" value={form.meaning_hu} onChange={(e) => set({ meaning_hu: e.target.value })} />
+            <div>
+                <Input placeholder="Magyar jelentés" value={form.meaning_hu} onChange={(e) => set({ meaning_hu: e.target.value })} />
+                {errors.meaning_hu && <p className="mt-1 text-xs text-destructive">{errors.meaning_hu}</p>}
+            </div>
             <Input placeholder="További jelentések (pl. alternatív fordítások)" value={form.extra_meanings} onChange={(e) => set({ extra_meanings: e.target.value })} />
             <Input placeholder="Szinonimák (pl. consent, accept)" value={form.synonyms} onChange={(e) => set({ synonyms: e.target.value })} />
             <Input placeholder="Példamondat (angol)" value={form.example_en} onChange={(e) => set({ example_en: e.target.value })} />

@@ -890,7 +890,7 @@ export default function FlashcardShow({
                                         practiceText.trim().length < 5 ||
                                         practiceLoading
                                     }
-                                    className="gap-2 border-violet-200 bg-violet-600 text-white hover:bg-violet-700 dark:border-violet-800"
+                                    className="gap-2 border-violet-200 bg-gradient-to-br from-violet-500 to-violet-400 text-white hover:bg-violet-700 dark:border-violet-800"
                                 >
                                     {practiceLoading ? (
                                         <Loader2 className="size-4 animate-spin" />

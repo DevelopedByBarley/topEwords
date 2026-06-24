@@ -11,7 +11,7 @@ export default function AuthSplitLayout({
     const { name } = usePage().props;
 
     return (
-        <div className="grid min-h-dvh lg:grid-cols-2">
+        <div className="grid min-h-dvh lg:grid-cols-[2fr_3fr]">
             {/* Left panel — purple branded */}
             <div className="relative hidden lg:flex flex-col h-full overflow-hidden p-10 text-white" style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)' }}>
                 <div className="absolute -top-16 -right-16 w-48 h-48 rounded-full opacity-10" style={{ background: 'white' }} />
@@ -70,8 +70,8 @@ export default function AuthSplitLayout({
             </div>
 
             {/* Right panel — form */}
-            <div className="flex items-center justify-center p-8">
-                <div className="w-full max-w-sm space-y-6">
+            <div className="flex items-center justify-center p-8 lg:p-12">
+                <div className="w-full max-w-lg space-y-6">
                     <Link href={home()} className="flex items-center justify-center gap-2 lg:hidden">
                         <div className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ background: 'linear-gradient(135deg, #7c3aed, #6d28d9)' }}>
                             <AppLogoIcon className="size-6" />

@@ -2,6 +2,7 @@
 
 namespace App\Actions\Fortify;
 
+use App\Concerns\BillingValidationRules;
 use App\Concerns\PasswordValidationRules;
 use App\Concerns\ProfileValidationRules;
 use App\Models\Invite;
@@ -13,7 +14,7 @@ use Laravel\Fortify\Contracts\CreatesNewUsers;
 
 class CreateNewUser implements CreatesNewUsers
 {
-    use PasswordValidationRules, ProfileValidationRules;
+    use BillingValidationRules, PasswordValidationRules, ProfileValidationRules;
 
     /**
      * Validate and create a newly registered user.
@@ -27,6 +28,9 @@ class CreateNewUser implements CreatesNewUsers
         $rules = [
             ...$this->profileRules(),
             'password' => $this->passwordRules(),
+            // Regisztrációkor a számlázás opcionális (a checkout előtt úgyis kötelező lesz),
+            // ezért required: false. A szabályok a BillingUpdateRequest-tel közös trait-ből jönnek.
+            ...$this->billingRules(required: false),
         ];
 
         if ($inviteOnly) {
@@ -58,10 +62,20 @@ class CreateNewUser implements CreatesNewUsers
                 }
             }
 
+            $billingFields = array_filter([
+                'billing_name' => $input['billing_name'] ?? null,
+                'billing_tax_number' => $input['billing_tax_number'] ?? null,
+                'billing_type' => $input['billing_type'] ?? null,
+                'billing_zip' => $input['billing_zip'] ?? null,
+                'billing_city' => $input['billing_city'] ?? null,
+                'billing_address' => $input['billing_address'] ?? null,
+            ], fn ($v) => filled($v));
+
             $user = User::create([
                 'name' => $input['name'],
                 'email' => $input['email'],
                 'password' => $input['password'],
+                ...$billingFields,
             ]);
 
             // New accounts start on the free plan — no automatic trial. A trial is

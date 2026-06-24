@@ -1,20 +1,6 @@
-import React, {} from 'react';
-import {
-    
-    
-    
-    
-    
-    formatDue,
-    
-    
-    stateBadgeClass,
-    stateLabelFull
-    
-    
-    
-     } from '@/components/flashcards/types';
-import type {AllReviewItem, Flashcard} from '@/components/flashcards/types';
+import React from 'react';
+import { formatDue, stateBadgeClass, stateLabelFull } from '@/components/flashcards/types';
+import type { AllReviewItem, Flashcard } from '@/components/flashcards/types';
 import {
     Dialog,
     DialogContent,

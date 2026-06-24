@@ -89,7 +89,7 @@ test('lookup finds a custom phrase clicked from captions with NBSP separators', 
 
 test('add-word normalizes phrase whitespace before storing', function () {
     $this->actingAs($this->user)
-        ->postJson(route('extension.add-word'), ['word' => "get\u{00A0}rid  of"])
+        ->postJson(route('extension.add-word'), ['word' => "get\u{00A0}rid  of", 'meaning_hu' => 'megszabadul valamitől'])
         ->assertSuccessful()
         ->assertJson(['ok' => true, 'word' => 'get rid of']);
 
@@ -146,23 +146,32 @@ test('add-word stores the chosen status and importance', function () {
 
 test('add-word defaults to known status when none chosen', function () {
     $this->actingAs($this->user)
-        ->postJson(route('extension.add-word'), ['word' => 'serendipity'])
+        ->postJson(route('extension.add-word'), ['word' => 'serendipity', 'meaning_hu' => 'véletlen szerencse'])
         ->assertSuccessful();
 
     expect($this->user->customWords()->where('word', 'serendipity')->first()->status)->toBe('known');
 });
 
+test('add-word requires a meaning', function () {
+    $this->actingAs($this->user)
+        ->postJson(route('extension.add-word'), ['word' => 'serendipity'])
+        ->assertStatus(422)
+        ->assertJsonValidationErrors('meaning_hu');
+
+    expect($this->user->customWords()->where('word', 'serendipity')->exists())->toBeFalse();
+});
+
 test('add-word rejects an invalid status', function () {
     $this->actingAs($this->user)
-        ->postJson(route('extension.add-word'), ['word' => 'serendipity', 'status' => 'bogus'])
+        ->postJson(route('extension.add-word'), ['word' => 'serendipity', 'meaning_hu' => 'véletlen szerencse', 'status' => 'bogus'])
         ->assertStatus(422);
 });
 
 test('add-word rejects duplicates', function () {
-    $this->user->customWords()->create(['word' => 'serendipity']);
+    $this->user->customWords()->create(['word' => 'serendipity', 'meaning_hu' => 'véletlen szerencse']);
 
     $this->actingAs($this->user)
-        ->postJson(route('extension.add-word'), ['word' => 'serendipity'])
+        ->postJson(route('extension.add-word'), ['word' => 'serendipity', 'meaning_hu' => 'véletlen szerencse'])
         ->assertSuccessful()
         ->assertJson(['error' => 'duplicate']);
 });
@@ -309,7 +318,7 @@ test('frequent extension reads do not exhaust the add-word limit', function () {
     }
 
     $this->actingAs($this->user)
-        ->postJson(route('extension.add-word'), ['word' => 'isolationtest'])
+        ->postJson(route('extension.add-word'), ['word' => 'isolationtest', 'meaning_hu' => 'teszt'])
         ->assertSuccessful()
         ->assertJson(['ok' => true]);
 });
