@@ -407,10 +407,13 @@ function showYtBarNotice(text) {
 /**
  * Egy szó státuszának/felvitelének mentése után frissíti a státusztérképet, és
  * azonnal újrarajzolja az aktív felületeket (feliratsáv, átirat-oldalsáv, oldali
- * kiemelés), hogy a változás külön frissítés nélkül látszódjon.
+ * kiemelés), hogy a változás külön frissítés nélkül látszódjon. Saját mentés után a
+ * cache úgyis érvénytelen (a háttér dobta), így nem kell forceFresh; a fülre
+ * visszatéréskor viszont forceFresh=true kell, hogy a más eszközön történt változás
+ * is azonnal bekerüljön (a friss cache-t megkerülve).
  */
-function refreshVocabHighlights() {
-    sendMsg({ type: 'GET_STATUSES' }, (resp) => {
+function refreshVocabHighlights(forceFresh = false) {
+    sendMsg({ type: 'GET_STATUSES', forceFresh }, (resp) => {
         if (!resp || resp.error || !resp.statuses) {
             return;
         }

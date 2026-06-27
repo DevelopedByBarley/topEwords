@@ -31,7 +31,7 @@ const DEFAULT_SETTINGS: NonNullable<DeckSettings> = {
     max_interval: 365,
     lapse_new_interval: 0,
     leech_threshold: 8,
-    shuffle_cards: false,
+    shuffle_cards: true,
 };
 
 const PRESETS: {
@@ -127,18 +127,22 @@ function SettingField({
 export default function DeckSettingsDialog({
     deck,
     deckSettings,
+    globalSettings,
     open,
     onClose,
 }: {
     deck: Deck;
     deckSettings: DeckSettings;
+    globalSettings?: DeckSettings;
     open: boolean;
     onClose: () => void;
 }) {
     const hasCustom = deckSettings !== null;
+    // Start from the deck's own override, otherwise the values it currently
+    // inherits from the global settings, otherwise the built-in defaults.
     const [activeSettings, setActiveSettings] = useState<
         NonNullable<DeckSettings>
-    >(deckSettings ?? DEFAULT_SETTINGS);
+    >(deckSettings ?? globalSettings ?? DEFAULT_SETTINGS);
     const [presetKey, setPresetKey] = useState(0);
     const s = activeSettings;
     type StepUnit = 'perc' | 'óra' | 'nap';

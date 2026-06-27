@@ -27,6 +27,7 @@ class FlashcardController extends Controller
             'max_interval' => 365,
             'lapse_new_interval' => 0,
             'leech_threshold' => 8,
+            'shuffle_cards' => true,
             'calib_somewhat_min' => 3,
             'calib_somewhat_max' => 7,
             'calib_know_min' => 8,

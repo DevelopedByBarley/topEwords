@@ -123,7 +123,7 @@ test('extension JSON request gets a JSON ack for custom word status', function (
 
     $this->postJson(route('custom-words.status', $word), ['status' => 'known'])
         ->assertOk()
-        ->assertExactJson(['ok' => true, 'status' => 'known']);
+        ->assertExactJson(['ok' => true, 'status' => 'known', 'forms' => ['ephemeral']]);
 
     expect($word->fresh()->status)->toBe('known');
 });
@@ -137,7 +137,7 @@ test('empty status removes a custom word status (extension un-toggle)', function
 
     $this->postJson(route('custom-words.status', $word), ['status' => ''])
         ->assertOk()
-        ->assertExactJson(['ok' => true, 'status' => null]);
+        ->assertExactJson(['ok' => true, 'status' => null, 'forms' => ['ephemeral']]);
 
     expect($word->fresh()->status)->toBeNull();
 });

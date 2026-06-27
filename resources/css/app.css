@@ -203,3 +203,14 @@
         }
     }
 }
+
+/* The rich-text editor (TipTap) carries the `prose-sm` class (14px), which
+   lives in the utilities layer and overrides the base-layer rule above — so
+   iOS still zooms on focus. This rule is intentionally UNLAYERED: unlayered
+   CSS beats any @layer, so 16px wins regardless of specificity. */
+@media (max-width: 767px) {
+    .ProseMirror,
+    .ProseMirror :where(p, li, h1, h2, h3, blockquote) {
+        font-size: 16px;
+    }
+}

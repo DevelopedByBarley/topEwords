@@ -15,6 +15,7 @@ export default function StatusButtons({ current, onSelect, variant }: StatusButt
                 {STATUS_CONFIG.map(({ value, label, icon: Icon, pillActive, pillHover }) => (
                     <button
                         key={value}
+                        type="button"
                         onClick={() => onSelect(value)}
                         className={`flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${
                             current === value ? pillActive : `bg-secondary text-muted-foreground ${pillHover}`
@@ -32,6 +33,7 @@ export default function StatusButtons({ current, onSelect, variant }: StatusButt
             {STATUS_CONFIG.map(({ value, label, icon: Icon, pillActive, pillHover }) => (
                 <button
                     key={value}
+                    type="button"
                     onClick={() => onSelect(value)}
                     title={label}
                     className={`flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full px-2 py-1.5 sm:px-3 sm:py-2 text-xs font-medium transition-all ${

@@ -13,6 +13,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import { withMinDuration } from '@/lib/min-duration';
 import {
     store as storeCard,
     update as updateCard,
@@ -45,6 +46,7 @@ export default function CardForm({
     const [dictLoading, setDictLoading] = useState(false);
     const [dictError, setDictError] = useState('');
     const [geminiLoading, setGeminiLoading] = useState(false);
+    const [geminiError, setGeminiError] = useState('');
 
     const { auth } = usePage<{
         auth: {
@@ -64,24 +66,40 @@ export default function CardForm({
         }
 
         setGeminiLoading(true);
+        setGeminiError('');
 
         try {
             const csrfToken =
                 document
                     .querySelector('meta[name="csrf-token"]')
                     ?.getAttribute('content') ?? '';
-            const res = await fetch(
-                `/text-analysis/gemini-flashcard?word=${encodeURIComponent(word)}`,
-                {
-                    headers: {
-                        'X-CSRF-TOKEN': csrfToken,
-                        Accept: 'application/json',
+            const res = await withMinDuration(
+                fetch(
+                    `/text-analysis/gemini-flashcard?word=${encodeURIComponent(word)}`,
+                    {
+                        headers: {
+                            'X-CSRF-TOKEN': csrfToken,
+                            Accept: 'application/json',
+                        },
                     },
-                },
+                ),
             );
             const data = await res.json();
 
             if (data.error) {
+                setGeminiError(
+                    'Nem sikerült generálni. Próbáld újra egy kis idő múlva.',
+                );
+
+                return;
+            }
+
+            // Az AI nem létező szónak ítélte (gibberish / elgépelés): jelezzük.
+            if (data.is_real_word === false) {
+                setGeminiError(
+                    data.message ?? 'Ez nem tűnik valódi angol szónak.',
+                );
+
                 return;
             }
 
@@ -92,6 +110,8 @@ export default function CardForm({
             if (data.back) {
                 backEditorRef.current?.setContent(data.back);
             }
+        } catch {
+            setGeminiError('Hálózati hiba. Próbáld újra.');
         } finally {
             setGeminiLoading(false);
         }
@@ -147,7 +167,7 @@ export default function CardForm({
             method={isEdit ? 'patch' : 'post'}
             options={{ preserveScroll: true }}
             onSuccess={onCancel}
-            className="flex flex-col gap-5"
+            className="flex flex-col gap-5 py-6"
         >
             {({ processing, errors }) => (
                 <>
@@ -185,8 +205,14 @@ export default function CardForm({
                         </div>
                     )}
 
+                    {geminiError && (
+                        <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                            {geminiError}
+                        </div>
+                    )}
+
                     {/* Front + Back editors */}
-                    <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="grid gap-4 sm:grid-cols-2 py-5">
                         <div className="space-y-2">
                             <div className="flex items-center justify-between">
                                 <Label className="text-sm font-semibold">
@@ -224,7 +250,7 @@ export default function CardForm({
                                 </p>
                             )}
                         </div>
-                        <div className="space-y-2">
+                        <div className="space-y-2 py-5">
                             <Label className="text-sm font-semibold">
                                 Hátlap
                             </Label>

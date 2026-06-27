@@ -73,7 +73,7 @@ test('free user is limited to ten custom words', function () {
     }
 
     $this->actingAs($user)
-        ->post(route('custom-words.store'), ['word' => 'eleventh'])
+        ->post(route('custom-words.store'), ['word' => 'eleventh', 'meaning_hu' => 'tizenegyedik'])
         ->assertSessionHas('error');
 
     expect($user->customWords()->count())->toBe(10);

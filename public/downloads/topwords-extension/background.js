@@ -20,6 +20,95 @@ function refreshBadge() {
         .catch(() => chrome.action.setBadgeText({ text: '' }));
 }
 
+// ── Státusz-cache ─────────────────────────────────────────────────────────────
+// A szó→státusz térképet (GET_STATUSES) gyorsítótárazzuk, hogy az oldalkiemelés, a
+// videófeliratok, a statisztika és a reconcile-tickek ne kérjék le minden alkalommal
+// a szervertől. A cache a chrome.storage.local-ban él (túléli a service worker
+// leállását is), egy memóriabeli másolattal a gyors elérésért. A szerver marad a
+// forrás-igazság: minden sikeres írás (státuszváltás / új szó) érvényteleníti a
+// cache-t, így a rá következő frissítés friss, teljes térképet tölt (a ragozott
+// alakokkal együtt), TTL után pedig úgyis újratöltünk — így a más eszközön történt
+// változások is bekerülnek.
+
+const STATUS_CACHE_KEY = 'tw_statusCache';
+const STATUS_CACHE_TTL = 5 * 60 * 1000; // 5 perc
+
+// null = ismeretlen (a service worker most indult); egyébként { statuses, fetchedAt }.
+// Érvénytelenítéskor „tombstone" kerül ide ({ statuses: null, fetchedAt: 0 }), hogy
+// a memória maradjon a hiteles forrás, és ne olvassunk vissza elavult tárolt értéket.
+let statusCacheMem = null;
+
+function isFreshStatusCache(cache) {
+    return Boolean(
+        cache &&
+        cache.statuses &&
+        Date.now() - cache.fetchedAt < STATUS_CACHE_TTL,
+    );
+}
+
+function readStatusCache() {
+    if (statusCacheMem !== null) {
+        return Promise.resolve(statusCacheMem);
+    }
+
+    return new Promise((resolve) => {
+        chrome.storage.local.get({ [STATUS_CACHE_KEY]: null }, (data) => {
+            statusCacheMem = data[STATUS_CACHE_KEY] ?? {
+                statuses: null,
+                fetchedAt: 0,
+            };
+            resolve(statusCacheMem);
+        });
+    });
+}
+
+function writeStatusCache(statuses) {
+    statusCacheMem = { statuses, fetchedAt: Date.now() };
+    chrome.storage.local.set({ [STATUS_CACHE_KEY]: statusCacheMem });
+}
+
+// Érvénytelenítés: a memóriát azonnal (szinkron) tombstone-ra állítjuk, hogy a
+// közvetlenül ezután érkező GET_STATUSES már biztosan frisset töltsön, és a tárolóba
+// is tombstone-t írunk a service worker újraindulás esetére.
+function invalidateStatusCache() {
+    statusCacheMem = { statuses: null, fetchedAt: 0 };
+    chrome.storage.local.set({ [STATUS_CACHE_KEY]: statusCacheMem });
+}
+
+// Foltozás íráskor: a megváltozott szó felszíni alakjait helyben frissítjük a
+// meglévő térképben, így a rákövetkező GET_STATUSES a memóriából szolgál ki, és
+// NEM kell a teljes (akár több ezer soros) térképet újraletölteni — ez fogja
+// vissza a szerverterhelést. Csak FRISS cache-t foltozunk: hideg/lejárt vagy üres
+// cache-nél nincs mit foltozni (fél térképet írnánk), ezért invalidálunk, és a
+// következő lekérés úgyis a teljes friss térképet tölti — vagyis nincs regresszió.
+function patchStatusCache(forms, status) {
+    if (!Array.isArray(forms) || forms.length === 0) {
+        invalidateStatusCache();
+
+        return Promise.resolve();
+    }
+
+    return readStatusCache().then((cache) => {
+        if (!isFreshStatusCache(cache)) {
+            invalidateStatusCache();
+
+            return;
+        }
+
+        const next = { ...cache.statuses };
+
+        for (const form of forms) {
+            if (status) {
+                next[form] = status;
+            } else {
+                delete next[form];
+            }
+        }
+
+        writeStatusCache(next);
+    });
+}
+
 // ── Context menus ─────────────────────────────────────────────────────────────
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -128,7 +217,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             }),
         })
             .then((r) => r.json())
-            .then((data) => sendResponse(data))
+            .then((data) => {
+                // Új szó bekerült a szótárba — a térkép elavult, dobjuk a cache-t.
+                if (data && data.ok) {
+                    invalidateStatusCache();
+                }
+
+                sendResponse(data);
+            })
             .catch(() => sendResponse({ error: 'network' }));
 
         return true;
@@ -150,16 +246,42 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
 
     if (msg.type === 'GET_STATUSES') {
-        fetch(`${APP_URL}/extension/statuses`, {
-            credentials: 'include',
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest',
-                Accept: 'application/json',
-            },
-        })
-            .then((r) => r.json())
-            .then((data) => sendResponse(data))
-            .catch(() => sendResponse({ error: 'network' }));
+        const fetchFresh = () => {
+            fetch(`${APP_URL}/extension/statuses`, {
+                credentials: 'include',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    Accept: 'application/json',
+                },
+            })
+                .then((r) => r.json())
+                .then((data) => {
+                    if (data && data.statuses) {
+                        writeStatusCache(data.statuses);
+                    }
+
+                    sendResponse(data);
+                })
+                .catch(() => sendResponse({ error: 'network' }));
+        };
+
+        // forceFresh: a fülre visszatéréskor (visibilitychange) megkerüljük a cache-t,
+        // hogy a más eszközön/fülön végzett változások is azonnal látszódjanak.
+        if (msg.forceFresh) {
+            fetchFresh();
+
+            return true;
+        }
+
+        readStatusCache().then((cache) => {
+            if (isFreshStatusCache(cache)) {
+                sendResponse({ statuses: cache.statuses });
+
+                return;
+            }
+
+            fetchFresh();
+        });
 
         return true;
     }
@@ -202,12 +324,22 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             },
             body,
         })
-            .then((r) => {
-                if (r.ok) {
-                    refreshBadge();
+            .then(async (r) => {
+                if (!r.ok) {
+                    sendResponse({ ok: false });
+
+                    return;
                 }
 
-                sendResponse({ ok: r.ok });
+                // A válasz tartalmazza a megváltozott szó összes felszíni alakját;
+                // ezekkel helyben foltozzuk a cache-t (await: a content script
+                // rákövetkező GET_STATUSES-e már a friss térképet lássa), így a
+                // teljes újraletöltés elmarad.
+                const data = await r.json().catch(() => ({}));
+                await patchStatusCache(data.forms, data.status ?? null);
+                refreshBadge();
+
+                sendResponse({ ok: true, status: data.status ?? null });
             })
             .catch(() => sendResponse({ error: 'network' }));
 

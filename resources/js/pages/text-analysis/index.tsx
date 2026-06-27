@@ -21,6 +21,7 @@ import WordLookupDialog from '@/components/text-analysis/word-lookup-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { sanitizeUploadFilename } from '@/lib/sanitize-filename';
 import { analyze as analyzeRoute, fetchSource as fetchSourceRoute, show as textAnalysisShow } from '@/routes/text-analysis';
 import { destroy as destroyBook, index as booksIndex, overview as bookOverviewRoute, page as bookPageRoute, store as storeBook } from '@/routes/text-analysis/books';
 import { destroy as ytDestroy, index as ytIndex, overview as ytOverviewRoute, page as ytPageRoute, store as ytStore } from '@/routes/text-analysis/youtube';
@@ -193,7 +194,9 @@ export default function TextAnalysis() {
         setIsUploadingBook(true);
         setError(null);
         const formData = new FormData();
-        formData.append('file', file);
+        // A szerver WAF-ja a fájlnévben lévő aposztrófot/idézőjelet SQLi-ként
+        // blokkolja (403), ezért biztonságos névvel küldjük — a tartalom marad.
+        formData.append('file', file, sanitizeUploadFilename(file.name));
         try {
             const res = await fetch(storeBook.url(), {
                 method: 'POST',

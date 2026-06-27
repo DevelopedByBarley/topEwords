@@ -318,7 +318,7 @@ test('gemini lookup retries a transient 503 then succeeds', function () {
     Http::assertSentCount(2);
 });
 
-test('gemini lookup returns 502 after exhausting retries on repeated 503', function () {
+test('gemini lookup returns 502 after both primary and fallback exhaust 503s', function () {
     $this->user->forceFill(['ai_access' => true])->save();
 
     Http::fake([
@@ -328,7 +328,8 @@ test('gemini lookup returns 502 after exhausting retries on repeated 503', funct
     $this->getJson(route('text-analysis.gemini-lookup', ['word' => 'dog']))
         ->assertStatus(502);
 
-    Http::assertSentCount(3);
+    // A primary 2 próbája + a fallback 2 próbája = 4 hívás, mind 503 → 502.
+    Http::assertSentCount(4);
 });
 
 test('gemini lookup does not retry a non-retryable 400', function () {

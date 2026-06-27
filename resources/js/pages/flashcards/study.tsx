@@ -1,5 +1,12 @@
 import { Head, Link } from '@inertiajs/react';
-import { ArrowLeft, CheckCircle, Info, Undo2, Volume2 } from 'lucide-react';
+import {
+    ArrowLeft,
+    CheckCircle,
+    Info,
+    Square,
+    Undo2,
+    Volume2,
+} from 'lucide-react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -218,15 +225,39 @@ export default function FlashcardStudy({
     const [done, setDone] = useState(false);
     const [history, setHistory] = useState<HistoryEntry[]>([]);
     const [showInfo, setShowInfo] = useState(false);
+    const [speakingSide, setSpeakingSide] = useState<
+        'question' | 'answer' | null
+    >(null);
     // Track in-flight rating fetches keyed by "id-direction" so undo can wait for them
     const pendingRatings = useRef<Map<string, Promise<void>>>(new Map());
     const answerRef = useRef<HTMLDivElement>(null);
+    // Bumped on every stop so stale onend/timeout callbacks bail out instead of
+    // queuing the next chunk after the user has interrupted playback.
+    const speakSessionRef = useRef(0);
+    const speakTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const current = queue[currentIndex] ?? null;
     const sides = current ? resolveCardSides(current) : null;
 
+    const stopSpeaking = useCallback(() => {
+        speakSessionRef.current += 1;
+
+        if (speakTimeoutRef.current) {
+            clearTimeout(speakTimeoutRef.current);
+            speakTimeoutRef.current = null;
+        }
+
+        window.speechSynthesis?.cancel();
+        setSpeakingSide(null);
+    }, []);
+
     const speak = useCallback(
-        (html: string, speakOverride?: string | null, lang = 'en-US') => {
+        (
+            side: 'question' | 'answer',
+            html: string,
+            speakOverride?: string | null,
+            lang = 'en-US',
+        ) => {
             if (!window.speechSynthesis) {
                 return;
             }
@@ -242,7 +273,9 @@ export default function FlashcardStudy({
                 return;
             }
 
-            window.speechSynthesis.cancel();
+            stopSpeaking();
+            const session = speakSessionRef.current;
+            setSpeakingSide(side);
 
             const parts = raw
                 .split('\n')
@@ -250,7 +283,13 @@ export default function FlashcardStudy({
                 .filter(Boolean);
 
             const speakPart = (index: number) => {
+                if (session !== speakSessionRef.current) {
+                    return;
+                }
+
                 if (index >= parts.length) {
+                    setSpeakingSide(null);
+
                     return;
                 }
 
@@ -258,8 +297,22 @@ export default function FlashcardStudy({
                 u.lang = lang;
                 u.rate = 0.9;
                 u.onend = () => {
+                    if (session !== speakSessionRef.current) {
+                        return;
+                    }
+
                     if (index < parts.length - 1) {
-                        setTimeout(() => speakPart(index + 1), 700);
+                        speakTimeoutRef.current = setTimeout(
+                            () => speakPart(index + 1),
+                            700,
+                        );
+                    } else {
+                        setSpeakingSide(null);
+                    }
+                };
+                u.onerror = () => {
+                    if (session === speakSessionRef.current) {
+                        setSpeakingSide(null);
                     }
                 };
                 window.speechSynthesis.speak(u);
@@ -267,7 +320,7 @@ export default function FlashcardStudy({
 
             speakPart(0);
         },
-        [],
+        [stopSpeaking],
     );
 
     const handleReveal = useCallback(() => {
@@ -294,6 +347,7 @@ export default function FlashcardStudy({
             const direction = current.study_direction;
             const key = `${cardId}-${direction}`;
 
+            stopSpeaking();
             setSubmitting(true);
 
             // Advance immediately — never block on the network
@@ -342,7 +396,14 @@ export default function FlashcardStudy({
 
             pendingRatings.current.set(key, promise);
         },
-        [current, currentIndex, queue.length, deck.id, submitting],
+        [
+            current,
+            currentIndex,
+            queue.length,
+            deck.id,
+            submitting,
+            stopSpeaking,
+        ],
     );
 
     const handleUndo = useCallback(async () => {
@@ -353,6 +414,7 @@ export default function FlashcardStudy({
         const last = history[history.length - 1];
         const key = `${last.id}-${last.direction}`;
 
+        stopSpeaking();
         setUndoing(true);
 
         // Wait for any in-flight rating for this card before undoing
@@ -383,7 +445,10 @@ export default function FlashcardStudy({
         setDone(false);
         setCurrentIndex((prev) => prev - 1);
         setRevealed(false);
-    }, [history, undoing, deck.id]);
+    }, [history, undoing, deck.id, stopSpeaking]);
+
+    // Stop any in-flight speech when leaving the study view.
+    useEffect(() => stopSpeaking, [stopSpeaking]);
 
     // Keyboard shortcuts
     useEffect(() => {
@@ -457,7 +522,7 @@ export default function FlashcardStudy({
         <>
             <Head title={`Tanulás · ${deck.name}`} />
 
-            <div className="mx-auto flex min-h-[80vh] max-w-2xl min-w-90 flex-col pb-20 px-4 md:py-6 xl:min-w-2xl">
+            <div className="mx-auto flex min-h-[80vh] max-w-2xl min-w-90 flex-col px-4 pb-20 md:py-6 xl:min-w-2xl">
                 {/* Header */}
                 <div className="mb-6 flex items-center justify-between">
                     <Link
@@ -539,15 +604,33 @@ export default function FlashcardStudy({
                             <button
                                 onClick={(e) => {
                                     e.stopPropagation();
-                                    speak(
-                                        sides!.question,
-                                        sides!.questionSpeak,
-                                    );
+
+                                    if (speakingSide === 'question') {
+                                        stopSpeaking();
+                                    } else {
+                                        speak(
+                                            'question',
+                                            sides!.question,
+                                            sides!.questionSpeak,
+                                        );
+                                    }
                                 }}
-                                className="absolute top-3 left-3 rounded-full p-1.5 text-muted-foreground/50 transition-colors hover:bg-muted hover:text-foreground"
-                                title="Felolvasás"
+                                className={`absolute top-3 left-3 rounded-full p-1.5 transition-colors ${
+                                    speakingSide === 'question'
+                                        ? 'bg-primary text-primary-foreground'
+                                        : 'text-muted-foreground/50 hover:bg-muted hover:text-foreground'
+                                }`}
+                                title={
+                                    speakingSide === 'question'
+                                        ? 'Leállítás'
+                                        : 'Felolvasás'
+                                }
                             >
-                                <Volume2 className="size-4" />
+                                {speakingSide === 'question' ? (
+                                    <Square className="size-4 fill-current" />
+                                ) : (
+                                    <Volume2 className="size-4" />
+                                )}
                             </button>
                         )}
                         <span className="mb-3 text-xs tracking-wide text-muted-foreground uppercase">
@@ -594,13 +677,33 @@ export default function FlashcardStudy({
                         >
                             {sides!.answerSpeak && (
                                 <button
-                                    onClick={() =>
-                                        speak(sides!.answer, sides!.answerSpeak)
+                                    onClick={() => {
+                                        if (speakingSide === 'answer') {
+                                            stopSpeaking();
+                                        } else {
+                                            speak(
+                                                'answer',
+                                                sides!.answer,
+                                                sides!.answerSpeak,
+                                            );
+                                        }
+                                    }}
+                                    className={`absolute top-3 left-3 rounded-full p-1.5 transition-colors ${
+                                        speakingSide === 'answer'
+                                            ? 'bg-primary text-primary-foreground'
+                                            : 'text-muted-foreground/50 hover:bg-muted hover:text-foreground'
+                                    }`}
+                                    title={
+                                        speakingSide === 'answer'
+                                            ? 'Leállítás'
+                                            : 'Felolvasás'
                                     }
-                                    className="absolute top-3 left-3 rounded-full p-1.5 text-muted-foreground/50 transition-colors hover:bg-muted hover:text-foreground"
-                                    title="Felolvasás"
                                 >
-                                    <Volume2 className="size-4" />
+                                    {speakingSide === 'answer' ? (
+                                        <Square className="size-4 fill-current" />
+                                    ) : (
+                                        <Volume2 className="size-4" />
+                                    )}
                                 </button>
                             )}
                             <RichTextContent

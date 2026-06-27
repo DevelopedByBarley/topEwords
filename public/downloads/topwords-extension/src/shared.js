@@ -106,6 +106,22 @@ function sendMsg(msg, callback) {
     }
 }
 
+// Az AI-válaszok szerveroldalon cache-eltek, így egy cache-találat szinte
+// azonnal visszatér — annyira gyorsan, hogy látszik, nem futott valódi modell.
+// Ez a min. késleltetés ott tartja a töltő állapotot, hogy valódi AI-válasznak
+// tűnjön. Egy igazi (nem cache-elt) generálás általában már eleve lassabb ennél,
+// szóval csak a gyanúsan gyors cache-találatokat tolja ki. (Webes megfelelője:
+// resources/js/lib/min-duration.ts)
+function sendMsgMinDelay(msg, ms, callback) {
+    const start = Date.now();
+
+    sendMsg(msg, (response) => {
+        const wait = Math.max(0, ms - (Date.now() - start));
+
+        setTimeout(() => callback?.(response), wait);
+    });
+}
+
 function statusBtnsHtml(active) {
     return Object.entries(STATUS_LABELS)
         .map(([key, label]) => {

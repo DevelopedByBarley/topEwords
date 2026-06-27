@@ -120,7 +120,7 @@ document.addEventListener(
 // visszatérve frissítjük a kiemeléseket, hogy ne maradjon elavult a szín.
 document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && (hlWordMap || ytStatusMap)) {
-        refreshVocabHighlights();
+        refreshVocabHighlights(true);
     }
 });
 

@@ -8,6 +8,7 @@ use App\Models\UserCustomWord;
 use App\Models\Word;
 use App\Models\YoutubeTranscript;
 use App\Services\AchievementService;
+use App\Services\AiCacheService;
 use App\Services\AiUsageService;
 use App\Services\YouTubeCaptionService;
 use GuzzleHttp\Psr7\UriResolver;
@@ -29,7 +30,20 @@ class TextAnalysisController extends Controller
     public function __construct(
         private YouTubeCaptionService $captions,
         private AiUsageService $aiUsage,
+        private AiCacheService $aiCache,
     ) {}
+
+    /**
+     * Cache-elhető AI-feladatok aktuális prompt-verziója. A prompt érdemi
+     * módosításakor növeld az értéket: a régi sorok új kulcsra váltanak, és az
+     * `ai:cache:clear` paranccsal kipucolhatók. (A mondat-/gyakorlat-ellenőrzés
+     * felhasználó-egyedi, ezért nincs itt és nem cache-elődik.)
+     */
+    private const AI_CACHE_VERSION = [
+        'lookup' => 3,
+        'flashcard' => 3,
+        'insight' => 2,
+    ];
 
     /**
      * Returns a 429 response when the user has exhausted their monthly AI
@@ -595,6 +609,198 @@ class TextAnalysisController extends Controller
         return preg_match("/^[\pL][\pL'\\- ]{0,99}$/u", $word) === 1 ? $word : null;
     }
 
+    /**
+     * A `geminiWordLookup` válasz-sémája (Gemini structured output). A modell
+     * pontosan ezeket a mezőket adja vissza, ebben a sorrendben; a nem releváns
+     * mezők üres stringek. A `part_of_speech` zárt listára kényszerített.
+     *
+     * @return array<string, mixed>
+     */
+    private function lookupSchema(): array
+    {
+        $string = ['type' => 'STRING'];
+
+        return [
+            'type' => 'OBJECT',
+            'properties' => [
+                'is_real_word' => ['type' => 'BOOLEAN'],
+                'meaning_hu' => $string,
+                'extra_meanings' => $string,
+                'synonyms' => $string,
+                'part_of_speech' => ['type' => 'STRING', 'enum' => ['verb', 'noun', 'adj', 'adv', 'prep', 'conj', 'det', 'pron', 'num', 'interj']],
+                'example_en' => $string,
+                'example_hu' => $string,
+                'verb_past' => $string,
+                'verb_past_participle' => $string,
+                'verb_present_participle' => $string,
+                'verb_third_person' => $string,
+                'is_irregular' => ['type' => 'BOOLEAN'],
+                'noun_plural' => $string,
+                'adj_comparative' => $string,
+                'adj_superlative' => $string,
+                'context_explanation' => $string,
+            ],
+            'required' => ['is_real_word', 'meaning_hu', 'part_of_speech', 'example_en', 'example_hu'],
+            'propertyOrdering' => ['is_real_word', 'meaning_hu', 'extra_meanings', 'synonyms', 'part_of_speech', 'example_en', 'example_hu', 'verb_past', 'verb_past_participle', 'verb_present_participle', 'verb_third_person', 'is_irregular', 'noun_plural', 'adj_comparative', 'adj_superlative', 'context_explanation'],
+        ];
+    }
+
+    /**
+     * A `geminiFlashcard` válasz-sémája. A nem létező szóalakok / hiányzó példák
+     * `null` értékek (nullable mezők); a kötelező mezők mindig kitöltöttek.
+     *
+     * @return array<string, mixed>
+     */
+    private function flashcardSchema(): array
+    {
+        $stringArray = ['type' => 'ARRAY', 'items' => ['type' => 'STRING']];
+        $nullableString = ['type' => 'STRING', 'nullable' => true];
+
+        return [
+            'type' => 'OBJECT',
+            'properties' => [
+                'is_real_word' => ['type' => 'BOOLEAN'],
+                'cloze_sentences' => [
+                    'type' => 'ARRAY',
+                    'items' => [
+                        'type' => 'OBJECT',
+                        'properties' => [
+                            'sentence' => ['type' => 'STRING'],
+                            'hints' => $stringArray,
+                        ],
+                        'required' => ['sentence', 'hints'],
+                        'propertyOrdering' => ['sentence', 'hints'],
+                    ],
+                ],
+                'answer_options' => $stringArray,
+                'negative_meaning_hu' => $stringArray,
+                'collocations' => [
+                    'type' => 'ARRAY',
+                    'items' => [
+                        'type' => 'OBJECT',
+                        'properties' => [
+                            'pattern' => ['type' => 'STRING'],
+                            'meaning_hu' => ['type' => 'STRING'],
+                            'example' => $nullableString,
+                        ],
+                        'required' => ['pattern', 'meaning_hu'],
+                        'propertyOrdering' => ['pattern', 'meaning_hu', 'example'],
+                    ],
+                ],
+                'word_forms' => [
+                    'type' => 'OBJECT',
+                    'properties' => [
+                        'base' => ['type' => 'STRING'],
+                        'adjective' => $nullableString,
+                        'adverb' => $nullableString,
+                        'noun' => $nullableString,
+                        'verb' => $nullableString,
+                    ],
+                    'required' => ['base'],
+                    'propertyOrdering' => ['base', 'adjective', 'adverb', 'noun', 'verb'],
+                ],
+                'common_pairs' => $stringArray,
+                'synonyms' => $stringArray,
+                'antonyms' => $stringArray,
+            ],
+            'required' => ['is_real_word', 'cloze_sentences', 'answer_options', 'word_forms'],
+            'propertyOrdering' => ['is_real_word', 'cloze_sentences', 'answer_options', 'negative_meaning_hu', 'collocations', 'word_forms', 'common_pairs', 'synonyms', 'antonyms'],
+        ];
+    }
+
+    /**
+     * A `wordInsight` válasz-sémája: valós használati területek + regiszter + tipp.
+     *
+     * @return array<string, mixed>
+     */
+    private function insightSchema(): array
+    {
+        return [
+            'type' => 'OBJECT',
+            'properties' => [
+                'areas' => [
+                    'type' => 'ARRAY',
+                    'items' => [
+                        'type' => 'OBJECT',
+                        'properties' => [
+                            'name_hu' => ['type' => 'STRING'],
+                            'description_hu' => ['type' => 'STRING'],
+                            'example_en' => ['type' => 'STRING'],
+                            'example_hu' => ['type' => 'STRING'],
+                        ],
+                        'required' => ['name_hu', 'description_hu', 'example_en', 'example_hu'],
+                        'propertyOrdering' => ['name_hu', 'description_hu', 'example_en', 'example_hu'],
+                    ],
+                ],
+                'register_hu' => ['type' => 'STRING'],
+                'tip_hu' => ['type' => 'STRING'],
+            ],
+            'required' => ['areas', 'register_hu', 'tip_hu'],
+            'propertyOrdering' => ['areas', 'register_hu', 'tip_hu'],
+        ];
+    }
+
+    /**
+     * A `sentenceCheck` válasz-sémája: egy tanulói mondat szó- és nyelvtani
+     * értékelése. A séma garantálja a JSON-alakot, így a csonka/markdownos
+     * válaszból eredő 502-k megszűnnek.
+     *
+     * @return array<string, mixed>
+     */
+    private function sentenceCheckSchema(): array
+    {
+        $nullableString = ['type' => 'STRING', 'nullable' => true];
+
+        return [
+            'type' => 'OBJECT',
+            'properties' => [
+                'usage_ok' => ['type' => 'BOOLEAN'],
+                'grammar_ok' => ['type' => 'BOOLEAN'],
+                'feedback_hu' => ['type' => 'STRING'],
+                'grammar_note_hu' => $nullableString,
+                'corrected_sentence' => $nullableString,
+                'example_sentence' => ['type' => 'STRING'],
+            ],
+            'required' => ['usage_ok', 'grammar_ok', 'feedback_hu', 'example_sentence'],
+            'propertyOrdering' => ['usage_ok', 'grammar_ok', 'feedback_hu', 'grammar_note_hu', 'corrected_sentence', 'example_sentence'],
+        ];
+    }
+
+    /**
+     * A `practiceCheck` válasz-sémája: több célszó használatának értékelése egy
+     * tanulói szövegben. A `grammar_issues` string-tömbként kényszerített, így a
+     * modell nem adhat vissza objektumokat — megszűnik a kézi normalizálás igénye.
+     *
+     * @return array<string, mixed>
+     */
+    private function practiceCheckSchema(): array
+    {
+        return [
+            'type' => 'OBJECT',
+            'properties' => [
+                'words' => [
+                    'type' => 'ARRAY',
+                    'items' => [
+                        'type' => 'OBJECT',
+                        'properties' => [
+                            'word' => ['type' => 'STRING'],
+                            'used' => ['type' => 'BOOLEAN'],
+                            'correct' => ['type' => 'BOOLEAN'],
+                            'feedback_hu' => ['type' => 'STRING'],
+                        ],
+                        'required' => ['word', 'used', 'correct', 'feedback_hu'],
+                        'propertyOrdering' => ['word', 'used', 'correct', 'feedback_hu'],
+                    ],
+                ],
+                'grammar_issues' => ['type' => 'ARRAY', 'items' => ['type' => 'STRING']],
+                'overall_hu' => ['type' => 'STRING'],
+                'corrected_text' => ['type' => 'STRING', 'nullable' => true],
+            ],
+            'required' => ['words', 'grammar_issues', 'overall_hu'],
+            'propertyOrdering' => ['words', 'grammar_issues', 'overall_hu', 'corrected_text'],
+        ];
+    }
+
     public function geminiFlashcard(Request $request): JsonResponse
     {
         abort_unless(Gate::check('admin') || $request->user()?->hasAiAccess(), 403);
@@ -613,33 +819,32 @@ class TextAnalysisController extends Controller
         $prompt = <<<PROMPT
 You are an English vocabulary flashcard generator for Hungarian learners. Generate rich flashcard content for the English word "{$word}".
 
-Return ONLY valid JSON with this exact structure:
-{
-  "cloze_sentences": [
-    {"sentence": "sentence with _______ replacing the word", "hints": ["hungarian_meaning_in_this_context_1", "hungarian_meaning_in_this_context_2"]}
-  ],
-  "answer_options": ["most common hungarian translation", "second most common", "third", "fourth", "fifth"],
-  "negative_meaning_hu": ["opposite in hungarian 1", "opposite in hungarian 2", "opposite in hungarian 3"],
-  "collocations": [
-    {"pattern": "phrase with _______ replacing the word", "meaning_hu": "hungarian meaning", "example": "example with _______ or null"}
-  ],
-  "word_forms": {"base": "the word itself", "adjective": "adj form or null", "adverb": "adverb form or null", "noun": "noun form or null", "verb": "verb form or null"},
-  "common_pairs": ["common collocation 1", "common collocation 2", "common collocation 3", "common collocation 4"],
-  "synonyms": ["english synonym 1", "english synonym 2", "english synonym 3", "english synonym 4"],
-  "antonyms": ["english antonym 1", "english antonym 2", "english antonym 3"]
-}
-
 Rules:
-- Generate 4 cloze sentences covering diverse registers: everyday, formal, academic/professional, and written/literary. Each sentence should show the word in a clearly different context.
+- is_real_word: true only if "{$word}" is a genuine, standard English word or fixed expression. Set false for gibberish, random letters, a clear misspelling, or a word from another language. Judge the word itself — rare, technical or proper-noun English words are still real (true). If false, you may leave the other fields empty.
+- cloze_sentences: 4 sentences covering diverse registers (everyday, formal, academic/professional, written/literary), each showing the word in a clearly different context. Replace the word itself with _______ in each sentence.
 - hints: each hint must reflect the meaning of the word specifically in THAT sentence's context, not just a generic synonym. For example, "bear" in "bear the cost" → hints: ["visel", "fizet"], not generic ["medve", "elvisel"].
 - answer_options: exactly 3 core Hungarian translations, no more. Identify the word's PRIMARY grammatical role in everyday English (verb/noun/adj/etc.). List the 2-3 most frequent translations for THAT primary role first. If and only if the word has a single very well-known meaning in a DIFFERENT part of speech, add just ONE entry for it at the end. Hard rules: (a) maximum ONE entry per secondary part of speech — if "bátorság" is secondary, do NOT also add "kitartás"; (b) no near-duplicates — "tép" covers "kitép/letép/tépi le", pick only the bare, most natural form; (c) first item = most natural default translation. Example — "pluck" is primarily a VERB, so correct output is ["tép", "leszakít", "bátorság"], NOT ["bátorság", "kitartás", "penget"].
 - negative_meaning_hu: 3 Hungarian antonym translations that are true semantic opposites in meaning, not just grammatical negations.
-- collocations: 4-5 common phrases/patterns using the word, ordered by frequency of use in English (most common first). Only include collocations that genuinely exist and are widely used.
-- word_forms: only include forms that actually exist as real, established English words (set null for non-existent or rarely used forms — do not invent forms).
-- Respond ONLY with valid JSON, no markdown.
+- collocations: 4-5 common phrases/patterns using the word, ordered by frequency of use in English (most common first). Use _______ in place of the word in the pattern; set example to null when there is no natural example. Only include collocations that genuinely exist and are widely used.
+- common_pairs / synonyms: 3-4 entries each. antonyms: 3 entries.
+- word_forms: base is the word itself; for adjective/adverb/noun/verb only include forms that actually exist as real, established English words (set null for non-existent or rarely used forms — do not invent forms).
 PROMPT;
 
-        $result = $this->callGemini($apiKey, $prompt, 800, 'gemini-2.5-flash', user: $request->user());
+        // Csak valódi szóra adott választ cache-elünk: egy nem létező szóra
+        // (gibberish, elgépelés) hallucinált flashcard nem mérgezheti meg a
+        // mindenki által használt cache-t.
+        $onlyRealWords = fn (array $data): bool => ($data['is_real_word'] ?? true) === true;
+
+        [$primary, $fallback] = $this->modelsFor('flashcard');
+
+        $result = $this->aiCache->remember(
+            'flashcard',
+            $word,
+            self::AI_CACHE_VERSION['flashcard'],
+            $primary,
+            fn () => $this->callGemini($apiKey, $prompt, 1000, $primary, $fallback, temperature: 0.2, responseSchema: $this->flashcardSchema(), user: $request->user()),
+            $onlyRealWords,
+        );
 
         if (! $result['ok']) {
             return response()->json(['error' => $result['error']], 502);
@@ -649,6 +854,14 @@ PROMPT;
 
         if (! is_array($data)) {
             return response()->json(['error' => 'Érvénytelen válasz.'], 502);
+        }
+
+        // Nem valódi szó: nem generálunk kamu flashcardot, egyértelműen jelezzük.
+        if (($data['is_real_word'] ?? true) === false) {
+            return response()->json([
+                'is_real_word' => false,
+                'message' => 'Ez nem tűnik valódi angol szónak. Ellenőrizd a helyesírást.',
+            ]);
         }
 
         $front = $this->buildFlashcardFront($data);
@@ -724,7 +937,11 @@ PROMPT;
 
     public function practiceCheck(Request $request): JsonResponse
     {
-        abort_unless(Gate::check('admin'), 403);
+        abort_unless(Gate::check('admin') || $request->user()?->hasAiAccess(), 403);
+
+        if ($limited = $this->aiLimitGuard($request)) {
+            return $limited;
+        }
 
         $validated = $request->validate([
             'words' => ['required', 'array', 'min:1', 'max:10'],
@@ -752,37 +969,23 @@ The learner is practicing these target words:
 The learner wrote this text:
 "{$text}"
 
-Carefully analyze the text. For EACH target word:
-1. Did the learner use it (or a grammatical form of it)?
-2. If used: was it correct? (right meaning, natural collocation, correct grammar for that word)
-3. Give brief, specific, encouraging feedback in Hungarian.
+Carefully analyze the text and fill the response fields.
+For EACH target word, add an entry to "words" with:
+- word: the exact word from the list above
+- used: did the learner use it (or a grammatical form of it)?
+- correct: if used, was it correct? (right meaning, natural collocation, correct grammar for that word)
+- feedback_hu: brief, specific, encouraging feedback in Hungarian.
 
-Also provide:
-- grammar_issues: array of plain strings, each string is one grammar issue explained in Hungarian (empty array if none). Each element MUST be a plain string, NOT an object.
-- overall_hu: 1-2 sentences of overall encouraging feedback in Hungarian
-- corrected_text: a corrected version of the full text if there are errors, or null if the text is perfect
-
-Return ONLY valid JSON:
-{
-  "words": [
-    {
-      "word": "exactWordFromList",
-      "used": true,
-      "correct": true,
-      "feedback_hu": "Hungarian feedback"
-    }
-  ],
-  "grammar_issues": ["First grammar issue explained in Hungarian", "Second issue"],
-  "overall_hu": "Overall comment in Hungarian",
-  "corrected_text": null
-}
-
-Respond ONLY with valid JSON, no markdown.
+Also fill:
+- grammar_issues: each element is one grammar issue explained in Hungarian as a plain sentence (empty array if none).
+- overall_hu: 1-2 sentences of overall encouraging feedback in Hungarian.
+- corrected_text: a corrected version of the full text if there are errors, or null if the text is perfect.
 PROMPT;
 
         $apiKey = config('services.gemini.api_key');
+        [$primary, $fallback] = $this->modelsFor('practice');
 
-        $response = $this->callGemini($apiKey, $prompt, 800, user: $request->user());
+        $response = $this->callGemini($apiKey, $prompt, 800, $primary, $fallback, temperature: 0.2, responseSchema: $this->practiceCheckSchema(), user: $request->user());
 
         if (! $response['ok']) {
             return response()->json(['error' => $response['error']], 502);
@@ -794,15 +997,12 @@ PROMPT;
             return response()->json(['error' => 'Érvénytelen válasz.'], 502);
         }
 
-        // A modell a kért formátum ellenére néha objektumokat ad vissza
-        // a grammar_issues-ban — itt normalizáljuk stringekké.
-        $data['grammar_issues'] = collect($data['grammar_issues'] ?? [])
-            ->map(fn ($issue) => is_string($issue)
-                ? $issue
-                : ($issue['explanation_hu'] ?? $issue['issue'] ?? json_encode($issue, JSON_UNESCAPED_UNICODE)))
-            ->filter()
-            ->values()
-            ->all();
+        // A séma string-tömbként kényszeríti a grammar_issues-t; itt már csak az
+        // üres elemeket szűrjük ki, hogy a frontend ne kapjon üres buborékot.
+        $data['grammar_issues'] = array_values(array_filter(
+            $data['grammar_issues'] ?? [],
+            fn ($issue) => is_string($issue) && trim($issue) !== '',
+        ));
 
         return response()->json($data);
     }
@@ -832,26 +1032,21 @@ You are an English language tutor for Hungarian learners. Evaluate whether the E
 
 Learner's sentence: "{$sentence}"
 
-Evaluate on two dimensions:
-1. **usage_ok**: Is "{$word}" used with the correct meaning and in a grammatically/collocationally appropriate way?
-2. **grammar_ok**: Is the overall sentence grammatically correct (ignoring the word itself)?
+Evaluate and fill the response fields:
+- usage_ok: is "{$word}" used with the correct meaning and in a grammatically/collocationally appropriate way?
+- grammar_ok: is the overall sentence grammatically correct (ignoring the word itself)?
+- feedback_hu: 1-3 sentences in Hungarian explaining what is good or wrong about how the word is used. Be specific and encouraging.
+- grammar_note_hu: 1-2 sentences in Hungarian about any grammar issues, or null if grammar is correct.
+- corrected_sentence: a corrected version of the sentence if there are any errors, or null if the sentence is fully correct.
+- example_sentence: one natural, simple example sentence using "{$word}" correctly (different from the learner's sentence).
 
-Return ONLY valid JSON with this exact structure:
-{{
-  "usage_ok": true or false,
-  "grammar_ok": true or false,
-  "feedback_hu": "1-3 sentences in Hungarian: explain what is good or wrong about how the word is used. Be specific and encouraging.",
-  "grammar_note_hu": "1-2 sentences in Hungarian about any grammar issues, or null if grammar is correct",
-  "corrected_sentence": "A corrected version of the sentence if there are any errors, or null if the sentence is fully correct",
-  "example_sentence": "One natural, simple example sentence using '{$word}' correctly (different from the learner's sentence)"
-}}
-
-Be encouraging and educational. If the sentence is correct, celebrate it. Respond ONLY with valid JSON, no markdown.
+Be encouraging and educational. If the sentence is correct, celebrate it.
 PROMPT;
 
         $apiKey = config('services.gemini.api_key');
+        [$primary, $fallback] = $this->modelsFor('sentence');
 
-        $response = $this->callGemini($apiKey, $prompt, 400, user: $request->user());
+        $response = $this->callGemini($apiKey, $prompt, 400, $primary, $fallback, temperature: 0.2, responseSchema: $this->sentenceCheckSchema(), user: $request->user());
 
         if (! $response['ok']) {
             return response()->json(['error' => $response['error']], 502);
@@ -892,28 +1087,22 @@ PROMPT;
         $prompt = <<<PROMPT
 You are an English vocabulary educator for Hungarian learners. For the English word "{$word}", explain where and how it is used in real life.
 
-Return ONLY valid JSON with this exact structure:
-{
-  "areas": [
-    {
-      "name_hu": "Terület neve magyarul (pl. Üzleti élet, Orvostudomány, Hétköznapi élet)",
-      "description_hu": "1-2 sentences in Hungarian: why/how the word is used in this area",
-      "example_en": "A natural example sentence in this context",
-      "example_hu": "Hungarian translation of the example"
-    }
-  ],
-  "register_hu": "1 sentence in Hungarian: is the word formal, informal, neutral, or context-dependent?",
-  "tip_hu": "1 short learning tip in Hungarian: e.g. a common mistake, a memorable phrase, or a useful pattern"
-}
-
 Rules:
-- Include 3 distinct real-life areas where this word is genuinely and commonly used.
-- Keep descriptions concise — 1-2 sentences max per area.
-- Example sentences must be natural, varied across registers/contexts.
-- Respond ONLY with valid JSON, no markdown.
+- areas: 3 distinct real-life areas where this word is genuinely and commonly used. For each area set: name_hu = the area's name in Hungarian (e.g. Üzleti élet, Orvostudomány, Hétköznapi élet); description_hu = 1-2 concise sentences in Hungarian on why/how the word is used there; example_en = a natural example sentence in that context; example_hu = its Hungarian translation.
+- register_hu: 1 sentence in Hungarian — is the word formal, informal, neutral, or context-dependent?
+- tip_hu: 1 short learning tip in Hungarian (e.g. a common mistake, a memorable phrase, or a useful pattern).
+- Example sentences must be natural and varied across registers/contexts.
 PROMPT;
 
-        $result = $this->callGemini($apiKey, $prompt, 600, user: $request->user());
+        [$primary, $fallback] = $this->modelsFor('insight');
+
+        $result = $this->aiCache->remember(
+            'insight',
+            $word,
+            self::AI_CACHE_VERSION['insight'],
+            $primary,
+            fn () => $this->callGemini($apiKey, $prompt, 600, $primary, $fallback, temperature: 0.2, responseSchema: $this->insightSchema(), user: $request->user()),
+        );
 
         if (! $result['ok']) {
             return response()->json(['error' => $result['error']], 502);
@@ -973,27 +1162,37 @@ PROMPT;
             : "\n- context_explanation: empty string";
 
         $prompt = <<<PROMPT
-You are a Hungarian-English dictionary assistant. For the English word "{$word}", return a JSON object with EXACTLY these fields:
-- meaning_hu: concise primary Hungarian translation (1-5 words)
-- extra_meanings: other Hungarian meanings comma-separated, or empty string
-- synonyms: English synonyms comma-separated (2-4 words), or empty string
-- part_of_speech: MUST be one of exactly: verb, noun, adj, adv, prep, conj, det, pron, num, interj
-- example_en: one natural example sentence in English
-- example_hu: Hungarian translation of that example sentence
-- verb_past: past tense if verb, else empty string
-- verb_past_participle: past participle if verb, else empty string
-- verb_present_participle: present participle (-ing) if verb, else empty string
-- verb_third_person: third person singular if verb, else empty string
-- is_irregular: true if irregular verb, else false
-- noun_plural: correct standard plural form if noun and one genuinely exists (e.g. "book" → "books", "peppermint" → "peppermints"); empty string only if the noun is truly uncountable with no accepted plural
-- adj_comparative: comparative if adjective, else empty string
-- adj_superlative: superlative if adjective, else empty string
+You are a Hungarian-English dictionary assistant for the English word "{$word}". Fill the response fields, following these rules:
+- is_real_word: true if "{$word}" is genuine English a learner might want to save — a standard word, a fixed expression, OR any natural, meaningful multi-word English phrase (even if it is not a dictionary idiom and even if a slightly different word order would be more common). Set false only for gibberish, random letters, a clear misspelling, or text that is not English. Judge the input itself — rare, technical or proper-noun English words are still real (true). If false, leave the other fields as empty strings.
+- meaning_hu: concise primary Hungarian translation (for a phrase, a short natural Hungarian equivalent).
+- extra_meanings: other Hungarian meanings, comma-separated, or empty string.
+- synonyms: 2-4 English synonyms, comma-separated, or empty string.
+- example_en / example_hu: one natural English example sentence and its Hungarian translation.
+- part_of_speech: the word's primary, most common grammatical role.
+- noun_plural: standard plural if the word is a noun that has one (e.g. "book" → "books", "peppermint" → "peppermints"); empty string only if the noun is truly uncountable.
 {$contextBlock}
 
-Respond ONLY with valid JSON, no markdown, no explanation.
+Constraints:
+- Translate the Hungarian fields accurately and concisely.
+- Fill the verb and adjective form fields only for actual verbs/adjectives; use an empty string for any field that does not apply, and never invent a word form that does not exist in standard English.
 PROMPT;
 
-        $result = $this->callGemini($apiKey, $prompt, 400, temperature: 0.2, user: $request->user());
+        // 700 token-keret: a strukturált séma ~16 hosszú mezőneve maga is output-token,
+        // a 400-as keret ezekkel együtt igeszavaknál (összes alak + két példamondat)
+        // csonkolódhat → érvénytelen JSON → 502. A keret felső korlát, csak a ténylegesen
+        // generált tokenért fizetünk, így a tágítás a normál válaszok költségét nem növeli.
+        [$primary, $fallback] = $this->modelsFor('lookup');
+        $generator = fn () => $this->callGemini($apiKey, $prompt, 700, $primary, $fallback, temperature: 0.2, responseSchema: $this->lookupSchema(), user: $request->user());
+
+        // Csak valódi szót cache-elünk: egy nem létező szóra (gibberish, elgépelés)
+        // adott hallucinált válasz nem mérgezheti meg a mindenki által használt cache-t.
+        $onlyRealWords = fn (array $data): bool => ($data['is_real_word'] ?? true) === true;
+
+        // A context-tal érkező kérés mondat-egyedi (context_explanation mező),
+        // ezért nem cache-elhető; csak a context nélküli szótári lekérdezést tároljuk.
+        $result = $context === ''
+            ? $this->aiCache->remember('lookup', $word, self::AI_CACHE_VERSION['lookup'], $primary, $generator, $onlyRealWords)
+            : $generator();
 
         if (! $result['ok']) {
             return response()->json(['error' => $result['error']], 502);
@@ -1005,7 +1204,16 @@ PROMPT;
             return response()->json(['error' => 'Érvénytelen válasz.'], 502);
         }
 
+        // Nem valódi szó: nem töltünk ki kamu szótári adatot, egyértelműen jelezzük.
+        if (($data['is_real_word'] ?? true) === false) {
+            return response()->json([
+                'is_real_word' => false,
+                'message' => 'Ez nem tűnik valódi angol szónak. Ellenőrizd a helyesírást.',
+            ]);
+        }
+
         return response()->json([
+            'is_real_word' => true,
             'meaning_hu' => $data['meaning_hu'] ?? null,
             'extra_meanings' => $data['extra_meanings'] ?? null,
             'synonyms' => $data['synonyms'] ?? null,
@@ -1160,8 +1368,8 @@ PROMPT;
 
         $user = $request->user();
         $bookLimit = $this->bookLimitFor($user);
-
         $bookCount = UserBook::where('user_id', $user->id)->count();
+
         if ($bookCount >= $bookLimit) {
             return response()->json([
                 'error' => "Elérted a könyvek maximális számát ({$bookLimit}). Töröld valamelyiket, vagy válts magasabb csomagra.",
@@ -1459,7 +1667,7 @@ PROMPT;
                 continue;
             }
 
-            $href = strtok($meta['href'], '#');
+            $href = rawurldecode(strtok($meta['href'], '#'));
 
             if (isset($skipHrefs[$href])) {
                 continue;
@@ -1468,7 +1676,12 @@ PROMPT;
             $fullPath = $opfDir !== '' ? $opfDir.'/'.$href : $href;
             $fullPath = $this->normalizePath($fullPath);
 
-            if (! preg_match('/\.(html|htm|xhtml)$/i', $fullPath)) {
+            // The manifest media-type is authoritative; some EPUBs (e.g. Calibre
+            // splits) name HTML documents without a .html/.xhtml extension.
+            $isHtmlDoc = str_contains(strtolower($meta['media_type']), 'html')
+                || preg_match('/\.(html|htm|xhtml)$/i', $fullPath);
+
+            if (! $isHtmlDoc) {
                 continue;
             }
 
@@ -1558,6 +1771,26 @@ PROMPT;
     }
 
     /**
+     * Egy feladat .env-ből feloldott modellpárja: [primary, fallback]. A fallback
+     * null, ha nincs beállítva (vagy megegyezik a primary-vel) — ilyenkor a
+     * callGemini() nem eszkalál, csak a primary-t hívja.
+     *
+     * @return array{0: string, 1: ?string}
+     */
+    private function modelsFor(string $task): array
+    {
+        $config = config("services.gemini.models.{$task}", []);
+        $primary = $config['primary'] ?? 'gemini-2.5-flash-lite';
+        $fallback = $config['fallback'] ?? null;
+
+        // A "none" sentinellel (.env-ben GEMINI_FALLBACK_*=none) kapcsolható ki az
+        // eszkaláció; a primary-vel egyező fallbacknek sincs értelme.
+        $hasFallback = $fallback && strtolower($fallback) !== 'none' && $fallback !== $primary;
+
+        return [$primary, $hasFallback ? $fallback : null];
+    }
+
+    /**
      * Gemini árazás modellenként, USD / 1M token (input és output külön).
      * A költséget ebből számoljuk mikro-dollárban (lásd lentebb).
      *
@@ -1566,106 +1799,171 @@ PROMPT;
     private const GEMINI_PRICING = [
         'gemini-2.5-flash-lite' => ['in' => 0.10, 'out' => 0.40],
         'gemini-2.5-flash' => ['in' => 0.30, 'out' => 2.50],
+        // Újabb generációk — ha a .env ezekre állít primary/fallback-et, a settle()
+        // a valós árukon számoljon, ne essen vissza a lite becslésre.
+        'gemini-3.1-flash-lite' => ['in' => 0.25, 'out' => 1.50],
+        'gemini-3.5-flash' => ['in' => 1.50, 'out' => 9.00],
     ];
+
+    /**
+     * Próbálkozások száma modellenként a callGemini() lánc minden lépcsőjén.
+     * Két modell (primary + fallback) esetén legfeljebb ennyi × 2 hívás — a
+     * szinkron kérés gateway-timeoutját nem feszítheti túl.
+     */
+    private const GEMINI_ATTEMPTS_PER_MODEL = 2;
 
     /**
      * Call Gemini with retry logic and thinking disabled.
      *
-     * @return array{ok: bool, data: mixed, error: string, cost_micros?: int}
+     * @return array{ok: bool, data: mixed, error: string, cost_micros?: int, model?: string}
      */
-    private function callGemini(string $apiKey, string $prompt, int $maxTokens, string $model = 'gemini-2.5-flash-lite', float $temperature = 0.3, ?User $user = null): array
+    private function callGemini(string $apiKey, string $prompt, int $maxTokens, string $model = 'gemini-2.5-flash-lite', ?string $fallbackModel = null, float $temperature = 0.3, ?array $responseSchema = null, ?User $user = null): array
     {
-        $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent";
-        $payload = [
-            'contents' => [['parts' => [['text' => $prompt]]]],
-            'generationConfig' => [
-                'temperature' => $temperature,
-                'maxOutputTokens' => $maxTokens,
-                'thinkingConfig' => ['thinkingBudget' => 0],
-            ],
+        $generationConfig = [
+            'temperature' => $temperature,
+            'maxOutputTokens' => $maxTokens,
+            'thinkingConfig' => ['thinkingBudget' => 0],
         ];
 
-        $rate = self::GEMINI_PRICING[$model] ?? self::GEMINI_PRICING['gemini-2.5-flash-lite'];
+        // Strukturált kimenet: a séma garantálja a JSON-alakot a modell oldalán,
+        // így nem törékeny szöveg-parsingra hagyatkozunk. A determinisztikus,
+        // cache-elt szófeladatoknál ez kulcsfontosságú — egy hibás alakú válasz
+        // különben mindenki számára bekerülne a gyorsítótárba.
+        if ($responseSchema !== null) {
+            $generationConfig['responseMimeType'] = 'application/json';
+            $generationConfig['responseSchema'] = $responseSchema;
+        }
 
-        // Pre-charge an estimate (prompt input + max possible output) atomically
-        // so concurrent calls cannot all pass the budget check before any of
-        // them is recorded; reconciled to the real cost below (settle/refund).
-        $estimatedMicros = (int) round(((int) ceil(mb_strlen($prompt) / 4)) * $rate['in'] + $maxTokens * $rate['out']);
+        $payload = [
+            'contents' => [['parts' => [['text' => $prompt]]]],
+            'generationConfig' => $generationConfig,
+        ];
+
+        // A keretet a primary (általában olcsóbb) modell árán foglaljuk le; ha a
+        // ritka eszkaláció drágább fallback-en köt ki, a settle() rátölti a
+        // különbözetet. Pre-charge atomikusan, hogy párhuzamos hívások ne
+        // csússzanak át mind egy elavult „kereten belül" ellenőrzésen (TOCTOU).
+        $primaryRate = self::GEMINI_PRICING[$model] ?? self::GEMINI_PRICING['gemini-2.5-flash-lite'];
+        $estimatedMicros = (int) round(((int) ceil(mb_strlen($prompt) / 4)) * $primaryRate['in'] + $maxTokens * $primaryRate['out']);
 
         if ($user !== null && ! $this->aiUsage->reserve($user, $estimatedMicros)) {
             return ['ok' => false, 'data' => null, 'error' => 'Elérted a havi AI-felhasználási kereted.', 'cost_micros' => 0];
         }
 
+        // Modell-lánc: a primary-vel indulunk, és kapacitás-hibára (503/429/5xx,
+        // hálózati hiba) átesünk a fallback-re. Egy konkrét modell túlterheltsége
+        // (503) így nem fordul user-felé menő hibába, ha egy testvérmodell épp él.
+        $models = array_values(array_unique(array_filter([$model, $fallbackModel])));
         $lastError = 'Ismeretlen hiba.';
-        $maxAttempts = 3;
+        $bumpedForTruncation = false;
 
-        for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
-            try {
-                $response = Http::connectTimeout(10)
-                    ->timeout(20)
-                    ->withHeaders([
-                        'Content-Type' => 'application/json',
-                        'x-goog-api-key' => $apiKey,
-                    ])
-                    ->post($url, $payload);
-            } catch (\Throwable $e) {
-                // Hálózati hiba (timeout, DNS, kapcsolat) — átmeneti, újrapróbáljuk.
-                $lastError = 'Kapcsolódási hiba.';
-                Log::warning('Gemini connection error', [
-                    'model' => $model, 'attempt' => $attempt, 'message' => $e->getMessage(),
-                ]);
-                $this->backoff($attempt);
+        foreach ($models as $currentModel) {
+            $url = "https://generativelanguage.googleapis.com/v1beta/models/{$currentModel}:generateContent";
+            $rate = self::GEMINI_PRICING[$currentModel] ?? self::GEMINI_PRICING['gemini-2.5-flash-lite'];
 
-                continue;
-            }
+            for ($attempt = 1; $attempt <= self::GEMINI_ATTEMPTS_PER_MODEL; $attempt++) {
+                try {
+                    $response = Http::connectTimeout(10)
+                        ->timeout(20)
+                        ->withHeaders([
+                            'Content-Type' => 'application/json',
+                            'x-goog-api-key' => $apiKey,
+                        ])
+                        ->post($url, $payload);
+                } catch (\Throwable $e) {
+                    // Hálózati hiba (timeout, DNS, kapcsolat) — átmeneti, újrapróbáljuk;
+                    // a próbák kifutása után a foreach a fallback modellre lép.
+                    $lastError = 'Kapcsolódási hiba.';
+                    Log::warning('Gemini connection error', [
+                        'model' => $currentModel, 'attempt' => $attempt, 'message' => $e->getMessage(),
+                    ]);
+                    $this->backoff($attempt);
 
-            if (! $response->successful()) {
-                $status = $response->status();
-                $lastError = 'Gemini API hiba ('.$status.')';
-                Log::warning('Gemini API error', [
-                    'model' => $model, 'attempt' => $attempt, 'status' => $status,
-                    'body' => mb_substr($response->body(), 0, 500),
-                ]);
-
-                // 4xx (a 429 kivételével) végleges kérés-hiba: nincs értelme újrapróbálni.
-                if ($status < 500 && $status !== 429) {
-                    break;
+                    continue;
                 }
 
-                // 429 (kvóta) / 5xx (túlterhelt modell): visszalépéssel újrapróbáljuk.
-                $this->backoff($attempt, $response->header('Retry-After'));
+                if (! $response->successful()) {
+                    $status = $response->status();
+                    $lastError = 'Gemini API hiba ('.$status.')';
+                    Log::warning('Gemini API error', [
+                        'model' => $currentModel, 'attempt' => $attempt, 'status' => $status,
+                        'body' => mb_substr($response->body(), 0, 500),
+                    ]);
 
-                continue;
+                    // 4xx (a 429 kivételével) végleges kérés-hiba: sem újrapróba, sem
+                    // fallback nem segít (rossz kérés), ezért az egész láncot elhagyjuk.
+                    if ($status < 500 && $status !== 429) {
+                        break 2;
+                    }
+
+                    // 429 (kvóta) / 5xx (túlterhelt modell): visszalépéssel újrapróbáljuk
+                    // ezen a modellen, majd — ha elfogytak a próbák — a fallback jön.
+                    $this->backoff($attempt, $response->header('Retry-After'));
+
+                    continue;
+                }
+
+                $finishReason = $response->json('candidates.0.finishReason');
+                $blockReason = $response->json('promptFeedback.blockReason');
+
+                // Biztonsági/szabályzati blokk (prompt vagy válasz): sem az újrapróba,
+                // sem a fallback nem segít (ugyanaz a prompt ugyanúgy blokkolódna),
+                // ezért azonnal hibát adunk vissza és a keretet felszabadítjuk.
+                if ($blockReason !== null
+                    || in_array($finishReason, ['SAFETY', 'RECITATION', 'PROHIBITED_CONTENT'], true)) {
+                    Log::warning('Gemini blocked content', [
+                        'model' => $currentModel, 'finishReason' => $finishReason, 'blockReason' => $blockReason,
+                    ]);
+
+                    if ($user !== null) {
+                        $this->aiUsage->refund($user, $estimatedMicros);
+                    }
+
+                    return ['ok' => false, 'data' => null, 'error' => 'Az AI biztonsági okból nem tudott választ adni erre a kérésre.', 'cost_micros' => 0];
+                }
+
+                $parts = $response->json('candidates.0.content.parts') ?? [];
+                $text = collect($parts)->firstWhere(fn ($p) => empty($p['thought']))['text']
+                    ?? ($response->json('candidates.0.content.parts.0.text') ?? '');
+
+                $text = preg_replace('/^```json\s*|\s*```$/s', '', trim($text));
+                $data = json_decode($text, true);
+
+                if ($data === null) {
+                    $lastError = 'Érvénytelen AI válasz (nem JSON).';
+
+                    // Csonkolás (MAX_TOKENS): a séma mezőnevei és a hosszú szóalakok
+                    // elérték a kimeneti keretet, ezért tört a JSON. Egyszer megemeljük
+                    // a keretet (a megemelt érték a fallback-re is átöröklődik) — a vak,
+                    // azonos keretű ismétlés ugyanígy csonkolódna. A költséget a settle() rendezi.
+                    if ($finishReason === 'MAX_TOKENS' && ! $bumpedForTruncation) {
+                        $bumpedForTruncation = true;
+                        $payload['generationConfig']['maxOutputTokens'] = (int) ceil($maxTokens * 1.5);
+                        Log::warning('Gemini truncated, retrying with higher token budget', [
+                            'model' => $currentModel, 'attempt' => $attempt,
+                            'newMaxOutputTokens' => $payload['generationConfig']['maxOutputTokens'],
+                        ]);
+                    }
+
+                    continue;
+                }
+
+                // Tényleges költség a Gemini válasz token-bontásából (input/output külön
+                // árazva), mikro-dollárban (1e6 = $1). Hiányzó usageMetadata esetén durva
+                // becslés a prompt + válasz hosszából (~4 karakter / token).
+                $inputTokens = (int) ($response->json('usageMetadata.promptTokenCount')
+                    ?? ceil(mb_strlen($prompt) / 4));
+                $outputTokens = (int) ($response->json('usageMetadata.candidatesTokenCount')
+                    ?? ceil(mb_strlen($text) / 4));
+
+                $costMicros = (int) round($inputTokens * $rate['in'] + $outputTokens * $rate['out']);
+
+                if ($user !== null) {
+                    $this->aiUsage->settle($user, $estimatedMicros, $costMicros);
+                }
+
+                return ['ok' => true, 'data' => $data, 'error' => '', 'cost_micros' => $costMicros, 'model' => $currentModel];
             }
-
-            $parts = $response->json('candidates.0.content.parts') ?? [];
-            $text = collect($parts)->firstWhere(fn ($p) => empty($p['thought']))['text']
-                ?? ($response->json('candidates.0.content.parts.0.text') ?? '');
-
-            $text = preg_replace('/^```json\s*|\s*```$/s', '', trim($text));
-            $data = json_decode($text, true);
-
-            if ($data === null) {
-                $lastError = 'Érvénytelen AI válasz (nem JSON).';
-
-                continue;
-            }
-
-            // Tényleges költség a Gemini válasz token-bontásából (input/output külön
-            // árazva), mikro-dollárban (1e6 = $1). Hiányzó usageMetadata esetén durva
-            // becslés a prompt + válasz hosszából (~4 karakter / token).
-            $inputTokens = (int) ($response->json('usageMetadata.promptTokenCount')
-                ?? ceil(mb_strlen($prompt) / 4));
-            $outputTokens = (int) ($response->json('usageMetadata.candidatesTokenCount')
-                ?? ceil(mb_strlen($text) / 4));
-
-            $costMicros = (int) round($inputTokens * $rate['in'] + $outputTokens * $rate['out']);
-
-            if ($user !== null) {
-                $this->aiUsage->settle($user, $estimatedMicros, $costMicros);
-            }
-
-            return ['ok' => true, 'data' => $data, 'error' => '', 'cost_micros' => $costMicros];
         }
 
         if ($user !== null) {

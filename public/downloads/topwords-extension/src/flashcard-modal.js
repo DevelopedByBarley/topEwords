@@ -153,42 +153,62 @@ function wireFlashcardForm(root, data, csrf, onBack) {
         aiBtn.disabled = true;
         aiBtn.textContent = '⏳';
 
-        sendMsg({ type: 'GEMINI_FLASHCARD', word: data.word }, (resp) => {
-            aiBtn.disabled = false;
-            aiBtn.textContent = '✨ AI';
+        // Korábbi hiba törlése, hogy egy sikeres újralekérés ne hagyja a
+        // régi üzenetet a képernyőn.
+        feedback.style.display = 'none';
 
-            if (resp?.error === 'ai_limit') {
-                showFcFeedback(
-                    feedback,
-                    resp.message ?? 'Elérted a havi AI-felhasználási kereted.',
-                    '#f97316',
+        sendMsgMinDelay(
+            { type: 'GEMINI_FLASHCARD', word: data.word },
+            2000,
+            (resp) => {
+                aiBtn.disabled = false;
+                aiBtn.textContent = '✨ AI';
+
+                if (resp?.error === 'ai_limit') {
+                    showFcFeedback(
+                        feedback,
+                        resp.message ??
+                            'Elérted a havi AI-felhasználási kereted.',
+                        '#f97316',
+                    );
+
+                    return;
+                }
+
+                // Az AI nem létező szónak ítélte (gibberish / elgépelés): jelezzük.
+                if (resp?.is_real_word === false) {
+                    showFcFeedback(
+                        feedback,
+                        resp.message ?? 'Ez nem tűnik valódi angol szónak.',
+                        '#f97316',
+                    );
+
+                    return;
+                }
+
+                if (!resp || resp.error || (!resp.front && !resp.back)) {
+                    showFcFeedback(
+                        feedback,
+                        'Az AI nem tudott kártyát készíteni.',
+                        '#ef4444',
+                    );
+
+                    return;
+                }
+
+                aiFront = resp.front ?? '';
+                aiBack = resp.back ?? '';
+                root.querySelector('[data-fc-front-preview]').replaceChildren(
+                    sanitizeAiHtml(aiFront),
                 );
-
-                return;
-            }
-
-            if (!resp || resp.error || (!resp.front && !resp.back)) {
-                showFcFeedback(
-                    feedback,
-                    'Az AI nem tudott kártyát készíteni.',
-                    '#ef4444',
+                root.querySelector('[data-fc-back-preview]').replaceChildren(
+                    sanitizeAiHtml(aiBack),
                 );
-
-                return;
-            }
-
-            aiFront = resp.front ?? '';
-            aiBack = resp.back ?? '';
-            root.querySelector('[data-fc-front-preview]').replaceChildren(
-                sanitizeAiHtml(aiFront),
-            );
-            root.querySelector('[data-fc-back-preview]').replaceChildren(
-                sanitizeAiHtml(aiBack),
-            );
-            fields.style.display = 'none';
-            preview.style.display = 'block';
-            feedback.style.display = 'none';
-        });
+                fields.style.display = 'none';
+                preview.style.display = 'block';
+                feedback.style.display = 'none';
+            },
+        );
     });
 
     root.querySelector('[data-fc-manual]')?.addEventListener('click', () => {

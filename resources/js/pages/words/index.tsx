@@ -69,6 +69,7 @@ import { importMethod as importFromWord } from '@/routes/flashcards/cards';
 import { index as flashcardsIndex } from '@/routes/flashcards';
 import { destroy, store, update } from '@/routes/folders';
 import { update as folderWordUpdate } from '@/routes/folders/words';
+import { withMinDuration } from '@/lib/min-duration';
 import {
     importance as wordImportance,
     index,
@@ -250,7 +251,14 @@ export default function WordsIndex({
                 sensitivity: 'base',
             }),
         );
-    }, [customFilter, customWords, words.data, filters.level, filters.status, filters.importance]);
+    }, [
+        customFilter,
+        customWords,
+        words.data,
+        filters.level,
+        filters.status,
+        filters.importance,
+    ]);
 
     const STORAGE_KEY = 'words_filters';
 
@@ -301,16 +309,19 @@ export default function WordsIndex({
     }, []);
 
     const navigate = useCallback(
-        (params: {
-            search?: string;
-            letter?: string;
-            level?: number | null;
-            status?: string;
-            importance?: number | null;
-            folder?: number | null;
-            page?: number;
-            per_page?: number;
-        }, options?: { preserveScroll?: boolean }) => {
+        (
+            params: {
+                search?: string;
+                letter?: string;
+                level?: number | null;
+                status?: string;
+                importance?: number | null;
+                folder?: number | null;
+                page?: number;
+                per_page?: number;
+            },
+            options?: { preserveScroll?: boolean },
+        ) => {
             const resolved = {
                 search: params.search ?? filters.search,
                 letter:
@@ -563,6 +574,9 @@ export default function WordsIndex({
             return;
         }
 
+        // Korábbi hiba (pl. "nem valódi szó") törlése, hogy egy sikeres
+        // újralekérés ne hagyja a régi üzenetet a képernyőn.
+        setCustomWordErrors({});
         setGeminiLoading(true);
 
         try {
@@ -570,18 +584,30 @@ export default function WordsIndex({
                 document
                     .querySelector('meta[name="csrf-token"]')
                     ?.getAttribute('content') ?? '';
-            const res = await fetch(
-                `/text-analysis/gemini-lookup?word=${encodeURIComponent(word)}`,
-                {
-                    headers: {
-                        'X-CSRF-TOKEN': csrfToken,
-                        Accept: 'application/json',
+            const res = await withMinDuration(
+                fetch(
+                    `/text-analysis/gemini-lookup?word=${encodeURIComponent(word)}`,
+                    {
+                        headers: {
+                            'X-CSRF-TOKEN': csrfToken,
+                            Accept: 'application/json',
+                        },
                     },
-                },
+                ),
             );
             const data = await res.json();
 
             if (data.error) {
+                return;
+            }
+
+            // Az AI nem létező szónak ítélte (gibberish / elgépelés): jelezzük, nem töltünk ki kamu adatot.
+            if (data.is_real_word === false) {
+                setCustomWordErrors({
+                    word:
+                        data.message ??
+                        'Ez nem tűnik valódi angol szónak. Ellenőrizd a helyesírást.',
+                });
                 return;
             }
 
@@ -621,7 +647,9 @@ export default function WordsIndex({
         }
 
         if (!customWordForm.meaning_hu.trim()) {
-            setCustomWordErrors({ meaning_hu: 'A magyar jelentés megadása kötelező.' });
+            setCustomWordErrors({
+                meaning_hu: 'A magyar jelentés megadása kötelező.',
+            });
 
             return;
         }
@@ -783,9 +811,13 @@ export default function WordsIndex({
                     </div>
                     <div className="relative mt-5">
                         <div className="mb-2 flex items-center justify-between text-sm">
-                            <span className="font-bold text-white">Haladás</span>
+                            <span className="font-bold text-white">
+                                Haladás
+                            </span>
                             <span className="text-white/85">
-                                {stats.known.toLocaleString()} / {stats.total.toLocaleString()} ({progressPercent}%)
+                                {stats.known.toLocaleString()} /{' '}
+                                {stats.total.toLocaleString()} (
+                                {progressPercent}%)
                             </span>
                         </div>
                         <div className="h-3 w-full overflow-hidden rounded-full bg-black/15">
@@ -820,7 +852,9 @@ export default function WordsIndex({
                     {/* Custom words sub-section */}
                     <div className="relative mt-5 border-t border-white/20 pt-4">
                         <div className="mb-2 flex items-center justify-between text-sm">
-                            <span className="font-bold text-white">Saját szavak</span>
+                            <span className="font-bold text-white">
+                                Saját szavak
+                            </span>
                             <span className="text-white/85">
                                 {customStats.total === 0
                                     ? 'Még nincs hozzáadott szó'
@@ -832,29 +866,36 @@ export default function WordsIndex({
                                 <div className="h-2 w-full overflow-hidden rounded-full bg-black/15">
                                     <div
                                         className="h-2 rounded-full bg-white transition-all duration-300"
-                                        style={{ width: `${Math.round((customStats.known / customStats.total) * 100)}%` }}
+                                        style={{
+                                            width: `${Math.round((customStats.known / customStats.total) * 100)}%`,
+                                        }}
                                     />
                                 </div>
                                 <div className="mt-3 flex flex-wrap gap-2">
                                     <span className="flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-bold text-zinc-700">
                                         <CheckCheck className="size-3.5 text-green-600" />
-                                        Tudom: {customStats.known.toLocaleString()}
+                                        Tudom:{' '}
+                                        {customStats.known.toLocaleString()}
                                     </span>
                                     <span className="flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-bold text-zinc-700">
                                         <Clock className="size-3.5 text-blue-600" />
-                                        Tanulom: {customStats.learning.toLocaleString()}
+                                        Tanulom:{' '}
+                                        {customStats.learning.toLocaleString()}
                                     </span>
                                     <span className="flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-bold text-zinc-700">
                                         <BookMarked className="size-3.5 text-orange-600" />
-                                        Később: {customStats.saved.toLocaleString()}
+                                        Később:{' '}
+                                        {customStats.saved.toLocaleString()}
                                     </span>
                                     <span className="flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-bold text-zinc-700">
                                         <Mic className="size-3.5 text-violet-600" />
-                                        Kiejtés: {customStats.pronunciation.toLocaleString()}
+                                        Kiejtés:{' '}
+                                        {customStats.pronunciation.toLocaleString()}
                                     </span>
                                     <span className="flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-bold text-zinc-700">
                                         <PenLine className="size-3.5 text-rose-600" />
-                                        Gyakorlásra: {customStats.practice.toLocaleString()}
+                                        Gyakorlásra:{' '}
+                                        {customStats.practice.toLocaleString()}
                                     </span>
                                 </div>
                             </>
@@ -908,14 +949,19 @@ export default function WordsIndex({
                                 />
                                 <div className="space-y-3 border-t pt-3">
                                     <div>
-                                        <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Státusz</p>
+                                        <p className="mb-2 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
+                                            Státusz
+                                        </p>
                                         <StatusButtons
                                             variant="modal"
                                             current={customWordForm.status}
                                             onSelect={(s) =>
                                                 setCustomWordForm((prev) => ({
                                                     ...prev,
-                                                    status: prev.status === s ? null : s,
+                                                    status:
+                                                        prev.status === s
+                                                            ? null
+                                                            : s,
                                                 }))
                                             }
                                         />
@@ -1387,7 +1433,7 @@ export default function WordsIndex({
                                     >
                                         <Volume2 className="size-3.5" />
                                     </button>
-                                    {isAdmin && (
+                                    {hasAiAccess && (
                                         <button
                                             onClick={() =>
                                                 openPracticeModal(
@@ -1906,14 +1952,17 @@ export default function WordsIndex({
                         />
                         <div className="space-y-3 border-t pt-3">
                             <div>
-                                <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Státusz</p>
+                                <p className="mb-2 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
+                                    Státusz
+                                </p>
                                 <StatusButtons
                                     variant="modal"
                                     current={editCustomWordForm.status}
                                     onSelect={(s) =>
                                         setEditCustomWordForm((prev) => ({
                                             ...prev,
-                                            status: prev.status === s ? null : s,
+                                            status:
+                                                prev.status === s ? null : s,
                                         }))
                                     }
                                 />

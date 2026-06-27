@@ -72,6 +72,7 @@ export default function FlashcardShow({
     reviewDueCount,
     uncalibratedCount,
     deckSettings,
+    globalSettings,
     otherDecks,
     nextDueAt,
 }: {
@@ -81,6 +82,7 @@ export default function FlashcardShow({
     reviewDueCount: number;
     uncalibratedCount: number;
     deckSettings: DeckSettings;
+    globalSettings: DeckSettings;
     otherDecks: OtherDeck[];
     nextDueAt: string | null;
 }) {
@@ -834,6 +836,7 @@ export default function FlashcardShow({
             <DeckSettingsDialog
                 deck={deck}
                 deckSettings={deckSettings}
+                globalSettings={globalSettings}
                 open={showSettings}
                 onClose={() => setShowSettings(false)}
             />

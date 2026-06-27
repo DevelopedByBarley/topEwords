@@ -12,6 +12,15 @@ class FlashcardSettingRequest extends FormRequest
     }
 
     /**
+     * An unchecked checkbox is omitted from the request, so coerce it to a real
+     * boolean — otherwise shuffle_cards can never be turned back off.
+     */
+    protected function prepareForValidation(): void
+    {
+        $this->merge(['shuffle_cards' => $this->boolean('shuffle_cards')]);
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function rules(): array

@@ -90,12 +90,12 @@ class FlashcardCalibrationController extends Controller
             'rating' => ['required', 'integer', 'between:1,4'],
             'direction' => ['required', 'in:front_to_back,back_to_front'],
             'is_last_direction' => ['required', 'boolean'],
-            'somewhat_min' => ['sometimes', 'integer', 'min:1', 'max:255'],
-            'somewhat_max' => ['sometimes', 'integer', 'min:1', 'max:255'],
-            'know_min' => ['sometimes', 'integer', 'min:1', 'max:255'],
-            'know_max' => ['sometimes', 'integer', 'min:1', 'max:255'],
-            'well_min' => ['sometimes', 'integer', 'min:1', 'max:255'],
-            'well_max' => ['sometimes', 'integer', 'min:1', 'max:255'],
+            'somewhat_min' => ['sometimes', 'integer', 'min:1', 'max:365'],
+            'somewhat_max' => ['sometimes', 'integer', 'min:1', 'max:365'],
+            'know_min' => ['sometimes', 'integer', 'min:1', 'max:365'],
+            'know_max' => ['sometimes', 'integer', 'min:1', 'max:365'],
+            'well_min' => ['sometimes', 'integer', 'min:1', 'max:365'],
+            'well_max' => ['sometimes', 'integer', 'min:1', 'max:365'],
         ]);
 
         $settings = FlashcardSetting::firstOrCreate(['user_id' => $request->user()->id]);

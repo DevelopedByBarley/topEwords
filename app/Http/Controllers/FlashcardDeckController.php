@@ -17,12 +17,13 @@ use Inertia\Response;
 
 class FlashcardDeckController extends Controller
 {
-    public function index(Request $request): Response
+    public function index(Request $request, FlashcardSrsService $srs): Response
     {
         $user = $request->user();
 
         $decks = $user->flashcardDecks()
             ->withCount('flashcards')
+            ->with('deckSettings')
             ->latest()
             ->get();
 
@@ -48,27 +49,17 @@ class FlashcardDeckController extends Controller
             'decks' => $decks,
             'folders' => $folders,
             'deckFolderIds' => $deckFolderIds,
-            'dueCounts' => Inertia::defer(function () use ($deckIds) {
+            // Use the canonical study queue (getDueCards) so the badge matches
+            // exactly what a study session will present: uncalibrated imports are
+            // excluded and the per-deck daily limits are applied.
+            'dueCounts' => Inertia::defer(function () use ($decks, $user, $srs) {
+                $userSettings = $user->flashcardSettings;
+                $defaultSettings = $srs->defaultSettings();
+
                 $dueCounts = [];
-                if (! empty($deckIds)) {
-                    $newCounts = DB::table('flashcards')
-                        ->whereIn('flashcards.deck_id', $deckIds)
-                        ->whereNotExists(fn ($q) => $q->from('flashcard_reviews')->whereColumn('flashcard_reviews.flashcard_id', 'flashcards.id'))
-                        ->selectRaw('deck_id, COUNT(*) as cnt')
-                        ->groupBy('deck_id')
-                        ->pluck('cnt', 'deck_id');
-
-                    $reviewCounts = DB::table('flashcard_reviews')
-                        ->join('flashcards', 'flashcards.id', '=', 'flashcard_reviews.flashcard_id')
-                        ->whereIn('flashcards.deck_id', $deckIds)
-                        ->where('flashcard_reviews.due_at', '<=', now())
-                        ->selectRaw('flashcards.deck_id, COUNT(*) as cnt')
-                        ->groupBy('flashcards.deck_id')
-                        ->pluck('cnt', 'deck_id');
-
-                    foreach ($deckIds as $id) {
-                        $dueCounts[$id] = ($newCounts[$id] ?? 0) + ($reviewCounts[$id] ?? 0);
-                    }
+                foreach ($decks as $deck) {
+                    $settings = $deck->deckSettings ?? $userSettings ?? $defaultSettings;
+                    $dueCounts[$deck->id] = $srs->getDueCards($deck->id, $settings)->count();
                 }
 
                 return $dueCounts;
@@ -185,6 +176,9 @@ class FlashcardDeckController extends Controller
                 ->get()
                 ->sum(fn ($c) => $c->direction === 'both' ? 2 - $c->rated_count : 1),
             'deckSettings' => $deck->deckSettings,
+            // Baseline the deck inherits when it has no override — so the settings
+            // dialog shows the effective values, not hardcoded defaults.
+            'globalSettings' => $request->user()->flashcardSettings ?? $srs->defaultSettings(),
             'otherDecks' => $request->user()->flashcardDecks()
                 ->where('id', '!=', $deck->id)
                 ->orderBy('name')

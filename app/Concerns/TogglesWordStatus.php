@@ -2,6 +2,7 @@
 
 namespace App\Concerns;
 
+use App\Services\WordStatusFormExpander;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -31,13 +32,31 @@ trait TogglesWordStatus
      * ami minden mentésnél letöltené a teljes oldalt); az Inertia webfelület
      * viszont redirectet igényel a látogatás feloldásához. Inertia-kérésre
      * (ami szintén expectsJson()) ezért nem adhatunk JSON-t.
+     *
+     * A bővítménynek a megváltozott szó összes felszíni alakját ($forms) is
+     * visszaküldjük, így a háttér-cache-t helyben tudja foltozni a teljes
+     * státusz-térkép újraletöltése nélkül — ez fogja vissza a szerverterhelést.
+     *
+     * @param  array<int, string>  $forms
      */
-    private function statusToggleResponse(Request $request, ?string $status): RedirectResponse|JsonResponse
+    private function statusToggleResponse(Request $request, ?string $status, array $forms = []): RedirectResponse|JsonResponse
     {
         if (! $request->hasHeader('X-Inertia') && $request->expectsJson()) {
-            return response()->json(['ok' => true, 'status' => $status]);
+            return response()->json(['ok' => true, 'status' => $status, 'forms' => $forms]);
         }
 
         return back();
+    }
+
+    /**
+     * A megváltozott szó/saját szó normalizált felszíni alakjai a kliens-oldali
+     * cache foltozásához (ugyanaz a logika, mint az ExtensionController teljes
+     * térképénél), egyetlen forrásból.
+     *
+     * @return array<int, string>
+     */
+    private function statusFormsFor(object $row): array
+    {
+        return app(WordStatusFormExpander::class)->formsFor($row);
     }
 }

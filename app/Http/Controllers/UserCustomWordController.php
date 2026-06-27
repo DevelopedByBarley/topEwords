@@ -77,12 +77,13 @@ class UserCustomWordController extends Controller
         Gate::authorize('update', $customWord);
 
         $status = $this->validatedToggleStatus($request);
+        $forms = $this->statusFormsFor($customWord);
 
         // Üres státusz, vagy az aktív gomb újrakattintása → levétel.
         if ($status === null || $customWord->status === $status) {
             $customWord->update(['status' => null]);
 
-            return $this->statusToggleResponse($request, null);
+            return $this->statusToggleResponse($request, null, $forms);
         }
 
         $customWord->update(['status' => $status]);
@@ -96,7 +97,7 @@ class UserCustomWordController extends Controller
             session()->flash('achievements', $newAchievements);
         }
 
-        return $this->statusToggleResponse($request, $status);
+        return $this->statusToggleResponse($request, $status, $forms);
     }
 
     public function importance(Request $request, UserCustomWord $customWord): RedirectResponse

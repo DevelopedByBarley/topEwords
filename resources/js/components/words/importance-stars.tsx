@@ -11,6 +11,7 @@ export default function ImportanceStars({ value, onChange }: ImportanceStarsProp
                 {[1, 2, 3, 4, 5].map((n) => (
                     <button
                         key={n}
+                        type="button"
                         onClick={() => onChange(value === n ? null : n)}
                         title={`${n} csillag`}
                         className={`flex-1 rounded-lg py-2 text-lg transition-all ${

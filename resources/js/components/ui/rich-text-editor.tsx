@@ -5,7 +5,7 @@ import Link from '@tiptap/extension-link';
 import Placeholder from '@tiptap/extension-placeholder';
 import { TextStyle } from '@tiptap/extension-text-style';
 import { Color } from '@tiptap/extension-color';
-import { Bold, Italic, Underline as UnderlineIcon, Link as LinkIcon, List, ListOrdered, Code, Strikethrough, Undo, Redo, Palette, Bookmark, X } from 'lucide-react';
+import { Bold, Italic, Underline as UnderlineIcon, Link as LinkIcon, List, ListOrdered, Code, Strikethrough, Undo, Redo, Palette, Volume2, X } from 'lucide-react';
 import { forwardRef, useImperativeHandle, useRef, useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { sanitizeHtml } from '@/lib/sanitize-html';
@@ -249,18 +249,21 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
                     <Divider />
 
                     {speakName !== undefined && (
-                        <ToolbarButton
-                            onClick={() => {
+                        <button
+                            type="button"
+                            onMouseDown={(e) => {
+                                e.preventDefault();
                                 const selected = window.getSelection()?.toString().trim();
                                 if (selected) {
                                     setSpeakText((prev) => prev ? `${prev}\n${selected}` : selected);
                                 }
                             }}
-                            active={!!speakText}
-                            title="Kijelölt szöveg hozzáadása a felolvasandó szöveghez"
+                            title="Jelöld ki a szót a szövegben, majd kattints ide, hogy felolvasáskor kimondja"
+                            className="inline-flex items-center gap-1 rounded border border-amber-300 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700 transition-colors hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-400 dark:hover:bg-amber-900/50"
                         >
-                            <Bookmark className="size-3.5" />
-                        </ToolbarButton>
+                            <Volume2 className="size-3.5" />
+                            Kimondás
+                        </button>
                     )}
                 </div>
             )}

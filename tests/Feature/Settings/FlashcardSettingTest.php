@@ -76,6 +76,89 @@ test('flashcard settings can be updated', function () {
     expect($user->fresh()->flashcardSettings->new_cards_per_day)->toBe(50);
 });
 
+test('calibration intervals up to 365 days are accepted', function () {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->put(route('flashcard-settings.update'), [
+            'new_cards_per_day' => 20,
+            'max_reviews_per_day' => 200,
+            'learning_steps' => [1, 10],
+            'graduating_interval' => 1,
+            'easy_interval' => 4,
+            'starting_ease' => 250,
+            'easy_bonus' => 130,
+            'hard_interval_modifier' => 120,
+            'interval_modifier' => 100,
+            'max_interval' => 365,
+            'lapse_new_interval' => 0,
+            'leech_threshold' => 8,
+            'calib_well_max' => 365,
+        ])
+        ->assertRedirect(route('flashcard-settings.edit'))
+        ->assertSessionHasNoErrors();
+
+    expect($user->fresh()->flashcardSettings->calib_well_max)->toBe(365);
+});
+
+test('calibration intervals above 365 days are rejected', function () {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->put(route('flashcard-settings.update'), [
+            'new_cards_per_day' => 20,
+            'max_reviews_per_day' => 200,
+            'learning_steps' => [1, 10],
+            'graduating_interval' => 1,
+            'easy_interval' => 4,
+            'starting_ease' => 250,
+            'easy_bonus' => 130,
+            'hard_interval_modifier' => 120,
+            'interval_modifier' => 100,
+            'max_interval' => 365,
+            'lapse_new_interval' => 0,
+            'leech_threshold' => 8,
+            'calib_well_max' => 366,
+        ])
+        ->assertSessionHasErrors(['calib_well_max']);
+});
+
+test('shuffle is on by default for users without settings', function () {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->get(route('flashcard-settings.edit'))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('settings.shuffle_cards', true)
+        );
+});
+
+test('shuffle_cards can be turned off (unchecked checkbox)', function () {
+    $user = User::factory()->create();
+    FlashcardSetting::factory()->for($user)->create(['shuffle_cards' => true]);
+
+    // An unchecked checkbox is omitted by the browser — simulate by not sending it.
+    $this->actingAs($user)
+        ->put(route('flashcard-settings.update'), [
+            'new_cards_per_day' => 20,
+            'max_reviews_per_day' => 200,
+            'learning_steps' => [1, 10],
+            'graduating_interval' => 1,
+            'easy_interval' => 4,
+            'starting_ease' => 250,
+            'easy_bonus' => 130,
+            'hard_interval_modifier' => 120,
+            'interval_modifier' => 100,
+            'max_interval' => 365,
+            'lapse_new_interval' => 0,
+            'leech_threshold' => 8,
+        ])
+        ->assertRedirect(route('flashcard-settings.edit'));
+
+    expect($user->fresh()->flashcardSettings->shuffle_cards)->toBeFalse();
+});
+
 test('flashcard settings validation rejects invalid data', function () {
     $user = User::factory()->create();
 

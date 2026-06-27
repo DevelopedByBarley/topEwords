@@ -75,6 +75,21 @@ test('checkout does not gate users with complete billing details', function () {
     }
 });
 
+test('checkout blocks users who already have non-Stripe access', function () {
+    // Admin-adta (plan_override) hozzáférésnél nincs Stripe-előfizetés, így a swap-ág nem fogná
+    // meg — szerveroldalon kell elzárni, nehogy fölöslegesen fizetős előfizetést indítson.
+    $user = User::factory()->withBilling()->create();
+    $user->plan_override = 'premium';
+    $user->save();
+
+    $this->actingAs($user)
+        ->post(route('pricing.checkout', 'basic'), ['accept_terms' => true])
+        ->assertRedirect(route('pricing'))
+        ->assertSessionHas('info');
+
+    expect($user->fresh()->subscriptions()->count())->toBe(0);
+});
+
 test('hasBillingDetails returns false when details are missing', function () {
     $user = User::factory()->create();
 

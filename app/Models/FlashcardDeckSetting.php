@@ -33,6 +33,7 @@ class FlashcardDeckSetting extends Model
     {
         return [
             'learning_steps' => 'array',
+            'shuffle_cards' => 'boolean',
         ];
     }
 }

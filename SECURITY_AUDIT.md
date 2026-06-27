@@ -195,6 +195,25 @@ directory listing / titok-fájl).
   *Megj.: a hatás megegyezik a Cashier feltételes `VerifyWebhookSignature` middleware-ével — most
   csak nem maradhat csendben kikapcsolva.*
 
+- [x] **🟡 #B2 — Párhuzamos checkout → dupla előfizetés / dupla számlázás — KÉSZ (2026-06-27)**
+  `app/Http/Controllers/StripeWebhookController.php`
+  A `checkout` a meglévő előfizetést a session **létrehozásakor** ellenőrzi (`activeSubscription()`),
+  de a helyi előfizetés csak a `customer.subscription.created` webhookkor jön létre. Két fülön
+  befejezett Checkout → két párhuzamos Stripe-előfizetés, a trial végén mindkettő számláz.
+  Megoldás: a webhook-kezelő override-olja `handleCustomerSubscriptionCreated`-et, és bármely
+  duplikátum aktív előfizetést azonnal lemond (`cancelNow`), a legrégebbit megtartva — ebben az
+  appban usernként mindig pontosan 1 aktív előfizetés van (a csomagváltás helyben swap-el). A
+  takarítás `try/catch`-ben fut, hogy soha ne buktassa a webhookot. A duplikátum-kiválasztó logika
+  (`duplicateSubscriptionsFor`) önállóan tesztelt (3 teszt); a `cancelNow` Stripe-hívása csak
+  integrációban fut.
+
+- [x] **🟡 #B3 — Fölösleges fizetős előfizetés admin-adta / lifetime hozzáférésnél — KÉSZ (2026-06-27)**
+  `app/Http/Controllers/PricingController.php`
+  A `checkout` csak `activeSubscription()`-t (Stripe) nézett, `hasActiveAccess()`-t nem. Egy
+  `plan_override` vagy `lifetime_access` usernek nincs Stripe-előfizetése, így a swap-ág nem fogta
+  meg → fölösleges fizetős előfizetést indíthatott azért, amit ingyen kap. Új szerveroldali kapu:
+  ha nincs Stripe-előfizetés **de** `hasActiveAccess()`, visszairányít a pricingre. 1 teszt.
+
 **Cáfolt (nem teendő):**
 - Kliens-vezérelt ár/plan → ingyen upgrade: `checkout` szerveroldali allowlist
   (`in_array($plan, ['basic','premium'])`), a price ID configból; ár sosem a requestből.
@@ -207,6 +226,9 @@ directory listing / titok-fájl).
 - `pricing/success`: `signed` middleware mögött, és csak visszaigazol (nem ad jogosultságot) —
   helyes minta.
 - Stripe secret a kliensen: nincs; csak boolean/dátum propok mennek ki.
+- `swap()` lemondott (grace period) előfizetésnél: a Cashier `getSwapOptions` `cancel_at_period_end
+  => false`-t küld és a trial-t megőrzi (`trial_end`), így a csomagváltás helyesen újraindítja az
+  előfizetést — nincs local↔Stripe desync (ellenőrizve a vendor kódban).
 
 *Megj.: a túl bő `#[Fillable]` (lásd #A4) itt is felmerült mint defense-in-depth szag, de
 exploit-út jelenleg nincs.*
@@ -318,6 +340,15 @@ státusz/fontosság IDOR). **Nincs Critical/High.**
   (study, calibrate, preview mind `RichTextContent`-et használ; a `card-row` `plainText()`-et),
   egy helyen minden render-út lefedve. A TipTap szerkesztő betöltéskor a saját sémájába parse-ol
   (szerkesztési út is biztonságos). `npm run build` zöld.
+
+- [x] **🟡 #W1 — Ingyenes szómentési limit (50) megkerülhető a fontosság-végponttal — KÉSZ (2026-06-27)**
+  `app/Http/Controllers/WordController.php` (`importance`)
+  A `status()` 50-szavas free-limitet kényszerít új pivot felvételekor, de az `importance()` ezt
+  kihagyta: új szóra `syncWithoutDetaching([... 'status' => 'known'])`-kal pivotot hozott létre limit-
+  ellenőrzés nélkül → a felhasználó a fontosság-csillagokkal (a részletező modal minden szóra mutatja)
+  korlátlanul menthetett. Javítás: közös `freeSaveLimitReached()` helper (status + importance), és az
+  `importance()` üres értéknél nem hoz létre üres pivotot. 4 új teszt (WordTest). Suite zöld (40 filter).
+  Üzleti-logikai limit-bypass (mint #X5), nem klasszikus IDOR/jogosultsági hiba.
 
 - [ ] **🟢 #X5 — Ingyenes flashcard-limit csak paklinként (20/pakli)**
   `User::canAddFlashcardsTo()` paklinként számol → sok pakli létrehozásával megkerülhető.

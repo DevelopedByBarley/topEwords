@@ -51,6 +51,13 @@ class PricingController extends Controller
             return redirect()->route('billing.edit')->with('info', 'Kérlek add meg a számlázási adataidat a fizetés előtt.');
         }
 
+        // Akinek admin-adta (plan_override) vagy élethosszig tartó (lifetime_access) hozzáférése
+        // van, annak nincs Stripe-előfizetése — a swap-ág ezért nem fogná meg, és fölöslegesen
+        // indítana fizetős előfizetést azért, amit már ingyen megkap. Szerveroldalon elzárjuk.
+        if ($user->activeSubscription() === null && $user->hasActiveAccess()) {
+            return redirect()->route('pricing')->with('info', 'Már aktív hozzáférésed van, nincs szükség fizetésre.');
+        }
+
         // A 14 napos elállási jogról való lemondás kifejezett hozzájárulása kötelező, és
         // szerveroldalon is kikényszerítjük — a kliensoldali pipa közvetlen POST-tal megkerülhető.
         $request->validate(['accept_terms' => ['accepted']]);

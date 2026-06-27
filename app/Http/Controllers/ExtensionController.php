@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\UserCustomWord;
 use App\Models\Word;
+use App\Services\WordStatusFormExpander;
 use App\Services\YouTubeCaptionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -253,18 +254,14 @@ class ExtensionController extends Controller
         ]);
     }
 
-    public function statuses(Request $request): JsonResponse
+    public function statuses(Request $request, WordStatusFormExpander $formExpander): JsonResponse
     {
         if (! $request->user()) {
             return response()->json(['error' => 'unauthenticated'], 401);
         }
 
         $userId = $request->user()->id;
-
-        $formColumns = [
-            'form_base', 'verb_past', 'verb_past_participle', 'verb_present_participle',
-            'verb_third_person', 'noun_plural', 'adj_comparative', 'adj_superlative',
-        ];
+        $formColumns = WordStatusFormExpander::FORM_COLUMNS;
 
         $markedWords = DB::table('user_word')
             ->join('words', 'words.id', '=', 'user_word.word_id')
@@ -280,43 +277,8 @@ class ExtensionController extends Controller
 
         // Map every marked word AND all of its inflected forms to the same status,
         // so captions/pages match conjugations like "changed" → "change" or "has" → "have".
-        $statuses = [];
-        foreach ($markedWords->concat($customWords) as $row) {
-            $word = (string) $row->word;
-
-            // Multi-word phrase (e.g. "used to", "cut through"): store the base phrase
-            // AND any multi-word conjugated forms (e.g. "made for" for "make for").
-            // Single-word form columns are intentionally skipped — emitting them would
-            // let "cut" hijack the status of "cut through" for any plain occurrence.
-            // The client recognises a phrase by the space in the key and matches it
-            // greedily (longest phrase first) before single words.
-            if (str_contains($word, ' ')) {
-                $statuses[mb_strtolower($word)] = $row->status;
-
-                foreach (array_map(fn ($col) => $row->{$col}, $formColumns) as $form) {
-                    if ($form !== null && $form !== '' && str_contains((string) $form, ' ')) {
-                        $normalized = mb_strtolower(trim((string) preg_replace('/\s+/', ' ', $form)));
-                        $statuses[$normalized] ??= $row->status;
-                    }
-                }
-
-                continue;
-            }
-
-            foreach ([$row->word, ...array_map(fn ($column) => $row->{$column}, $formColumns)] as $form) {
-                // Periphrastic comparatives/superlatives ("more desperate", "most eager")
-                // sit in the adj_* columns but contain a space. Emitting them would make
-                // the client treat them as a multi-word PHRASE (pill), even though the user
-                // only marked the single adjective. Skip multi-word forms — the base word
-                // still highlights, and "more"/"most" highlight on their own if marked.
-                if ($form !== null && $form !== '' && ! str_contains($form, ' ')) {
-                    $statuses[mb_strtolower($form)] = $row->status;
-                }
-            }
-        }
-
         return response()->json([
-            'statuses' => $statuses,
+            'statuses' => $formExpander->mapFrom($markedWords->concat($customWords)),
         ]);
     }
 

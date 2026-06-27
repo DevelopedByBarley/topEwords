@@ -104,7 +104,7 @@ test('extension JSON request gets a JSON ack instead of a redirect', function ()
 
     $this->postJson(route('words.status', $word), ['status' => 'known'])
         ->assertOk()
-        ->assertExactJson(['ok' => true, 'status' => 'known']);
+        ->assertExactJson(['ok' => true, 'status' => 'known', 'forms' => ['the']]);
 
     expect($this->user->knownWords()->wherePivot('status', 'known')->where('word_id', $word->id)->exists())->toBeTrue();
 });
@@ -115,9 +115,28 @@ test('empty status removes the word (extension un-toggle)', function () {
 
     $this->postJson(route('words.status', $word), ['status' => ''])
         ->assertOk()
-        ->assertExactJson(['ok' => true, 'status' => null]);
+        ->assertExactJson(['ok' => true, 'status' => null, 'forms' => ['the']]);
 
     expect($this->user->knownWords()->where('word_id', $word->id)->exists())->toBeFalse();
+});
+
+test('extension status response returns all inflected forms for cache patching', function () {
+    // A bővítmény ezekkel az alakokkal foltozza helyben a státusz-cache-t, így a
+    // teljes térkép újraletöltése elmarad. Minden ragozott alaknak szerepelnie kell.
+    $word = Word::create([
+        'word' => 'run',
+        'rank' => 5000,
+        'verb_past' => 'ran',
+        'verb_present_participle' => 'running',
+        'verb_third_person' => 'runs',
+    ]);
+
+    $response = $this->postJson(route('words.status', $word), ['status' => 'learning'])
+        ->assertOk()
+        ->assertJson(['ok' => true, 'status' => 'learning']);
+
+    expect($response->json('forms'))
+        ->toContain('run', 'ran', 'running', 'runs');
 });
 
 test('inertia request still receives a redirect, not JSON', function () {
@@ -236,4 +255,80 @@ test('words index requires authentication', function () {
     auth()->logout();
 
     $this->get(route('words.index'))->assertRedirect(route('login'));
+});
+
+test('search endpoint returns matching words', function () {
+    $this->getJson(route('words.search', ['q' => 'app']))
+        ->assertOk()
+        ->assertJsonFragment(['word' => 'apple', 'is_custom' => false]);
+});
+
+test('search endpoint escapes LIKE wildcards', function () {
+    // A `_` joker jelöletlenül minden (legalább 2 karakteres) szóra illeszkedne;
+    // escape-elve viszont szó szerinti aláhúzásra keres, amiből egy sincs.
+    $this->getJson(route('words.search', ['q' => '__']))
+        ->assertOk()
+        ->assertExactJson([]);
+});
+
+test('index search escapes LIKE wildcards', function () {
+    $this->get(route('words.index', ['search' => '__']))
+        ->assertInertia(fn ($page) => $page
+            ->where('words.total', 0)
+        );
+});
+
+test('setting importance saves an unmarked word as known', function () {
+    $word = Word::where('word', 'the')->first();
+
+    $this->post(route('words.importance', $word), ['importance' => 3])
+        ->assertRedirect();
+
+    expect($this->user->knownWords()->wherePivot('status', 'known')->wherePivot('importance', 3)->where('word_id', $word->id)->exists())->toBeTrue();
+});
+
+test('clearing importance on an unmarked word does not create a pivot', function () {
+    $word = Word::where('word', 'the')->first();
+
+    $this->post(route('words.importance', $word), ['importance' => null])
+        ->assertRedirect();
+
+    expect($this->user->knownWords()->where('word_id', $word->id)->exists())->toBeFalse();
+});
+
+test('importance cannot bypass the free save limit', function () {
+    // Free user a limiten: 50 mentett szó.
+    $filler = collect(range(1, 50))->map(fn ($i) => [
+        'word' => 'fill'.$i, 'rank' => 10000 + $i, 'created_at' => now(), 'updated_at' => now(),
+    ]);
+    Word::insert($filler->all());
+    $fillerIds = Word::where('word', 'like', 'fill%')->pluck('id');
+    $this->user->knownWords()->attach($fillerIds->mapWithKeys(fn ($id) => [$id => ['status' => 'known']])->all());
+
+    $word = Word::where('word', 'elaborate')->first();
+
+    $this->post(route('words.importance', $word), ['importance' => 5])
+        ->assertRedirect()
+        ->assertSessionHas('error');
+
+    expect($this->user->knownWords()->where('word_id', $word->id)->exists())->toBeFalse();
+    expect($this->user->knownWords()->count())->toBe(50);
+});
+
+test('importance still updates an already saved word at the free limit', function () {
+    $filler = collect(range(1, 49))->map(fn ($i) => [
+        'word' => 'fill'.$i, 'rank' => 10000 + $i, 'created_at' => now(), 'updated_at' => now(),
+    ]);
+    Word::insert($filler->all());
+    $fillerIds = Word::where('word', 'like', 'fill%')->pluck('id');
+    $this->user->knownWords()->attach($fillerIds->mapWithKeys(fn ($id) => [$id => ['status' => 'known']])->all());
+
+    $word = Word::where('word', 'elaborate')->first();
+    $this->user->knownWords()->attach($word->id, ['status' => 'learning']); // 50th word, already saved
+
+    $this->post(route('words.importance', $word), ['importance' => 4])
+        ->assertRedirect()
+        ->assertSessionMissing('error');
+
+    expect($this->user->knownWords()->wherePivot('importance', 4)->where('word_id', $word->id)->exists())->toBeTrue();
 });

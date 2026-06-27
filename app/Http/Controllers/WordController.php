@@ -22,6 +22,8 @@ class WordController extends Controller
 
     private const DEFAULT_PER_PAGE = 50;
 
+    private const FREE_SAVE_LIMIT = 50;
+
     public function index(Request $request): Response
     {
         $search = $request->string('search')->trim()->lower()->value();
@@ -58,7 +60,7 @@ class WordController extends Controller
 
         // Base query without letter filter — used for markedLetters so all letter buttons can be annotated
         $baseWithoutLetter = Word::query()
-            ->when($search !== '', fn ($q) => $q->where('word', 'like', strtoupper($search).'%'))
+            ->when($search !== '', fn ($q) => $q->whereRaw('word LIKE ? ESCAPE ?', [$this->likeEscape(strtoupper($search)).'%', '\\']))
             ->when($level !== null, fn ($q) => $q->where('level', $level))
             ->when($statusFilteredIds !== null, fn ($q) => $q->whereIn('id', $statusFilteredIds))
             ->when($importanceFilteredIds !== null, fn ($q) => $q->whereIn('id', $importanceFilteredIds))
@@ -95,21 +97,28 @@ class WordController extends Controller
                 'importance' => $wordImportances[$word->id] ?? null,
             ]);
 
-        $orderedIds = (clone $baseQuery)->orderBy('rank')->pluck('id')->values();
+        // A teljes szó-sorrendre csak akkor van szükség, ha van megjelölt szó —
+        // jelölés híján minden oldal üres, így megspóroljuk az összes id leszedését.
+        $markedPages = [];
+        $completedPages = [];
 
-        $markedPages = $orderedIds
-            ->map(fn ($id, $index) => isset($wordStatuses[$id]) ? (int) ceil(($index + 1) / $perPage) : null)
-            ->filter()
-            ->unique()
-            ->values()
-            ->all();
+        if ($wordStatuses !== []) {
+            $orderedIds = (clone $baseQuery)->orderBy('rank')->pluck('id')->values();
 
-        $completedPages = $orderedIds
-            ->chunk($perPage)
-            ->map(fn ($chunk, $index) => $chunk->every(fn ($id) => isset($wordStatuses[$id])) ? $index + 1 : null)
-            ->filter()
-            ->values()
-            ->all();
+            $markedPages = $orderedIds
+                ->map(fn ($id, $index) => isset($wordStatuses[$id]) ? (int) ceil(($index + 1) / $perPage) : null)
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+
+            $completedPages = $orderedIds
+                ->chunk($perPage)
+                ->map(fn ($chunk, $index) => $chunk->every(fn ($id) => isset($wordStatuses[$id])) ? $index + 1 : null)
+                ->filter()
+                ->values()
+                ->all();
+        }
 
         $markedLetters = (clone $baseWithoutLetter)
             ->whereIn('id', array_keys($wordStatuses))
@@ -210,9 +219,11 @@ class WordController extends Controller
             return response()->json([]);
         }
 
-        $words = Word::where('word', 'like', $query.'%')
-            ->orWhere('word', 'like', '%'.$query.'%')
-            ->orderByRaw('CASE WHEN word LIKE ? THEN 0 ELSE 1 END', [$query.'%'])
+        $like = $this->likeEscape($query);
+
+        $words = Word::whereRaw('word LIKE ? ESCAPE ?', [$like.'%', '\\'])
+            ->orWhereRaw('word LIKE ? ESCAPE ?', ['%'.$like.'%', '\\'])
+            ->orderByRaw('CASE WHEN word LIKE ? ESCAPE ? THEN 0 ELSE 1 END', [$like.'%', '\\'])
             ->orderBy('rank')
             ->limit(10)
             ->get(['id', 'word', 'meaning_hu'])
@@ -220,8 +231,8 @@ class WordController extends Controller
 
         $customWords = $request->user()
             ->customWords()
-            ->where('word', 'like', '%'.$query.'%')
-            ->orderByRaw('CASE WHEN word LIKE ? THEN 0 ELSE 1 END', [$query.'%'])
+            ->whereRaw('word LIKE ? ESCAPE ?', ['%'.$like.'%', '\\'])
+            ->orderByRaw('CASE WHEN word LIKE ? ESCAPE ? THEN 0 ELSE 1 END', [$like.'%', '\\'])
             ->limit(5)
             ->get(['id', 'word', 'meaning_hu'])
             ->map(fn ($w) => ['id' => $w->id, 'word' => $w->word, 'meaning_hu' => $w->meaning_hu, 'is_custom' => true]);
@@ -512,26 +523,24 @@ class WordController extends Controller
     public function status(Request $request, Word $word): RedirectResponse|JsonResponse
     {
         $status = $this->validatedToggleStatus($request);
+        $forms = $this->statusFormsFor($word);
 
         $existing = $request->user()->knownWords()->wherePivot('word_id', $word->id)->first();
 
         // Az ingyenes mentési limit csak új státusz felvételekor érvényes, levételkor nem.
-        if ($status !== null && ! $existing && $request->user()->isOnFreePlan()) {
-            $savedCount = $request->user()->knownWords()->count();
-            if ($savedCount >= 50) {
-                if ($request->expectsJson()) {
-                    return response()->json(['error' => 'limit_reached', 'upgrade_url' => route('pricing')], 403);
-                }
-
-                return back()->with('error', 'Elérted az ingyenes szómentési limitet (50 szó). Frissíts prémiumra a korlátlan hozzáféréshez.');
+        if ($status !== null && ! $existing && $this->freeSaveLimitReached($request)) {
+            if ($request->expectsJson()) {
+                return response()->json(['error' => 'limit_reached', 'upgrade_url' => route('pricing')], 403);
             }
+
+            return back()->with('error', 'Elérted az ingyenes szómentési limitet (50 szó). Frissíts prémiumra a korlátlan hozzáféréshez.');
         }
 
         // Üres státusz, vagy az aktív gomb újrakattintása → levétel.
         if ($status === null || ($existing && $existing->pivot->status === $status)) {
             $request->user()->knownWords()->detach($word->id);
 
-            return $this->statusToggleResponse($request, null);
+            return $this->statusToggleResponse($request, null, $forms);
         }
 
         $request->user()->knownWords()->syncWithoutDetaching([$word->id => ['status' => $status]]);
@@ -548,7 +557,7 @@ class WordController extends Controller
             session()->flash('achievements', $newAchievements);
         }
 
-        return $this->statusToggleResponse($request, $status);
+        return $this->statusToggleResponse($request, $status, $forms);
     }
 
     public function importance(Request $request, Word $word): RedirectResponse
@@ -559,10 +568,42 @@ class WordController extends Controller
 
         if ($existing) {
             $request->user()->knownWords()->updateExistingPivot($word->id, ['importance' => $importance]);
-        } else {
-            $request->user()->knownWords()->syncWithoutDetaching([$word->id => ['status' => 'known', 'importance' => $importance]]);
+
+            return back();
         }
 
+        // Még nincs mentve a szó: importance levételekor nincs mit tenni (ne hozzunk létre üres pivotot).
+        if ($importance === null) {
+            return back();
+        }
+
+        // Fontosság beállítása új szót is ment ('known'), ezért ugyanaz az ingyenes limit vonatkozik rá, mint a státuszra.
+        if ($this->freeSaveLimitReached($request)) {
+            return back()->with('error', 'Elérted az ingyenes szómentési limitet (50 szó). Frissíts prémiumra a korlátlan hozzáféréshez.');
+        }
+
+        $request->user()->knownWords()->syncWithoutDetaching([$word->id => ['status' => 'known', 'importance' => $importance]]);
+
         return back();
+    }
+
+    /**
+     * Az ingyenes csomag szómentési limitje (50 szó) elérve van-e — a státusz- és
+     * a fontosság-felvétel is ugyanazt a pivotot hozza létre, ezért közös ellenőrzés.
+     */
+    private function freeSaveLimitReached(Request $request): bool
+    {
+        return $request->user()->isOnFreePlan()
+            && $request->user()->knownWords()->count() >= self::FREE_SAVE_LIMIT;
+    }
+
+    /**
+     * A felhasználói keresőszövegben lévő LIKE-joker karaktereket (`%`, `_`, `\`)
+     * irodalmi karakterként kezeli, hogy ne torzítsák a találatokat. A visszaadott
+     * mintát `ESCAPE '\'` záradékkal kell használni (MySQL és SQLite is támogatja).
+     */
+    private function likeEscape(string $value): string
+    {
+        return str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $value);
     }
 }

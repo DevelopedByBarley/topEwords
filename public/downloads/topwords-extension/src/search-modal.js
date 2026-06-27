@@ -426,104 +426,132 @@ function showSearchDetail(data) {
                 geminiBtn.disabled = true;
                 geminiBtn.textContent = '⏳ Töltés…';
 
-                sendMsg({ type: 'GEMINI_LOOKUP', word: data.word }, (resp) => {
-                    geminiBtn.disabled = false;
-                    geminiBtn.innerHTML = '✨ AI kitöltés';
+                // Korábbi hiba törlése, hogy egy sikeres újralekérés ne
+                // hagyja a régi üzenetet a képernyőn.
+                const prevFb = detail.querySelector('#add-feedback');
 
-                    if (resp?.error === 'ai_limit') {
-                        const fb = detail.querySelector('#add-feedback');
+                if (prevFb) {
+                    prevFb.textContent = '';
+                    prevFb.style.display = 'none';
+                }
 
-                        if (fb) {
-                            fb.textContent =
-                                resp.message ??
-                                'Elérted a havi AI-felhasználási kereted.';
-                            fb.style.color = '#f97316';
-                            fb.style.display = 'block';
+                sendMsgMinDelay(
+                    { type: 'GEMINI_LOOKUP', word: data.word },
+                    2000,
+                    (resp) => {
+                        geminiBtn.disabled = false;
+                        geminiBtn.innerHTML = '✨ AI kitöltés';
+
+                        if (resp?.error === 'ai_limit') {
+                            const fb = detail.querySelector('#add-feedback');
+
+                            if (fb) {
+                                fb.textContent =
+                                    resp.message ??
+                                    'Elérted a havi AI-felhasználási kereted.';
+                                fb.style.color = '#f97316';
+                                fb.style.display = 'block';
+                            }
+
+                            return;
                         }
 
-                        return;
-                    }
+                        // Az AI nem létező szónak ítélte (gibberish / elgépelés): jelezzük.
+                        if (resp.is_real_word === false) {
+                            const fb = detail.querySelector('#add-feedback');
 
-                    if (!resp || resp.error) {
-                        return;
-                    }
+                            if (fb) {
+                                fb.textContent =
+                                    resp.message ??
+                                    'Ez nem tűnik valódi angol szónak. Ellenőrizd a helyesírást.';
+                                fb.style.color = '#f97316';
+                                fb.style.display = 'block';
+                            }
 
-                    const pos = resp.part_of_speech ?? '';
-
-                    if (pos) {
-                        posSelect.value = pos;
-                        posSelect.dispatchEvent(new Event('change'));
-                    }
-
-                    if (resp.meaning_hu) {
-                        detail.querySelector('#add-meaning').value =
-                            resp.meaning_hu;
-                    }
-
-                    if (resp.extra_meanings) {
-                        detail.querySelector('#add-extra').value =
-                            resp.extra_meanings;
-                    }
-
-                    if (resp.synonyms) {
-                        detail.querySelector('#add-synonyms').value =
-                            resp.synonyms;
-                    }
-
-                    if (resp.example_en) {
-                        detail.querySelector('#add-example-en').value =
-                            resp.example_en;
-                    }
-
-                    if (resp.example_hu) {
-                        detail.querySelector('#add-example-hu').value =
-                            resp.example_hu;
-                    }
-
-                    if (pos === 'verb') {
-                        if (resp.verb_past) {
-                            detail.querySelector('#add-verb-past').value =
-                                resp.verb_past;
+                            return;
                         }
 
-                        if (resp.verb_past_participle) {
-                            detail.querySelector('#add-verb-pp').value =
-                                resp.verb_past_participle;
+                        if (!resp || resp.error) {
+                            return;
                         }
 
-                        if (resp.verb_present_participle) {
-                            detail.querySelector('#add-verb-prog').value =
-                                resp.verb_present_participle;
+                        const pos = resp.part_of_speech ?? '';
+
+                        if (pos) {
+                            posSelect.value = pos;
+                            posSelect.dispatchEvent(new Event('change'));
                         }
 
-                        if (resp.verb_third_person) {
-                            detail.querySelector('#add-verb-3rd').value =
-                                resp.verb_third_person;
+                        if (resp.meaning_hu) {
+                            detail.querySelector('#add-meaning').value =
+                                resp.meaning_hu;
                         }
 
-                        if (resp.is_irregular) {
-                            detail.querySelector('#add-irregular').checked =
-                                true;
-                        }
-                    }
-
-                    if (pos === 'noun' && resp.noun_plural) {
-                        detail.querySelector('#add-noun-plural').value =
-                            resp.noun_plural;
-                    }
-
-                    if (pos === 'adj') {
-                        if (resp.adj_comparative) {
-                            detail.querySelector('#add-adj-comp').value =
-                                resp.adj_comparative;
+                        if (resp.extra_meanings) {
+                            detail.querySelector('#add-extra').value =
+                                resp.extra_meanings;
                         }
 
-                        if (resp.adj_superlative) {
-                            detail.querySelector('#add-adj-super').value =
-                                resp.adj_superlative;
+                        if (resp.synonyms) {
+                            detail.querySelector('#add-synonyms').value =
+                                resp.synonyms;
                         }
-                    }
-                });
+
+                        if (resp.example_en) {
+                            detail.querySelector('#add-example-en').value =
+                                resp.example_en;
+                        }
+
+                        if (resp.example_hu) {
+                            detail.querySelector('#add-example-hu').value =
+                                resp.example_hu;
+                        }
+
+                        if (pos === 'verb') {
+                            if (resp.verb_past) {
+                                detail.querySelector('#add-verb-past').value =
+                                    resp.verb_past;
+                            }
+
+                            if (resp.verb_past_participle) {
+                                detail.querySelector('#add-verb-pp').value =
+                                    resp.verb_past_participle;
+                            }
+
+                            if (resp.verb_present_participle) {
+                                detail.querySelector('#add-verb-prog').value =
+                                    resp.verb_present_participle;
+                            }
+
+                            if (resp.verb_third_person) {
+                                detail.querySelector('#add-verb-3rd').value =
+                                    resp.verb_third_person;
+                            }
+
+                            if (resp.is_irregular) {
+                                detail.querySelector('#add-irregular').checked =
+                                    true;
+                            }
+                        }
+
+                        if (pos === 'noun' && resp.noun_plural) {
+                            detail.querySelector('#add-noun-plural').value =
+                                resp.noun_plural;
+                        }
+
+                        if (pos === 'adj') {
+                            if (resp.adj_comparative) {
+                                detail.querySelector('#add-adj-comp').value =
+                                    resp.adj_comparative;
+                            }
+
+                            if (resp.adj_superlative) {
+                                detail.querySelector('#add-adj-super').value =
+                                    resp.adj_superlative;
+                            }
+                        }
+                    },
+                );
             });
         }
 

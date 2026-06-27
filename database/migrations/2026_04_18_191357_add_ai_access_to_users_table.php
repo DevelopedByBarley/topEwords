@@ -12,9 +12,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('users', function (Blueprint $table) {
-            $table->boolean('ai_access')->default(false)->after('lifetime_access');
-        });
+        if (! Schema::hasColumn('users', 'ai_access')) {
+            Schema::table('users', function (Blueprint $table) {
+                $table->boolean('ai_access')->default(false)->after('lifetime_access');
+            });
+        }
 
         // Migrate existing lifetime_access users
         DB::table('users')->where('lifetime_access', true)->update(['ai_access' => true]);
