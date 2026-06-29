@@ -18,7 +18,7 @@ use Laravel\Cashier\Subscription;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 
 // Entitlement/billing columns (lifetime_access, ai_access, plan_override, trial_ends_at,
-// invite_id, stripe_*, ai_credit*, terms_accepted_at) are intentionally NOT fillable — they are
+// invite_id, stripe_*, ai_credit*, terms_accepted_at, billingo_partner_id) are intentionally NOT fillable — they are
 // set explicitly server-side (admin actions, registration via forceFill, Cashier, checkout) so no
 // request payload can grant itself paid access or forge consent via mass assignment.
 #[Fillable(['name', 'email', 'password', 'streak', 'last_activity_date', 'quiz_completions', 'text_analyses', 'onboarding_completed_at', 'billing_name', 'billing_tax_number', 'billing_country', 'billing_zip', 'billing_city', 'billing_address', 'billing_type'])]
@@ -61,6 +61,11 @@ class User extends Authenticatable
     public function achievements(): HasMany
     {
         return $this->hasMany(UserAchievement::class);
+    }
+
+    public function billingoInvoices(): HasMany
+    {
+        return $this->hasMany(BillingoInvoice::class)->latest();
     }
 
     /**

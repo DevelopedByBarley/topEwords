@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Models\User;
+use App\Services\Billingo\BillingoClient;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -29,6 +30,11 @@ class AppServiceProvider extends ServiceProvider
                     : redirect()->route('onboarding');
             }
         });
+
+        // A Billingo kliens az API kulccsal — egy helyen, a konfigból feloldva.
+        $this->app->singleton(BillingoClient::class, fn (): BillingoClient => new BillingoClient(
+            (string) config('services.billingo.api_key'),
+        ));
     }
 
     /**

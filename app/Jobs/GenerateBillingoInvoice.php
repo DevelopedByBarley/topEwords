@@ -1,0 +1,42 @@
+<?php
+
+namespace App\Jobs;
+
+use App\Models\User;
+use App\Services\Billingo\InvoiceGenerator;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Foundation\Queue\Queueable;
+
+/**
+ * Aszinkron állítja ki a sikeres Stripe fizetéshez tartozó Billingo számlát. A
+ * webhook szándékosan nem szinkronban számláz: ha a Billingo lassú vagy hibázik, a
+ * Stripe nem kapna 200-at és újraküldené az eseményt. A tényleges idempotenciát az
+ * InvoiceGenerator adja (stripe_invoice_id unique kulcs), így az újrapróbálás biztonságos.
+ */
+class GenerateBillingoInvoice implements ShouldQueue
+{
+    use Queueable;
+
+    /**
+     * Növekvő várakozású újrapróbálkozások — a Billingo átmeneti hibáját (5xx, rate
+     * limit) kivárjuk, mielőtt a job véglegesen elbukik és a failed_jobs-ba kerül.
+     *
+     * @var array<int, int>
+     */
+    public array $backoff = [60, 300, 900];
+
+    public int $tries = 4;
+
+    /**
+     * @param  array<string, mixed>  $stripeInvoice  a Stripe invoice objektum (webhook payload data.object)
+     */
+    public function __construct(
+        public User $user,
+        public array $stripeInvoice,
+    ) {}
+
+    public function handle(InvoiceGenerator $generator): void
+    {
+        $generator->generateForStripeInvoice($this->user, $this->stripeInvoice);
+    }
+}

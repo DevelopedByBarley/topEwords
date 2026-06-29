@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\GenerateBillingoInvoice;
 use App\Models\User;
 use Illuminate\Support\Collection;
 use Laravel\Cashier\Http\Controllers\WebhookController;
@@ -10,6 +11,29 @@ use Stripe\Subscription as StripeSubscription;
 
 class StripeWebhookController extends WebhookController
 {
+    /**
+     * A sikeres fizetés után NAV-kompatibilis Billingo számlát állítunk ki. A számlázás
+     * külön kapcsolóval ki is hagyható, hogy a fizetés a Billingo nélkül is működjön.
+     *
+     * ÁTMENETI: a jelenlegi tárhelyen nincs folyamatosan futó queue worker, ezért a
+     * számlázás itt SZINKRON fut (dispatchSync) — a webhook kérésen belül készül el a
+     * számla, nem kerül a jobs táblába. Ha a Billingo hibázik, a webhook nem-200-at ad,
+     * így a Stripe automatikusan újraküldi az eseményt; az InvoiceGenerator idempotenciája
+     * (unique stripe_invoice_id) miatt ez nem hoz létre második számlát. Amint lesz futó
+     * worker (Ploi/VPS), ez visszaváltható aszinkron dispatch()-re.
+     */
+    protected function handleInvoicePaymentSucceeded(array $payload)
+    {
+        $invoice = $payload['data']['object'] ?? [];
+        $user = $this->getUserByStripeId($invoice['customer'] ?? null);
+
+        if ($user instanceof User && config('services.billingo.enabled')) {
+            GenerateBillingoInvoice::dispatchSync($user, $invoice);
+        }
+
+        return $this->successMethod();
+    }
+
     /**
      * Subscription events are handled automatically by Cashier; we only add a
      * de-duplication safety net on top of the default behaviour.

@@ -37,7 +37,21 @@
       "Bash(cd /Applications/XAMPP/xamppfiles/htdocs/topEwords/chrome-extension && grep -n \"GET_STATUSES\\\\|getStatuses\\\\|forceFresh\\\\|statusCache\\\\|cache\" src/../topwords-extension-1.13/background.js | head -40)",
       "Read(//Applications/XAMPP/xamppfiles/htdocs/topEwords/topwords-extension-1.13/**)",
       "Bash(unzip -p topwords-extension-1.13.zip src/youtube.js)",
-      "Bash(unzip -p ../public/downloads/topwords-extension.zip src/youtube.js)"
+      "Bash(unzip -p ../public/downloads/topwords-extension.zip src/youtube.js)",
+      "Bash(gh auth *)",
+      "Read(//Users/barley/.ssh/**)",
+      "Bash(git config *)",
+      "Bash(git credential-osxkeychain *)",
+      "Bash(git remote *)",
+      "Bash(security find-internet-password *)",
+      "Bash(git credential *)",
+      "Bash(ssh-keygen -t ed25519 -C \"developedbybarley@gmail.com\" -f ~/.ssh/id_ed25519 -N \"\" -q)",
+      "Bash(ssh -o StrictHostKeyChecking=accept-new -T git@github.com)",
+      "WebFetch(domain:api.billingo.hu)",
+      "WebFetch(domain:www.firecrawl.dev)",
+      "WebFetch(domain:app.swaggerhub.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)"
     ],
     "additionalDirectories": [
       "/private/tmp",

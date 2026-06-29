@@ -72,4 +72,20 @@ return [
         'premium_price_id' => env('STRIPE_PRO_PRICE_ID'),
     ],
 
+    'billingo' => [
+        // NAV-kompatibilis magyar számlázás (Billingo v3 REST API). A sikeres Stripe
+        // fizetés (invoice.payment_succeeded webhook) után aszinkron állít ki számlát.
+        // Külön kapcsoló a Stripe-tól: a fizetés mehet anélkül is, hogy számlázunk.
+        'enabled' => env('BILLINGO_ENABLED', false),
+        'api_key' => env('BILLINGO_API_KEY'),
+        // Számlatömb azonosító. Üresen hagyva a kliens automatikusan az első elérhető
+        // tömböt használja — teszt profilnál így nem kell kézzel kikeresni az id-t.
+        'block_id' => (int) env('BILLINGO_BLOCK_ID', 0),
+        // A számlatétel ÁFA-kulcsa. Egyéni vállalkozónál tipikusan "AAM" (alanyi
+        // adómentes); ÁFA-körösnél pl. "27%". Konfigból jön, hogy kód nélkül váltható.
+        'vat' => env('BILLINGO_VAT', 'AAM'),
+        // A számlatétel megnevezése, ha a Stripe sor nem ad használhatót.
+        'item_name' => env('BILLINGO_ITEM_NAME', 'topEwords előfizetés'),
+    ],
+
 ];
