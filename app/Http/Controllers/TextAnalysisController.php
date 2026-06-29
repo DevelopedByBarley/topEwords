@@ -40,7 +40,7 @@ class TextAnalysisController extends Controller
      * felhasználó-egyedi, ezért nincs itt és nem cache-elődik.)
      */
     private const AI_CACHE_VERSION = [
-        'lookup' => 3,
+        'lookup' => 4,
         'flashcard' => 3,
         'insight' => 2,
     ];
@@ -248,7 +248,7 @@ class TextAnalysisController extends Controller
         $user = $request->user();
 
         if ($user->isOnFreePlan()) {
-            $cacheKey = "text_analysis_daily_{$user->id}_".today()->format('Y-m-d');
+            $cacheKey = "text_analysis_daily_{$user->id}_" . today()->format('Y-m-d');
             $dailyCount = Cache::get($cacheKey, 0);
 
             if ($dailyCount >= 2) {
@@ -327,7 +327,7 @@ class TextAnalysisController extends Controller
 
         $words = $this->matchByForms(
             $uniqueTokens,
-            fn () => Word::query(),
+            fn() => Word::query(),
             ['id', 'word', 'rank', 'meaning_hu', 'form_base', 'verb_past', 'verb_past_participle', 'verb_present_participle', 'verb_third_person', 'noun_plural', 'adj_comparative', 'adj_superlative']
         );
 
@@ -339,7 +339,7 @@ class TextAnalysisController extends Controller
         // Include user's custom words in the analysis (check all forms)
         $customWords = $this->matchByForms(
             $uniqueTokens,
-            fn () => UserCustomWord::where('user_id', $user->id),
+            fn() => UserCustomWord::where('user_id', $user->id),
             ['id', 'word', 'status', 'form_base', 'verb_past', 'verb_past_participle', 'verb_present_participle', 'verb_third_person', 'noun_plural', 'adj_comparative', 'adj_superlative']
         );
 
@@ -381,17 +381,19 @@ class TextAnalysisController extends Controller
                 continue;
             }
 
-            foreach (array_filter([
-                mb_strtolower($customWord->word),
-                $customWord->form_base ? mb_strtolower($customWord->form_base) : null,
-                $customWord->verb_past ? mb_strtolower($customWord->verb_past) : null,
-                $customWord->verb_past_participle ? mb_strtolower($customWord->verb_past_participle) : null,
-                $customWord->verb_present_participle ? mb_strtolower($customWord->verb_present_participle) : null,
-                $customWord->verb_third_person ? mb_strtolower($customWord->verb_third_person) : null,
-                $customWord->noun_plural ? mb_strtolower($customWord->noun_plural) : null,
-                $customWord->adj_comparative ? mb_strtolower($customWord->adj_comparative) : null,
-                $customWord->adj_superlative ? mb_strtolower($customWord->adj_superlative) : null,
-            ]) as $form) {
+            foreach (
+                array_filter([
+                    mb_strtolower($customWord->word),
+                    $customWord->form_base ? mb_strtolower($customWord->form_base) : null,
+                    $customWord->verb_past ? mb_strtolower($customWord->verb_past) : null,
+                    $customWord->verb_past_participle ? mb_strtolower($customWord->verb_past_participle) : null,
+                    $customWord->verb_present_participle ? mb_strtolower($customWord->verb_present_participle) : null,
+                    $customWord->verb_third_person ? mb_strtolower($customWord->verb_third_person) : null,
+                    $customWord->noun_plural ? mb_strtolower($customWord->noun_plural) : null,
+                    $customWord->adj_comparative ? mb_strtolower($customWord->adj_comparative) : null,
+                    $customWord->adj_superlative ? mb_strtolower($customWord->adj_superlative) : null,
+                ]) as $form
+            ) {
                 $formToCustomWord[$form] ??= $customWord;
             }
         }
@@ -445,7 +447,7 @@ class TextAnalysisController extends Controller
             $apostropheWords = array_flip($apostropheMatches[0]);
 
             $customApostrophe = $user->customWords()
-                ->where(fn ($q) => $q->where('word', 'like', "%'%")
+                ->where(fn($q) => $q->where('word', 'like', "%'%")
                     ->orWhere('word', 'like', "%\u{2019}%")
                     ->orWhere('word', 'like', "%\u{2018}%"))
                 ->get(['word', 'status']);
@@ -473,22 +475,27 @@ class TextAnalysisController extends Controller
             ->get(['status', 'word', 'verb_past', 'verb_past_participle', 'verb_present_participle', 'verb_third_person']);
 
         foreach ($phraseCustomWords as $phrase) {
-            foreach (array_filter([
-                $phrase->word,
-                $phrase->verb_past,
-                $phrase->verb_past_participle,
-                $phrase->verb_present_participle,
-                $phrase->verb_third_person,
-            ]) as $form) {
-                $normalized = mb_strtolower(trim((string) preg_replace('/\s+/', ' ',
-                    str_replace(["\u{2018}", "\u{2019}", "\u{2032}"], "'", $form))));
+            foreach (
+                array_filter([
+                    $phrase->word,
+                    $phrase->verb_past,
+                    $phrase->verb_past_participle,
+                    $phrase->verb_present_participle,
+                    $phrase->verb_third_person,
+                ]) as $form
+            ) {
+                $normalized = mb_strtolower(trim((string) preg_replace(
+                    '/\s+/',
+                    ' ',
+                    str_replace(["\u{2018}", "\u{2019}", "\u{2032}"], "'", $form)
+                )));
 
                 // Csak a többszavas alakok, és csak ha minden szavuk szerepel a szövegben.
                 if (! str_contains($normalized, ' ')) {
                     continue;
                 }
 
-                $everyWordPresent = ! array_filter(explode(' ', $normalized), fn ($w) => ! isset($tokenSet[$w]));
+                $everyWordPresent = ! array_filter(explode(' ', $normalized), fn($w) => ! isset($tokenSet[$w]));
 
                 if ($everyWordPresent) {
                     $phraseStatuses[$normalized] ??= $phrase->status;
@@ -498,7 +505,7 @@ class TextAnalysisController extends Controller
 
         uasort(
             $unknownInListWords,
-            fn ($a, $b) => $b['frequency'] !== $a['frequency']
+            fn($a, $b) => $b['frequency'] !== $a['frequency']
                 ? $b['frequency'] - $a['frequency']
                 : $a['rank'] - $b['rank']
         );
@@ -523,7 +530,7 @@ class TextAnalysisController extends Controller
         $response = $this->safeFetch($url);
 
         if (! $response->ok()) {
-            throw new \RuntimeException('A weboldal nem érhető el (HTTP '.$response->status().').');
+            throw new \RuntimeException('A weboldal nem érhető el (HTTP ' . $response->status() . ').');
         }
 
         $html = $response->body();
@@ -541,7 +548,7 @@ class TextAnalysisController extends Controller
 
         // Remove short lines – these are almost always navigation labels, button text, etc.
         $lines = explode("\n", $text);
-        $lines = array_filter($lines, fn ($line) => mb_strlen(trim($line)) > 35);
+        $lines = array_filter($lines, fn($line) => mb_strlen(trim($line)) > 35);
         $text = implode("\n", $lines);
 
         $text = preg_replace('/(\s*\n\s*){3,}/', "\n\n", $text) ?? $text;
@@ -553,7 +560,7 @@ class TextAnalysisController extends Controller
     {
         // Prefer <article>, then <main> — these reliably contain the editorial body
         foreach (['article', 'main'] as $tag) {
-            if (preg_match('/<'.$tag.'\b[^>]*>(.*?)<\/'.$tag.'>/si', $html, $m)) {
+            if (preg_match('/<' . $tag . '\b[^>]*>(.*?)<\/' . $tag . '>/si', $html, $m)) {
                 return $m[1];
             }
         }
@@ -585,7 +592,7 @@ class TextAnalysisController extends Controller
         $books = UserBook::where('user_id', $user->id)
             ->orderByDesc('created_at')
             ->get(['id', 'title', 'file_type', 'total_pages'])
-            ->map(fn ($b) => [
+            ->map(fn($b) => [
                 'id' => $b->id,
                 'title' => $b->title,
                 'file_type' => $b->file_type,
@@ -833,7 +840,7 @@ PROMPT;
         // Csak valódi szóra adott választ cache-elünk: egy nem létező szóra
         // (gibberish, elgépelés) hallucinált flashcard nem mérgezheti meg a
         // mindenki által használt cache-t.
-        $onlyRealWords = fn (array $data): bool => ($data['is_real_word'] ?? true) === true;
+        $onlyRealWords = fn(array $data): bool => ($data['is_real_word'] ?? true) === true;
 
         [$primary, $fallback] = $this->modelsFor('flashcard');
 
@@ -842,7 +849,7 @@ PROMPT;
             $word,
             self::AI_CACHE_VERSION['flashcard'],
             $primary,
-            fn () => $this->callGemini($apiKey, $prompt, 1000, $primary, $fallback, temperature: 0.2, responseSchema: $this->flashcardSchema(), user: $request->user()),
+            fn() => $this->callGemini($apiKey, $prompt, 1000, $primary, $fallback, temperature: 0.2, responseSchema: $this->flashcardSchema(), user: $request->user()),
             $onlyRealWords,
         );
 
@@ -876,17 +883,17 @@ PROMPT;
 
         foreach ($d['cloze_sentences'] ?? [] as $item) {
             $hints = implode(' / ', $item['hints'] ?? []);
-            $html .= '<p>'.htmlspecialchars($item['sentence'] ?? '').' <em>('.htmlspecialchars($hints).')</em></p>';
+            $html .= '<p>' . htmlspecialchars($item['sentence'] ?? '') . ' <em>(' . htmlspecialchars($hints) . ')</em></p>';
         }
 
         if (! empty($d['answer_options'])) {
             $options = implode(' / ', array_map('htmlspecialchars', $d['answer_options']));
-            $html .= '<p><span style="color: #22c55e">'.$options.'</span></p>';
+            $html .= '<p><span style="color: #22c55e">' . $options . '</span></p>';
         }
 
         if (! empty($d['negative_meaning_hu'])) {
             $neg = implode(' / ', array_map('htmlspecialchars', $d['negative_meaning_hu']));
-            $html .= '<p><span style="background-color: #f3f4f6; padding: 2px 6px; border-radius: 4px">Negative meaning (HU): '.$neg.'</span></p>';
+            $html .= '<p><span style="background-color: #f3f4f6; padding: 2px 6px; border-radius: 4px">Negative meaning (HU): ' . $neg . '</span></p>';
         }
 
         if (! empty($d['collocations'])) {
@@ -894,8 +901,8 @@ PROMPT;
             foreach ($d['collocations'] as $col) {
                 $pattern = htmlspecialchars($col['pattern'] ?? '');
                 $meaning = htmlspecialchars($col['meaning_hu'] ?? '');
-                $example = ! empty($col['example']) ? ' (pl. '.htmlspecialchars($col['example']).')' : '';
-                $html .= '<p>👉 '.$pattern.' = '.$meaning.$example.'</p>';
+                $example = ! empty($col['example']) ? ' (pl. ' . htmlspecialchars($col['example']) . ')' : '';
+                $html .= '<p>👉 ' . $pattern . ' = ' . $meaning . $example . '</p>';
             }
         }
 
@@ -909,27 +916,27 @@ PROMPT;
         $forms = $d['word_forms'] ?? [];
 
         if (! empty($forms['base'])) {
-            $html .= '<p><strong>'.htmlspecialchars($forms['base']).'</strong></p>';
+            $html .= '<p><strong>' . htmlspecialchars($forms['base']) . '</strong></p>';
         }
         foreach (['adjective' => 'adjective', 'adverb' => 'adverb', 'noun' => 'noun', 'verb' => 'verb'] as $key => $label) {
             if (! empty($forms[$key])) {
-                $html .= '<p>'.$label.': <strong>'.htmlspecialchars($forms[$key]).'</strong></p>';
+                $html .= '<p>' . $label . ': <strong>' . htmlspecialchars($forms[$key]) . '</strong></p>';
             }
         }
 
         if (! empty($d['common_pairs'])) {
             $pairs = implode(' / ', array_map('htmlspecialchars', $d['common_pairs']));
-            $html .= '<p><span style="color: #3b82f6">common pair: '.$pairs.'</span></p>';
+            $html .= '<p><span style="color: #3b82f6">common pair: ' . $pairs . '</span></p>';
         }
 
         if (! empty($d['synonyms'])) {
             $syn = implode(' / ', array_map('htmlspecialchars', $d['synonyms']));
-            $html .= '<p>similar: '.$syn.'</p>';
+            $html .= '<p>similar: ' . $syn . '</p>';
         }
 
         if (! empty($d['antonyms'])) {
             $ant = implode(' / ', array_map('htmlspecialchars', $d['antonyms']));
-            $html .= '<p><span style="color: #ef4444">negative: '.$ant.'</span></p>';
+            $html .= '<p><span style="color: #ef4444">negative: ' . $ant . '</span></p>';
         }
 
         return $html;
@@ -1001,7 +1008,7 @@ PROMPT;
         // üres elemeket szűrjük ki, hogy a frontend ne kapjon üres buborékot.
         $data['grammar_issues'] = array_values(array_filter(
             $data['grammar_issues'] ?? [],
-            fn ($issue) => is_string($issue) && trim($issue) !== '',
+            fn($issue) => is_string($issue) && trim($issue) !== '',
         ));
 
         return response()->json($data);
@@ -1101,7 +1108,7 @@ PROMPT;
             $word,
             self::AI_CACHE_VERSION['insight'],
             $primary,
-            fn () => $this->callGemini($apiKey, $prompt, 600, $primary, $fallback, temperature: 0.2, responseSchema: $this->insightSchema(), user: $request->user()),
+            fn() => $this->callGemini($apiKey, $prompt, 600, $primary, $fallback, temperature: 0.2, responseSchema: $this->insightSchema(), user: $request->user()),
         );
 
         if (! $result['ok']) {
@@ -1174,7 +1181,9 @@ You are a Hungarian-English dictionary assistant for the English word "{$word}".
 
 Constraints:
 - Translate the Hungarian fields accurately and concisely.
-- Fill the verb and adjective form fields only for actual verbs/adjectives; use an empty string for any field that does not apply, and never invent a word form that does not exist in standard English.
+- Form fields (verb_past, verb_past_participle, verb_present_participle, verb_third_person, noun_plural, adj_comparative, adj_superlative): fill EVERY field that is a genuine inflected form of "{$word}", even across different word classes. The part_of_speech stays the single primary role, but the form fields are NOT limited to that role. Example: the noun "interest" is also a verb, so fill noun_plural="interests" AND verb_past="interested", verb_past_participle="interested", verb_present_participle="interesting", verb_third_person="interests".
+- Critical homograph rule: only include forms that are real inflections OF THIS SAME WORD and meaning. Never add a form that merely happens to be spelled like an inflection of a DIFFERENT, unrelated word. Example: for the flower "rose" leave verb_past empty, because "rose" as a past tense belongs to the unrelated verb "rise".
+- Use an empty string for any field that does not apply, and never invent a word form that does not exist in standard English.
 PROMPT;
 
         // 700 token-keret: a strukturált séma ~16 hosszú mezőneve maga is output-token,
@@ -1182,11 +1191,11 @@ PROMPT;
         // csonkolódhat → érvénytelen JSON → 502. A keret felső korlát, csak a ténylegesen
         // generált tokenért fizetünk, így a tágítás a normál válaszok költségét nem növeli.
         [$primary, $fallback] = $this->modelsFor('lookup');
-        $generator = fn () => $this->callGemini($apiKey, $prompt, 700, $primary, $fallback, temperature: 0.2, responseSchema: $this->lookupSchema(), user: $request->user());
+        $generator = fn() => $this->callGemini($apiKey, $prompt, 700, $primary, $fallback, temperature: 0.2, responseSchema: $this->lookupSchema(), user: $request->user());
 
         // Csak valódi szót cache-elünk: egy nem létező szóra (gibberish, elgépelés)
         // adott hallucinált válasz nem mérgezheti meg a mindenki által használt cache-t.
-        $onlyRealWords = fn (array $data): bool => ($data['is_real_word'] ?? true) === true;
+        $onlyRealWords = fn(array $data): bool => ($data['is_real_word'] ?? true) === true;
 
         // A context-tal érkező kérés mondat-egyedi (context_explanation mező),
         // ezért nem cache-elhető; csak a context nélküli szótári lekérdezést tároljuk.
@@ -1262,7 +1271,7 @@ PROMPT;
         $transcripts = YoutubeTranscript::where('user_id', $user->id)
             ->orderByDesc('created_at')
             ->get(['id', 'title', 'video_id', 'total_pages'])
-            ->map(fn (YoutubeTranscript $t) => $this->transcriptPayload($t));
+            ->map(fn(YoutubeTranscript $t) => $this->transcriptPayload($t));
 
         return response()->json([
             'transcripts' => $transcripts,
@@ -1343,7 +1352,7 @@ PROMPT;
     {
         abort_unless($transcript->user_id === $request->user()->id, 403);
 
-        $fullText = implode(' ', array_map(fn ($s) => $s['x'] ?? '', $transcript->segments()));
+        $fullText = implode(' ', array_map(fn($s) => $s['x'] ?? '', $transcript->segments()));
         $analysis = $this->buildAnalysis($fullText, $request->user());
 
         // A teljes felirat token-státusz térképe nem kell ide, csak az összesített számok.
@@ -1673,7 +1682,7 @@ PROMPT;
                 continue;
             }
 
-            $fullPath = $opfDir !== '' ? $opfDir.'/'.$href : $href;
+            $fullPath = $opfDir !== '' ? $opfDir . '/' . $href : $href;
             $fullPath = $this->normalizePath($fullPath);
 
             // The manifest media-type is authoritative; some EPUBs (e.g. Calibre
@@ -1710,8 +1719,10 @@ PROMPT;
     private function looksLikeTocPage(string $html): bool
     {
         // EPUB3 nav document
-        if (preg_match('/epub:type="[^"]*toc[^"]*"/i', $html) ||
-            preg_match('/epub:type="[^"]*landmarks[^"]*"/i', $html)) {
+        if (
+            preg_match('/epub:type="[^"]*toc[^"]*"/i', $html) ||
+            preg_match('/epub:type="[^"]*landmarks[^"]*"/i', $html)
+        ) {
             return true;
         }
 
@@ -1875,7 +1886,9 @@ PROMPT;
                     // a próbák kifutása után a foreach a fallback modellre lép.
                     $lastError = 'Kapcsolódási hiba.';
                     Log::warning('Gemini connection error', [
-                        'model' => $currentModel, 'attempt' => $attempt, 'message' => $e->getMessage(),
+                        'model' => $currentModel,
+                        'attempt' => $attempt,
+                        'message' => $e->getMessage(),
                     ]);
                     $this->backoff($attempt);
 
@@ -1884,9 +1897,11 @@ PROMPT;
 
                 if (! $response->successful()) {
                     $status = $response->status();
-                    $lastError = 'Gemini API hiba ('.$status.')';
+                    $lastError = 'Gemini API hiba (' . $status . ')';
                     Log::warning('Gemini API error', [
-                        'model' => $currentModel, 'attempt' => $attempt, 'status' => $status,
+                        'model' => $currentModel,
+                        'attempt' => $attempt,
+                        'status' => $status,
                         'body' => mb_substr($response->body(), 0, 500),
                     ]);
 
@@ -1909,10 +1924,14 @@ PROMPT;
                 // Biztonsági/szabályzati blokk (prompt vagy válasz): sem az újrapróba,
                 // sem a fallback nem segít (ugyanaz a prompt ugyanúgy blokkolódna),
                 // ezért azonnal hibát adunk vissza és a keretet felszabadítjuk.
-                if ($blockReason !== null
-                    || in_array($finishReason, ['SAFETY', 'RECITATION', 'PROHIBITED_CONTENT'], true)) {
+                if (
+                    $blockReason !== null
+                    || in_array($finishReason, ['SAFETY', 'RECITATION', 'PROHIBITED_CONTENT'], true)
+                ) {
                     Log::warning('Gemini blocked content', [
-                        'model' => $currentModel, 'finishReason' => $finishReason, 'blockReason' => $blockReason,
+                        'model' => $currentModel,
+                        'finishReason' => $finishReason,
+                        'blockReason' => $blockReason,
                     ]);
 
                     if ($user !== null) {
@@ -1923,7 +1942,7 @@ PROMPT;
                 }
 
                 $parts = $response->json('candidates.0.content.parts') ?? [];
-                $text = collect($parts)->firstWhere(fn ($p) => empty($p['thought']))['text']
+                $text = collect($parts)->firstWhere(fn($p) => empty($p['thought']))['text']
                     ?? ($response->json('candidates.0.content.parts.0.text') ?? '');
 
                 $text = preg_replace('/^```json\s*|\s*```$/s', '', trim($text));
@@ -1940,7 +1959,8 @@ PROMPT;
                         $bumpedForTruncation = true;
                         $payload['generationConfig']['maxOutputTokens'] = (int) ceil($maxTokens * 1.5);
                         Log::warning('Gemini truncated, retrying with higher token budget', [
-                            'model' => $currentModel, 'attempt' => $attempt,
+                            'model' => $currentModel,
+                            'attempt' => $attempt,
                             'newMaxOutputTokens' => $payload['generationConfig']['maxOutputTokens'],
                         ]);
                     }
@@ -1998,23 +2018,65 @@ PROMPT;
      * Így az „I'm" nem két törött token lesz, hanem „am", az „I'd" → „would" stb.
      */
     private const CONTRACTIONS = [
-        "i'm" => 'i am', "you're" => 'you are', "we're" => 'we are', "they're" => 'they are',
-        "he's" => 'he is', "she's" => 'she is', "it's" => 'it is', "that's" => 'that is',
-        "there's" => 'there is', "here's" => 'here is', "who's" => 'who is', "what's" => 'what is',
-        "where's" => 'where is', "how's" => 'how is', "let's" => 'let us',
-        "i've" => 'i have', "you've" => 'you have', "we've" => 'we have', "they've" => 'they have',
-        "could've" => 'could have', "would've" => 'would have', "should've" => 'should have',
-        "might've" => 'might have', "must've" => 'must have',
-        "i'll" => 'i will', "you'll" => 'you will', "we'll" => 'we will', "they'll" => 'they will',
-        "he'll" => 'he will', "she'll" => 'she will', "it'll" => 'it will', "that'll" => 'that will',
-        "i'd" => 'i would', "you'd" => 'you would', "we'd" => 'we would', "they'd" => 'they would',
-        "he'd" => 'he would', "she'd" => 'she would', "it'd" => 'it would',
-        "don't" => 'do not', "doesn't" => 'does not', "didn't" => 'did not', "isn't" => 'is not',
-        "aren't" => 'are not', "wasn't" => 'was not', "weren't" => 'were not', "haven't" => 'have not',
-        "hasn't" => 'has not', "hadn't" => 'had not', "won't" => 'will not', "wouldn't" => 'would not',
-        "can't" => 'can not', "couldn't" => 'could not', "shouldn't" => 'should not',
-        "mustn't" => 'must not', "mightn't" => 'might not', "needn't" => 'need not',
-        "shan't" => 'shall not', "ain't" => 'is not',
+        "i'm" => 'i am',
+        "you're" => 'you are',
+        "we're" => 'we are',
+        "they're" => 'they are',
+        "he's" => 'he is',
+        "she's" => 'she is',
+        "it's" => 'it is',
+        "that's" => 'that is',
+        "there's" => 'there is',
+        "here's" => 'here is',
+        "who's" => 'who is',
+        "what's" => 'what is',
+        "where's" => 'where is',
+        "how's" => 'how is',
+        "let's" => 'let us',
+        "i've" => 'i have',
+        "you've" => 'you have',
+        "we've" => 'we have',
+        "they've" => 'they have',
+        "could've" => 'could have',
+        "would've" => 'would have',
+        "should've" => 'should have',
+        "might've" => 'might have',
+        "must've" => 'must have',
+        "i'll" => 'i will',
+        "you'll" => 'you will',
+        "we'll" => 'we will',
+        "they'll" => 'they will',
+        "he'll" => 'he will',
+        "she'll" => 'she will',
+        "it'll" => 'it will',
+        "that'll" => 'that will',
+        "i'd" => 'i would',
+        "you'd" => 'you would',
+        "we'd" => 'we would',
+        "they'd" => 'they would',
+        "he'd" => 'he would',
+        "she'd" => 'she would',
+        "it'd" => 'it would',
+        "don't" => 'do not',
+        "doesn't" => 'does not',
+        "didn't" => 'did not',
+        "isn't" => 'is not',
+        "aren't" => 'are not',
+        "wasn't" => 'was not',
+        "weren't" => 'were not',
+        "haven't" => 'have not',
+        "hasn't" => 'has not',
+        "hadn't" => 'had not',
+        "won't" => 'will not',
+        "wouldn't" => 'would not',
+        "can't" => 'can not',
+        "couldn't" => 'could not',
+        "shouldn't" => 'should not',
+        "mustn't" => 'must not',
+        "mightn't" => 'might not',
+        "needn't" => 'need not',
+        "shan't" => 'shall not',
+        "ain't" => 'is not',
     ];
 
     /**
@@ -2029,7 +2091,7 @@ PROMPT;
         // levágjuk az aposztróf utáni részt → "dog".
         $cleaned = preg_replace_callback(
             "/\b[a-z]+(?:'[a-z]+)+\b/",
-            fn ($m) => self::CONTRACTIONS[$m[0]] ?? preg_replace("/'.*/", '', $m[0]),
+            fn($m) => self::CONTRACTIONS[$m[0]] ?? preg_replace("/'.*/", '', $m[0]),
             $cleaned
         ) ?? $cleaned;
 
@@ -2037,6 +2099,6 @@ PROMPT;
         $words = preg_split('/\s+/', trim($cleaned)) ?: [];
 
         // 1 betűs szavak közül csak a két valódi angol szót tartjuk meg ("a", "i") — a többi zaj.
-        return array_values(array_filter($words, fn ($w) => strlen($w) >= 2 || $w === 'a' || $w === 'i'));
+        return array_values(array_filter($words, fn($w) => strlen($w) >= 2 || $w === 'a' || $w === 'i'));
     }
 }

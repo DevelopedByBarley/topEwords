@@ -58,6 +58,7 @@ import type {
 } from '@/components/words/types';
 import WordFormFields from '@/components/words/word-form-fields';
 import WordInsightPanel from '@/components/words/word-insight-panel';
+import { withMinDuration } from '@/lib/min-duration';
 import {
     destroy as destroyCustomWord,
     importance as customWordImportance,
@@ -65,11 +66,10 @@ import {
     store as storeCustomWord,
     update as updateCustomWord,
 } from '@/routes/custom-words';
-import { importMethod as importFromWord } from '@/routes/flashcards/cards';
 import { index as flashcardsIndex } from '@/routes/flashcards';
+import { importMethod as importFromWord } from '@/routes/flashcards/cards';
 import { destroy, store, update } from '@/routes/folders';
 import { update as folderWordUpdate } from '@/routes/folders/words';
-import { withMinDuration } from '@/lib/min-duration';
 import {
     importance as wordImportance,
     index,
@@ -180,6 +180,9 @@ export default function WordsIndex({
     const [editWordId, setEditWordId] = useState<number | null>(null);
     const [editWordForm, setEditWordForm] =
         useState<WordFormData>(EMPTY_WORD_FORM);
+    const [editWordErrors, setEditWordErrors] = useState<
+        Record<string, string>
+    >({});
     const [selectedDeckId, setSelectedDeckId] = useState<string>('');
     const [importingFlashcard, setImportingFlashcard] = useState(false);
     const [customImportSuccess, setCustomImportSuccess] = useState(false);
@@ -567,8 +570,43 @@ export default function WordsIndex({
         );
     }
 
-    async function handleGeminiAutofill() {
-        const word = customWordForm.word.trim();
+    // Az AI által visszaadott mezőket beolvasztja a meglévő űrlapba. Ahol az AI
+    // ad értéket, az felülírja a korábbit (admin szerkesztésnél így újratölt),
+    // ahol nem, ott a meglévő érték marad.
+    function mergeGeminiData(prev: WordFormData, data: any): WordFormData {
+        return {
+            ...prev,
+            meaning_hu: data.meaning_hu || prev.meaning_hu,
+            extra_meanings: data.extra_meanings || prev.extra_meanings,
+            synonyms: data.synonyms || prev.synonyms,
+            part_of_speech: data.part_of_speech || prev.part_of_speech,
+            example_en: data.example_en || prev.example_en,
+            example_hu: data.example_hu || prev.example_hu,
+            verb_past: data.verb_past || prev.verb_past,
+            verb_past_participle:
+                data.verb_past_participle || prev.verb_past_participle,
+            verb_present_participle:
+                data.verb_present_participle || prev.verb_present_participle,
+            verb_third_person:
+                data.verb_third_person || prev.verb_third_person,
+            is_irregular: data.is_irregular ?? prev.is_irregular,
+            noun_plural: data.noun_plural || prev.noun_plural,
+            adj_comparative: data.adj_comparative || prev.adj_comparative,
+            adj_superlative: data.adj_superlative || prev.adj_superlative,
+        };
+    }
+
+    /**
+     * Lekéri a Gemini szóadatot és beolvasztja a megadott űrlapba. Több modal is
+     * használja (saját szó hozzáadása, admin szó szerkesztése), ezért a setter és
+     * a hiba-kezelő paraméterként jön.
+     */
+    async function handleGeminiAutofill(
+        rawWord: string,
+        applyForm: (updater: (prev: WordFormData) => WordFormData) => void,
+        setErrors: (errors: Record<string, string>) => void,
+    ) {
+        const word = rawWord.trim();
 
         if (!word) {
             return;
@@ -576,7 +614,7 @@ export default function WordsIndex({
 
         // Korábbi hiba (pl. "nem valódi szó") törlése, hogy egy sikeres
         // újralekérés ne hagyja a régi üzenetet a képernyőn.
-        setCustomWordErrors({});
+        setErrors({});
         setGeminiLoading(true);
 
         try {
@@ -603,35 +641,16 @@ export default function WordsIndex({
 
             // Az AI nem létező szónak ítélte (gibberish / elgépelés): jelezzük, nem töltünk ki kamu adatot.
             if (data.is_real_word === false) {
-                setCustomWordErrors({
+                setErrors({
                     word:
                         data.message ??
                         'Ez nem tűnik valódi angol szónak. Ellenőrizd a helyesírást.',
                 });
+
                 return;
             }
 
-            setCustomWordForm((prev) => ({
-                ...prev,
-                meaning_hu: data.meaning_hu || prev.meaning_hu,
-                extra_meanings: data.extra_meanings || prev.extra_meanings,
-                synonyms: data.synonyms || prev.synonyms,
-                part_of_speech: data.part_of_speech || prev.part_of_speech,
-                example_en: data.example_en || prev.example_en,
-                example_hu: data.example_hu || prev.example_hu,
-                verb_past: data.verb_past || prev.verb_past,
-                verb_past_participle:
-                    data.verb_past_participle || prev.verb_past_participle,
-                verb_present_participle:
-                    data.verb_present_participle ||
-                    prev.verb_present_participle,
-                verb_third_person:
-                    data.verb_third_person || prev.verb_third_person,
-                is_irregular: data.is_irregular ?? prev.is_irregular,
-                noun_plural: data.noun_plural || prev.noun_plural,
-                adj_comparative: data.adj_comparative || prev.adj_comparative,
-                adj_superlative: data.adj_superlative || prev.adj_superlative,
-            }));
+            applyForm((prev) => mergeGeminiData(prev, data));
         } finally {
             setGeminiLoading(false);
         }
@@ -666,28 +685,21 @@ export default function WordsIndex({
             importance: customWordForm.importance,
         };
 
-        if (customWordForm.part_of_speech === 'verb') {
-            payload.form_base = customWordForm.form_base.trim() || null;
-            payload.verb_past = customWordForm.verb_past.trim() || null;
-            payload.verb_past_participle =
-                customWordForm.verb_past_participle.trim() || null;
-            payload.verb_present_participle =
-                customWordForm.verb_present_participle.trim() || null;
-            payload.verb_third_person =
-                customWordForm.verb_third_person.trim() || null;
-            payload.is_irregular = customWordForm.is_irregular;
-        }
-
-        if (customWordForm.part_of_speech === 'noun') {
-            payload.noun_plural = customWordForm.noun_plural.trim() || null;
-        }
-
-        if (customWordForm.part_of_speech === 'adj') {
-            payload.adj_comparative =
-                customWordForm.adj_comparative.trim() || null;
-            payload.adj_superlative =
-                customWordForm.adj_superlative.trim() || null;
-        }
+        // Minden kitöltött alak-mezőt elküldünk, a szófajtól függetlenül: egy szó
+        // több szófaj alakjait is hordozhatja (pl. "interest" főnév + igealakok),
+        // és a párosítás/kiemelés mind a 9 oszlopot olvassa.
+        payload.form_base = customWordForm.form_base.trim() || null;
+        payload.verb_past = customWordForm.verb_past.trim() || null;
+        payload.verb_past_participle =
+            customWordForm.verb_past_participle.trim() || null;
+        payload.verb_present_participle =
+            customWordForm.verb_present_participle.trim() || null;
+        payload.verb_third_person =
+            customWordForm.verb_third_person.trim() || null;
+        payload.is_irregular = customWordForm.is_irregular;
+        payload.noun_plural = customWordForm.noun_plural.trim() || null;
+        payload.adj_comparative = customWordForm.adj_comparative.trim() || null;
+        payload.adj_superlative = customWordForm.adj_superlative.trim() || null;
 
         router.post(storeCustomWord(), payload, {
             preserveScroll: true,
@@ -930,7 +942,13 @@ export default function WordsIndex({
                                             <Button
                                                 type="button"
                                                 variant="outline"
-                                                onClick={handleGeminiAutofill}
+                                                onClick={() =>
+                                                    handleGeminiAutofill(
+                                                        customWordForm.word,
+                                                        setCustomWordForm,
+                                                        setCustomWordErrors,
+                                                    )
+                                                }
                                                 disabled={
                                                     geminiLoading ||
                                                     !customWordForm.word.trim()
@@ -1628,8 +1646,7 @@ export default function WordsIndex({
                                             </div>
                                         </div>
                                     )}
-                                    {cw.part_of_speech === 'verb' &&
-                                        cw.verb_past && (
+                                    {cw.verb_past && (
                                             <div className="rounded-xl border bg-card px-4 py-3.5">
                                                 <p className="mb-3 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
                                                     Igealakok
@@ -1684,8 +1701,7 @@ export default function WordsIndex({
                                                 </div>
                                             </div>
                                         )}
-                                    {cw.part_of_speech === 'noun' &&
-                                        cw.noun_plural && (
+                                    {cw.noun_plural && (
                                             <div className="rounded-xl border bg-card px-4 py-3.5">
                                                 <p className="mb-3 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
                                                     Többes szám
@@ -1714,8 +1730,7 @@ export default function WordsIndex({
                                                 </div>
                                             </div>
                                         )}
-                                    {cw.part_of_speech === 'adj' &&
-                                        cw.adj_comparative && (
+                                    {cw.adj_comparative && (
                                             <div className="rounded-xl border bg-card px-4 py-3.5">
                                                 <p className="mb-3 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
                                                     Fokozás
@@ -2096,9 +2111,9 @@ export default function WordsIndex({
                                     )}
                                 </div>
 
-                                {/* Igealakok */}
-                                {selectedWord.part_of_speech === 'verb' &&
-                                    selectedWord.verb_past && (
+                                {/* Igealakok — a szófajtól függetlenül látszik, ha
+                                    a szó hordoz igealakot (pl. "interest" főnév + ige) */}
+                                {selectedWord.verb_past && (
                                         <div className="rounded-xl border bg-card px-4 py-3.5">
                                             <p className="mb-3 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
                                                 Igealakok
@@ -2108,7 +2123,9 @@ export default function WordsIndex({
                                                     [
                                                         {
                                                             label: 'Alap',
-                                                            value: selectedWord.form_base,
+                                                            value:
+                                                                selectedWord.form_base ||
+                                                                selectedWord.word,
                                                         },
                                                         {
                                                             label: 'Múlt idő',
@@ -2127,7 +2144,11 @@ export default function WordsIndex({
                                                             value: selectedWord.verb_third_person,
                                                         },
                                                     ] as const
-                                                ).map(({ label, value }) => (
+                                                )
+                                                    .filter(
+                                                        ({ value }) => value,
+                                                    )
+                                                    .map(({ label, value }) => (
                                                     <div
                                                         key={label}
                                                         className="rounded-lg bg-muted/50 px-3 py-2"
@@ -2144,9 +2165,8 @@ export default function WordsIndex({
                                         </div>
                                     )}
 
-                                {/* Többes szám */}
-                                {selectedWord.part_of_speech === 'noun' &&
-                                    selectedWord.noun_plural && (
+                                {/* Többes szám — szófajtól függetlenül, ha van adat */}
+                                {selectedWord.noun_plural && (
                                         <div className="rounded-xl border bg-card px-4 py-3.5">
                                             <p className="mb-3 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
                                                 Többes szám
@@ -2157,7 +2177,8 @@ export default function WordsIndex({
                                                         Egyes szám
                                                     </p>
                                                     <p className="font-semibold">
-                                                        {selectedWord.form_base}
+                                                        {selectedWord.form_base ||
+                                                            selectedWord.word}
                                                     </p>
                                                 </div>
                                                 <span className="text-muted-foreground">
@@ -2177,9 +2198,8 @@ export default function WordsIndex({
                                         </div>
                                     )}
 
-                                {/* Fokozás */}
-                                {selectedWord.part_of_speech === 'adj' &&
-                                    selectedWord.adj_comparative && (
+                                {/* Fokozás — szófajtól függetlenül, ha van adat */}
+                                {selectedWord.adj_comparative && (
                                         <div className="rounded-xl border bg-card px-4 py-3.5">
                                             <p className="mb-3 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
                                                 Fokozás
@@ -2190,7 +2210,8 @@ export default function WordsIndex({
                                                         Alapfok
                                                     </p>
                                                     <p className="font-semibold">
-                                                        {selectedWord.form_base}
+                                                        {selectedWord.form_base ||
+                                                            selectedWord.word}
                                                     </p>
                                                 </div>
                                                 <span className="text-muted-foreground">
@@ -2406,6 +2427,7 @@ export default function WordsIndex({
                                                         selectedWord,
                                                     ),
                                                 );
+                                                setEditWordErrors({});
                                             }}
                                         >
                                             <Pencil className="size-3.5" />
@@ -2425,6 +2447,7 @@ export default function WordsIndex({
                     onOpenChange={(open) => {
                         if (!open) {
                             setEditWordId(null);
+                            setEditWordErrors({});
                         }
                     }}
                 >
@@ -2436,7 +2459,33 @@ export default function WordsIndex({
                             <WordFormFields
                                 form={editWordForm}
                                 onChange={setEditWordForm}
+                                errors={editWordErrors}
                                 autoFocus
+                                afterWordSlot={
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() =>
+                                            handleGeminiAutofill(
+                                                editWordForm.word,
+                                                setEditWordForm,
+                                                setEditWordErrors,
+                                            )
+                                        }
+                                        disabled={
+                                            geminiLoading ||
+                                            !editWordForm.word.trim()
+                                        }
+                                        className="w-full border-violet-200 text-violet-700 hover:bg-violet-50 dark:border-violet-800 dark:text-violet-400 dark:hover:bg-violet-950/30"
+                                    >
+                                        {geminiLoading ? (
+                                            <Loader2 className="size-4 animate-spin" />
+                                        ) : (
+                                            <Sparkles className="size-4" />
+                                        )}
+                                        Újratöltés Gemini AI-val
+                                    </Button>
+                                }
                             />
                         </div>
                         <div className="flex gap-2 border-t px-6 py-4">

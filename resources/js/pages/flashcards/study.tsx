@@ -359,6 +359,7 @@ export default function FlashcardStudy({
             } else {
                 setCurrentIndex(next);
                 setRevealed(false);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
             }
 
             // Fire-and-forget: submit rating in the background

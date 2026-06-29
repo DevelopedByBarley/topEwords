@@ -33,7 +33,11 @@
       "Bash(/Applications/XAMPP/xamppfiles/bin/mysql -u root -e \"SELECT COUNT\\(*\\) as total, MAX\\(rank\\) as max_rank FROM topewords.words;\")",
       "Bash(vendor/bin/pint app/Http/Controllers/TextAnalysisController.php --format agent)",
       "Bash(git checkout:*)",
-      "Bash(vendor/bin/pint --dirty --format agent app/Http/Controllers/ExtensionController.php)"
+      "Bash(vendor/bin/pint --dirty --format agent app/Http/Controllers/ExtensionController.php)",
+      "Bash(cd /Applications/XAMPP/xamppfiles/htdocs/topEwords/chrome-extension && grep -n \"GET_STATUSES\\\\|getStatuses\\\\|forceFresh\\\\|statusCache\\\\|cache\" src/../topwords-extension-1.13/background.js | head -40)",
+      "Read(//Applications/XAMPP/xamppfiles/htdocs/topEwords/topwords-extension-1.13/**)",
+      "Bash(unzip -p topwords-extension-1.13.zip src/youtube.js)",
+      "Bash(unzip -p ../public/downloads/topwords-extension.zip src/youtube.js)"
     ],
     "additionalDirectories": [
       "/private/tmp",

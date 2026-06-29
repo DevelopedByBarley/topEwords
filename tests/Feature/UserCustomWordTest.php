@@ -23,6 +23,33 @@ test('user can add a custom word', function () {
     ]);
 });
 
+test('custom word persists form columns across word classes', function () {
+    // "interest" is primarily a noun, but also a verb. Its verb forms must be
+    // saved even though part_of_speech is "noun", so analysis/highlighting can
+    // recognise "interested"/"interesting" too.
+    $this->post(route('custom-words.store'), [
+        'word' => 'interest',
+        'meaning_hu' => 'érdeklődés',
+        'part_of_speech' => 'noun',
+        'status' => 'known',
+        'noun_plural' => 'interests',
+        'verb_past' => 'interested',
+        'verb_past_participle' => 'interested',
+        'verb_present_participle' => 'interesting',
+        'verb_third_person' => 'interests',
+    ])->assertRedirect();
+
+    $this->assertDatabaseHas('user_custom_words', [
+        'user_id' => $this->user->id,
+        'word' => 'interest',
+        'part_of_speech' => 'noun',
+        'noun_plural' => 'interests',
+        'verb_past' => 'interested',
+        'verb_present_participle' => 'interesting',
+        'verb_third_person' => 'interests',
+    ]);
+});
+
 test('duplicate word for same user is rejected', function () {
     UserCustomWord::create([
         'user_id' => $this->user->id,

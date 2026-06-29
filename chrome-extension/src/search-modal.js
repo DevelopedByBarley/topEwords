@@ -356,6 +356,11 @@ function showSearchDetail(data) {
                         <input class="form-input" id="add-adj-super" type="text" placeholder="Felsőfok" />
                     </div>
                 </div>
+
+                <button type="button" id="toggle-other-forms" style="display:inline-flex;align-items:center;gap:4px;align-self:flex-start;font-size:11px;font-weight:500;color:#64748b;background:none;border:none;cursor:pointer;font-family:inherit;padding:2px 0">
+                    <span id="toggle-other-chevron" style="display:inline-block;transition:transform 0.15s;transform:rotate(-90deg)">▾</span>
+                    További alakok (más szófaj)
+                </button>
             </div>
             <div style="margin-top:10px">
                 <div class="meta-label">Státusz</div>
@@ -371,14 +376,30 @@ function showSearchDetail(data) {
         detail.classList.add('visible', 'form-mode');
 
         const posSelect = detail.querySelector('#add-pos');
-        posSelect.addEventListener('change', () => {
+
+        // Egy szó több szófaj alakjait is hordozhatja (pl. "interest" → főnév +
+        // igealakok), mert a párosítás/kiemelés a szófajtól függetlenül mind a 9
+        // alak-oszlopot olvassa. Az elsődleges szófaj blokkja mindig látszik; a
+        // többit a „További alakok" kapcsoló nyitja ki.
+        let showOtherForms = false;
+
+        function updateFormSections() {
             const pos = posSelect.value;
             detail.querySelector('#verb-fields').style.display =
-                pos === 'verb' ? 'flex' : 'none';
+                pos === 'verb' || showOtherForms ? 'flex' : 'none';
             detail.querySelector('#noun-fields').style.display =
-                pos === 'noun' ? 'flex' : 'none';
+                pos === 'noun' || showOtherForms ? 'flex' : 'none';
             detail.querySelector('#adj-fields').style.display =
-                pos === 'adj' ? 'flex' : 'none';
+                pos === 'adj' || showOtherForms ? 'flex' : 'none';
+        }
+
+        posSelect.addEventListener('change', updateFormSections);
+
+        const toggleOtherChevron = detail.querySelector('#toggle-other-chevron');
+        detail.querySelector('#toggle-other-forms').addEventListener('click', () => {
+            showOtherForms = !showOtherForms;
+            toggleOtherChevron.style.transform = showOtherForms ? '' : 'rotate(-90deg)';
+            updateFormSections();
         });
 
         // Felvitelkor választható státusz (alapból „Tudom") és fontosság.
@@ -507,48 +528,42 @@ function showSearchDetail(data) {
                                 resp.example_hu;
                         }
 
-                        if (pos === 'verb') {
-                            if (resp.verb_past) {
-                                detail.querySelector('#add-verb-past').value =
-                                    resp.verb_past;
+                        // Minden visszakapott valódi alakot kitöltünk, a szófajtól
+                        // függetlenül (egy szó több szófaj alakját is hordozhatja).
+                        const setFormVal = (sel, val) => {
+                            if (val) {
+                                detail.querySelector(sel).value = val;
                             }
+                        };
+                        setFormVal('#add-verb-past', resp.verb_past);
+                        setFormVal('#add-verb-pp', resp.verb_past_participle);
+                        setFormVal('#add-verb-prog', resp.verb_present_participle);
+                        setFormVal('#add-verb-3rd', resp.verb_third_person);
 
-                            if (resp.verb_past_participle) {
-                                detail.querySelector('#add-verb-pp').value =
-                                    resp.verb_past_participle;
-                            }
-
-                            if (resp.verb_present_participle) {
-                                detail.querySelector('#add-verb-prog').value =
-                                    resp.verb_present_participle;
-                            }
-
-                            if (resp.verb_third_person) {
-                                detail.querySelector('#add-verb-3rd').value =
-                                    resp.verb_third_person;
-                            }
-
-                            if (resp.is_irregular) {
-                                detail.querySelector('#add-irregular').checked =
-                                    true;
-                            }
+                        if (resp.is_irregular) {
+                            detail.querySelector('#add-irregular').checked = true;
                         }
 
-                        if (pos === 'noun' && resp.noun_plural) {
-                            detail.querySelector('#add-noun-plural').value =
-                                resp.noun_plural;
-                        }
+                        setFormVal('#add-noun-plural', resp.noun_plural);
+                        setFormVal('#add-adj-comp', resp.adj_comparative);
+                        setFormVal('#add-adj-super', resp.adj_superlative);
 
-                        if (pos === 'adj') {
-                            if (resp.adj_comparative) {
-                                detail.querySelector('#add-adj-comp').value =
-                                    resp.adj_comparative;
-                            }
+                        // Ha az elsődleges szófajon kívüli alak is érkezett, nyissuk
+                        // ki a „További alakok" szekciót, hogy a felhasználó lássa.
+                        const filledOther =
+                            (pos !== 'verb' &&
+                                (resp.verb_past ||
+                                    resp.verb_past_participle ||
+                                    resp.verb_present_participle ||
+                                    resp.verb_third_person)) ||
+                            (pos !== 'noun' && resp.noun_plural) ||
+                            (pos !== 'adj' &&
+                                (resp.adj_comparative || resp.adj_superlative));
 
-                            if (resp.adj_superlative) {
-                                detail.querySelector('#add-adj-super').value =
-                                    resp.adj_superlative;
-                            }
+                        if (filledOther && !showOtherForms) {
+                            showOtherForms = true;
+                            toggleOtherChevron.style.transform = '';
+                            updateFormSections();
                         }
                     },
                 );
@@ -594,33 +609,24 @@ function showSearchDetail(data) {
                 importance: addImportance,
             };
 
-            if (pos === 'verb') {
-                payload.form_base =
-                    detail.querySelector('#add-form-base').value.trim() || null;
-                payload.verb_past =
-                    detail.querySelector('#add-verb-past').value.trim() || null;
-                payload.verb_past_participle =
-                    detail.querySelector('#add-verb-pp').value.trim() || null;
-                payload.verb_present_participle =
-                    detail.querySelector('#add-verb-prog').value.trim() || null;
-                payload.verb_third_person =
-                    detail.querySelector('#add-verb-3rd').value.trim() || null;
-                payload.is_irregular =
-                    detail.querySelector('#add-irregular').checked;
-            }
-
-            if (pos === 'noun') {
-                payload.noun_plural =
-                    detail.querySelector('#add-noun-plural').value.trim() ||
-                    null;
-            }
-
-            if (pos === 'adj') {
-                payload.adj_comparative =
-                    detail.querySelector('#add-adj-comp').value.trim() || null;
-                payload.adj_superlative =
-                    detail.querySelector('#add-adj-super').value.trim() || null;
-            }
+            // Minden kitöltött alak-mezőt elküldünk, a szófajtól függetlenül.
+            payload.form_base =
+                detail.querySelector('#add-form-base').value.trim() || null;
+            payload.verb_past =
+                detail.querySelector('#add-verb-past').value.trim() || null;
+            payload.verb_past_participle =
+                detail.querySelector('#add-verb-pp').value.trim() || null;
+            payload.verb_present_participle =
+                detail.querySelector('#add-verb-prog').value.trim() || null;
+            payload.verb_third_person =
+                detail.querySelector('#add-verb-3rd').value.trim() || null;
+            payload.is_irregular = detail.querySelector('#add-irregular').checked;
+            payload.noun_plural =
+                detail.querySelector('#add-noun-plural').value.trim() || null;
+            payload.adj_comparative =
+                detail.querySelector('#add-adj-comp').value.trim() || null;
+            payload.adj_superlative =
+                detail.querySelector('#add-adj-super').value.trim() || null;
 
             sendMsg(payload, (resp) => {
                 const fb = detail.querySelector('#add-feedback');

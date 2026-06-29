@@ -27,6 +27,8 @@ beforeEach(function () {
         array_merge($base, ['word' => 'dog', 'rank' => 300, 'meaning_hu' => 'kutya', 'noun_plural' => 'dogs']),
         array_merge($base, ['word' => 'the', 'rank' => 1, 'meaning_hu' => 'a/az']),
         array_merge($base, ['word' => 'cut', 'rank' => 400, 'meaning_hu' => 'vág', 'verb_past' => 'cut', 'verb_present_participle' => 'cutting', 'verb_third_person' => 'cuts']),
+        // Dual-class word: primarily a noun, but also carries its verb forms.
+        array_merge($base, ['word' => 'interest', 'rank' => 500, 'meaning_hu' => 'érdeklődés', 'part_of_speech' => 'noun', 'noun_plural' => 'interests', 'verb_past' => 'interested', 'verb_past_participle' => 'interested', 'verb_present_participle' => 'interesting', 'verb_third_person' => 'interests']),
     ]);
 });
 
@@ -63,6 +65,21 @@ test('word forms are recognized via variant columns', function () {
         ->assertJsonPath('tokenStatuses.running', 'known')
         ->assertJsonPath('tokenStatuses.ran', 'known')
         ->assertJsonPath('tokenStatuses.runs', 'known');
+});
+
+test('verb forms of a noun word are recognized in analysis', function () {
+    // "interest" is stored as a noun but carries verb inflections on the same
+    // row. Matching reads all form columns regardless of part_of_speech, so the
+    // verb forms must resolve to the same status as the base word.
+    $word = Word::where('word', 'interest')->first();
+    $this->user->knownWords()->attach($word->id, ['status' => 'known']);
+
+    $this->postJson(route('text-analysis.analyze'), ['text' => 'interested interesting interests'])
+        ->assertOk()
+        ->assertJsonPath('knownCount', 3)
+        ->assertJsonPath('tokenStatuses.interested', 'known')
+        ->assertJsonPath('tokenStatuses.interesting', 'known')
+        ->assertJsonPath('tokenStatuses.interests', 'known');
 });
 
 test('apostrophe custom words get their status in the token map', function () {
@@ -316,6 +333,33 @@ test('gemini lookup retries a transient 503 then succeeds', function () {
         ->assertJsonPath('part_of_speech', 'noun');
 
     Http::assertSentCount(2);
+});
+
+test('gemini lookup passes through cross-class form fields for a noun', function () {
+    $this->user->forceFill(['ai_access' => true])->save();
+
+    // The model returns a noun whose verb forms also exist (e.g. "interest").
+    // The controller must NOT strip the verb forms just because the primary
+    // part_of_speech is "noun".
+    Http::fake([
+        'generativelanguage.googleapis.com/*' => Http::response(geminiSuccess([
+            'is_real_word' => true,
+            'meaning_hu' => 'érdeklődés',
+            'part_of_speech' => 'noun',
+            'noun_plural' => 'interests',
+            'verb_past' => 'interested',
+            'verb_present_participle' => 'interesting',
+            'verb_third_person' => 'interests',
+        ]), 200),
+    ]);
+
+    $this->getJson(route('text-analysis.gemini-lookup', ['word' => 'interest']))
+        ->assertOk()
+        ->assertJsonPath('part_of_speech', 'noun')
+        ->assertJsonPath('noun_plural', 'interests')
+        ->assertJsonPath('verb_past', 'interested')
+        ->assertJsonPath('verb_present_participle', 'interesting')
+        ->assertJsonPath('verb_third_person', 'interests');
 });
 
 test('gemini lookup returns 502 after both primary and fallback exhaust 503s', function () {

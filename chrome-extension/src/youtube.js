@@ -8,6 +8,10 @@
 
 let ytEnabled = false; // chrome.storage.local: ytLyricsEnabled (alapból kikapcsolva)
 let ytWeEnabledCC = false;
+// Frissítéskor a YouTube visszaállíthatja a CC-t "bekapcsolt" állapotba, de a
+// felirat-track ilyenkor gyakran nem renderel, amíg egy valódi ki→be kapcsolás meg
+// nem rángatja. Ezt menetenként egyszer kényszerítjük ki (lásd ensureNativeCaptionsOn).
+let ytCcKicked = false;
 let ytStatusMap = null;
 let ytObserver = null;
 let ytBarHost = null;
@@ -79,6 +83,24 @@ function ensureNativeCaptionsOn() {
     if (btn.getAttribute('aria-pressed') === 'false') {
         btn.click();
         ytWeEnabledCC = true;
+
+        return true;
+    }
+
+    // A CC már be van kapcsolva, de nem mi kapcsoltuk: ez tipikusan a frissítés
+    // utáni állapot, amikor a YouTube visszaállította a gombot, de a felirat-track
+    // nem renderel. Menetenként egyszer kirángatjuk: kikapcsoljuk, majd egy
+    // ütemezett reconcile-tick visszakapcsolja és elindítja a renderelést.
+    if (!ytWeEnabledCC && !ytCcKicked) {
+        ytCcKicked = true;
+        btn.click();
+        setTimeout(() => {
+            if (ytEnabled && extAlive() && isYouTubePage()) {
+                reconcileYtLyrics();
+            }
+        }, 150);
+
+        return false;
     }
 
     return true;
@@ -309,7 +331,18 @@ function startYtObserver() {
         ensureYtBar();
         injectYtToggle();
 
-        const segments = document.querySelectorAll('.ytp-caption-segment');
+        // Csak az AKTUÁLIS felirat-ablakot olvassuk. A YouTube időnként több
+        // .caption-window-t is a DOM-ban hagy (a régiek nem tűnnek el azonnal,
+        // főleg mert mi opacity:0-val rejtjük, nem display:none-nal) — ha mindet
+        // összefűznénk, a régi szöveg "beragadna" és az újak elé kerülnének.
+        // A legutóbb beszúrt ablak a friss felirat.
+        const windows = document.querySelectorAll(
+            '#movie_player .caption-window',
+        );
+        const activeWindow = windows[windows.length - 1];
+        const segments = activeWindow
+            ? activeWindow.querySelectorAll('.ytp-caption-segment')
+            : [];
         const text = Array.from(segments)
             .map((s) => s.textContent)
             .join(' ')
@@ -519,6 +552,7 @@ function disableYtLyrics() {
     ytObserver = null;
     ytBarHost?.remove();
     ytBarHost = null;
+    ytCcKicked = false;
     showNativeCaptions();
     restoreNativeCaptionState();
 }
@@ -958,6 +992,7 @@ function destroyYtSubtitles() {
     // Navigációnál nem kattintunk a CC gombra (már másik videóra mutatna),
     // csak a flag-et és a rejtő CSS-t takarítjuk.
     ytWeEnabledCC = false;
+    ytCcKicked = false;
     showNativeCaptions();
 }
 
