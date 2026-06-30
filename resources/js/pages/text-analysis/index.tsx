@@ -3,7 +3,6 @@ import { BookOpen, FileText, Globe, History, Loader2, ScanText, X, Youtube } fro
 import { useEffect, useMemo, useRef, useState } from 'react';
 import AnalysisResultView from '@/components/text-analysis/analysis-result';
 import { BookList, BookPager, BookReader } from '@/components/text-analysis/book-panel';
-import { WholeVideoBanner, YoutubeList, YoutubeReader } from '@/components/text-analysis/youtube-panel';
 import HistoryPanel from '@/components/text-analysis/history-panel';
 import {
     addHistoryEntry,
@@ -18,6 +17,7 @@ import {
 } from '@/components/text-analysis/types';
 import type { AnalysisResult, HistoryEntry, InputMode, LyricSegment, TokenStatus, UserBook, VideoOverview, YoutubeTranscript } from '@/components/text-analysis/types';
 import WordLookupDialog from '@/components/text-analysis/word-lookup-dialog';
+import { WholeVideoBanner, YoutubeList, YoutubeReader } from '@/components/text-analysis/youtube-panel';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -75,10 +75,17 @@ export default function TextAnalysis() {
 
     const didAutoFetch = useRef(false);
     useEffect(() => {
-        if (didAutoFetch.current) return;
+        if (didAutoFetch.current) {
+return;
+}
+
         const params = new URLSearchParams(window.location.search);
         const urlParam = params.get('url');
-        if (!urlParam) return;
+
+        if (!urlParam) {
+return;
+}
+
         didAutoFetch.current = true;
         const isYouTube = /youtube\.com|youtu\.be/.test(urlParam);
         setMode(isYouTube ? 'youtube' : 'url');
@@ -107,7 +114,7 @@ export default function TextAnalysis() {
             })
             .catch(() => setError('Hálózati hiba.'))
             .finally(() => setIsFetching(false));
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    }, []);  
 
     useEffect(() => {
         try {
@@ -151,6 +158,7 @@ export default function TextAnalysis() {
     const loadBookPage = async (book: UserBook, page: number, thenAnalyze = false) => {
         setIsLoadingPage(true);
         setError(null);
+
         try {
             const res = await fetch(bookPageRoute.url(book.id, { query: { page } }), {
                 headers: { Accept: 'application/json' },
@@ -162,6 +170,7 @@ export default function TextAnalysis() {
             setBookPage(page);
             saveBookmark(book.id, page);
             setResult(null);
+
             if (thenAnalyze) {
                 await analyze(pageText);
             }
@@ -174,8 +183,10 @@ export default function TextAnalysis() {
 
     const fetchBookOverview = async (book: UserBook) => {
         setBookOverview(null);
+
         try {
             const res = await fetch(bookOverviewRoute.url(book.id), { headers: { Accept: 'application/json' } });
+
             if (res.ok) {
                 setBookOverview((await res.json()) as VideoOverview);
             }
@@ -197,6 +208,7 @@ export default function TextAnalysis() {
         // A szerver WAF-ja a fájlnévben lévő aposztrófot/idézőjelet SQLi-ként
         // blokkolja (403), ezért biztonságos névvel küldjük — a tartalom marad.
         formData.append('file', file, sanitizeUploadFilename(file.name));
+
         try {
             const res = await fetch(storeBook.url(), {
                 method: 'POST',
@@ -204,10 +216,13 @@ export default function TextAnalysis() {
                 body: formData,
             });
             const data = await res.json();
+
             if (!res.ok) {
                 setError((data.errors?.file?.[0] as string) ?? (data.error as string) ?? 'Feltöltés sikertelen.');
+
                 return;
             }
+
             const book = data.book as UserBook;
             setBooks((prev) => [book, ...prev]);
             setActiveBook(book);
@@ -246,8 +261,10 @@ export default function TextAnalysis() {
 
     const fetchOverview = async (transcript: YoutubeTranscript) => {
         setOverview(null);
+
         try {
             const res = await fetch(ytOverviewRoute.url(transcript.id), { headers: { Accept: 'application/json' } });
+
             if (res.ok) {
                 setOverview((await res.json()) as VideoOverview);
             }
@@ -259,6 +276,7 @@ export default function TextAnalysis() {
     const loadYtPage = async (transcript: YoutubeTranscript, page: number, thenAnalyze = false) => {
         setIsLoadingPage(true);
         setError(null);
+
         try {
             const res = await fetch(ytPageRoute.url(transcript.id, { query: { page } }), {
                 headers: { Accept: 'application/json' },
@@ -270,6 +288,7 @@ export default function TextAnalysis() {
             setYtPage(page);
             saveYtBookmark(transcript.id, page);
             setResult(null);
+
             if (thenAnalyze) {
                 await analyze(pageText);
             }
@@ -290,19 +309,28 @@ export default function TextAnalysis() {
     /** Új YouTube videó feliratának lehívása és mentése, majd megnyitása az olvasóban. */
     const loadYoutube = async (rawUrl: string) => {
         const url = rawUrl.trim();
-        if (!url) return;
+
+        if (!url) {
+return;
+}
+
         setIsFetching(true);
         setError(null);
         setUpgradeUrl(null);
+
         try {
             const { ok, data } = await postJson(ytStore.url(), { url });
+
             if (!ok) {
                 setError((data.error as string) ?? (data.message as string) ?? 'Hiba történt.');
+
                 if (typeof data.upgrade_url === 'string') {
                     setUpgradeUrl(data.upgrade_url);
                 }
+
                 return;
             }
+
             const transcript = data.transcript as YoutubeTranscript;
             setTranscripts((prev) => [transcript, ...prev.filter((t) => t.id !== transcript.id)]);
             setYoutubeLoaded(true);
@@ -321,12 +349,16 @@ export default function TextAnalysis() {
     };
 
     const deleteTranscript = async (transcript: YoutubeTranscript) => {
-        if (!confirm(`Törlöd a(z) „${transcript.title}" feliratot?`)) return;
+        if (!confirm(`Törlöd a(z) „${transcript.title}" feliratot?`)) {
+return;
+}
+
         await fetch(ytDestroy.url(transcript.id), {
             method: 'DELETE',
             headers: { 'X-CSRF-TOKEN': getCsrfToken() },
         });
         setTranscripts((prev) => prev.filter((t) => t.id !== transcript.id));
+
         if (activeTranscript?.id === transcript.id) {
             setActiveTranscript(null);
             setFetchedSource(null);
@@ -337,12 +369,16 @@ export default function TextAnalysis() {
     };
 
     const handleDeleteBook = async (book: UserBook) => {
-        if (!confirm(`Törlöd a(z) „${book.title}" könyvet?`)) return;
+        if (!confirm(`Törlöd a(z) „${book.title}" könyvet?`)) {
+return;
+}
+
         await fetch(destroyBook.url(book.id), {
             method: 'DELETE',
             headers: { 'X-CSRF-TOKEN': getCsrfToken() },
         });
         setBooks((prev) => prev.filter((b) => b.id !== book.id));
+
         if (activeBook?.id === book.id) {
             setActiveBook(null);
             setFetchedSource(null);
@@ -366,17 +402,21 @@ export default function TextAnalysis() {
             setResult(null);
             setError(null);
             setUpgradeUrl(null);
+
             return;
         }
+
         reset();
     };
 
     const switchMode = (m: InputMode) => {
         setMode(m);
         reset();
+
         if (m === 'book' && !booksLoaded) {
             fetchBooks();
         }
+
         if (m === 'youtube') {
             setActiveTranscript(null);
             setOverview(null);
@@ -387,6 +427,7 @@ export default function TextAnalysis() {
         setMode(entry.mode);
         setResult(null);
         setError(null);
+
         if (entry.mode === 'text') {
             setText(entry.text);
             setFetchedSource(null);
@@ -395,6 +436,7 @@ export default function TextAnalysis() {
             setUrlInput(entry.url ?? '');
             setFetchedSource(entry.text);
         }
+
         setShowHistory(false);
     };
 
@@ -406,17 +448,24 @@ export default function TextAnalysis() {
 
     const fetchSource = async () => {
         const url = urlInput;
-        if (!url.trim()) return;
+
+        if (!url.trim()) {
+return;
+}
+
         setIsFetching(true);
         setError(null);
         setFetchedSource(null);
 
         try {
             const { ok, data } = await postJson(fetchSourceRoute.url(), { url });
+
             if (!ok) {
                 setError((data.error as string) ?? (data.message as string) ?? 'Hiba történt.');
+
                 return;
             }
+
             setFetchedSource(data.text as string);
         } catch {
             setError('Hálózati hiba. Próbáld újra.');
@@ -427,7 +476,10 @@ export default function TextAnalysis() {
 
     const analyze = async (overrideText?: string) => {
         const input = overrideText ?? (mode === 'text' ? text : fetchedSource ?? '');
-        if (!input.trim()) return;
+
+        if (!input.trim()) {
+return;
+}
 
         setIsAnalyzing(true);
         setError(null);
@@ -435,13 +487,17 @@ export default function TextAnalysis() {
 
         try {
             const { ok, data } = await postJson(analyzeRoute.url(), { text: input });
+
             if (!ok) {
                 setError((data.message as string) ?? 'Hiba történt az elemzés során.');
+
                 if (typeof data.upgrade_url === 'string') {
                     setUpgradeUrl(data.upgrade_url);
                 }
+
                 return;
             }
+
             setResult(data as unknown as AnalysisResult);
 
             if (Array.isArray(data.achievements) && (data.achievements as unknown[]).length > 0) {
@@ -474,15 +530,32 @@ export default function TextAnalysis() {
     const handleLookupStatusChange = (word: string, prevStatus: string | null, nextStatus: TokenStatus | null, fallback: TokenStatus) => {
         const freq = tokenFrequencies[word] ?? 0;
         setResult((prev) => {
-            if (!prev) return prev;
+            if (!prev) {
+return prev;
+}
+
             let knownDelta = 0;
             let learningDelta = 0;
-            if (prevStatus === 'known') knownDelta -= freq;
-            if (prevStatus === 'learning') learningDelta -= freq;
-            if (nextStatus === 'known') knownDelta += freq;
-            if (nextStatus === 'learning') learningDelta += freq;
+
+            if (prevStatus === 'known') {
+knownDelta -= freq;
+}
+
+            if (prevStatus === 'learning') {
+learningDelta -= freq;
+}
+
+            if (nextStatus === 'known') {
+knownDelta += freq;
+}
+
+            if (nextStatus === 'learning') {
+learningDelta += freq;
+}
+
             const newKnownCount = prev.knownCount + knownDelta;
             const newLearningCount = prev.learningCount + learningDelta;
+
             return {
                 ...prev,
                 tokenStatuses: { ...prev.tokenStatuses, [word]: nextStatus ?? fallback },
@@ -555,7 +628,9 @@ export default function TextAnalysis() {
                         history={history}
                         onLoad={loadFromHistory}
                         onDelete={deleteHistoryEntry}
-                        onClearAll={() => { saveHistory([]); setHistory([]); setShowHistory(false); }}
+                        onClearAll={() => {
+ saveHistory([]); setHistory([]); setShowHistory(false); 
+}}
                     />
                 )}
 
@@ -599,7 +674,9 @@ export default function TextAnalysis() {
                                     overview={overview}
                                     isLoadingPage={isLoadingPage}
                                     isAnalyzing={isAnalyzing}
-                                    onBack={() => { setActiveTranscript(null); setFetchedSource(null); setSegments(null); setOverview(null); setResult(null); }}
+                                    onBack={() => {
+ setActiveTranscript(null); setFetchedSource(null); setSegments(null); setOverview(null); setResult(null); 
+}}
                                     onPageChange={(page) => loadYtPage(activeTranscript, page)}
                                     onAnalyze={() => analyze(fetchedSource ?? '')}
                                 />
@@ -608,7 +685,9 @@ export default function TextAnalysis() {
                                     <div className="flex gap-2">
                                         <Input
                                             value={urlInput}
-                                            onChange={(e) => { setUrlInput(e.target.value); setError(null); }}
+                                            onChange={(e) => {
+ setUrlInput(e.target.value); setError(null); 
+}}
                                             placeholder="https://www.youtube.com/watch?v=..."
                                             className="flex-1"
                                             onKeyDown={(e) => e.key === 'Enter' && !isFetching && loadYoutube(urlInput)}
@@ -645,7 +724,9 @@ export default function TextAnalysis() {
                                 <div className="flex gap-2">
                                     <Input
                                         value={urlInput}
-                                        onChange={(e) => { setUrlInput(e.target.value); setFetchedSource(null); setError(null); }}
+                                        onChange={(e) => {
+ setUrlInput(e.target.value); setFetchedSource(null); setError(null); 
+}}
                                         placeholder="https://example.com/article"
                                         className="flex-1"
                                         onKeyDown={(e) => e.key === 'Enter' && !fetchedSource && fetchSource()}
@@ -669,7 +750,9 @@ export default function TextAnalysis() {
                                                 </p>
                                                 <button
                                                     type="button"
-                                                    onClick={() => { setFetchedSource(null); setError(null); }}
+                                                    onClick={() => {
+ setFetchedSource(null); setError(null); 
+}}
                                                     className="text-muted-foreground hover:text-foreground"
                                                 >
                                                     <X className="size-3.5" />
@@ -718,7 +801,9 @@ export default function TextAnalysis() {
                                             text={fetchedSource}
                                             isLoadingPage={isLoadingPage}
                                             isAnalyzing={isAnalyzing}
-                                            onBack={() => { setActiveBook(null); setFetchedSource(null); setBookOverview(null); setResult(null); }}
+                                            onBack={() => {
+ setActiveBook(null); setFetchedSource(null); setBookOverview(null); setResult(null); 
+}}
                                             onPageChange={(page) => loadBookPage(activeBook, page)}
                                             onAnalyze={() => analyze(fetchedSource)}
                                         />
@@ -754,6 +839,7 @@ export default function TextAnalysis() {
                         segments={segments}
                         onWordClick={handleWordClick}
                         onReset={handleResultReset}
+                        lookupOpen={lookupWord !== null}
                     >
                         {mode === 'book' && activeBook && (
                             <>
@@ -792,7 +878,9 @@ export default function TextAnalysis() {
                 word={lookupWord}
                 context={lookupContext}
                 hasAiAccess={hasAiAccess}
-                onClose={() => { setLookupWord(null); setLookupContext(null); }}
+                onClose={() => {
+ setLookupWord(null); setLookupContext(null); 
+}}
                 onStatusChange={handleLookupStatusChange}
                 onCustomAdded={handleCustomAdded}
             />

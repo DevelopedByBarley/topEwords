@@ -79,7 +79,15 @@
       "Bash(grep -E \"\\\\.\\(php|ts\\)$\")",
       "Bash(git log *)",
       "Bash(unzip -p public/downloads/topwords-extension.zip manifest.json)",
-      "Bash(unzip -p chrome-extension.zip manifest.json)"
+      "Bash(unzip -p chrome-extension.zip manifest.json)",
+      "Bash(awk '/function hidePopup/,/^}/' lookup-popup.js)",
+      "Bash(awk '/function onOutsideClick/,/^}/' lookup-popup.js)",
+      "Bash(unzip -l chrome-extension/topwords-extension-1.13.zip)",
+      "Bash(unzip -p public/downloads/topwords-extension.zip src/lookup-popup.js)",
+      "Bash(unzip -p public/downloads/topwords-extension.zip src/youtube.js)",
+      "WebFetch(domain:ploi.io)",
+      "Bash(node -p \"require\\('./node_modules/driver.js/package.json'\\).version\")",
+      "Bash(node -p \"Object.keys\\(require\\('./package.json'\\).dependencies\\).join\\('\\\\n'\\)\")"
     ],
     "additionalDirectories": [
       "/private/tmp",
