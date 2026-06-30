@@ -1,5 +1,8 @@
 <?php
 
+use App\Models\User;
+use Illuminate\Auth\Notifications\VerifyEmail;
+use Illuminate\Support\Facades\Notification;
 use Laravel\Fortify\Features;
 
 beforeEach(function () {
@@ -12,7 +15,9 @@ test('registration screen can be rendered', function () {
     $response->assertOk();
 });
 
-test('new users can register', function () {
+test('new users can register but are not logged in until they verify their email', function () {
+    Notification::fake();
+
     $response = $this->post(route('register.store'), [
         'name' => 'Test User',
         'email' => 'test@example.com',
@@ -20,7 +25,30 @@ test('new users can register', function () {
         'password_confirmation' => 'password',
     ]);
 
-    $this->assertAuthenticated();
-    // Friss regisztráció után az onboarding oldalra irányítunk
-    $response->assertRedirect(route('onboarding', absolute: false));
+    // E-mail-megerősítés-előbb flow: a regisztráció NEM lépteti be a usert,
+    // a login oldalra irányít, és kimegy a megerősítő levél.
+    $this->assertGuest();
+    $response->assertRedirect(route('login', absolute: false));
+
+    $user = User::where('email', 'test@example.com')->first();
+    expect($user)->not->toBeNull();
+    expect($user->hasVerifiedEmail())->toBeFalse();
+
+    Notification::assertSentTo($user, VerifyEmail::class);
+});
+
+test('unverified users are redirected away from protected routes', function () {
+    $user = User::factory()->unverified()->create();
+
+    $this->actingAs($user)
+        ->get(route('words.index'))
+        ->assertRedirect(route('verification.notice'));
+});
+
+test('verified users can access protected routes', function () {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->get(route('words.index'))
+        ->assertOk();
 });

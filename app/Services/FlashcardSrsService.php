@@ -439,15 +439,22 @@ class FlashcardSrsService
     }
 
     /**
-     * Graduating interval via Good — clamped so it is never less than what Hard would show.
+     * Graduating interval via Good — kept strictly above what Hard would show.
+     *
+     * When the final learning step is itself a day or more, Hard already lands in
+     * multi-day territory (step × 1.5). Good must graduate to at least one day beyond
+     * Hard, otherwise both ratings collapse onto the same interval and the buttons
+     * become indistinguishable. When Hard is still sub-day (the common case), Hard is
+     * shown in minutes, so Good only needs the configured graduating interval.
      */
     private function graduatingInterval(FlashcardSetting|FlashcardDeckSetting $settings, array $steps, int $currentStep): int
     {
         $safeStep = min($currentStep, count($steps) - 1);
         $hardMinutes = max($steps[0] + 1, (int) round($steps[$safeStep] * 1.5));
         $hardInDays = $hardMinutes >= 1440 ? (int) round($hardMinutes / 1440) : 0;
+        $minFromHard = $hardInDays > 0 ? $hardInDays + 1 : 0;
 
-        return max($settings->graduating_interval, $hardInDays);
+        return max($settings->graduating_interval, $minFromHard);
     }
 
     /**

@@ -148,6 +148,7 @@ return [
         // a /register route-ok sem regisztrálódnak (szerveroldalon is zárva),
         // és a frontend canRegister=false lesz → eltűnik a regisztrációs UI.
         env('REGISTRATION_ENABLED', true) ? Features::registration() : null,
+        Features::emailVerification(),
         Features::resetPasswords(),
         Features::twoFactorAuthentication([
             'confirm' => true,

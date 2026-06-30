@@ -364,9 +364,42 @@ test('graduating interval uses the actual last step and matches the preview', fu
     $method = new ReflectionMethod($srs, 'learningGood');
     $method->invoke($srs, $review, $settings->learning_steps, $settings);
 
-    // round(1440 * 1.5 / 1440) = 2 days — preview and actual must agree.
-    expect($preview['good'])->toBe('2 nap');
-    expect($review->interval)->toBe(2);
+    // Hard lands at round(1440 * 1.5 / 1440) = 2 days, so Good graduates one day beyond
+    // it (3 days) to stay distinct. Preview and actual must agree.
+    expect($preview['good'])->toBe('3 nap');
+    expect($review->interval)->toBe(3);
+});
+
+test('hard and good never collapse to the same interval when the last learning step is a full day', function () {
+    $settings = new FlashcardSetting([
+        'new_cards_per_day' => 20,
+        'max_reviews_per_day' => 200,
+        'learning_steps' => [1, 10, 1440], // final step is a full day
+        'graduating_interval' => 1,
+        'easy_interval' => 2,
+        'starting_ease' => 250,
+        'easy_bonus' => 130,
+        'hard_interval_modifier' => 120,
+        'interval_modifier' => 100,
+        'max_interval' => 365,
+        'lapse_new_interval' => 0,
+        'leech_threshold' => 8,
+    ]);
+
+    $review = new FlashcardReview([
+        'state' => 'learning',
+        'learning_step' => 2, // last step of [1, 10, 1440]
+        'interval' => 0,
+        'ease_factor' => 250,
+        'repetitions' => 0,
+        'lapses' => 0,
+    ]);
+
+    $preview = (new FlashcardSrsService)->getButtonPreviews($review, $settings);
+
+    expect($preview['hard'])->toBe('2 nap');
+    expect($preview['good'])->toBe('3 nap');
+    expect($preview['hard'])->not->toBe($preview['good']);
 });
 
 test('both-direction card shows its second side the day it was introduced even at the new limit', function () {

@@ -3,6 +3,7 @@
 use App\Models\BillingoInvoice;
 use App\Models\User;
 use App\Services\Billingo\InvoiceGenerator;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
 /**
@@ -46,7 +47,10 @@ function fakeBillingo(): void
 {
     Http::fake([
         'api.billingo.hu/v3/currencies*' => Http::response(['conversation_rate' => 390.5], 200),
+        'api.billingo.hu/v3/partners/*' => Http::response([], 200),
         'api.billingo.hu/v3/partners' => Http::response(['id' => 777], 200),
+        // A küldés-végpont specifikusabb mintája a /documents elé kerül (első találat nyer).
+        'api.billingo.hu/v3/documents/*/send' => Http::response([], 200),
         'api.billingo.hu/v3/documents' => Http::response(['id' => 5001, 'invoice_number' => 'TESZT-2026-1'], 200),
         'api.billingo.hu/v3/document-blocks' => Http::response(['data' => [['id' => 42]]], 200),
     ]);
@@ -80,6 +84,54 @@ test('kiállítja a Billingo számlát és eltárolja a felhasználóhoz', funct
 
     // A partner azonosítója a felhasználóhoz mentve, hogy később újrahasználjuk.
     expect($user->refresh()->billingo_partner_id)->toBe(777);
+});
+
+test('a kiállított számlát e-mailben elküldi a partnernek és rögzíti a kézbesítést', function () {
+    fakeBillingo();
+    $user = billableUser();
+
+    $record = app(InvoiceGenerator::class)->generateForStripeInvoice($user, stripeInvoice(['id' => 'in_send']));
+
+    // A Billingo a létrehozáskor nem küld e-mailt — a kiállított dokumentumot külön
+    // küldjük el a send-végponton, és rögzítjük a kézbesítés időpontját.
+    Http::assertSent(fn ($request) => $request->method() === 'POST'
+        && str_ends_with($request->url(), '/documents/5001/send'));
+
+    expect($record->emailed_at)->not->toBeNull();
+});
+
+test('nem küldi el újra a már kézbesített számlát', function () {
+    fakeBillingo();
+    $user = billableUser();
+    $invoice = stripeInvoice(['id' => 'in_resend']);
+
+    app(InvoiceGenerator::class)->generateForStripeInvoice($user, $invoice);
+    app(InvoiceGenerator::class)->generateForStripeInvoice($user, $invoice);
+
+    // Pontosan egy küldés-hívás ment ki a két futás alatt.
+    Http::assertSentCount(3);
+});
+
+test('egy korábban kiállított, de el nem küldött számlát utólag elküld', function () {
+    fakeBillingo();
+    $user = billableUser();
+
+    // Korábbi futás: a számla kiállt (van dokumentum-azonosítója), de a kézbesítés
+    // még nem történt meg (emailed_at null) — pl. a send-hívás akkor elhasalt.
+    $record = BillingoInvoice::create([
+        'user_id' => $user->id,
+        'stripe_invoice_id' => 'in_unsent',
+        'billingo_document_id' => 5001,
+        'invoice_number' => 'TESZT-2026-1',
+    ]);
+
+    app(InvoiceGenerator::class)->generateForStripeInvoice($user, stripeInvoice(['id' => 'in_unsent']));
+
+    // Nem áll ki új dokumentumot, de a kézbesítést pótolja.
+    Http::assertNotSent(fn ($request) => $request->method() === 'POST'
+        && str_ends_with($request->url(), '/documents'));
+    Http::assertSent(fn ($request) => str_ends_with($request->url(), '/documents/5001/send'));
+    expect($record->refresh()->emailed_at)->not->toBeNull();
 });
 
 test('HUF számlán a kifizetett bruttó összeg és a konfigurált ÁFA jelenik meg, átváltás nélkül', function () {
@@ -147,8 +199,9 @@ test('idempotens: a megismételt hívás nem állít ki második számlát', fun
     expect($second->id)->toBe($first->id);
     expect(BillingoInvoice::where('stripe_invoice_id', 'in_dup')->count())->toBe(1);
 
-    // Pontosan egy dokumentum- és egy partner-hívás ment ki a két futás alatt.
-    Http::assertSentCount(2);
+    // A két futás alatt pontosan egy partner-, egy dokumentum- és egy küldés-hívás ment
+    // ki — a már kiállított és kézbesített számlán a második futás nem hív Billingót.
+    Http::assertSentCount(3);
 });
 
 test('a már mentett partnert újrahasználja, nem hoz létre újat', function () {
@@ -158,9 +211,45 @@ test('a már mentett partnert újrahasználja, nem hoz létre újat', function (
 
     app(InvoiceGenerator::class)->generateForStripeInvoice($user, stripeInvoice());
 
-    Http::assertNotSent(fn ($request) => str_ends_with($request->url(), '/partners'));
+    // Nincs új partner (POST /partners), a meglévőt használja a számlán.
+    Http::assertNotSent(fn ($request) => $request->method() === 'POST'
+        && str_ends_with($request->url(), '/partners'));
     Http::assertSent(fn ($request) => str_ends_with($request->url(), '/documents')
         && $request->data()['partner_id'] === 555);
+});
+
+test('a meglévő partnert a friss számlázási adatokkal frissíti számlázáskor', function () {
+    fakeBillingo();
+    // A felhasználó a partner létrehozása óta módosította a nevét/címét.
+    $user = billableUser(['billing_name' => 'Új Név Kft.', 'billing_address' => 'Új utca 9.']);
+    $user->forceFill(['billingo_partner_id' => 555])->save();
+
+    app(InvoiceGenerator::class)->generateForStripeInvoice($user, stripeInvoice());
+
+    // A meglévő partnert PUT-tal frissíti (nem hoz létre újat) a friss adatokkal.
+    Http::assertSent(fn ($request) => $request->method() === 'PUT'
+        && str_ends_with($request->url(), '/partners/555')
+        && $request->data()['name'] === 'Új Név Kft.'
+        && $request->data()['address']['address'] === 'Új utca 9.');
+});
+
+test('párhuzamos kiállításnál a zár csak egy folyamatot enged számlázni', function () {
+    fakeBillingo();
+    $user = billableUser();
+    $invoice = stripeInvoice(['id' => 'in_race']);
+
+    // Egy másik folyamat már tartja a zárat erre a fizetésre.
+    $heldByOther = Cache::lock('billingo:issue:in_race', 120);
+    expect($heldByOther->get())->toBeTrue();
+
+    $record = app(InvoiceGenerator::class)->generateForStripeInvoice($user, $invoice);
+
+    // A zárat nem kapta meg → nem állít ki semmit, és egyetlen Billingo-hívás sem megy ki.
+    expect($record)->toBeNull();
+    expect(BillingoInvoice::where('stripe_invoice_id', 'in_race')->exists())->toBeFalse();
+    Http::assertNothingSent();
+
+    $heldByOther->release();
 });
 
 test('cégnél az adószám rákerül a partnerre, magánszemélynél nem', function () {
@@ -204,6 +293,45 @@ test('a sikeres fizetés webhookja szinkron kiállítja a számlát, ha a Billin
         ->and($record->user_id)->toBe($user->id)
         ->and($record->billingo_document_id)->toBe(5001)
         ->and($record->isIssued())->toBeTrue();
+});
+
+test('0 összegű (trial-induló) számlára nem állít ki Billingo számlát', function () {
+    fakeBillingo();
+    $user = billableUser();
+
+    // A trial-induló invoice.payment_succeeded esemény amount_paid-ja 0.
+    $record = app(InvoiceGenerator::class)->generateForStripeInvoice($user, stripeInvoice([
+        'id' => 'in_trial_start',
+        'amount_paid' => 0,
+        'total' => 0,
+    ]));
+
+    expect($record)->toBeNull();
+    expect(BillingoInvoice::count())->toBe(0);
+
+    // Sem nyilvántartó sor, sem Billingo-hívás nem keletkezik.
+    Http::assertNothingSent();
+});
+
+test('a webhook a 0 összegű számlát kihagyja, a tényleges terhelést kiszámlázza', function () {
+    fakeBillingo();
+    $user = billableUser();
+
+    // Trial-induló 0-s számla → nincs Billingo dokumentum.
+    $this->postJson('/stripe/webhook', [
+        'type' => 'invoice.payment_succeeded',
+        'data' => ['object' => stripeInvoice(['id' => 'in_zero', 'amount_paid' => 0, 'total' => 0, 'customer' => $user->stripe_id])],
+    ])->assertOk();
+
+    expect(BillingoInvoice::where('stripe_invoice_id', 'in_zero')->exists())->toBeFalse();
+
+    // A trial vége utáni valódi terhelés (pozitív összeg) viszont számlát kap.
+    $this->postJson('/stripe/webhook', [
+        'type' => 'invoice.payment_succeeded',
+        'data' => ['object' => stripeInvoice(['id' => 'in_charge', 'amount_paid' => 299000, 'total' => 299000, 'customer' => $user->stripe_id])],
+    ])->assertOk();
+
+    expect(BillingoInvoice::where('stripe_invoice_id', 'in_charge')->first()?->isIssued())->toBeTrue();
 });
 
 test('kikapcsolt Billingo esetén a webhook nem állít ki számlát', function () {

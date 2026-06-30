@@ -111,6 +111,29 @@ test('premium price subscription maps to premium plan regardless of type name', 
         ->and($user->hasAiAccess())->toBeTrue();
 });
 
+test('book limit follows the subscription price, not the type name', function () {
+    config(['services.stripe.basic_price_id' => 'price_basic', 'services.stripe.premium_price_id' => 'price_premium']);
+    $user = User::factory()->create();
+    // swap után prémium árú, de 'default' típusú előfizetés: ár alapján prémium limit jár.
+    makeSubscription($user, 'default', 'price_premium');
+
+    $this->actingAs($user)
+        ->getJson(route('text-analysis.books.index'))
+        ->assertOk()
+        ->assertJsonPath('bookLimit', 5);
+});
+
+test('youtube limit follows the subscription price, not the type name', function () {
+    config(['services.stripe.basic_price_id' => 'price_basic', 'services.stripe.premium_price_id' => 'price_premium']);
+    $user = User::factory()->create();
+    makeSubscription($user, 'default', 'price_premium');
+
+    $this->actingAs($user)
+        ->getJson(route('text-analysis.youtube.index'))
+        ->assertOk()
+        ->assertJsonPath('youtubeLimit', 10);
+});
+
 test('checkout redirects with info when buying the already active plan', function () {
     config([
         'services.stripe.enabled' => true,

@@ -4,7 +4,7 @@ use App\Http\Controllers\TextAnalysisController;
 use App\Http\Middleware\EnsureOnboardingComplete;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware(['auth', EnsureOnboardingComplete::class])->group(function () {
+Route::middleware(['auth', 'verified', EnsureOnboardingComplete::class])->group(function () {
     Route::get('text-analysis', [TextAnalysisController::class, 'show'])->name('text-analysis.show');
     Route::post('text-analysis/fetch-source', [TextAnalysisController::class, 'fetchSource'])->name('text-analysis.fetch-source')->middleware('throttle:30,1,ta-fetch');
     // YouTube-feliratok (külön rendszer, időbélyeges sorokkal)

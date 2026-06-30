@@ -248,7 +248,7 @@ class TextAnalysisController extends Controller
         $user = $request->user();
 
         if ($user->isOnFreePlan()) {
-            $cacheKey = "text_analysis_daily_{$user->id}_" . today()->format('Y-m-d');
+            $cacheKey = "text_analysis_daily_{$user->id}_".today()->format('Y-m-d');
             $dailyCount = Cache::get($cacheKey, 0);
 
             if ($dailyCount >= 2) {
@@ -327,7 +327,7 @@ class TextAnalysisController extends Controller
 
         $words = $this->matchByForms(
             $uniqueTokens,
-            fn() => Word::query(),
+            fn () => Word::query(),
             ['id', 'word', 'rank', 'meaning_hu', 'form_base', 'verb_past', 'verb_past_participle', 'verb_present_participle', 'verb_third_person', 'noun_plural', 'adj_comparative', 'adj_superlative']
         );
 
@@ -339,7 +339,7 @@ class TextAnalysisController extends Controller
         // Include user's custom words in the analysis (check all forms)
         $customWords = $this->matchByForms(
             $uniqueTokens,
-            fn() => UserCustomWord::where('user_id', $user->id),
+            fn () => UserCustomWord::where('user_id', $user->id),
             ['id', 'word', 'status', 'form_base', 'verb_past', 'verb_past_participle', 'verb_present_participle', 'verb_third_person', 'noun_plural', 'adj_comparative', 'adj_superlative']
         );
 
@@ -447,7 +447,7 @@ class TextAnalysisController extends Controller
             $apostropheWords = array_flip($apostropheMatches[0]);
 
             $customApostrophe = $user->customWords()
-                ->where(fn($q) => $q->where('word', 'like', "%'%")
+                ->where(fn ($q) => $q->where('word', 'like', "%'%")
                     ->orWhere('word', 'like', "%\u{2019}%")
                     ->orWhere('word', 'like', "%\u{2018}%"))
                 ->get(['word', 'status']);
@@ -495,7 +495,7 @@ class TextAnalysisController extends Controller
                     continue;
                 }
 
-                $everyWordPresent = ! array_filter(explode(' ', $normalized), fn($w) => ! isset($tokenSet[$w]));
+                $everyWordPresent = ! array_filter(explode(' ', $normalized), fn ($w) => ! isset($tokenSet[$w]));
 
                 if ($everyWordPresent) {
                     $phraseStatuses[$normalized] ??= $phrase->status;
@@ -505,7 +505,7 @@ class TextAnalysisController extends Controller
 
         uasort(
             $unknownInListWords,
-            fn($a, $b) => $b['frequency'] !== $a['frequency']
+            fn ($a, $b) => $b['frequency'] !== $a['frequency']
                 ? $b['frequency'] - $a['frequency']
                 : $a['rank'] - $b['rank']
         );
@@ -530,7 +530,7 @@ class TextAnalysisController extends Controller
         $response = $this->safeFetch($url);
 
         if (! $response->ok()) {
-            throw new \RuntimeException('A weboldal nem érhető el (HTTP ' . $response->status() . ').');
+            throw new \RuntimeException('A weboldal nem érhető el (HTTP '.$response->status().').');
         }
 
         $html = $response->body();
@@ -548,7 +548,7 @@ class TextAnalysisController extends Controller
 
         // Remove short lines – these are almost always navigation labels, button text, etc.
         $lines = explode("\n", $text);
-        $lines = array_filter($lines, fn($line) => mb_strlen(trim($line)) > 35);
+        $lines = array_filter($lines, fn ($line) => mb_strlen(trim($line)) > 35);
         $text = implode("\n", $lines);
 
         $text = preg_replace('/(\s*\n\s*){3,}/', "\n\n", $text) ?? $text;
@@ -560,7 +560,7 @@ class TextAnalysisController extends Controller
     {
         // Prefer <article>, then <main> — these reliably contain the editorial body
         foreach (['article', 'main'] as $tag) {
-            if (preg_match('/<' . $tag . '\b[^>]*>(.*?)<\/' . $tag . '>/si', $html, $m)) {
+            if (preg_match('/<'.$tag.'\b[^>]*>(.*?)<\/'.$tag.'>/si', $html, $m)) {
                 return $m[1];
             }
         }
@@ -579,8 +579,8 @@ class TextAnalysisController extends Controller
     private function bookLimitFor(User $user): int
     {
         return match (true) {
-            $user->subscribed('premium') || $user->ai_access => 5,
-            $user->subscribed('default') => 3,
+            $user->subscriptionPlan() === 'premium' || $user->ai_access => 5,
+            $user->subscriptionPlan() === 'basic' => 3,
             default => 1,
         };
     }
@@ -592,7 +592,7 @@ class TextAnalysisController extends Controller
         $books = UserBook::where('user_id', $user->id)
             ->orderByDesc('created_at')
             ->get(['id', 'title', 'file_type', 'total_pages'])
-            ->map(fn($b) => [
+            ->map(fn ($b) => [
                 'id' => $b->id,
                 'title' => $b->title,
                 'file_type' => $b->file_type,
@@ -840,7 +840,7 @@ PROMPT;
         // Csak valódi szóra adott választ cache-elünk: egy nem létező szóra
         // (gibberish, elgépelés) hallucinált flashcard nem mérgezheti meg a
         // mindenki által használt cache-t.
-        $onlyRealWords = fn(array $data): bool => ($data['is_real_word'] ?? true) === true;
+        $onlyRealWords = fn (array $data): bool => ($data['is_real_word'] ?? true) === true;
 
         [$primary, $fallback] = $this->modelsFor('flashcard');
 
@@ -849,7 +849,7 @@ PROMPT;
             $word,
             self::AI_CACHE_VERSION['flashcard'],
             $primary,
-            fn() => $this->callGemini($apiKey, $prompt, 1000, $primary, $fallback, temperature: 0.2, responseSchema: $this->flashcardSchema(), user: $request->user()),
+            fn () => $this->callGemini($apiKey, $prompt, 1000, $primary, $fallback, temperature: 0.2, responseSchema: $this->flashcardSchema(), user: $request->user()),
             $onlyRealWords,
         );
 
@@ -883,17 +883,17 @@ PROMPT;
 
         foreach ($d['cloze_sentences'] ?? [] as $item) {
             $hints = implode(' / ', $item['hints'] ?? []);
-            $html .= '<p>' . htmlspecialchars($item['sentence'] ?? '') . ' <em>(' . htmlspecialchars($hints) . ')</em></p>';
+            $html .= '<p>'.htmlspecialchars($item['sentence'] ?? '').' <em>('.htmlspecialchars($hints).')</em></p>';
         }
 
         if (! empty($d['answer_options'])) {
             $options = implode(' / ', array_map('htmlspecialchars', $d['answer_options']));
-            $html .= '<p><span style="color: #22c55e">' . $options . '</span></p>';
+            $html .= '<p><span style="color: #22c55e">'.$options.'</span></p>';
         }
 
         if (! empty($d['negative_meaning_hu'])) {
             $neg = implode(' / ', array_map('htmlspecialchars', $d['negative_meaning_hu']));
-            $html .= '<p><span style="background-color: #f3f4f6; padding: 2px 6px; border-radius: 4px">Negative meaning (HU): ' . $neg . '</span></p>';
+            $html .= '<p><span style="background-color: #f3f4f6; padding: 2px 6px; border-radius: 4px">Negative meaning (HU): '.$neg.'</span></p>';
         }
 
         if (! empty($d['collocations'])) {
@@ -901,8 +901,8 @@ PROMPT;
             foreach ($d['collocations'] as $col) {
                 $pattern = htmlspecialchars($col['pattern'] ?? '');
                 $meaning = htmlspecialchars($col['meaning_hu'] ?? '');
-                $example = ! empty($col['example']) ? ' (pl. ' . htmlspecialchars($col['example']) . ')' : '';
-                $html .= '<p>👉 ' . $pattern . ' = ' . $meaning . $example . '</p>';
+                $example = ! empty($col['example']) ? ' (pl. '.htmlspecialchars($col['example']).')' : '';
+                $html .= '<p>👉 '.$pattern.' = '.$meaning.$example.'</p>';
             }
         }
 
@@ -916,27 +916,27 @@ PROMPT;
         $forms = $d['word_forms'] ?? [];
 
         if (! empty($forms['base'])) {
-            $html .= '<p><strong>' . htmlspecialchars($forms['base']) . '</strong></p>';
+            $html .= '<p><strong>'.htmlspecialchars($forms['base']).'</strong></p>';
         }
         foreach (['adjective' => 'adjective', 'adverb' => 'adverb', 'noun' => 'noun', 'verb' => 'verb'] as $key => $label) {
             if (! empty($forms[$key])) {
-                $html .= '<p>' . $label . ': <strong>' . htmlspecialchars($forms[$key]) . '</strong></p>';
+                $html .= '<p>'.$label.': <strong>'.htmlspecialchars($forms[$key]).'</strong></p>';
             }
         }
 
         if (! empty($d['common_pairs'])) {
             $pairs = implode(' / ', array_map('htmlspecialchars', $d['common_pairs']));
-            $html .= '<p><span style="color: #3b82f6">common pair: ' . $pairs . '</span></p>';
+            $html .= '<p><span style="color: #3b82f6">common pair: '.$pairs.'</span></p>';
         }
 
         if (! empty($d['synonyms'])) {
             $syn = implode(' / ', array_map('htmlspecialchars', $d['synonyms']));
-            $html .= '<p>similar: ' . $syn . '</p>';
+            $html .= '<p>similar: '.$syn.'</p>';
         }
 
         if (! empty($d['antonyms'])) {
             $ant = implode(' / ', array_map('htmlspecialchars', $d['antonyms']));
-            $html .= '<p><span style="color: #ef4444">negative: ' . $ant . '</span></p>';
+            $html .= '<p><span style="color: #ef4444">negative: '.$ant.'</span></p>';
         }
 
         return $html;
@@ -1008,7 +1008,7 @@ PROMPT;
         // üres elemeket szűrjük ki, hogy a frontend ne kapjon üres buborékot.
         $data['grammar_issues'] = array_values(array_filter(
             $data['grammar_issues'] ?? [],
-            fn($issue) => is_string($issue) && trim($issue) !== '',
+            fn ($issue) => is_string($issue) && trim($issue) !== '',
         ));
 
         return response()->json($data);
@@ -1108,7 +1108,7 @@ PROMPT;
             $word,
             self::AI_CACHE_VERSION['insight'],
             $primary,
-            fn() => $this->callGemini($apiKey, $prompt, 600, $primary, $fallback, temperature: 0.2, responseSchema: $this->insightSchema(), user: $request->user()),
+            fn () => $this->callGemini($apiKey, $prompt, 600, $primary, $fallback, temperature: 0.2, responseSchema: $this->insightSchema(), user: $request->user()),
         );
 
         if (! $result['ok']) {
@@ -1191,11 +1191,11 @@ PROMPT;
         // csonkolódhat → érvénytelen JSON → 502. A keret felső korlát, csak a ténylegesen
         // generált tokenért fizetünk, így a tágítás a normál válaszok költségét nem növeli.
         [$primary, $fallback] = $this->modelsFor('lookup');
-        $generator = fn() => $this->callGemini($apiKey, $prompt, 700, $primary, $fallback, temperature: 0.2, responseSchema: $this->lookupSchema(), user: $request->user());
+        $generator = fn () => $this->callGemini($apiKey, $prompt, 700, $primary, $fallback, temperature: 0.2, responseSchema: $this->lookupSchema(), user: $request->user());
 
         // Csak valódi szót cache-elünk: egy nem létező szóra (gibberish, elgépelés)
         // adott hallucinált válasz nem mérgezheti meg a mindenki által használt cache-t.
-        $onlyRealWords = fn(array $data): bool => ($data['is_real_word'] ?? true) === true;
+        $onlyRealWords = fn (array $data): bool => ($data['is_real_word'] ?? true) === true;
 
         // A context-tal érkező kérés mondat-egyedi (context_explanation mező),
         // ezért nem cache-elhető; csak a context nélküli szótári lekérdezést tároljuk.
@@ -1245,8 +1245,8 @@ PROMPT;
     private function youtubeLimitFor(User $user): int
     {
         return match (true) {
-            $user->subscribed('premium') || $user->ai_access => 10,
-            $user->subscribed('default') => 3,
+            $user->subscriptionPlan() === 'premium' || $user->ai_access => 10,
+            $user->subscriptionPlan() === 'basic' => 3,
             default => 1,
         };
     }
@@ -1271,7 +1271,7 @@ PROMPT;
         $transcripts = YoutubeTranscript::where('user_id', $user->id)
             ->orderByDesc('created_at')
             ->get(['id', 'title', 'video_id', 'total_pages'])
-            ->map(fn(YoutubeTranscript $t) => $this->transcriptPayload($t));
+            ->map(fn (YoutubeTranscript $t) => $this->transcriptPayload($t));
 
         return response()->json([
             'transcripts' => $transcripts,
@@ -1352,7 +1352,7 @@ PROMPT;
     {
         abort_unless($transcript->user_id === $request->user()->id, 403);
 
-        $fullText = implode(' ', array_map(fn($s) => $s['x'] ?? '', $transcript->segments()));
+        $fullText = implode(' ', array_map(fn ($s) => $s['x'] ?? '', $transcript->segments()));
         $analysis = $this->buildAnalysis($fullText, $request->user());
 
         // A teljes felirat token-státusz térképe nem kell ide, csak az összesített számok.
@@ -1682,7 +1682,7 @@ PROMPT;
                 continue;
             }
 
-            $fullPath = $opfDir !== '' ? $opfDir . '/' . $href : $href;
+            $fullPath = $opfDir !== '' ? $opfDir.'/'.$href : $href;
             $fullPath = $this->normalizePath($fullPath);
 
             // The manifest media-type is authoritative; some EPUBs (e.g. Calibre
@@ -1897,7 +1897,7 @@ PROMPT;
 
                 if (! $response->successful()) {
                     $status = $response->status();
-                    $lastError = 'Gemini API hiba (' . $status . ')';
+                    $lastError = 'Gemini API hiba ('.$status.')';
                     Log::warning('Gemini API error', [
                         'model' => $currentModel,
                         'attempt' => $attempt,
@@ -1942,7 +1942,7 @@ PROMPT;
                 }
 
                 $parts = $response->json('candidates.0.content.parts') ?? [];
-                $text = collect($parts)->firstWhere(fn($p) => empty($p['thought']))['text']
+                $text = collect($parts)->firstWhere(fn ($p) => empty($p['thought']))['text']
                     ?? ($response->json('candidates.0.content.parts.0.text') ?? '');
 
                 $text = preg_replace('/^```json\s*|\s*```$/s', '', trim($text));
@@ -2091,7 +2091,7 @@ PROMPT;
         // levágjuk az aposztróf utáni részt → "dog".
         $cleaned = preg_replace_callback(
             "/\b[a-z]+(?:'[a-z]+)+\b/",
-            fn($m) => self::CONTRACTIONS[$m[0]] ?? preg_replace("/'.*/", '', $m[0]),
+            fn ($m) => self::CONTRACTIONS[$m[0]] ?? preg_replace("/'.*/", '', $m[0]),
             $cleaned
         ) ?? $cleaned;
 
@@ -2099,6 +2099,6 @@ PROMPT;
         $words = preg_split('/\s+/', trim($cleaned)) ?: [];
 
         // 1 betűs szavak közül csak a két valódi angol szót tartjuk meg ("a", "i") — a többi zaj.
-        return array_values(array_filter($words, fn($w) => strlen($w) >= 2 || $w === 'a' || $w === 'i'));
+        return array_values(array_filter($words, fn ($w) => strlen($w) >= 2 || $w === 'a' || $w === 'i'));
     }
 }

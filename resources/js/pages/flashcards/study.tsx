@@ -7,7 +7,13 @@ import {
     Undo2,
     Volume2,
 } from 'lucide-react';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, {
+    useCallback,
+    useEffect,
+    useLayoutEffect,
+    useRef,
+    useState,
+} from 'react';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -359,7 +365,6 @@ export default function FlashcardStudy({
             } else {
                 setCurrentIndex(next);
                 setRevealed(false);
-                window.scrollTo({ top: 0, behavior: 'smooth' });
             }
 
             // Fire-and-forget: submit rating in the background
@@ -450,6 +455,13 @@ export default function FlashcardStudy({
 
     // Stop any in-flight speech when leaving the study view.
     useEffect(() => stopSpeaking, [stopSpeaking]);
+
+    // Scroll back to the top after the new card has rendered. Runs before paint
+    // so a tall next card never leaves the view stuck at the previous scroll
+    // position. Tied to currentIndex so it also covers undo navigation.
+    useLayoutEffect(() => {
+        window.scrollTo({ top: 0, behavior: 'instant' });
+    }, [currentIndex]);
 
     // Keyboard shortcuts
     useEffect(() => {

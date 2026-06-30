@@ -3,6 +3,8 @@
 use App\Models\User;
 use Illuminate\Support\Facades\URL;
 use Inertia\Testing\AssertableInertia as Assert;
+use Laravel\Cashier\Subscription;
+use Stripe\Exception\ApiConnectionException;
 
 test('checkout requires explicit consent and records it on success', function () {
     // A consent szerveroldali kikényszerítése: kliensoldali pipa nélküli közvetlen POST
@@ -88,6 +90,27 @@ test('checkout blocks users who already have non-Stripe access', function () {
         ->assertSessionHas('info');
 
     expect($user->fresh()->subscriptions()->count())->toBe(0);
+});
+
+test('a Stripe oldali hiba a csomagváltáskor nem dől 500-ba, hanem érthető hibaüzenettel tér vissza', function () {
+    // A swap() Stripe API-hibája (pl. hálózat, törölt ár) ne kezeletlen kivételként
+    // 500-azzon a felhasználónak — a kontroller elkapja és barátságos üzenettel küldi vissza.
+    $subscription = Mockery::mock(Subscription::class);
+    $subscription->shouldReceive('swap')->once()->andThrow(new ApiConnectionException('boom'));
+
+    $user = Mockery::mock(User::class)->makePartial();
+    // A checkout most a 'verified' middleware mögött van (megerősített e-mail kell).
+    $user->shouldReceive('hasVerifiedEmail')->andReturnTrue();
+    $user->shouldReceive('hasBillingDetails')->andReturnTrue();
+    $user->shouldReceive('activeSubscription')->andReturn($subscription);
+    $user->shouldReceive('subscriptionPlan')->andReturn('premium');
+    // A consent-naplózás (forceFill->save) ne próbáljon DB-be írni a mock usernél.
+    $user->shouldReceive('save')->andReturnTrue();
+
+    $this->actingAs($user)
+        ->post(route('pricing.checkout', 'basic'), ['accept_terms' => true])
+        ->assertRedirect(route('pricing'))
+        ->assertSessionHas('error');
 });
 
 test('hasBillingDetails returns false when details are missing', function () {

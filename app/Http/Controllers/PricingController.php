@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\URL;
 use Inertia\Inertia;
 use Inertia\Response;
 use Laravel\Cashier\Exceptions\IncompletePayment;
+use Stripe\Exception\ApiErrorException;
 
 class PricingController extends Controller
 {
@@ -83,6 +84,12 @@ class PricingController extends Controller
             } catch (IncompletePayment) {
                 // SCA/3DS megerősítés szükséges — a számlázási portálon zárható le
                 return redirect()->route('pricing')->with('error', 'A csomagváltáshoz banki megerősítés szükséges. Kérlek fejezd be a fizetést a számlázási portálon.');
+            } catch (ApiErrorException $e) {
+                // A Stripe oldali hiba (pl. törölt ár, hálózati hiba) ne dőljön 500-ba a
+                // felhasználónak — naplózzuk, és érthető üzenettel térünk vissza.
+                report($e);
+
+                return redirect()->route('pricing')->with('error', 'A csomagváltás most nem sikerült. Kérlek próbáld újra kicsit később.');
             }
 
             $message = $plan === 'premium'
@@ -108,10 +115,21 @@ class PricingController extends Controller
             $subscriptionBuilder->trialDays(max(2, $trialDays));
         }
 
-        $checkout = $subscriptionBuilder->checkout([
-            'success_url' => $successUrl,
-            'cancel_url' => route('pricing', ['checkout' => 'cancelled']),
-        ]);
+        // A Cashier előbb létrehozza (és elmenti) a Stripe-ügyfelet, majd nyitja a Checkout
+        // sessiont. Ha utóbbi Stripe-hiba miatt elhasal (pl. törölt ár), a kezeletlen kivétel
+        // 500-at adna és árva ügyfelet hagyna. Elkapjuk, naplózzuk, és érthető üzenettel
+        // küldjük vissza a felhasználót — a következő próbálkozás az elmentett stripe_id-t
+        // használja újra, így nem szaporodnak az árva ügyfelek.
+        try {
+            $checkout = $subscriptionBuilder->checkout([
+                'success_url' => $successUrl,
+                'cancel_url' => route('pricing', ['checkout' => 'cancelled']),
+            ]);
+        } catch (ApiErrorException $e) {
+            report($e);
+
+            return redirect()->route('pricing')->with('error', 'A fizetés indítása most nem sikerült. Kérlek próbáld újra kicsit később.');
+        }
 
         return Inertia::location($checkout->url);
     }

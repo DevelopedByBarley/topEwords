@@ -17,6 +17,7 @@ class BillingoInvoice extends Model
         'stripe_invoice_id',
         'billingo_document_id',
         'invoice_number',
+        'emailed_at',
     ];
 
     /**
@@ -26,6 +27,7 @@ class BillingoInvoice extends Model
     {
         return [
             'billingo_document_id' => 'integer',
+            'emailed_at' => 'datetime',
         ];
     }
 

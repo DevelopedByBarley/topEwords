@@ -39,4 +39,19 @@ class GenerateBillingoInvoice implements ShouldQueue
     {
         $generator->generateForStripeInvoice($this->user, $this->stripeInvoice);
     }
+
+    /**
+     * Minden próbálkozás kimerült: a számla véglegesen kiállítatlan maradt. NAV-kötelezettség
+     * miatt ez nem maradhat észrevétlen — naplózzuk (Sentry/log), hogy kereshető és riasztható
+     * legyen. Aszinkron (queue) módban a failed_jobs mellett ez adja a látható nyomot; szinkron
+     * (dispatchSync) módban a kivétel amúgy is a webhook-válaszon és a logon keresztül felszínre kerül.
+     */
+    public function failed(?\Throwable $exception): void
+    {
+        $invoiceId = $this->stripeInvoice['id'] ?? 'unknown';
+
+        report($exception ?? new \RuntimeException(
+            "GenerateBillingoInvoice véglegesen elbukott (user #{$this->user->id}, stripe invoice {$invoiceId})."
+        ));
+    }
 }

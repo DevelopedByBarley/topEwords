@@ -31,6 +31,20 @@ class BillingoClient
     }
 
     /**
+     * Frissíti egy meglévő partner (vevő) adatait. A felhasználó a számlázási adatait
+     * (név/cím/adószám) később módosíthatja; a számlázáskor ezzel szinkronizáljuk, hogy
+     * a számla a friss adatokkal menjen ki — új partner létrehozása (duplikáció) nélkül.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    public function updatePartner(int $id, array $payload): void
+    {
+        $this->request()
+            ->put("/partners/{$id}", $payload)
+            ->throw();
+    }
+
+    /**
      * Kiállít egy dokumentumot (számlát), és visszaadja a teljes Billingo választ.
      *
      * @param  array<string, mixed>  $payload
@@ -42,6 +56,19 @@ class BillingoClient
             ->post('/documents', $payload)
             ->throw()
             ->json();
+    }
+
+    /**
+     * Elküldi a kiállított dokumentumot (számlát) a partnernek e-mailben. A Billingo a
+     * /documents létrehozáskor NEM küld e-mailt — ez külön, explicit hívás. Üres törzzsel
+     * a partneren tárolt e-mail címekre megy ki. Idempotens kézbesítést a hívó biztosít
+     * (emailed_at), hogy az újrapróba ne küldje ki kétszer.
+     */
+    public function sendDocument(int $id): void
+    {
+        $this->request()
+            ->post("/documents/{$id}/send")
+            ->throw();
     }
 
     /**

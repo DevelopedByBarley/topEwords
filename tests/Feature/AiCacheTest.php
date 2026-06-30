@@ -31,7 +31,7 @@ test('a context nélküli szólekérdezés második hívása cache-ből jön, Ge
     $first = $this->actingAs($user)->getJson(route('text-analysis.gemini-lookup', ['word' => 'dog']));
     $first->assertSuccessful()->assertJson(['meaning_hu' => 'kutya']);
 
-    expect(AiWordCache::where('cache_key', 'lookup:dog:en:v3')->exists())->toBeTrue();
+    expect(AiWordCache::where('cache_key', 'lookup:dog:en:v4')->exists())->toBeTrue();
 
     // A második hívás cache-ből jön: ha Geminihez fordulna, az 500-as fake hibázna.
     $this->actingAs($user)

@@ -4,6 +4,7 @@ namespace App\Services\Billingo;
 
 use App\Models\BillingoInvoice;
 use App\Models\User;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Date;
 
 /**
@@ -31,29 +32,65 @@ class InvoiceGenerator
             return null;
         }
 
-        // Foglalás: a unique kulcs miatt egy fizetéshez egy sor. Ha már létezik és ki
-        // van állítva, azonnal visszaadjuk — nincs felesleges Billingo-hívás. Ha létezik,
-        // de még nincs dokumentuma (korábbi attempt a hívás előtt/közben elhasalt),
-        // ugyanezen a soron folytatjuk, így a job-újrapróbálás befejezi a számlázást.
-        $record = BillingoInvoice::firstOrCreate(
-            ['stripe_invoice_id' => $stripeInvoiceId],
-            ['user_id' => $user->id],
-        );
-
-        if ($record->isIssued()) {
-            return $record;
+        // A trial-induló (subscription_create) és a teljesen kedvezményezett előfizetésekre
+        // a Stripe 0 összegű invoice-ról is invoice.payment_succeeded-et küld. NAV-számlát
+        // ilyenkor nem állítunk ki, és nyilvántartó sort sem hozunk létre — csak tényleges,
+        // pozitív összegű terhelésről születik számla.
+        if ($this->grossMinor($stripeInvoice) <= 0) {
+            return null;
         }
 
-        $document = $this->client->createDocument(
-            $this->documentPayload($this->ensurePartner($user), $stripeInvoice),
-        );
+        // Atomi zár egy fizetésre: a unique kulcs csak a duplikált SORT előzi meg, a
+        // Billingo createDocument-hívást nem. Ha a Stripe a lassú feldolgozás közben
+        // újraküldi az eseményt (vagy két worker párhuzamosan fut), két folyamat is
+        // láthatná isIssued()===false-nak, és MINDKETTŐ kiállítana egy NAV-számlát. A zár
+        // garantálja, hogy egy fizetéshez egyszerre csak egy folyamat számlázzon.
+        $lock = Cache::lock("billingo:issue:{$stripeInvoiceId}", 120);
 
-        $record->update([
-            'billingo_document_id' => $document['id'] ?? null,
-            'invoice_number' => $document['invoice_number'] ?? null,
-        ]);
+        if (! $lock->get()) {
+            // Másik folyamat épp ezt a számlát állítja ki — ez a futás ne csináljon semmit.
+            // Ha amaz sikerrel jár, kész; ha elbukik, dob → a Stripe újraküld / a job
+            // újrapróbál, és a zár felszabadulása után valaki befejezi a kiállítást.
+            return null;
+        }
 
-        return $record;
+        try {
+            // Foglalás: a unique kulcs miatt egy fizetéshez egy sor. Ha már létezik és ki
+            // van állítva, azonnal visszaadjuk — nincs felesleges Billingo-hívás. Ha létezik,
+            // de még nincs dokumentuma (korábbi attempt a hívás előtt/közben elhasalt),
+            // ugyanezen a soron folytatjuk, így a job-újrapróbálás befejezi a számlázást.
+            $record = BillingoInvoice::firstOrCreate(
+                ['stripe_invoice_id' => $stripeInvoiceId],
+                ['user_id' => $user->id],
+            );
+
+            // Ki nem állított számlát most állítunk ki; a már kiállítottat (korábbi sikeres
+            // attempt) nem hozzuk létre újra — de az e-mailes kézbesítés alább így is lefut,
+            // ha az korábban nem sikerült.
+            if (! $record->isIssued()) {
+                $document = $this->client->createDocument(
+                    $this->documentPayload($this->ensurePartner($user), $stripeInvoice),
+                );
+
+                $record->update([
+                    'billingo_document_id' => $document['id'] ?? null,
+                    'invoice_number' => $document['invoice_number'] ?? null,
+                ]);
+            }
+
+            // A Billingo a dokumentum létrehozásakor NEM küld e-mailt — a kiállított számlát
+            // külön végponton küldjük el a partnernek. Csak egyszer (emailed_at): a
+            // job-újrapróba nem küldi ki kétszer, de egy kiállított, mégis kézbesítetlen
+            // számla egy későbbi futáson utólag is kimegy.
+            if ($record->isIssued() && $record->emailed_at === null) {
+                $this->client->sendDocument((int) $record->billingo_document_id);
+                $record->update(['emailed_at' => Date::now()]);
+            }
+
+            return $record;
+        } finally {
+            $lock->release();
+        }
     }
 
     /**
@@ -63,11 +100,19 @@ class InvoiceGenerator
      */
     private function ensurePartner(User $user): int
     {
+        $payload = $this->partnerPayload($user);
+
+        // Meglévő partnernél nem hozunk létre újat (az duplikálná a vevőt), de a
+        // számlázási adatok a settingsben azóta változhattak (cím/név/adószám) —
+        // számlázáskor frissítjük, hogy a számla mindig a friss adatokkal menjen ki.
         if ($user->billingo_partner_id !== null) {
-            return (int) $user->billingo_partner_id;
+            $partnerId = (int) $user->billingo_partner_id;
+            $this->client->updatePartner($partnerId, $payload);
+
+            return $partnerId;
         }
 
-        $partnerId = $this->client->createPartner($this->partnerPayload($user));
+        $partnerId = $this->client->createPartner($payload);
 
         // Rendszer által kezelt, nem fillable mező — szándékosan forceFill.
         $user->forceFill(['billingo_partner_id' => $partnerId])->save();
@@ -107,7 +152,7 @@ class InvoiceGenerator
     {
         // A ténylegesen kifizetett bruttó összeg a hiteles forrás (kisebb egységben,
         // pl. centben), nem az appbeli ár — így kedvezmény/arányosítás is pontos.
-        $grossMinor = (int) ($stripeInvoice['amount_paid'] ?? $stripeInvoice['total'] ?? 0);
+        $grossMinor = $this->grossMinor($stripeInvoice);
         $currency = strtoupper((string) ($stripeInvoice['currency'] ?? 'EUR'));
 
         // A fizetés dátuma a teljesítési dátum; a számla azonnal kifizetett.
@@ -143,6 +188,17 @@ class InvoiceGenerator
         }
 
         return $payload;
+    }
+
+    /**
+     * A ténylegesen kifizetett bruttó összeg a legkisebb pénznemegységben (pl. cent).
+     * A kifizetett összeg a hiteles forrás; ennek híján a számla teljes összege.
+     *
+     * @param  array<string, mixed>  $stripeInvoice
+     */
+    private function grossMinor(array $stripeInvoice): int
+    {
+        return (int) ($stripeInvoice['amount_paid'] ?? $stripeInvoice['total'] ?? 0);
     }
 
     /**

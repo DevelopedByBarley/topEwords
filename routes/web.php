@@ -29,7 +29,7 @@ Route::get('/sitemap.xml', function () {
 
 // ── Fizetés ───────────────────────────────────────────────────────────────────
 
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/pricing/checkout/{plan}', [PricingController::class, 'checkout'])->name('pricing.checkout')->middleware('throttle:20,1,pricing-checkout');
     Route::post('/pricing/portal', [PricingController::class, 'portal'])->name('pricing.portal')->middleware('throttle:10,1');
 });
@@ -49,12 +49,12 @@ Route::middleware(['auth', 'can:admin'])->group(function () {
 
 // ── Onboarding, dashboard, eredmények ─────────────────────────────────────────
 
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('onboarding', [OnboardingController::class, 'show'])->name('onboarding');
     Route::post('onboarding', [OnboardingController::class, 'complete'])->name('onboarding.complete');
 });
 
-Route::middleware(['auth', EnsureOnboardingComplete::class])->group(function () {
+Route::middleware(['auth', 'verified', EnsureOnboardingComplete::class])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('achievements', [AchievementController::class, 'index'])->name('achievements.index');
 });

@@ -10,7 +10,7 @@ use App\Http\Controllers\FlashcardStudyController;
 use App\Http\Middleware\EnsureOnboardingComplete;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware(['auth', EnsureOnboardingComplete::class])->group(function () {
+Route::middleware(['auth', 'verified', EnsureOnboardingComplete::class])->group(function () {
     // Paklik
     Route::get('flashcards', [FlashcardDeckController::class, 'index'])->name('flashcards.index');
     Route::post('flashcards', [FlashcardDeckController::class, 'store'])->name('flashcards.store');
