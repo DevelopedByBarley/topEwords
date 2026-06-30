@@ -76,6 +76,36 @@ test('a primary modell 503-jára átesik a fallback modellre és sikerül', func
     expect(AiWordCache::firstWhere('word', 'dog')?->model)->toBe('gemini-2.5-flash');
 });
 
+test('a hívás-deadline átlépése leállítja az újrapróbát és a fallbacket', function () {
+    // Nulla keret: az első próba mindig lefut, de utána a deadline azonnal leállít,
+    // így a primary újrapróbája és a fallback modell már SOSEM hívódik meg.
+    config(['services.gemini.request_deadline_seconds' => 0.0]);
+    config(['services.gemini.models.lookup' => [
+        'primary' => 'gemini-2.5-flash-lite',
+        'fallback' => 'gemini-2.5-flash',
+    ]]);
+
+    Http::fake([
+        '*models/gemini-2.5-flash-lite:generateContent*' => Http::response([
+            'error' => ['message' => 'high demand'],
+        ], 503),
+        '*models/gemini-2.5-flash:generateContent*' => Http::response([
+            'candidates' => [['content' => ['parts' => [['text' => json_encode(['is_real_word' => true, 'meaning_hu' => 'kutya'])]]], 'finishReason' => 'STOP']],
+        ]),
+    ]);
+
+    $user = User::factory()->create(['ai_access' => true]);
+
+    $this->actingAs($user)
+        ->getJson(route('text-analysis.gemini-lookup', ['word' => 'dog']))
+        ->assertStatus(502);
+
+    // Pontosan egy HTTP-hívás: az első primary próba; a deadline minden továbbit levág.
+    Http::assertSentCount(1);
+    Http::assertNotSent(fn ($request) => str_contains($request->url(), 'gemini-2.5-flash:generateContent'));
+    expect(AiWordCache::count())->toBe(0);
+});
+
 test('a "none" fallback kikapcsolja az eszkalációt — csak a primary fut', function () {
     config(['services.gemini.models.lookup' => [
         'primary' => 'gemini-2.5-flash-lite',

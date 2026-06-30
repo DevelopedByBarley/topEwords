@@ -1824,6 +1824,15 @@ PROMPT;
     private const GEMINI_ATTEMPTS_PER_MODEL = 2;
 
     /**
+     * Egyetlen HTTP-próba felső timeout-ja, illetve a kapcsolódás (connect)
+     * timeout-ja másodpercben. A tényleges timeout sosem nagyobb a teljes lánc
+     * hátralévő kereténél (lásd a deadline-t a callGemini-ben).
+     */
+    private const GEMINI_HTTP_TIMEOUT_SECONDS = 20.0;
+
+    private const GEMINI_CONNECT_TIMEOUT_SECONDS = 10.0;
+
+    /**
      * Call Gemini with retry logic and thinking disabled.
      *
      * @return array{ok: bool, data: mixed, error: string, cost_micros?: int, model?: string}
@@ -1868,14 +1877,44 @@ PROMPT;
         $lastError = 'Ismeretlen hiba.';
         $bumpedForTruncation = false;
 
+        // A teljes lánc (modellek + újrapróbák együtt) felső időkorlátja. A boldog
+        // út egyetlen gyors hívás, így ez csak kiesés/elakadás esetén vág közbe:
+        // garantálja, hogy egy elakadt Gemini SOSEM tart fogva egy PHP-workert a
+        // deadline-nál tovább (worker-kimerülés / kaszkád elleni védelem). Legalább
+        // egy próbát mindig teszünk; a keret csak a további próbákat/fallbacket vágja.
+        $deadlineSeconds = (float) config('services.gemini.request_deadline_seconds', 30.0);
+        $startedAt = microtime(true);
+        $httpCallsMade = 0;
+
         foreach ($models as $currentModel) {
             $url = "https://generativelanguage.googleapis.com/v1beta/models/{$currentModel}:generateContent";
             $rate = self::GEMINI_PRICING[$currentModel] ?? self::GEMINI_PRICING['gemini-2.5-flash-lite'];
 
             for ($attempt = 1; $attempt <= self::GEMINI_ATTEMPTS_PER_MODEL; $attempt++) {
+                $remaining = $deadlineSeconds - (microtime(true) - $startedAt);
+
+                // Az első próbát mindig elindítjuk; utána a deadline átlépése leállítja
+                // az egész láncot (a már lefoglalt keretet a foreach után felszabadítjuk).
+                if ($httpCallsMade > 0 && $remaining <= 0) {
+                    Log::warning('Gemini deadline reached, aborting retries', [
+                        'model' => $currentModel,
+                        'attempt' => $attempt,
+                        'deadline_seconds' => $deadlineSeconds,
+                    ]);
+
+                    break 2;
+                }
+
+                // A próba timeout-ja sosem nyúlhat a hátralévő kereten túl, így egy
+                // elakadt kapcsolat sem viheti a hívást a deadline fölé.
+                $attemptTimeout = $remaining > 0
+                    ? min(self::GEMINI_HTTP_TIMEOUT_SECONDS, $remaining)
+                    : self::GEMINI_HTTP_TIMEOUT_SECONDS;
+
                 try {
-                    $response = Http::connectTimeout(10)
-                        ->timeout(20)
+                    $httpCallsMade++;
+                    $response = Http::connectTimeout(min(self::GEMINI_CONNECT_TIMEOUT_SECONDS, $attemptTimeout))
+                        ->timeout($attemptTimeout)
                         ->withHeaders([
                             'Content-Type' => 'application/json',
                             'x-goog-api-key' => $apiKey,

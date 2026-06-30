@@ -108,7 +108,10 @@ export default function WordLookupDialog({
 
     useEffect(() => {
         if (!word) return;
-        let cancelled = false;
+        // A megszakító egyben a still-mounted jelzés is: a cleanup abortálja a
+        // folyamatban lévő kérést (gyors szóváltogatásnál így nem terheljük feleslegesen
+        // a szervert), és az abort utáni válaszokra/hibákra már nem frissítünk state-et.
+        const controller = new AbortController();
 
         setLookupResult(null);
         setLookupLoading(true);
@@ -124,10 +127,11 @@ export default function WordLookupDialog({
                 Accept: 'application/json',
                 'X-Requested-With': 'XMLHttpRequest',
             },
+            signal: controller.signal,
         })
             .then((res) => res.json())
             .then((data) => {
-                if (cancelled) return;
+                if (controller.signal.aborted) return;
                 setLookupResult(data);
                 setLookupStatus(
                     (data as LookupResult & { status?: string | null })
@@ -135,14 +139,14 @@ export default function WordLookupDialog({
                 );
             })
             .catch(() => {
-                if (!cancelled) setLookupError(true);
+                if (!controller.signal.aborted) setLookupError(true);
             })
             .finally(() => {
-                if (!cancelled) setLookupLoading(false);
+                if (!controller.signal.aborted) setLookupLoading(false);
             });
 
         return () => {
-            cancelled = true;
+            controller.abort();
         };
     }, [word]);
 

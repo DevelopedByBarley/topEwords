@@ -55,6 +55,11 @@ return [
             // Havi AI-költségkeret felhasználónként, mikro-dollárban tárolva (1e6 = $1).
             // A tényleges Gemini token-költségből fogy (input/output × modell-ár).
             'monthly_budget_micros' => (int) round(((float) env('GEMINI_MONTHLY_BUDGET_USD', 1.00)) * 1_000_000),
+            // A teljes callGemini lánc (modellek + újrapróbák együtt) felső időkorlátja
+            // másodpercben. Egy szinkron AI-kérés ennél tovább SOSEM tarthat fogva egy
+            // PHP-workert — kiesés/elakadás alatt ez akadályozza meg a worker-kimerülést.
+            // .env-ből hangolható terhelés alatt, deploy nélkül (GEMINI_REQUEST_DEADLINE).
+            'request_deadline_seconds' => (float) env('GEMINI_REQUEST_DEADLINE', 30.0),
             'models' => [
                 'lookup' => $model('LOOKUP', 'gemini-2.5-flash-lite', 'gemini-2.5-flash'),
                 'insight' => $model('INSIGHT', 'gemini-2.5-flash-lite', 'gemini-2.5-flash'),
