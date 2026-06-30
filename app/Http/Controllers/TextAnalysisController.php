@@ -10,6 +10,7 @@ use App\Models\YoutubeTranscript;
 use App\Services\AchievementService;
 use App\Services\AiCacheService;
 use App\Services\AiUsageService;
+use App\Services\WordFormMapService;
 use App\Services\YouTubeCaptionService;
 use GuzzleHttp\Psr7\UriResolver;
 use GuzzleHttp\Psr7\Utils;
@@ -31,6 +32,7 @@ class TextAnalysisController extends Controller
         private YouTubeCaptionService $captions,
         private AiUsageService $aiUsage,
         private AiCacheService $aiCache,
+        private WordFormMapService $wordFormMap,
     ) {}
 
     /**
@@ -325,16 +327,29 @@ class TextAnalysisController extends Controller
         $uniqueTokens = array_values(array_unique($tokens));
         $tokenFrequencies = array_count_values($tokens);
 
-        $words = $this->matchByForms(
-            $uniqueTokens,
-            fn () => Word::query(),
-            ['id', 'word', 'rank', 'meaning_hu', 'form_base', 'verb_past', 'verb_past_participle', 'verb_present_participle', 'verb_third_person', 'noun_plural', 'adj_comparative', 'adj_superlative']
-        );
+        // A teljes szólista szóalak→szó térképe felhasználó-független, ezért
+        // egyszer felépül és cache-elődik (lásd WordFormMapService). Itt már csak
+        // a szövegben előforduló tokeneket keressük ki belőle — nincs többé
+        // szóalak-illesztő DB-lekérdezés a szólistára.
+        $globalMap = $this->wordFormMap->map();
+        $formToId = $globalMap['forms'];
+        $wordsById = $globalMap['words'];
 
-        $userWordStatuses = $user->knownWords()
-            ->whereIn('words.id', $words->pluck('id'))
-            ->pluck('user_word.status', 'words.id')
-            ->all();
+        // Mely szólistás szavak fordulnak elő ténylegesen a szövegben? Csak ezekre
+        // az azonosítókra szűkítjük az (indexelt) felhasználói státusz-lekérdezést.
+        $matchedWordIds = [];
+        foreach ($uniqueTokens as $token) {
+            if (isset($formToId[$token])) {
+                $matchedWordIds[$formToId[$token]] = true;
+            }
+        }
+
+        $userWordStatuses = $matchedWordIds === []
+            ? []
+            : $user->knownWords()
+                ->whereIn('words.id', array_keys($matchedWordIds))
+                ->pluck('user_word.status', 'words.id')
+                ->all();
 
         // Include user's custom words in the analysis (check all forms)
         $customWords = $this->matchByForms(
@@ -342,28 +357,6 @@ class TextAnalysisController extends Controller
             fn () => UserCustomWord::where('user_id', $user->id),
             ['id', 'word', 'status', 'form_base', 'verb_past', 'verb_past_participle', 'verb_present_participle', 'verb_third_person', 'noun_plural', 'adj_comparative', 'adj_superlative']
         );
-
-        // Build reverse map: lowercase form → Word model
-        $formToWord = [];
-        foreach ($words as $word) {
-            $forms = array_filter([
-                mb_strtolower($word->word),
-                $word->form_base ? mb_strtolower($word->form_base) : null,
-                $word->verb_past ? mb_strtolower($word->verb_past) : null,
-                $word->verb_past_participle ? mb_strtolower($word->verb_past_participle) : null,
-                $word->verb_present_participle ? mb_strtolower($word->verb_present_participle) : null,
-                $word->verb_third_person ? mb_strtolower($word->verb_third_person) : null,
-                $word->noun_plural ? mb_strtolower($word->noun_plural) : null,
-                $word->adj_comparative ? mb_strtolower($word->adj_comparative) : null,
-                $word->adj_superlative ? mb_strtolower($word->adj_superlative) : null,
-            ]);
-
-            foreach ($forms as $form) {
-                if (! isset($formToWord[$form])) {
-                    $formToWord[$form] = $word;
-                }
-            }
-        }
 
         $tokenStatuses = [];
         $knownTokenCount = 0;
@@ -411,9 +404,9 @@ class TextAnalysisController extends Controller
                 } elseif ($customWord->status === 'learning') {
                     $learningTokenCount += $frequency;
                 }
-            } elseif (isset($formToWord[$token])) {
-                $word = $formToWord[$token];
-                $status = $userWordStatuses[$word->id] ?? null;
+            } elseif (isset($formToId[$token])) {
+                $wordId = $formToId[$token];
+                $status = $userWordStatuses[$wordId] ?? null;
 
                 $tokenStatuses[$token] = $status ?? 'in_list';
 
@@ -422,15 +415,16 @@ class TextAnalysisController extends Controller
                 } elseif ($status === 'learning') {
                     $learningTokenCount += $frequency;
                 } elseif ($status === null) {
-                    if (! isset($unknownInListWords[$word->id])) {
-                        $unknownInListWords[$word->id] = [
-                            'word' => $word->word,
+                    if (! isset($unknownInListWords[$wordId])) {
+                        $info = $wordsById[$wordId];
+                        $unknownInListWords[$wordId] = [
+                            'word' => $info['word'],
                             'frequency' => 0,
-                            'rank' => $word->rank,
-                            'meaning_hu' => $word->meaning_hu,
+                            'rank' => $info['rank'],
+                            'meaning_hu' => $info['meaning_hu'],
                         ];
                     }
-                    $unknownInListWords[$word->id]['frequency'] += $frequency;
+                    $unknownInListWords[$wordId]['frequency'] += $frequency;
                 }
             } else {
                 $tokenStatuses[$token] = 'not_in_list';

@@ -31,3 +31,4 @@ yarn-error.log
 # Chrome extension build artifacts
 chrome-extension/*.zip
 backup
+claude-memory
