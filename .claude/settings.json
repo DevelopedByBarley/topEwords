@@ -87,7 +87,12 @@
       "Bash(unzip -p public/downloads/topwords-extension.zip src/youtube.js)",
       "WebFetch(domain:ploi.io)",
       "Bash(node -p \"require\\('./node_modules/driver.js/package.json'\\).version\")",
-      "Bash(node -p \"Object.keys\\(require\\('./package.json'\\).dependencies\\).join\\('\\\\n'\\)\")"
+      "Bash(node -p \"Object.keys\\(require\\('./package.json'\\).dependencies\\).join\\('\\\\n'\\)\")",
+      "Bash(dig +short topwords.eu A)",
+      "Bash(dig +short www.topwords.eu A)",
+      "Bash(curl -sI https://topwords.eu)",
+      "Bash(curl -sI --resolve topwords.eu:80:217.13.111.57 http://topwords.eu)",
+      "Bash(curl -skI --resolve topwords.eu:443:217.13.111.57 https://topwords.eu)"
     ],
     "additionalDirectories": [
       "/private/tmp",

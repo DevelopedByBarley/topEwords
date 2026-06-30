@@ -1,2 +1,0 @@
-<link rel="stylesheet" href="http://localhost:5173/node_modules/driver.js/dist/driver.css" data-vite-dev-id="/Applications/XAMPP/xamppfiles/htdocs/topEwords/node_modules/driver.js/dist/driver.css">
-<title data-inertia="">dsad - TopEwords</title><?php /**PATH /Applications/XAMPP/xamppfiles/htdocs/topEwords/storage/framework/views/0055dbca8f0d29303a8f2327181772ce.blade.php ENDPATH**/ ?>
