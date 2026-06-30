@@ -20,7 +20,8 @@ return new class extends Migration
             $table->unsignedSmallInteger('max_reviews_per_day')->default(200);
 
             // Learning steps (JSON array of minutes, e.g. [1, 10])
-            $table->json('learning_steps')->default('[1, 10]');
+            // No DB-level default: MySQL forbids defaults on JSON columns. Default lives on the model.
+            $table->json('learning_steps');
             $table->unsignedSmallInteger('graduating_interval')->default(1);
             $table->unsignedSmallInteger('easy_interval')->default(4);
 

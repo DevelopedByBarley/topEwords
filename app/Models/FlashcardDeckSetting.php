@@ -24,6 +24,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 ])]
 class FlashcardDeckSetting extends Model
 {
+    protected $attributes = [
+        'learning_steps' => '[1, 10]',
+    ];
+
     public function deck(): BelongsTo
     {
         return $this->belongsTo(FlashcardDeck::class, 'flashcard_deck_id');

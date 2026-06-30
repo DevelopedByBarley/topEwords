@@ -36,6 +36,7 @@ class FlashcardSetting extends Model
     use HasFactory;
 
     protected $attributes = [
+        'learning_steps' => '[1, 10]',
         'calib_somewhat_min' => 3,
         'calib_somewhat_max' => 7,
         'calib_know_min' => 8,
