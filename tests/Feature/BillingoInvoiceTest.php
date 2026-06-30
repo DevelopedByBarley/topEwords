@@ -1,10 +1,12 @@
 <?php
 
+use App\Jobs\GenerateBillingoInvoice;
 use App\Models\BillingoInvoice;
 use App\Models\User;
 use App\Services\Billingo\InvoiceGenerator;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 
 /**
  * Egy egyéni vállalkozó (alanyi adómentes) felhasználó, kész számlázási adatokkal.
@@ -274,21 +276,33 @@ test('konfig nélküli számlatömbnél az első elérhető tömböt kéri le', 
         && $request->data()['block_id'] === 42);
 });
 
-test('a sikeres fizetés webhookja szinkron kiállítja a számlát, ha a Billingo be van kapcsolva', function () {
-    fakeBillingo();
+test('a sikeres fizetés webhookja a számlázó jobot sorba teszi, ha a Billingo be van kapcsolva', function () {
+    Queue::fake();
     $user = billableUser();
     $invoice = stripeInvoice(['id' => 'in_webhook', 'customer' => $user->stripe_id]);
 
-    // ÁTMENETI: nincs futó queue worker, ezért a webhook szinkron (dispatchSync) számláz —
-    // a számlának a kérés végére már léteznie kell, nem csak a sorba kerülnie.
-    $response = $this->postJson('/stripe/webhook', [
+    // A webhook ASZINKRON számláz: a feladata csak annyi, hogy a megfelelő felhasználóval
+    // és invoice payloaddal sorba tegye a jobot — a tényleges Billingo-hívást a worker intézi.
+    $this->postJson('/stripe/webhook', [
         'type' => 'invoice.payment_succeeded',
         'data' => ['object' => $invoice],
-    ]);
+    ])->assertOk();
 
-    $response->assertOk();
+    Queue::assertPushed(GenerateBillingoInvoice::class, function (GenerateBillingoInvoice $job) use ($user) {
+        return $job->user->is($user) && ($job->stripeInvoice['id'] ?? null) === 'in_webhook';
+    });
+});
 
-    $record = BillingoInvoice::where('stripe_invoice_id', 'in_webhook')->first();
+test('a sorba tett job végigfut és kiállítja a Billingo számlát', function () {
+    fakeBillingo();
+    $user = billableUser();
+    $invoice = stripeInvoice(['id' => 'in_webhook_job', 'customer' => $user->stripe_id]);
+
+    // A job tényleges feldolgozása (a sync teszt-queue inline futtatja) end-to-end létrehozza
+    // és kiállítja a számlát — ez a worker élesben végzett munkájának megfelelője.
+    (new GenerateBillingoInvoice($user, $invoice))->handle(app(InvoiceGenerator::class));
+
+    $record = BillingoInvoice::where('stripe_invoice_id', 'in_webhook_job')->first();
     expect($record)->not->toBeNull()
         ->and($record->user_id)->toBe($user->id)
         ->and($record->billingo_document_id)->toBe(5001)

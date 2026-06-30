@@ -15,12 +15,12 @@ class StripeWebhookController extends WebhookController
      * A sikeres fizetés után NAV-kompatibilis Billingo számlát állítunk ki. A számlázás
      * külön kapcsolóval ki is hagyható, hogy a fizetés a Billingo nélkül is működjön.
      *
-     * ÁTMENETI: a jelenlegi tárhelyen nincs folyamatosan futó queue worker, ezért a
-     * számlázás itt SZINKRON fut (dispatchSync) — a webhook kérésen belül készül el a
-     * számla, nem kerül a jobs táblába. Ha a Billingo hibázik, a webhook nem-200-at ad,
-     * így a Stripe automatikusan újraküldi az eseményt; az InvoiceGenerator idempotenciája
-     * (unique stripe_invoice_id) miatt ez nem hoz létre második számlát. Amint lesz futó
-     * worker (Ploi/VPS), ez visszaváltható aszinkron dispatch()-re.
+     * A számlázás ASZINKRON, queue worker dolgozza fel (Ploi/VPS) — a webhook azonnal
+     * 200-at ad, a job a jobs táblába kerül. Így egy lassú vagy hibázó Billingo nem tartja
+     * fogva a webhook kérést, és a beépített újrapróba (backoff [60,300,900], 4 próbálkozás)
+     * intézi az átmeneti hibákat. Az InvoiceGenerator idempotenciája (unique stripe_invoice_id)
+     * miatt az újrapróba nem hoz létre második számlát; végleges bukáskor a job failed()
+     * handlere naplóz (NAV-kötelezettség, nem maradhat észrevétlen).
      */
     protected function handleInvoicePaymentSucceeded(array $payload)
     {
@@ -28,7 +28,7 @@ class StripeWebhookController extends WebhookController
         $user = $this->getUserByStripeId($invoice['customer'] ?? null);
 
         if ($user instanceof User && config('services.billingo.enabled')) {
-            GenerateBillingoInvoice::dispatchSync($user, $invoice);
+            GenerateBillingoInvoice::dispatch($user, $invoice);
         }
 
         return $this->successMethod();
