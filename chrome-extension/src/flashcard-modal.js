@@ -260,7 +260,7 @@ function wireFlashcardForm(root, data, csrf, onBack) {
                 saveBtn.textContent = 'Mentés';
                 showFcFeedback(
                     feedback,
-                    'Ingyenes limit: paklinként max 20 kártya.',
+                    'Ingyenes limit: max 50 kártya.',
                     '#f97316',
                 );
             } else if (resp?.error === 'deck_not_found') {
@@ -268,6 +268,14 @@ function wireFlashcardForm(root, data, csrf, onBack) {
                 saveBtn.disabled = false;
                 saveBtn.textContent = 'Mentés';
                 showFcFeedback(feedback, 'A pakli nem található.', '#ef4444');
+            } else if (resp?.error === 'plan') {
+                saveBtn.disabled = false;
+                saveBtn.textContent = 'Mentés';
+                showFcFeedback(
+                    feedback,
+                    'A mentés Standard csomaggal érhető el.',
+                    '#f97316',
+                );
             } else {
                 saveBtn.disabled = false;
                 saveBtn.textContent = 'Mentés';

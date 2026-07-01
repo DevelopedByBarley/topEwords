@@ -43,15 +43,34 @@ test('ai_access flag grants ai even on free plan', function () {
         ->and($user->hasAiAccess())->toBeTrue();
 });
 
-test('free user cannot create a second flashcard deck', function () {
+test('free user can create multiple flashcard decks', function () {
     $user = User::factory()->create();
     $user->flashcardDecks()->create(['name' => 'Első pakli']);
 
     $this->actingAs($user)
         ->post(route('flashcards.store'), ['name' => 'Második pakli'])
-        ->assertSessionHas('error');
+        ->assertSessionHasNoErrors();
 
-    expect($user->flashcardDecks()->count())->toBe(1);
+    expect($user->flashcardDecks()->count())->toBe(2);
+});
+
+test('free user is capped at fifty flashcards across all decks', function () {
+    $user = User::factory()->create();
+    $deckA = $user->flashcardDecks()->create(['name' => 'A']);
+    $deckB = $user->flashcardDecks()->create(['name' => 'B']);
+
+    $fill = fn ($deck, $n) => $deck->flashcards()->createMany(
+        collect(range(1, $n))->map(fn ($i) => ['front' => "{$deck->id}-{$i}", 'back' => 'b'])->all()
+    );
+    $fill($deckA, 25);
+    $fill($deckB, 24); // összesen 49, két pakliban szétosztva
+
+    expect($user->canAddFlashcards())->toBeTrue();
+
+    $fill($deckB, 1); // most 50
+
+    expect($user->canAddFlashcards())->toBeFalse()
+        ->and($user->flashcards()->count())->toBe(50);
 });
 
 test('basic user can create multiple flashcard decks', function () {
@@ -65,18 +84,18 @@ test('basic user can create multiple flashcard decks', function () {
     expect($user->flashcardDecks()->count())->toBe(2);
 });
 
-test('free user is limited to ten custom words', function () {
+test('free user can add more than ten custom words', function () {
     $user = User::factory()->create();
 
-    foreach (range(1, 10) as $i) {
+    foreach (range(1, 11) as $i) {
         $user->customWords()->create(['word' => "word{$i}"]);
     }
 
     $this->actingAs($user)
-        ->post(route('custom-words.store'), ['word' => 'eleventh', 'meaning_hu' => 'tizenegyedik'])
-        ->assertSessionHas('error');
+        ->post(route('custom-words.store'), ['word' => 'twelfth', 'meaning_hu' => 'tizenkettedik'])
+        ->assertSessionHasNoErrors();
 
-    expect($user->customWords()->count())->toBe(10);
+    expect($user->customWords()->count())->toBe(12);
 });
 
 // ── Stripe előfizetés → csomag (ár-alapú) ─────────────────────────────────────
@@ -120,7 +139,7 @@ test('book limit follows the subscription price, not the type name', function ()
     $this->actingAs($user)
         ->getJson(route('text-analysis.books.index'))
         ->assertOk()
-        ->assertJsonPath('bookLimit', 5);
+        ->assertJsonPath('bookLimit', 7);
 });
 
 test('youtube limit follows the subscription price, not the type name', function () {
@@ -131,7 +150,7 @@ test('youtube limit follows the subscription price, not the type name', function
     $this->actingAs($user)
         ->getJson(route('text-analysis.youtube.index'))
         ->assertOk()
-        ->assertJsonPath('youtubeLimit', 10);
+        ->assertJsonPath('youtubeLimit', 40);
 });
 
 test('checkout redirects with info when buying the already active plan', function () {

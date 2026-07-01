@@ -94,7 +94,7 @@ class PricingController extends Controller
 
             $message = $plan === 'premium'
                 ? 'Sikeres váltás Prémium csomagra! Az AI funkciók mostantól elérhetők.'
-                : 'Sikeres váltás Alap csomagra.';
+                : 'Sikeres váltás Standard csomagra.';
 
             return redirect()->route('pricing')->with('success', $message);
         }

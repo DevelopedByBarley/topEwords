@@ -249,14 +249,22 @@ class TextAnalysisController extends Controller
 
         $user = $request->user();
 
-        if ($user->isOnFreePlan()) {
+        // Napi szövegelemzés-keret a csomag szerint (2 / 20 / 50). A null korlátlant
+        // jelentene, de jelenleg minden csomag ad napi sapkát (a Premium is 50-nél).
+        $dailyLimit = $user->planLimit('text_analyses_per_day');
+
+        if ($dailyLimit !== null) {
             $cacheKey = "text_analysis_daily_{$user->id}_".today()->format('Y-m-d');
             $dailyCount = Cache::get($cacheKey, 0);
 
-            if ($dailyCount >= 2) {
+            if ($dailyCount >= $dailyLimit) {
+                $message = $user->currentPlan() === 'premium'
+                    ? "Elérted a mai {$dailyLimit} szövegelemzési kereted. Holnap újra elérhető."
+                    : "Napi {$dailyLimit} szövegelemzést használhatsz a csomagoddal. Válts magasabb csomagra a több elemzésért.";
+
                 return response()->json([
                     'error' => 'limit_reached',
-                    'message' => 'Napi 2 szövegelemzést használhatsz ingyenesen. Frissíts prémiumra a korlátlan hozzáféréshez.',
+                    'message' => $message,
                     'upgrade_url' => route('pricing'),
                 ], 403);
             }
@@ -570,13 +578,11 @@ class TextAnalysisController extends Controller
     /** Max total uncompressed bytes read from an EPUB before stopping (zip-bomb guard). */
     private const MAX_EPUB_TOTAL_BYTES = 40 * 1024 * 1024;
 
+    /** Hány elmentett könyve lehet a felhasználónak (csomagtól függően: 1 / 2 / 7). */
     private function bookLimitFor(User $user): int
     {
-        return match (true) {
-            $user->subscriptionPlan() === 'premium' || $user->ai_access => 5,
-            $user->subscriptionPlan() === 'basic' => 3,
-            default => 1,
-        };
+        // A null korlátlant jelentene, de a books limit minden csomagban numerikus.
+        return $user->planLimit('books') ?? PHP_INT_MAX;
     }
 
     public function listBooks(Request $request): JsonResponse
@@ -1235,14 +1241,11 @@ PROMPT;
         ]);
     }
 
-    /** Hány elmentett YouTube-felirata lehet a felhasználónak (csomagtól függően). */
+    /** Hány elmentett YouTube-felirata lehet a felhasználónak (csomagtól függően: 3 / 15 / 40). */
     private function youtubeLimitFor(User $user): int
     {
-        return match (true) {
-            $user->subscriptionPlan() === 'premium' || $user->ai_access => 10,
-            $user->subscriptionPlan() === 'basic' => 3,
-            default => 1,
-        };
+        // A null korlátlant jelentene, de a youtube_transcripts limit minden csomagban numerikus.
+        return $user->planLimit('youtube_transcripts') ?? PHP_INT_MAX;
     }
 
     /**

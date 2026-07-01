@@ -5,7 +5,10 @@ use App\Models\Word;
 use Illuminate\Support\Facades\Http;
 
 beforeEach(function () {
-    $this->user = User::factory()->create();
+    // Alap: fizetős (Standard) felhasználó, mert a bővítmény írás-végpontjai
+    // (add-word, create-flashcard) Standard+ csomaghoz kötöttek. Az olvasás
+    // mindenkinek megy; a szabad-felhasználós kaput külön tesztek fedik le.
+    $this->user = User::factory()->basic()->create();
 
     Word::insert([
         ['word' => 'apple', 'meaning_hu' => 'alma', 'synonyms' => 'fruit', 'example_en' => 'I ate an apple.', 'example_hu' => 'Megettem egy almát.', 'verb_past' => null, 'rank' => 1, 'created_at' => now(), 'updated_at' => now()],
@@ -176,6 +179,39 @@ test('add-word rejects duplicates', function () {
         ->assertJson(['error' => 'duplicate']);
 });
 
+test('add-word is blocked for free users (extension write is Standard+)', function () {
+    $this->actingAs(User::factory()->create())
+        ->postJson(route('extension.add-word'), ['word' => 'serendipity', 'meaning_hu' => 'véletlen szerencse'])
+        ->assertForbidden()
+        ->assertJson(['error' => 'plan']);
+
+    expect(User::query()->latest('id')->first()->customWords()->count())->toBe(0);
+});
+
+test('create-flashcard is blocked for free users (extension write is Standard+)', function () {
+    $free = User::factory()->create();
+    $deck = $free->flashcardDecks()->create(['name' => 'Angol szavak']);
+
+    $this->actingAs($free)
+        ->postJson(route('extension.create-flashcard'), [
+            'deck_id' => $deck->id,
+            'front' => 'apple',
+            'back' => 'alma',
+            'direction' => 'both',
+        ])
+        ->assertForbidden()
+        ->assertJson(['error' => 'plan']);
+
+    expect($deck->flashcards()->count())->toBe(0);
+});
+
+test('reads stay free for everyone: a free user can still look up words', function () {
+    $this->actingAs(User::factory()->create())
+        ->getJson(route('extension.lookup', ['word' => 'apple']))
+        ->assertSuccessful()
+        ->assertJson(['found' => true, 'word' => 'apple', 'has_active_access' => false]);
+});
+
 test('decks returns the user own decks and ai access', function () {
     $this->user->flashcardDecks()->create(['name' => 'Angol szavak']);
     $this->user->flashcardDecks()->create(['name' => 'Kifejezések']);
@@ -323,13 +359,25 @@ test('frequent extension reads do not exhaust the add-word limit', function () {
         ->assertJson(['ok' => true]);
 });
 
-test('youtube transcript is gated behind premium access', function () {
-    Http::fake();
+test('youtube transcript is available to authenticated free users', function () {
+    Http::fake([
+        '*api/timedtext*' => Http::response('{"events":[{"tStartMs":0,"segs":[{"utf8":"hello world"}]}]}'),
+        '*youtube.com/watch*' => Http::response('<html><head><title>Test Video - YouTube</title></head></html>'),
+        '*' => Http::response(''),
+    ]);
 
     $this->actingAs($this->user) // free plan
         ->getJson(route('extension.youtube-transcript', ['v' => 'abcdefghijk']))
-        ->assertStatus(403)
-        ->assertJson(['error' => 'premium']);
+        ->assertSuccessful()
+        ->assertJsonPath('segments.0.x', 'hello world');
+});
+
+test('youtube transcript requires authentication', function () {
+    Http::fake();
+
+    $this->getJson(route('extension.youtube-transcript', ['v' => 'abcdefghijk']))
+        ->assertStatus(401)
+        ->assertJson(['error' => 'unauthenticated']);
 
     Http::assertNothingSent();
 });

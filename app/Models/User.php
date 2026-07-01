@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -41,6 +42,15 @@ class User extends Authenticatable implements MustVerifyEmail
     public function flashcardDecks(): HasMany
     {
         return $this->hasMany(FlashcardDeck::class);
+    }
+
+    /**
+     * Minden kártya a felhasználó összes paklijából — az ingyenes összesített
+     * kártyakeret számolásához (paklitól függetlenül).
+     */
+    public function flashcards(): HasManyThrough
+    {
+        return $this->hasManyThrough(Flashcard::class, FlashcardDeck::class, 'user_id', 'deck_id');
     }
 
     public function flashcardFolders(): HasMany
@@ -173,15 +183,53 @@ class User extends Authenticatable implements MustVerifyEmail
             && filled($this->billing_address);
     }
 
-    public const FREE_FLASHCARD_LIMIT = 20;
+    /**
+     * The plan's numeric limit for a feature from config/plans.php, keyed by the
+     * user's current plan. `null` means unlimited. currentPlan() only ever returns
+     * free|basic|premium, so the key is guaranteed to exist (a test guards config
+     * completeness), which keeps this fail-closed against typo'd keys.
+     */
+    public function planLimit(string $key): ?int
+    {
+        return config("plans.limits.{$this->currentPlan()}.{$key}");
+    }
 
     /**
-     * Whether the user may add $count more cards to the deck under their plan.
+     * Whether adding $adding more of $key stays within the plan limit, given the
+     * user's $current count. Unlimited (null) always passes.
      */
-    public function canAddFlashcardsTo(FlashcardDeck $deck, int $count = 1): bool
+    public function isWithinPlanLimit(string $key, int $current, int $adding = 1): bool
     {
-        return ! $this->isOnFreePlan()
-            || $deck->flashcards()->count() + $count <= self::FREE_FLASHCARD_LIMIT;
+        $limit = $this->planLimit($key);
+
+        return $limit === null || $current + $adding <= $limit;
+    }
+
+    /**
+     * Whether the user may add $count more cards under their plan. The card budget
+     * is a single total across all decks; premium is unlimited.
+     */
+    public function canAddFlashcards(int $count = 1): bool
+    {
+        return $this->isWithinPlanLimit('flashcards', $this->flashcards()->count(), $count);
+    }
+
+    /**
+     * Whether the user may create another flashcard deck under their plan.
+     */
+    public function canAddFlashcardDeck(): bool
+    {
+        return $this->isWithinPlanLimit('decks', $this->flashcardDecks()->count());
+    }
+
+    /**
+     * Whether extension WRITE operations (set status, save custom word, create
+     * flashcard from the extension) are allowed. Reads are free for everyone;
+     * writes require a paid plan (Standard+).
+     */
+    public function canWriteFromExtension(): bool
+    {
+        return $this->hasActiveAccess();
     }
 
     public function updateStreak(): bool

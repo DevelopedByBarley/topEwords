@@ -17,15 +17,17 @@ class ClozeController extends Controller
         $level = $request->integer('level') ?: null;
         $folderId = $request->integer('folder') ?: null;
         $user = $request->user();
-        $freeClozeLimit = 5;
-        $maxCount = $user->hasActiveAccess() ? 500 : $freeClozeLimit;
+        // Per-round cloze cap from the plan (null = unlimited on premium); 500 is
+        // the technical ceiling since the word queries below fetch at most 500.
+        $roundLimit = $user->planLimit('cloze_per_round');
+        $maxCount = $roundLimit ?? 500;
         $count = min(max((int) $request->input('count', 0), 0), $maxCount);
 
         // Parse comma-separated ids param for manual word selection
         $idsParam = $request->string('ids')->trim()->value();
         $selectedIds = $idsParam !== '' ? array_filter(array_map('trim', explode(',', $idsParam))) : [];
-        if (! $user->hasActiveAccess() && count($selectedIds) > $freeClozeLimit) {
-            $selectedIds = array_slice($selectedIds, 0, $freeClozeLimit);
+        if ($roundLimit !== null && count($selectedIds) > $roundLimit) {
+            $selectedIds = array_slice($selectedIds, 0, $roundLimit);
         }
         $selectedRegularIds = array_values(array_map('intval', array_filter($selectedIds, fn ($id) => ! str_starts_with($id, 'custom_'))));
         $selectedCustomIds = array_values(array_map(fn ($id) => (int) substr($id, 7), array_filter($selectedIds, fn ($id) => str_starts_with($id, 'custom_'))));
@@ -206,7 +208,7 @@ class ClozeController extends Controller
                 'count' => $count,
                 'ids' => $idsParam,
             ],
-            'freeClozeLimit' => $user->hasActiveAccess() ? null : $freeClozeLimit,
+            'freeClozeLimit' => $roundLimit,
         ]);
     }
 

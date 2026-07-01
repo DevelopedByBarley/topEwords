@@ -84,8 +84,10 @@ class FlashcardCsvController extends Controller
 
         fclose($handle);
 
-        if (! $request->user()->canAddFlashcardsTo($deck, count($rows))) {
-            return back()->with('error', 'Ingyenes fiókkal paklinként max 20 kártyát adhatsz hozzá. Frissíts prémiumra a korlátlan hozzáféréshez.');
+        if (! $request->user()->canAddFlashcards(count($rows))) {
+            $limit = $request->user()->planLimit('flashcards');
+
+            return back()->with('error', "Elérted a csomagod kártyakeretét (összesen {$limit} kártya). Válts magasabb csomagra a folytatáshoz.");
         }
 
         DB::transaction(function () use ($rows, $deck) {

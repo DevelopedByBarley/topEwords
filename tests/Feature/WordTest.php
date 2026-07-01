@@ -296,8 +296,8 @@ test('clearing importance on an unmarked word does not create a pivot', function
     expect($this->user->knownWords()->where('word_id', $word->id)->exists())->toBeFalse();
 });
 
-test('importance cannot bypass the free save limit', function () {
-    // Free user a limiten: 50 mentett szó.
+test('status marking is free and unlimited', function () {
+    // Korábban 50 mentett szónál elakadt; a státuszozás most ingyenes és korlátlan.
     $filler = collect(range(1, 50))->map(fn ($i) => [
         'word' => 'fill'.$i, 'rank' => 10000 + $i, 'created_at' => now(), 'updated_at' => now(),
     ]);
@@ -307,24 +307,17 @@ test('importance cannot bypass the free save limit', function () {
 
     $word = Word::where('word', 'elaborate')->first();
 
-    $this->post(route('words.importance', $word), ['importance' => 5])
+    $this->post(route('words.status', $word), ['status' => 'known'])
         ->assertRedirect()
-        ->assertSessionHas('error');
+        ->assertSessionMissing('error');
 
-    expect($this->user->knownWords()->where('word_id', $word->id)->exists())->toBeFalse();
-    expect($this->user->knownWords()->count())->toBe(50);
+    expect($this->user->knownWords()->where('word_id', $word->id)->exists())->toBeTrue()
+        ->and($this->user->knownWords()->count())->toBe(51);
 });
 
-test('importance still updates an already saved word at the free limit', function () {
-    $filler = collect(range(1, 49))->map(fn ($i) => [
-        'word' => 'fill'.$i, 'rank' => 10000 + $i, 'created_at' => now(), 'updated_at' => now(),
-    ]);
-    Word::insert($filler->all());
-    $fillerIds = Word::where('word', 'like', 'fill%')->pluck('id');
-    $this->user->knownWords()->attach($fillerIds->mapWithKeys(fn ($id) => [$id => ['status' => 'known']])->all());
-
+test('importance updates an already saved word', function () {
     $word = Word::where('word', 'elaborate')->first();
-    $this->user->knownWords()->attach($word->id, ['status' => 'learning']); // 50th word, already saved
+    $this->user->knownWords()->attach($word->id, ['status' => 'learning']);
 
     $this->post(route('words.importance', $word), ['importance' => 4])
         ->assertRedirect()

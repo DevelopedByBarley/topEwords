@@ -14,14 +14,22 @@ use Illuminate\Http\Request;
 
 class FlashcardCardController extends Controller
 {
-    private const FREE_LIMIT_MESSAGE = 'Ingyenes fiókkal paklinként max 20 kártyát adhatsz hozzá. Frissíts prémiumra a korlátlan hozzáféréshez.';
+    /**
+     * The plan-aware "card limit reached" message, naming the user's actual cap.
+     */
+    private function limitMessage(Request $request): string
+    {
+        $limit = $request->user()->planLimit('flashcards');
+
+        return "Elérted a csomagod kártyakeretét (összesen {$limit} kártya). Válts magasabb csomagra a folytatáshoz.";
+    }
 
     public function store(StoreFlashcardRequest $request, FlashcardDeck $deck): RedirectResponse
     {
         abort_unless($deck->user_id === $request->user()->id, 403);
 
-        if (! $request->user()->canAddFlashcardsTo($deck)) {
-            return back()->with('error', self::FREE_LIMIT_MESSAGE);
+        if (! $request->user()->canAddFlashcards()) {
+            return back()->with('error', $this->limitMessage($request));
         }
 
         $deck->flashcards()->create($request->validated());
@@ -33,8 +41,8 @@ class FlashcardCardController extends Controller
     {
         abort_unless($deck->user_id === $request->user()->id, 403);
 
-        if (! $request->user()->canAddFlashcardsTo($deck)) {
-            return back()->with('error', self::FREE_LIMIT_MESSAGE);
+        if (! $request->user()->canAddFlashcards()) {
+            return back()->with('error', $this->limitMessage($request));
         }
 
         $data = $request->validate([
@@ -119,8 +127,8 @@ class FlashcardCardController extends Controller
         abort_unless($deck->user_id === $request->user()->id, 403);
         abort_unless($flashcard->deck_id === $deck->id, 403);
 
-        if (! $request->user()->canAddFlashcardsTo($deck)) {
-            return back()->with('error', self::FREE_LIMIT_MESSAGE);
+        if (! $request->user()->canAddFlashcards()) {
+            return back()->with('error', $this->limitMessage($request));
         }
 
         $deck->flashcards()->create([
@@ -188,8 +196,8 @@ class FlashcardCardController extends Controller
 
         $cards = $deck->flashcards()->whereIn('id', $ids)->get();
 
-        if (! $request->user()->canAddFlashcardsTo($deck, $cards->count())) {
-            return back()->with('error', self::FREE_LIMIT_MESSAGE);
+        if (! $request->user()->canAddFlashcards($cards->count())) {
+            return back()->with('error', $this->limitMessage($request));
         }
 
         $now = now();

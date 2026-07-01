@@ -22,8 +22,6 @@ class WordController extends Controller
 
     private const DEFAULT_PER_PAGE = 50;
 
-    private const FREE_SAVE_LIMIT = 50;
-
     public function index(Request $request): Response
     {
         $search = $request->string('search')->trim()->lower()->value();
@@ -275,15 +273,17 @@ class WordController extends Controller
         $level = $request->integer('level') ?: null;
         $folderId = $request->integer('folder') ?: null;
         $user = $request->user();
-        $freeQuizLimit = 10;
-        $maxCount = $user->hasActiveAccess() ? 500 : $freeQuizLimit;
+        // Per-round quiz cap from the plan (null = unlimited on premium); 500 is
+        // the technical ceiling since the word queries below fetch at most 500.
+        $roundLimit = $user->planLimit('quiz_per_round');
+        $maxCount = $roundLimit ?? 500;
         $count = min(max((int) $request->input('count', 0), 0), $maxCount);
 
         // Parse comma-separated ids param for manual word selection
         $idsParam = $request->string('ids')->trim()->value();
         $selectedIds = $idsParam !== '' ? array_filter(array_map('trim', explode(',', $idsParam))) : [];
-        if (! $user->hasActiveAccess() && count($selectedIds) > $freeQuizLimit) {
-            $selectedIds = array_slice($selectedIds, 0, $freeQuizLimit);
+        if ($roundLimit !== null && count($selectedIds) > $roundLimit) {
+            $selectedIds = array_slice($selectedIds, 0, $roundLimit);
         }
         $selectedRegularIds = array_values(array_map('intval', array_filter($selectedIds, fn ($id) => ! str_starts_with($id, 'custom_'))));
         $selectedCustomIds = array_values(array_map(fn ($id) => (int) substr($id, 7), array_filter($selectedIds, fn ($id) => str_starts_with($id, 'custom_'))));
@@ -488,7 +488,7 @@ class WordController extends Controller
                 'count' => $count,
                 'ids' => implode(',', $selectedIds),
             ],
-            'freeQuizLimit' => $user->hasActiveAccess() ? null : $freeQuizLimit,
+            'freeQuizLimit' => $roundLimit,
         ]);
     }
 
@@ -526,15 +526,6 @@ class WordController extends Controller
         $forms = $this->statusFormsFor($word);
 
         $existing = $request->user()->knownWords()->wherePivot('word_id', $word->id)->first();
-
-        // Az ingyenes mentési limit csak új státusz felvételekor érvényes, levételkor nem.
-        if ($status !== null && ! $existing && $this->freeSaveLimitReached($request)) {
-            if ($request->expectsJson()) {
-                return response()->json(['error' => 'limit_reached', 'upgrade_url' => route('pricing')], 403);
-            }
-
-            return back()->with('error', 'Elérted az ingyenes szómentési limitet (50 szó). Frissíts prémiumra a korlátlan hozzáféréshez.');
-        }
 
         // Üres státusz, vagy az aktív gomb újrakattintása → levétel.
         if ($status === null || ($existing && $existing->pivot->status === $status)) {
@@ -577,24 +568,9 @@ class WordController extends Controller
             return back();
         }
 
-        // Fontosság beállítása új szót is ment ('known'), ezért ugyanaz az ingyenes limit vonatkozik rá, mint a státuszra.
-        if ($this->freeSaveLimitReached($request)) {
-            return back()->with('error', 'Elérted az ingyenes szómentési limitet (50 szó). Frissíts prémiumra a korlátlan hozzáféréshez.');
-        }
-
         $request->user()->knownWords()->syncWithoutDetaching([$word->id => ['status' => 'known', 'importance' => $importance]]);
 
         return back();
-    }
-
-    /**
-     * Az ingyenes csomag szómentési limitje (50 szó) elérve van-e — a státusz- és
-     * a fontosság-felvétel is ugyanazt a pivotot hozza létre, ezért közös ellenőrzés.
-     */
-    private function freeSaveLimitReached(Request $request): bool
-    {
-        return $request->user()->isOnFreePlan()
-            && $request->user()->knownWords()->count() >= self::FREE_SAVE_LIMIT;
     }
 
     /**

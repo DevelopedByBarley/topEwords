@@ -129,6 +129,12 @@ class ExtensionController extends Controller
             return response()->json(['error' => 'unauthenticated'], 401);
         }
 
+        // Írás a bővítményből csak fizetős csomaggal (Standard+); az olvasás
+        // (lookup/search/statuses) mindenkinek ingyenes marad.
+        if (! $request->user()->canWriteFromExtension()) {
+            return response()->json(['error' => 'plan'], 403);
+        }
+
         $data = $request->validate([
             'word' => ['required', 'string', 'max:100'],
             'meaning_hu' => ['required', 'string', 'max:255'],
@@ -157,10 +163,6 @@ class ExtensionController extends Controller
         // A felvitelkor választott státusz az alapértelmezés; ha nincs megadva,
         // marad a korábbi viselkedés (a szó „Tudom" státusszal kerül be).
         $data['status'] = $data['status'] ?? 'known';
-
-        if ($request->user()->isOnFreePlan() && $request->user()->customWords()->count() >= 10) {
-            return response()->json(['error' => 'limit']);
-        }
 
         $exists = $request->user()->customWords()->where('word', $data['word'])->exists();
         if ($exists) {
@@ -210,6 +212,11 @@ class ExtensionController extends Controller
             return response()->json(['error' => 'unauthenticated'], 401);
         }
 
+        // Írás a bővítményből csak fizetős csomaggal (Standard+).
+        if (! $request->user()->canWriteFromExtension()) {
+            return response()->json(['error' => 'plan'], 403);
+        }
+
         $data = $request->validate([
             'deck_id' => ['required', 'integer'],
             'word_id' => ['nullable', 'integer', Rule::exists('words', 'id')],
@@ -230,7 +237,7 @@ class ExtensionController extends Controller
             return response()->json(['error' => 'deck_not_found'], 404);
         }
 
-        if (! $request->user()->canAddFlashcardsTo($deck)) {
+        if (! $request->user()->canAddFlashcards()) {
             return response()->json(['error' => 'limit']);
         }
 
@@ -283,19 +290,12 @@ class ExtensionController extends Controller
     }
 
     /**
-     * Timestamped caption segments for the in-page YouTube transcript sidebar (premium).
+     * Timestamped caption segments for the in-page YouTube transcript sidebar.
      */
     public function youtubeTranscript(Request $request, YouTubeCaptionService $captions): JsonResponse
     {
         if (! $request->user()) {
             return response()->json(['error' => 'unauthenticated'], 401);
-        }
-
-        if (! $request->user()->hasActiveAccess()) {
-            return response()->json([
-                'error' => 'premium',
-                'upgrade_url' => route('pricing'),
-            ], 403);
         }
 
         $videoId = $request->string('v')->trim()->value();

@@ -6,9 +6,12 @@ let searchHost = null;
 let searchShadow = null;
 let searchDebounce = null;
 let searchCsrf = null;
-let searchHasAccess = false;
 let searchIsAdmin = false;
 let searchHasAi = false;
+// Írás (státusz/fontosság/saját szó) csak Standard+ csomaggal; a szerver
+// has_active_access:false-t ad ingyenes felhasználónak, ilyenkor az írás-UI
+// helyett előfizetésre buzdító hint jelenik meg.
+let searchHasActiveAccess = false;
 let searchResultsData = [];
 let searchSelIdx = -1;
 
@@ -80,9 +83,9 @@ function showSearch() {
                 }
 
                 searchCsrf = resp?.csrf ?? null;
-                searchHasAccess = resp?.has_active_access ?? false;
                 searchIsAdmin = resp?.is_admin ?? false;
                 searchHasAi = resp?.has_ai_access ?? false;
+                searchHasActiveAccess = resp?.has_active_access ?? false;
                 renderSearchResults(resp?.results ?? [], resp?.error);
             });
         }, 250);
@@ -173,9 +176,9 @@ function openAddWordForm(word) {
         }
 
         searchCsrf = resp?.csrf ?? null;
-        searchHasAccess = resp?.has_active_access ?? false;
         searchIsAdmin = resp?.is_admin ?? false;
         searchHasAi = resp?.has_ai_access ?? false;
+        searchHasActiveAccess = resp?.has_active_access ?? false;
 
         const results = resp?.results ?? [];
         const exact = results.find(
@@ -286,17 +289,39 @@ function showSearchDetail(data) {
 
     const detail = searchShadow.getElementById('detail');
 
-    let statusSection = '';
-    let importanceSection = '';
+    // Az írás (státusz/fontosság/saját szó/flashcard) Standard+ csomaghoz kötött.
+    const canWrite = searchHasActiveAccess;
+    const upgradeHint = `<a class="upgrade-hint" href="${APP_URL}/pricing" target="_blank">🔒 A szavak mentése Standard csomaggal érhető el →</a>`;
 
-    if (searchHasAccess) {
-        statusSection = `<div class="detail-statuses">${statusBtnsHtml(data.status)}</div>`;
-        importanceSection = `<div class="meta-label">Fontosság</div><div class="importance-row" id="detail-importance">${starsHtml(data.importance)}</div>`;
-    }
+    const statusSection = canWrite
+        ? `<div class="detail-statuses">${statusBtnsHtml(data.status)}</div>`
+        : upgradeHint;
+    const importanceSection = canWrite
+        ? `<div class="meta-label">Fontosság</div><div class="importance-row" id="detail-importance">${starsHtml(data.importance)}</div>`
+        : '';
 
     // Ha nincs a DB-ben (nem found), mutass teljes "Hozzáadás" formot
     if (data._notFound) {
         const googleUrl = `https://www.google.com/search?q=${encodeURIComponent(data.word + ' angol szó: jelentése magyarul, szinonimák, példamondat angolul és magyarul, szófaj, igeragozás ha ige')}&udm=50`;
+
+        // Ingyenes csomag: saját szó felvitele Standard+ funkció. A form helyett
+        // csak a szó + külső Google-keresés + előfizetés-hint jelenik meg.
+        if (!canWrite) {
+            detail.innerHTML = `
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+                    <span style="font-size:14px;font-weight:700;color:#0f172a">${esc(data.word)}</span>
+                    <a class="google-ai-link" href="${googleUrl}" target="_blank">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                        Google AI
+                    </a>
+                </div>
+                <div style="margin-top:8px">${upgradeHint}</div>
+            `;
+            detail.classList.add('visible');
+            detail.classList.remove('form-mode');
+
+            return;
+        }
         detail.innerHTML = `
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
                 <span style="font-size:14px;font-weight:700;color:#0f172a">${esc(data.word)}</span>
@@ -676,7 +701,7 @@ function showSearchDetail(data) {
         <div style="display:flex;align-items:center;gap:4px">
             <a class="detail-link" href="${APP_URL}/words?search=${encodeURIComponent(data.word)}" target="_blank">Megnyitás a TopWords-ben →</a>
             <button class="detail-tts-btn" title="Kiejtés angolul">🔊</button>
-            <button class="fc-btn" title="Flashcard készítése" style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;border:1px solid #e2e8f0;background:none;cursor:pointer;font-size:12px;flex-shrink:0;margin-left:6px">📇</button>
+            ${canWrite ? `<button class="fc-btn" title="Flashcard készítése" style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;border:1px solid #e2e8f0;background:none;cursor:pointer;font-size:12px;flex-shrink:0;margin-left:6px">📇</button>` : ''}
         </div>
     `;
     detail.classList.add('visible');
@@ -690,85 +715,83 @@ function showSearchDetail(data) {
         openFlashcardModal(data, searchCsrf);
     });
 
-    if (searchHasAccess) {
-        detail.querySelectorAll('.status-btn').forEach((btn) => {
-            btn.addEventListener('click', () => {
-                const newStatus = btn.dataset.status;
-                const isSame = btn.classList.contains('active');
-                const prev = data;
+    detail.querySelectorAll('.status-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const newStatus = btn.dataset.status;
+            const isSame = btn.classList.contains('active');
+            const prev = data;
 
-                detail.querySelectorAll('.status-btn').forEach((b) => {
-                    b.classList.remove('active');
-                    b.style.background = '';
-                    b.style.borderColor = '';
-                    b.style.color = '';
-                });
-
-                if (!isSame) {
-                    btn.classList.add('active');
-                    const color = STATUS_COLORS[newStatus];
-                    btn.style.background = color;
-                    btn.style.borderColor = color;
-                    btn.style.color = '#fff';
-                }
-
-                data = { ...data, status: isSame ? null : newStatus };
-
-                sendMsg(
-                    {
-                        type: 'UPDATE_STATUS',
-                        id: data.id,
-                        is_custom: data.is_custom,
-                        status: isSame ? null : newStatus,
-                        csrf: searchCsrf,
-                    },
-                    (resp) => {
-                        if (resp?.ok) {
-                            refreshVocabHighlights();
-
-                            return;
-                        }
-
-                        if (!searchShadow) {
-                            return;
-                        }
-
-                        // Sikertelen mentés → előző állapot visszaállítása
-                        data = prev;
-                        showSearchDetail(prev);
-                    },
-                );
+            detail.querySelectorAll('.status-btn').forEach((b) => {
+                b.classList.remove('active');
+                b.style.background = '';
+                b.style.borderColor = '';
+                b.style.color = '';
             });
+
+            if (!isSame) {
+                btn.classList.add('active');
+                const color = STATUS_COLORS[newStatus];
+                btn.style.background = color;
+                btn.style.borderColor = color;
+                btn.style.color = '#fff';
+            }
+
+            data = { ...data, status: isSame ? null : newStatus };
+
+            sendMsg(
+                {
+                    type: 'UPDATE_STATUS',
+                    id: data.id,
+                    is_custom: data.is_custom,
+                    status: isSame ? null : newStatus,
+                    csrf: searchCsrf,
+                },
+                (resp) => {
+                    if (resp?.ok) {
+                        refreshVocabHighlights();
+
+                        return;
+                    }
+
+                    if (!searchShadow) {
+                        return;
+                    }
+
+                    // Sikertelen mentés → előző állapot visszaállítása
+                    data = prev;
+                    showSearchDetail(prev);
+                },
+            );
         });
+    });
 
-        const impRow = detail.querySelector('#detail-importance');
+    const impRow = detail.querySelector('#detail-importance');
 
-        impRow?.querySelectorAll('.imp-star').forEach((star) => {
-            star.addEventListener('click', () => {
-                const n = parseInt(star.dataset.star);
-                const prevImportance = data.importance ?? null;
-                const next = prevImportance === n ? null : n;
+    impRow?.querySelectorAll('.imp-star').forEach((star) => {
+        star.addEventListener('click', () => {
+            const n = parseInt(star.dataset.star);
+            const prevImportance = data.importance ?? null;
+            const next = prevImportance === n ? null : n;
 
-                paintStars(impRow, next);
-                data = { ...data, importance: next };
+            paintStars(impRow, next);
+            data = { ...data, importance: next };
 
-                sendMsg(
-                    {
-                        type: 'UPDATE_IMPORTANCE',
-                        id: data.id,
-                        is_custom: data.is_custom,
-                        importance: next,
-                        csrf: searchCsrf,
-                    },
-                    (resp) => {
-                        if (!resp?.ok) {
-                            // Sikertelen mentés → előző érték visszaállítása
-                            data = { ...data, importance: prevImportance };
-                            paintStars(impRow, prevImportance);
-                        }
-                    },
-                );
-            });
+            sendMsg(
+                {
+                    type: 'UPDATE_IMPORTANCE',
+                    id: data.id,
+                    is_custom: data.is_custom,
+                    importance: next,
+                    csrf: searchCsrf,
+                },
+                (resp) => {
+                    if (!resp?.ok) {
+                        // Sikertelen mentés → előző érték visszaállítása
+                        data = { ...data, importance: prevImportance };
+                        paintStars(impRow, prevImportance);
+                    }
+                },
+            );
         });
-    }
+    });
 }
