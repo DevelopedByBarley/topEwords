@@ -8,14 +8,13 @@ test('every plan defines every limit key so a typo key never becomes unlimited',
     $limits = config('plans.limits');
     $keys = array_keys($limits['free']);
 
-    foreach (['free', 'basic', 'premium'] as $plan) {
+    foreach (['free', 'premium'] as $plan) {
         expect(array_keys($limits[$plan]))->toEqualCanonicalizing($keys);
     }
 });
 
 test('planLimit reads the limit for the current plan', function () {
     expect(User::factory()->create()->planLimit('decks'))->toBe(5)
-        ->and(User::factory()->basic()->create()->planLimit('decks'))->toBe(50)
         ->and(User::factory()->premium()->create()->planLimit('decks'))->toBeNull();
 });
 
@@ -52,21 +51,25 @@ test('free user is blocked from creating a sixth deck via the endpoint', functio
     expect($user->flashcardDecks()->count())->toBe(5);
 });
 
-test('basic user gets the higher deck allowance', function () {
-    $user = User::factory()->basic()->create();
-    $user->flashcardDecks()->createMany(collect(range(1, 5))->map(fn ($i) => ['name' => "D{$i}"])->all());
+test('extension writes follow a shared daily quota, unlimited on Pro', function () {
+    $free = User::factory()->create();
+    $freeLimit = $free->planLimit('extension_writes_per_day');
 
-    $this->actingAs($user)
-        ->post(route('flashcards.store'), ['name' => 'Hatodik'])
-        ->assertSessionHasNoErrors();
+    // A napi keret alatt még mehet.
+    Cache::put("extension_writes_daily_{$free->id}_".today()->format('Y-m-d'), $freeLimit - 1, now()->endOfDay());
+    expect($free->canWriteFromExtension())->toBeTrue();
 
-    expect($user->flashcardDecks()->count())->toBe(6);
-});
+    // A keretet elérve elzár.
+    Cache::put("extension_writes_daily_{$free->id}_".today()->format('Y-m-d'), $freeLimit, now()->endOfDay());
+    expect($free->canWriteFromExtension())->toBeFalse();
 
-test('extension writes are gated to paid plans', function () {
-    expect(User::factory()->create()->canWriteFromExtension())->toBeFalse()
-        ->and(User::factory()->basic()->create()->canWriteFromExtension())->toBeTrue()
-        ->and(User::factory()->premium()->create()->canWriteFromExtension())->toBeTrue();
+    // A Pro (null = korlátlan) sosem fogy el, és nem is számol.
+    $pro = User::factory()->premium()->create();
+    Cache::put("extension_writes_daily_{$pro->id}_".today()->format('Y-m-d'), 9999, now()->endOfDay());
+    expect($pro->canWriteFromExtension())->toBeTrue();
+
+    $pro->recordExtensionWrite();
+    expect($pro->extensionWritesToday())->toBe(9999); // korlátlan → nem növel
 });
 
 test('quiz round size is capped by the plan', function () {
@@ -83,14 +86,10 @@ test('quiz round size is capped by the plan', function () {
     expect($freeProps['words'])->toHaveCount(10)
         ->and($freeProps['freeQuizLimit'])->toBe(10);
 
-    $basicProps = $this->actingAs(User::factory()->basic()->create())
-        ->get(route('words.quiz', ['count' => 50]))->viewData('page')['props'];
-    expect($basicProps['words'])->toHaveCount(40)
-        ->and($basicProps['freeQuizLimit'])->toBe(100);
-
     $premiumProps = $this->actingAs(User::factory()->premium()->create())
         ->get(route('words.quiz', ['count' => 50]))->viewData('page')['props'];
-    expect($premiumProps['freeQuizLimit'])->toBeNull();
+    expect($premiumProps['words'])->toHaveCount(40)
+        ->and($premiumProps['freeQuizLimit'])->toBeNull();
 });
 
 test('cloze round size is capped by the plan', function () {
@@ -105,17 +104,13 @@ test('cloze round size is capped by the plan', function () {
 
     $freeProps = $this->actingAs(User::factory()->create())
         ->get(route('words.cloze', ['count' => 50]))->viewData('page')['props'];
-    expect($freeProps['items'])->toHaveCount(5)
-        ->and($freeProps['freeClozeLimit'])->toBe(5);
-
-    $basicProps = $this->actingAs(User::factory()->basic()->create())
-        ->get(route('words.cloze', ['count' => 50]))->viewData('page')['props'];
-    expect($basicProps['items'])->toHaveCount(40)
-        ->and($basicProps['freeClozeLimit'])->toBe(100);
+    expect($freeProps['items'])->toHaveCount(10)
+        ->and($freeProps['freeClozeLimit'])->toBe(10);
 
     $premiumProps = $this->actingAs(User::factory()->premium()->create())
         ->get(route('words.cloze', ['count' => 50]))->viewData('page')['props'];
-    expect($premiumProps['freeClozeLimit'])->toBeNull();
+    expect($premiumProps['items'])->toHaveCount(40)
+        ->and($premiumProps['freeClozeLimit'])->toBeNull();
 });
 
 test('daily text analysis is capped per plan', function (string $state, int $limit) {
@@ -139,7 +134,6 @@ test('daily text analysis is capped per plan', function (string $state, int $lim
         ->assertJson(['error' => 'limit_reached']);
 })->with([
     'free' => ['free', 2],
-    'basic' => ['basic', 20],
     'premium' => ['premium', 50],
 ]);
 
@@ -154,7 +148,6 @@ test('saved book limit is reported per plan', function (string $state, int $limi
         ->assertJsonPath('bookLimit', $limit);
 })->with([
     'free' => ['free', 1],
-    'basic' => ['basic', 2],
     'premium' => ['premium', 7],
 ]);
 
@@ -169,6 +162,5 @@ test('saved youtube transcript limit is reported per plan', function (string $st
         ->assertJsonPath('youtubeLimit', $limit);
 })->with([
     'free' => ['free', 3],
-    'basic' => ['basic', 15],
     'premium' => ['premium', 40],
 ]);

@@ -218,13 +218,21 @@ test('book overview returns whole-book comprehension', function () {
         ->assertJsonPath('knownCount', 10);
 });
 
-test('free plan is limited to one saved youtube transcript', function () {
+test('free plan is capped at the configured number of saved youtube transcripts', function () {
     fakeYoutubeCaptions(10);
+    $limit = (int) config('plans.limits.free.youtube_transcripts');
 
-    $this->postJson(route('text-analysis.youtube.store'), ['url' => 'https://www.youtube.com/watch?v=abcdefghijk'])
-        ->assertOk();
+    // 11 karakteres, érvényes videó-ID-k (keret + 1 a túllépéshez).
+    $ids = ['abcdefghijk', 'lmnopqrstuv', 'wxyz01234ab', 'cdefghij567', 'klmno890pqr'];
 
-    $this->postJson(route('text-analysis.youtube.store'), ['url' => 'https://www.youtube.com/watch?v=lmnopqrstuv'])
+    // A keretig menthető.
+    for ($i = 0; $i < $limit; $i++) {
+        $this->postJson(route('text-analysis.youtube.store'), ['url' => 'https://www.youtube.com/watch?v='.$ids[$i]])
+            ->assertOk();
+    }
+
+    // A kereten túl 403.
+    $this->postJson(route('text-analysis.youtube.store'), ['url' => 'https://www.youtube.com/watch?v='.$ids[$limit]])
         ->assertStatus(403);
 });
 

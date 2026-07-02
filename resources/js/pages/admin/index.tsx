@@ -49,12 +49,12 @@ interface AccessUser {
     id: number;
     name: string;
     email: string;
-    plan: 'free' | 'basic' | 'premium';
-    plan_override: 'basic' | 'premium' | null;
+    plan: 'free' | 'premium';
+    plan_override: 'premium' | null;
     ai_access: boolean;
     has_ai: boolean;
     subscribed: boolean;
-    subscription_plan: 'basic' | 'premium' | null;
+    subscription_plan: 'premium' | null;
 }
 
 interface Invite {
@@ -138,7 +138,7 @@ export default function AdminIndex({
                       u.email.toLowerCase().includes(q),
               );
 
-    function setUserPlan(email: string, plan: 'basic' | 'premium' | 'none') {
+    function setUserPlan(email: string, plan: 'premium' | 'none') {
         router.post(setAccess().url, { email, plan }, { preserveScroll: true });
     }
 
@@ -488,10 +488,10 @@ export default function AdminIndex({
                         </h2>
                         <div className="space-y-4 rounded-xl border border-zinc-800 bg-zinc-900 p-5">
                             <p className="text-xs text-zinc-500">
-                                Free = korlátozások · Basic = korlátlan ·
-                                Premium = korlátlan + AI (a Premium
-                                automatikusan AI hozzáférést is ad). A ✨ gomb
-                                csak-AI hozzáférést kapcsol a Free csomag mellé.
+                                Free = napi keretek + kis AI-kóstoló · Pro =
+                                korlátlan + teljes AI-keret. Az AI minden
+                                csomagon elérhető (a havi keret a korlát); a ✨
+                                gomb az ai_access jelzőt kapcsolja.
                             </p>
                             <Input
                                 type="text"
@@ -518,9 +518,7 @@ export default function AdminIndex({
                                                     className={`w-16 shrink-0 rounded px-1.5 py-0.5 text-center text-[10px] font-bold uppercase ${
                                                         u.plan === 'premium'
                                                             ? 'bg-violet-400/10 text-violet-400'
-                                                            : u.plan === 'basic'
-                                                              ? 'bg-primary/10 text-primary'
-                                                              : 'bg-zinc-700/40 text-zinc-400'
+                                                            : 'bg-zinc-700/40 text-zinc-400'
                                                     }`}
                                                 >
                                                     {u.plan}
@@ -556,22 +554,6 @@ export default function AdminIndex({
                                                     onClick={() =>
                                                         setUserPlan(
                                                             u.email,
-                                                            'basic',
-                                                        )
-                                                    }
-                                                    className={`rounded-md px-2.5 py-1 text-xs font-semibold transition-colors ${
-                                                        u.plan_override ===
-                                                        'basic'
-                                                            ? 'bg-primary text-primary-foreground'
-                                                            : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
-                                                    }`}
-                                                >
-                                                    Basic
-                                                </button>
-                                                <button
-                                                    onClick={() =>
-                                                        setUserPlan(
-                                                            u.email,
                                                             'premium',
                                                         )
                                                     }
@@ -582,7 +564,7 @@ export default function AdminIndex({
                                                             : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
                                                     }`}
                                                 >
-                                                    Premium
+                                                    Pro
                                                 </button>
                                                 <button
                                                     onClick={() =>
@@ -595,7 +577,7 @@ export default function AdminIndex({
                                                             },
                                                         )
                                                     }
-                                                    title="Csak-AI hozzáférés ki/be (Free csomag mellé)"
+                                                    title="ai_access jelző ki/be (az AI amúgy minden csomagon elérhető)"
                                                     className={`rounded-md px-2 py-1 transition-colors ${
                                                         u.ai_access
                                                             ? 'bg-amber-400/20 text-amber-400'

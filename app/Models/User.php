@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Laravel\Cashier\Billable;
 use Laravel\Cashier\Subscription;
 use Laravel\Fortify\TwoFactorAuthenticatable;
@@ -95,45 +96,36 @@ class User extends Authenticatable implements MustVerifyEmail
     }
 
     /**
-     * The paid plan from Stripe ('basic' | 'premium'), or null without subscription.
-     *
-     * A csomagot az előfizetés ára dönti el (nem a típusneve), így a
-     * csomagváltás (swap) után is helyes marad.
+     * The paid plan tier, or null without a subscription. Egyetlen fizetős
+     * csomag van (Pro), így minden aktív előfizetés = 'premium', függetlenül a
+     * típusnévtől és az ártól (a régi Standard-árú előfizetés is Pro-t kap).
      */
     public function subscriptionPlan(): ?string
     {
-        $subscription = $this->activeSubscription();
-
-        if ($subscription === null) {
-            return null;
-        }
-
-        return $subscription->stripe_price === config('services.stripe.premium_price_id')
-            ? 'premium'
-            : 'basic';
+        return $this->activeSubscription() !== null ? 'premium' : null;
     }
 
     /**
-     * The user's effective plan: 'free' | 'basic' | 'premium'.
+     * The user's effective plan: 'free' | 'premium'.
      *
      * Priority: admin override > lifetime access > Stripe subscription > trial.
      */
     public function currentPlan(): string
     {
-        if (in_array($this->plan_override, ['basic', 'premium'], true)) {
-            return $this->plan_override;
+        if ($this->plan_override === 'premium') {
+            return 'premium';
         }
 
         if ($this->lifetime_access) {
             return 'premium';
         }
 
-        if ($plan = $this->subscriptionPlan()) {
-            return $plan;
+        if ($this->subscriptionPlan() !== null) {
+            return 'premium';
         }
 
         if ($this->onTrial()) {
-            return 'basic';
+            return 'premium';
         }
 
         return 'free';
@@ -144,10 +136,14 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->currentPlan() !== 'free';
     }
 
+    /**
+     * AI minden csomagon elérhető — a Free is kap kóstolót. A valódi korlát a
+     * havi költségkeret (aiMonthlyLimit): a Free kicsi, a Pro nagyobb keretet
+     * kap, és az AiUsageService ezt tartatja be. Ezért ez mindig igaz.
+     */
     public function hasAiAccess(): bool
     {
-        return $this->ai_access
-            || $this->currentPlan() === 'premium';
+        return true;
     }
 
     public function isAdmin(): bool
@@ -158,8 +154,10 @@ class User extends Authenticatable implements MustVerifyEmail
     }
 
     /**
-     * The user's monthly AI cost budget in micro-dollars (1e6 = $1).
-     * `null` means unlimited (admins).
+     * The user's monthly AI cost budget in micro-dollars (1e6 = $1). Csomag
+     * szerint (config/plans.php: ai_budget_micros) — a Free kis kóstolót, a Pro
+     * a teljes keretet kapja. Per-user felülírás: ai_credit_limit. `null` =
+     * korlátlan (admin).
      */
     public function aiMonthlyLimit(): ?int
     {
@@ -167,7 +165,7 @@ class User extends Authenticatable implements MustVerifyEmail
             return null;
         }
 
-        return $this->ai_credit_limit ?? (int) config('services.gemini.monthly_budget_micros');
+        return $this->ai_credit_limit ?? (int) $this->planLimit('ai_budget_micros');
     }
 
     public function isOnFreePlan(): bool
@@ -186,7 +184,7 @@ class User extends Authenticatable implements MustVerifyEmail
     /**
      * The plan's numeric limit for a feature from config/plans.php, keyed by the
      * user's current plan. `null` means unlimited. currentPlan() only ever returns
-     * free|basic|premium, so the key is guaranteed to exist (a test guards config
+     * free|premium, so the key is guaranteed to exist (a test guards config
      * completeness), which keeps this fail-closed against typo'd keys.
      */
     public function planLimit(string $key): ?int
@@ -223,13 +221,44 @@ class User extends Authenticatable implements MustVerifyEmail
     }
 
     /**
-     * Whether extension WRITE operations (set status, save custom word, create
-     * flashcard from the extension) are allowed. Reads are free for everyone;
-     * writes require a paid plan (Standard+).
+     * Whether extension WRITE operations (custom word + flashcard from the
+     * extension) are still within the plan's shared daily quota. Az olvasás
+     * (lookup/search/statuses) mindenkinek ingyenes; a Free napi keretet kap
+     * (config: extension_writes_per_day), a Pro korlátlan. A sikeres írás
+     * beszámítását recordExtensionWrite() végzi.
      */
     public function canWriteFromExtension(): bool
     {
-        return $this->hasActiveAccess();
+        $limit = $this->planLimit('extension_writes_per_day');
+
+        return $limit === null || $this->extensionWritesToday() < $limit;
+    }
+
+    /**
+     * A bővítményből ma indított írások száma (közös számláló: egyéni szó +
+     * flashcard). Naptári napra jár, éjfélkor lejár.
+     */
+    public function extensionWritesToday(): int
+    {
+        return (int) Cache::get($this->extensionWriteCacheKey(), 0);
+    }
+
+    /**
+     * Egy sikeres bővítmény-írás beszámítása a napi keretbe. Korlátlan
+     * csomagnál (Pro) nem számolunk, hogy ne írjunk fölöslegesen a cache-be.
+     */
+    public function recordExtensionWrite(): void
+    {
+        if ($this->planLimit('extension_writes_per_day') === null) {
+            return;
+        }
+
+        Cache::put($this->extensionWriteCacheKey(), $this->extensionWritesToday() + 1, now()->endOfDay());
+    }
+
+    private function extensionWriteCacheKey(): string
+    {
+        return "extension_writes_daily_{$this->id}_".today()->format('Y-m-d');
     }
 
     public function updateStreak(): bool

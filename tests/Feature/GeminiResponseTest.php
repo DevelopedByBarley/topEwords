@@ -260,13 +260,21 @@ test('AI-hozzáférésű (nem admin) felhasználó használhatja a practiceCheck
         ->assertJson(['overall_hu' => 'Ügyes vagy!']);
 });
 
-test('AI-hozzáférés nélküli felhasználó 403-at kap a practiceCheck-en', function () {
-    $user = User::factory()->create(['ai_access' => false]);
+test('a havi keret kimerülése után a practiceCheck 429-cel zár', function () {
+    // Az AI mindenkinek elérhető; a practiceCheck-et a havi keret kimerülése
+    // állítja meg (429), nem a hozzáférés hiánya.
+    Http::fake();
+    $user = User::factory()->create();
+    $limit = (int) config('plans.limits.free.ai_budget_micros');
+    $user->forceFill(['ai_credits_used' => $limit, 'ai_credits_reset_at' => now()->addMonth()])->save();
 
     $this->actingAs($user)
         ->postJson(route('words.practice.check'), [
             'words' => [['word' => 'run', 'meaning_hu' => 'fut']],
             'text' => 'I run every morning before work.',
         ])
-        ->assertForbidden();
+        ->assertStatus(429)
+        ->assertJson(['error' => 'ai_limit']);
+
+    Http::assertNothingSent();
 });

@@ -40,7 +40,8 @@ class PricingController extends Controller
     public function checkout(Request $request, string $plan): RedirectResponse|\Illuminate\Http\Response
     {
         abort_unless(Billing::enabled(), 404);
-        abort_unless(in_array($plan, ['basic', 'premium'], true), 404);
+        // Egyetlen fizetős csomag van (Pro = 'premium'); minden más 404.
+        abort_unless($plan === 'premium', 404);
 
         $user = $request->user();
 
@@ -66,16 +67,14 @@ class PricingController extends Controller
         // Naplózható nyomot hagyunk a hozzájárulásról (terms_accepted_at nem fillable).
         $user->forceFill(['terms_accepted_at' => now()])->save();
 
-        $priceId = $plan === 'premium'
-            ? config('services.stripe.premium_price_id')
-            : config('services.stripe.basic_price_id');
+        $priceId = config('services.stripe.premium_price_id');
 
         // Meglévő előfizetésnél nem új előfizetést indítunk (dupla számlázás!),
-        // hanem a meglévőt váltjuk át a másik csomag árára.
+        // hanem a meglévőt átváltjuk a Pro árra (pl. régi Standard-árú előfizetés).
         $subscription = $user->activeSubscription();
 
         if ($subscription !== null) {
-            if ($user->subscriptionPlan() === $plan) {
+            if ($subscription->stripe_price === $priceId) {
                 return redirect()->route('pricing')->with('info', 'Már ez az aktív csomagod.');
             }
 
@@ -92,18 +91,14 @@ class PricingController extends Controller
                 return redirect()->route('pricing')->with('error', 'A csomagváltás most nem sikerült. Kérlek próbáld újra kicsit később.');
             }
 
-            $message = $plan === 'premium'
-                ? 'Sikeres váltás Prémium csomagra! Az AI funkciók mostantól elérhetők.'
-                : 'Sikeres váltás Standard csomagra.';
-
-            return redirect()->route('pricing')->with('success', $message);
+            return redirect()->route('pricing')->with('success', 'Sikeres váltás Pro csomagra! Az összes funkció elérhető.');
         }
 
         // 60 perc: a Stripe Checkout sokáig nyitva maradhat — rövidebb lejárat
         // esetén a sikeres fizetés UTÁN 403-at kapna a visszairányításkor.
         $successUrl = URL::temporarySignedRoute('pricing.success', now()->addHour());
 
-        $subscriptionBuilder = $user->newSubscription($plan === 'premium' ? 'premium' : 'default', $priceId);
+        $subscriptionBuilder = $user->newSubscription('premium', $priceId);
 
         // Első előfizetéskor próbaidő: a kártyát elkérik, de csak a trial végén
         // számláznak. A trial alatt a felhasználó a választott fizetett csomagot kapja.

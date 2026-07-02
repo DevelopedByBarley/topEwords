@@ -86,12 +86,7 @@ document.addEventListener(
         }
 
         // 1–4 státusz billentyűk nyitott popup-nál — gépelés közben nem
-        if (
-            shadow &&
-            currentData?.found &&
-            currentData?.has_active_access &&
-            !isTypingTarget()
-        ) {
+        if (shadow && currentData?.found && !isTypingTarget()) {
             const statusByKey = {
                 1: 'learning',
                 2: 'saved',
@@ -401,26 +396,31 @@ function renderBody(data) {
     `;
     header.querySelector('.close').addEventListener('click', hidePopup);
 
-    let statusSection;
+    // Az írás (státusz, fontosság, flashcard) Standard+ csomaghoz kötött; az
+    // olvasás mindenkinek megy. Ingyenes felhasználónál a szerver a
+    // has_active_access:false-t adja, ilyenkor az írás-vezérlők helyett
+    // előfizetésre buzdító hint jelenik meg.
+    const canWrite = data.has_active_access !== false;
 
-    if (data.has_active_access) {
-        const statusBtns = Object.entries(STATUS_LABELS)
-            .map(([key, label]) => {
-                const isActive = status === key;
-                const color = STATUS_COLORS[key];
-                const activeStyle = isActive
-                    ? `background:${color};border-color:${color};color:#fff`
-                    : '';
+    const statusBtns = Object.entries(STATUS_LABELS)
+        .map(([key, label]) => {
+            const isActive = status === key;
+            const color = STATUS_COLORS[key];
+            const activeStyle = isActive
+                ? `background:${color};border-color:${color};color:#fff`
+                : '';
 
-                return `<button class="status-btn${isActive ? ' active' : ''}" data-status="${key}" style="${activeStyle}">${label}</button>`;
-            })
-            .join('');
-        statusSection = `<div class="statuses">${statusBtns}</div>`;
-    } else {
-        statusSection = `<a class="link" href="${APP_URL}/pricing" target="_blank" style="display:block;margin-bottom:10px;">⭐ Prémiumra váltva státuszokat is menthetsz</a>`;
-    }
+            return `<button class="status-btn${isActive ? ' active' : ''}" data-status="${key}" style="${activeStyle}">${label}</button>`;
+        })
+        .join('');
 
-    const importanceSection = data.has_active_access
+    const upgradeHint = `<a class="upgrade-hint" href="${APP_URL}/pricing" target="_blank">🔒 A szavak mentése Standard csomaggal érhető el →</a>`;
+
+    const statusSection = canWrite
+        ? `<div class="statuses">${statusBtns}</div>`
+        : upgradeHint;
+
+    const importanceSection = canWrite
         ? `<div class="meta-label">Fontosság</div><div class="importance-row" id="hover-importance">${starsHtml(data.importance)}</div>`
         : '';
 
@@ -434,27 +434,21 @@ function renderBody(data) {
         <div class="footer">
             <a class="link" href="${APP_URL}/words?search=${encodeURIComponent(word)}" target="_blank">Megnyitás →</a>
             <button class="tts-btn" title="Kiejtés angolul">🔊</button>
-            <button class="fc-btn" title="Flashcard készítése" style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;border:1px solid #e2e8f0;background:none;cursor:pointer;font-size:12px;flex-shrink:0;margin-left:6px">📇</button>
+            ${canWrite ? `<button class="fc-btn" title="Flashcard készítése" style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;border:1px solid #e2e8f0;background:none;cursor:pointer;font-size:12px;flex-shrink:0;margin-left:6px">📇</button>` : ''}
         </div>
     `;
 
-    if (data.has_active_access) {
-        body.querySelectorAll('.status-btn').forEach((btn) => {
-            btn.addEventListener('click', () => handleStatusClick(btn, data));
-        });
+    body.querySelectorAll('.status-btn').forEach((btn) => {
+        btn.addEventListener('click', () => handleStatusClick(btn, data));
+    });
 
-        const impRow = body.querySelector('#hover-importance');
+    const impRow = body.querySelector('#hover-importance');
 
-        impRow?.querySelectorAll('.imp-star').forEach((star) => {
-            star.addEventListener('click', () =>
-                handleImportanceClick(
-                    parseInt(star.dataset.star),
-                    data,
-                    impRow,
-                ),
-            );
-        });
-    }
+    impRow?.querySelectorAll('.imp-star').forEach((star) => {
+        star.addEventListener('click', () =>
+            handleImportanceClick(parseInt(star.dataset.star), data, impRow),
+        );
+    });
 
     body.querySelector('.tts-btn')?.addEventListener('click', () =>
         speakWord(word),

@@ -73,7 +73,8 @@ return [
     'stripe' => [
         // Fizetés be/ki kapcsolása — élesítéskor STRIPE_ENABLED=true a .env-ben
         'enabled' => env('STRIPE_ENABLED', false),
-        'basic_price_id' => env('STRIPE_STARTER_PRICE_ID'),
+        // Egyetlen fizetős csomag (Pro). A kulcsnév a belső 'premium' csomaggal
+        // konzisztens; a STRIPE_PRO_PRICE_ID a Pro havi ár azonosítója.
         'premium_price_id' => env('STRIPE_PRO_PRICE_ID'),
     ],
 

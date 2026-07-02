@@ -223,6 +223,22 @@ const POPUP_CSS = `
 
     a.link:hover, button.link:hover { color: #4f46e5; }
 
+    .upgrade-hint {
+        display: block;
+        margin: 8px 0 2px;
+        padding: 8px 10px;
+        font-size: 12px;
+        font-weight: 500;
+        color: #7c3aed;
+        background: #faf5ff;
+        border: 1px solid #ede9fe;
+        border-radius: 8px;
+        text-decoration: none;
+        cursor: pointer;
+    }
+
+    .upgrade-hint:hover { background: #f3e8ff; border-color: #d8b4fe; }
+
     .tts-btn {
         display: inline-flex;
         align-items: center;
@@ -572,6 +588,22 @@ const SEARCH_CSS = `
     }
 
     .google-ai-link:hover { background: #dbeafe; border-color: #93c5fd; }
+
+    .upgrade-hint {
+        display: block;
+        margin: 8px 0;
+        padding: 8px 10px;
+        font-size: 12px;
+        font-weight: 500;
+        color: #7c3aed;
+        background: #faf5ff;
+        border: 1px solid #ede9fe;
+        border-radius: 8px;
+        text-decoration: none;
+        cursor: pointer;
+    }
+
+    .upgrade-hint:hover { background: #f3e8ff; border-color: #d8b4fe; }
 
     .detail-tts-btn {
         display: inline-flex;

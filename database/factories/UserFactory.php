@@ -70,17 +70,7 @@ class UserFactory extends Factory
     }
 
     /**
-     * Basic csomag (admin felülírással) — nincsenek korlátozások.
-     */
-    public function basic(): static
-    {
-        return $this->state(fn (array $attributes) => [
-            'plan_override' => 'basic',
-        ]);
-    }
-
-    /**
-     * Premium csomag (admin felülírással) — korlátlan + AI.
+     * Pro csomag (admin felülírással) — korlátlan + teljes AI-keret.
      */
     public function premium(): static
     {

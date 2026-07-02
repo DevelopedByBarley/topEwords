@@ -2,13 +2,14 @@
 
 use App\Models\User;
 use App\Models\Word;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
 beforeEach(function () {
-    // Alap: fizetős (Standard) felhasználó, mert a bővítmény írás-végpontjai
-    // (add-word, create-flashcard) Standard+ csomaghoz kötöttek. Az olvasás
-    // mindenkinek megy; a szabad-felhasználós kaput külön tesztek fedik le.
-    $this->user = User::factory()->basic()->create();
+    // Alap: Pro (korlátlan) felhasználó, hogy a bővítmény írás-végpontjai
+    // (add-word, create-flashcard) ne ütközzenek a napi keretbe. Az olvasás
+    // mindenkinek megy; a Free napi írás-kvótáját külön tesztek fedik le.
+    $this->user = User::factory()->premium()->create();
 
     Word::insert([
         ['word' => 'apple', 'meaning_hu' => 'alma', 'synonyms' => 'fruit', 'example_en' => 'I ate an apple.', 'example_hu' => 'Megettem egy almát.', 'verb_past' => null, 'rank' => 1, 'created_at' => now(), 'updated_at' => now()],
@@ -179,18 +180,24 @@ test('add-word rejects duplicates', function () {
         ->assertJson(['error' => 'duplicate']);
 });
 
-test('add-word is blocked for free users (extension write is Standard+)', function () {
-    $this->actingAs(User::factory()->create())
+test('add-word is blocked once a free user exhausts the daily write quota', function () {
+    $free = User::factory()->create();
+    $limit = $free->planLimit('extension_writes_per_day');
+    Cache::put("extension_writes_daily_{$free->id}_".today()->format('Y-m-d'), $limit, now()->endOfDay());
+
+    $this->actingAs($free)
         ->postJson(route('extension.add-word'), ['word' => 'serendipity', 'meaning_hu' => 'véletlen szerencse'])
         ->assertForbidden()
         ->assertJson(['error' => 'plan']);
 
-    expect(User::query()->latest('id')->first()->customWords()->count())->toBe(0);
+    expect($free->customWords()->count())->toBe(0);
 });
 
-test('create-flashcard is blocked for free users (extension write is Standard+)', function () {
+test('create-flashcard is blocked once a free user exhausts the daily write quota', function () {
     $free = User::factory()->create();
     $deck = $free->flashcardDecks()->create(['name' => 'Angol szavak']);
+    $limit = $free->planLimit('extension_writes_per_day');
+    Cache::put("extension_writes_daily_{$free->id}_".today()->format('Y-m-d'), $limit, now()->endOfDay());
 
     $this->actingAs($free)
         ->postJson(route('extension.create-flashcard'), [
@@ -203,6 +210,21 @@ test('create-flashcard is blocked for free users (extension write is Standard+)'
         ->assertJson(['error' => 'plan']);
 
     expect($deck->flashcards()->count())->toBe(0);
+});
+
+test('a free user can write from the extension until the daily quota runs out', function () {
+    $free = User::factory()->create();
+    $limit = $free->planLimit('extension_writes_per_day');
+    // Egy hellyel a keret alatt: az utolsó írás még átmegy és betölti a keretet.
+    Cache::put("extension_writes_daily_{$free->id}_".today()->format('Y-m-d'), $limit - 1, now()->endOfDay());
+
+    $this->actingAs($free)
+        ->postJson(route('extension.add-word'), ['word' => 'serendipity', 'meaning_hu' => 'véletlen szerencse'])
+        ->assertSuccessful()
+        ->assertJson(['ok' => true]);
+
+    expect($free->customWords()->count())->toBe(1)
+        ->and($free->extensionWritesToday())->toBe($limit);
 });
 
 test('reads stay free for everyone: a free user can still look up words', function () {

@@ -129,8 +129,8 @@ class ExtensionController extends Controller
             return response()->json(['error' => 'unauthenticated'], 401);
         }
 
-        // Írás a bővítményből csak fizetős csomaggal (Standard+); az olvasás
-        // (lookup/search/statuses) mindenkinek ingyenes marad.
+        // A bővítményből indított írások közös napi keretbe számítanak (a Free
+        // kap napi keretet, a Pro korlátlan); az olvasás mindenkinek ingyenes.
         if (! $request->user()->canWriteFromExtension()) {
             return response()->json(['error' => 'plan'], 403);
         }
@@ -170,6 +170,8 @@ class ExtensionController extends Controller
         }
 
         $custom = $request->user()->customWords()->create($data);
+
+        $request->user()->recordExtensionWrite();
 
         return response()->json([
             'ok' => true,
@@ -212,7 +214,8 @@ class ExtensionController extends Controller
             return response()->json(['error' => 'unauthenticated'], 401);
         }
 
-        // Írás a bővítményből csak fizetős csomaggal (Standard+).
+        // A bővítményből indított írások közös napi keretbe számítanak (Free napi
+        // keret, Pro korlátlan).
         if (! $request->user()->canWriteFromExtension()) {
             return response()->json(['error' => 'plan'], 403);
         }
@@ -252,6 +255,8 @@ class ExtensionController extends Controller
             'back_speak' => $data['back_speak'] ?? null,
             'color' => $data['color'] ?? null,
         ]);
+
+        $request->user()->recordExtensionWrite();
 
         return response()->json([
             'ok' => true,

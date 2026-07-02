@@ -8,7 +8,6 @@ function fullyConfiguredBilling(): void
         'services.stripe.enabled' => true,
         'cashier.key' => 'pk_test_real',
         'cashier.secret' => 'sk_test_real',
-        'services.stripe.basic_price_id' => 'price_basic',
         'services.stripe.premium_price_id' => 'price_premium',
     ]);
 }

@@ -29,13 +29,15 @@ beforeEach(function () {
 
 test('ai lookup is blocked when the monthly budget is reached', function () {
     Http::fake();
-    $user = User::factory()->create(['ai_access' => true]);
-    $user->forceFill(['ai_credits_used' => 500000, 'ai_credits_reset_at' => now()->addMonth()])->save();
+    // Free user: a kis "kóstoló" havi keret (config-alapú) kimerítve.
+    $user = User::factory()->create();
+    $limit = (int) config('plans.limits.free.ai_budget_micros');
+    $user->forceFill(['ai_credits_used' => $limit, 'ai_credits_reset_at' => now()->addMonth()])->save();
 
     $this->actingAs($user)
         ->getJson(route('text-analysis.gemini-lookup', ['word' => 'test']))
         ->assertStatus(429)
-        ->assertJson(['error' => 'ai_limit', 'used' => 500000, 'limit' => 500000, 'remaining' => 0, 'percent' => 100]);
+        ->assertJson(['error' => 'ai_limit', 'used' => $limit, 'limit' => $limit, 'remaining' => 0, 'percent' => 100]);
 
     // A keret fölött nem szabad Geminit hívni.
     Http::assertNothingSent();
@@ -91,8 +93,10 @@ test('usage resets after the period elapses', function () {
 });
 
 test('subscription settings page exposes the ai budget percentage', function () {
-    $user = User::factory()->create(['ai_access' => true]);
-    $user->forceFill(['ai_credits_used' => 250000, 'ai_credits_reset_at' => now()->addMonth()])->save();
+    $user = User::factory()->create();
+    // A keret felét elhasználva 50%-ot kell mutatnia, csomagtól függetlenül.
+    $limit = (int) config('plans.limits.free.ai_budget_micros');
+    $user->forceFill(['ai_credits_used' => intdiv($limit, 2), 'ai_credits_reset_at' => now()->addMonth()])->save();
 
     $this->actingAs($user)
         ->get(route('subscription.edit'))
@@ -114,21 +118,29 @@ test('word insight is available to ai-access users and charges the budget', func
     expect($user->fresh()->ai_credits_used)->toBe(160);
 });
 
-test('word insight is forbidden for users without ai access', function () {
+test('word insight is blocked once the monthly budget is reached', function () {
+    // Az AI mindenkinek elérhető (kóstoló); a korlát a havi keret, nem a hozzáférés.
     Http::fake();
-    $user = User::factory()->create(['ai_access' => false]);
+    $user = User::factory()->create();
+    $limit = (int) config('plans.limits.free.ai_budget_micros');
+    $user->forceFill(['ai_credits_used' => $limit, 'ai_credits_reset_at' => now()->addMonth()])->save();
 
     $this->actingAs($user)
         ->getJson(route('text-analysis.word-insight', ['word' => 'run']))
-        ->assertForbidden();
+        ->assertStatus(429)
+        ->assertJson(['error' => 'ai_limit']);
 
     Http::assertNothingSent();
 });
 
-test('free users without ai access do not get a usage snapshot', function () {
-    $user = User::factory()->create(['ai_access' => false]);
+test('free users get a usage snapshot reflecting their taste budget', function () {
+    $user = User::factory()->create();
+    $limit = (int) config('plans.limits.free.ai_budget_micros');
 
     $this->actingAs($user)
         ->get(route('subscription.edit'))
-        ->assertInertia(fn ($page) => $page->where('aiUsage', null));
+        ->assertInertia(fn ($page) => $page
+            ->where('aiUsage.limit', $limit)
+            ->where('aiUsage.unlimited', false)
+        );
 });

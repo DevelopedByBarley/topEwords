@@ -869,14 +869,6 @@ function enableYtPanel() {
                 return;
             }
 
-            if (resp.error === 'premium') {
-                setYtPanelMessage(
-                    `Az átirat prémium funkció. <a href="${APP_URL}/pricing" target="_blank">Frissíts prémiumra →</a>`,
-                );
-
-                return;
-            }
-
             if (resp.error || !Array.isArray(resp.segments)) {
                 setYtPanelMessage('Ehhez a videóhoz nem érhető el átirat.');
 

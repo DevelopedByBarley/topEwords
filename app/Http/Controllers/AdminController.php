@@ -147,7 +147,7 @@ class AdminController extends Controller
     {
         $data = $request->validate([
             'email' => ['required', 'email', 'exists:users,email'],
-            'plan' => ['required', 'in:none,basic,premium'],
+            'plan' => ['required', 'in:none,premium'],
         ]);
 
         $user = User::where('email', $data['email'])->firstOrFail();
@@ -155,8 +155,7 @@ class AdminController extends Controller
         $user->save();
 
         $message = match ($data['plan']) {
-            'basic' => "{$user->name} Basic hozzáférést kapott.",
-            'premium' => "{$user->name} Premium hozzáférést kapott.",
+            'premium' => "{$user->name} Pro hozzáférést kapott.",
             default => "{$user->name} felülírása törölve, az előfizetése dönt.",
         };
 

@@ -3,31 +3,30 @@
 return [
     /*
     | Csomagonkénti funkció-limitek. A kulcs a User::currentPlan() értéke
-    | ('free' | 'basic' | 'premium'). Egy limit `null` értéke KORLÁTLAN-t jelent.
+    | ('free' | 'premium'). Egy limit `null` értéke KORLÁTLAN-t jelent.
     |
-    | Minden kulcsnak MINDEN csomagban szerepelnie kell (ezt teszt is védi), hogy
-    | egy elgépelt kulcs ne váljon véletlenül korlátlanná. A limitek egyetlen
-    | forrása ez a fájl — a controllerek a User helper metódusokon keresztül
-    | olvassák (planLimit()), sehol ne legyen hardkódolt érték.
+    | Két csomag van: Free (kóstoló mindenből) és Pro (a `premium` kulcs). Minden
+    | kulcsnak MINDEN csomagban szerepelnie kell (ezt teszt is védi), hogy egy
+    | elgépelt kulcs ne váljon véletlenül korlátlanná. A limitek egyetlen forrása
+    | ez a fájl — a controllerek a User helper metódusokon keresztül olvassák
+    | (planLimit()), sehol ne legyen hardkódolt érték.
+    |
+    | `ai_budget_micros`: havi AI-költségkeret mikro-dollárban (1e6 = $1). A Free
+    | kap egy kis kóstolót, a Pro a teljes keretet. Admin = korlátlan (User).
+    | `extension_writes_per_day`: a bővítményből indított írások (státusz + egyéni
+    | szó + flashcard) KÖZÖS napi számlálója; állítható itt, Pro = korlátlan.
     */
     'limits' => [
         'free' => [
             'flashcards' => 50,
             'decks' => 5,
             'quiz_per_round' => 10,
-            'cloze_per_round' => 5,
+            'cloze_per_round' => 10,
             'text_analyses_per_day' => 2,
             'books' => 1,
             'youtube_transcripts' => 3,
-        ],
-        'basic' => [
-            'flashcards' => 2000,
-            'decks' => 50,
-            'quiz_per_round' => 100,
-            'cloze_per_round' => 100,
-            'text_analyses_per_day' => 20,
-            'books' => 2,
-            'youtube_transcripts' => 15,
+            'extension_writes_per_day' => 20,
+            'ai_budget_micros' => 50000,
         ],
         'premium' => [
             'flashcards' => null,
@@ -37,6 +36,8 @@ return [
             'text_analyses_per_day' => 50,
             'books' => 7,
             'youtube_transcripts' => 40,
+            'extension_writes_per_day' => null,
+            'ai_budget_micros' => 500000,
         ],
     ],
 ];

@@ -6,13 +6,24 @@ use Inertia\Testing\AssertableInertia as Assert;
 use Laravel\Cashier\Subscription;
 use Stripe\Exception\ApiConnectionException;
 
+beforeEach(function () {
+    // A checkout 404-el, ha a fizetés nincs élesítve (Billing::enabled()); a
+    // gatekeeper-viselkedés csak élő Stripe-konfig mellett vizsgálható.
+    config([
+        'services.stripe.enabled' => true,
+        'cashier.key' => 'pk_test_real',
+        'cashier.secret' => 'sk_test_real',
+        'services.stripe.premium_price_id' => 'price_pro',
+    ]);
+});
+
 test('checkout requires explicit consent and records it on success', function () {
     // A consent szerveroldali kikényszerítése: kliensoldali pipa nélküli közvetlen POST
     // sem indíthat fizetést. A felhasználónak van számlázási adata, de nincs consent.
     $user = User::factory()->withBilling()->create();
 
     $this->actingAs($user)
-        ->post(route('pricing.checkout', 'basic'))
+        ->post(route('pricing.checkout', 'premium'))
         ->assertSessionHasErrors('accept_terms');
 
     expect($user->fresh()->terms_accepted_at)->toBeNull();
@@ -60,7 +71,7 @@ test('checkout redirects to billing settings when billing details are missing', 
     $user = User::factory()->create();
 
     $this->actingAs($user)
-        ->post(route('pricing.checkout', 'basic'))
+        ->post(route('pricing.checkout', 'premium'))
         ->assertRedirect(route('billing.edit'))
         ->assertSessionHas('info');
 });
@@ -69,7 +80,7 @@ test('checkout does not gate users with complete billing details', function () {
     $user = User::factory()->withBilling()->create();
 
     $response = $this->actingAs($user)
-        ->post(route('pricing.checkout', 'basic'));
+        ->post(route('pricing.checkout', 'premium'));
 
     // Nem irányít a billing settings-re — a gatekeeper átengedi.
     if ($response->isRedirect()) {
@@ -85,7 +96,7 @@ test('checkout blocks users who already have non-Stripe access', function () {
     $user->save();
 
     $this->actingAs($user)
-        ->post(route('pricing.checkout', 'basic'), ['accept_terms' => true])
+        ->post(route('pricing.checkout', 'premium'), ['accept_terms' => true])
         ->assertRedirect(route('pricing'))
         ->assertSessionHas('info');
 
@@ -96,6 +107,9 @@ test('a Stripe oldali hiba a csomagváltáskor nem dől 500-ba, hanem érthető 
     // A swap() Stripe API-hibája (pl. hálózat, törölt ár) ne kezeletlen kivételként
     // 500-azzon a felhasználónak — a kontroller elkapja és barátságos üzenettel küldi vissza.
     $subscription = Mockery::mock(Subscription::class);
+    // A Pro-tól eltérő aktuális ár, hogy a "már ez az aktív csomagod" ág ne fogja
+    // meg, hanem valóban a swap() fusson (és dobja a Stripe-hibát).
+    $subscription->shouldReceive('getAttribute')->with('stripe_price')->andReturn('price_old');
     $subscription->shouldReceive('swap')->once()->andThrow(new ApiConnectionException('boom'));
 
     $user = Mockery::mock(User::class)->makePartial();
@@ -108,7 +122,7 @@ test('a Stripe oldali hiba a csomagváltáskor nem dől 500-ba, hanem érthető 
     $user->shouldReceive('save')->andReturnTrue();
 
     $this->actingAs($user)
-        ->post(route('pricing.checkout', 'basic'), ['accept_terms' => true])
+        ->post(route('pricing.checkout', 'premium'), ['accept_terms' => true])
         ->assertRedirect(route('pricing'))
         ->assertSessionHas('error');
 });

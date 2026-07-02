@@ -3,22 +3,15 @@
 use App\Models\User;
 use Illuminate\Support\Facades\URL;
 
-test('new user is on the free plan with limitations', function () {
+test('new user is on the free plan with limitations but an ai taste', function () {
     $user = User::factory()->create();
 
+    // AI minden csomagon elérhető; a Free kis havi keretet (kóstolót) kap.
     expect($user->currentPlan())->toBe('free')
         ->and($user->hasActiveAccess())->toBeFalse()
         ->and($user->isOnFreePlan())->toBeTrue()
-        ->and($user->hasAiAccess())->toBeFalse();
-});
-
-test('basic override grants unlimited access without ai', function () {
-    $user = User::factory()->basic()->create();
-
-    expect($user->currentPlan())->toBe('basic')
-        ->and($user->hasActiveAccess())->toBeTrue()
-        ->and($user->isOnFreePlan())->toBeFalse()
-        ->and($user->hasAiAccess())->toBeFalse();
+        ->and($user->hasAiAccess())->toBeTrue()
+        ->and($user->aiMonthlyLimit())->toBe(config('plans.limits.free.ai_budget_micros'));
 });
 
 test('premium override grants unlimited access with ai', function () {
@@ -36,11 +29,12 @@ test('lifetime access maps to premium', function () {
         ->and($user->hasAiAccess())->toBeTrue();
 });
 
-test('ai_access flag grants ai even on free plan', function () {
-    $user = User::factory()->create(['ai_access' => true]);
+test('ai is available on the free plan (taste), gated by the monthly budget', function () {
+    $user = User::factory()->create();
 
     expect($user->currentPlan())->toBe('free')
-        ->and($user->hasAiAccess())->toBeTrue();
+        ->and($user->hasAiAccess())->toBeTrue()
+        ->and($user->aiMonthlyLimit())->toBeLessThan((int) config('plans.limits.premium.ai_budget_micros'));
 });
 
 test('free user can create multiple flashcard decks', function () {
@@ -73,8 +67,8 @@ test('free user is capped at fifty flashcards across all decks', function () {
         ->and($user->flashcards()->count())->toBe(50);
 });
 
-test('basic user can create multiple flashcard decks', function () {
-    $user = User::factory()->basic()->create();
+test('pro user can create multiple flashcard decks', function () {
+    $user = User::factory()->premium()->create();
     $user->flashcardDecks()->create(['name' => 'Első pakli']);
 
     $this->actingAs($user)
@@ -111,30 +105,20 @@ function makeSubscription(User $user, string $type, string $price): void
     ]);
 }
 
-test('basic price subscription maps to basic plan', function () {
-    config(['services.stripe.basic_price_id' => 'price_basic', 'services.stripe.premium_price_id' => 'price_premium']);
+test('any active subscription maps to the single paid (Pro) plan, regardless of type name', function () {
     $user = User::factory()->create();
-    makeSubscription($user, 'default', 'price_basic');
-
-    expect($user->currentPlan())->toBe('basic')
-        ->and($user->hasAiAccess())->toBeFalse();
-});
-
-test('premium price subscription maps to premium plan regardless of type name', function () {
-    config(['services.stripe.basic_price_id' => 'price_basic', 'services.stripe.premium_price_id' => 'price_premium']);
-    $user = User::factory()->create();
-    // swap után a 'default' típusú előfizetésen is lehet prémium ár
-    makeSubscription($user, 'default', 'price_premium');
+    // swap után a 'default' típusú előfizetésen is lehet a Pro ár — minden aktív
+    // előfizetés = premium (egyetlen fizetős csomag van).
+    makeSubscription($user, 'default', 'price_pro');
 
     expect($user->currentPlan())->toBe('premium')
+        ->and($user->hasActiveAccess())->toBeTrue()
         ->and($user->hasAiAccess())->toBeTrue();
 });
 
-test('book limit follows the subscription price, not the type name', function () {
-    config(['services.stripe.basic_price_id' => 'price_basic', 'services.stripe.premium_price_id' => 'price_premium']);
+test('book limit follows the paid plan for any active subscription', function () {
     $user = User::factory()->create();
-    // swap után prémium árú, de 'default' típusú előfizetés: ár alapján prémium limit jár.
-    makeSubscription($user, 'default', 'price_premium');
+    makeSubscription($user, 'default', 'price_pro');
 
     $this->actingAs($user)
         ->getJson(route('text-analysis.books.index'))
@@ -142,10 +126,9 @@ test('book limit follows the subscription price, not the type name', function ()
         ->assertJsonPath('bookLimit', 7);
 });
 
-test('youtube limit follows the subscription price, not the type name', function () {
-    config(['services.stripe.basic_price_id' => 'price_basic', 'services.stripe.premium_price_id' => 'price_premium']);
+test('youtube limit follows the paid plan for any active subscription', function () {
     $user = User::factory()->create();
-    makeSubscription($user, 'default', 'price_premium');
+    makeSubscription($user, 'default', 'price_pro');
 
     $this->actingAs($user)
         ->getJson(route('text-analysis.youtube.index'))
@@ -156,18 +139,18 @@ test('youtube limit follows the subscription price, not the type name', function
 test('checkout redirects with info when buying the already active plan', function () {
     config([
         'services.stripe.enabled' => true,
-        'services.stripe.basic_price_id' => 'price_basic',
-        'services.stripe.premium_price_id' => 'price_premium',
+        'services.stripe.premium_price_id' => 'price_pro',
         'cashier.key' => 'pk_test_real',
     ]);
     // withBilling(): a checkout számlázási kapuőrén át kell jutnia, hogy elérje a
     // "már ez az aktív csomagod" ágat (különben a billing.edit-re irányítana).
     $user = User::factory()->withBilling()->create();
-    makeSubscription($user, 'default', 'price_basic');
+    // Ugyanazon a Pro áron van már előfizetve — a swap-ág "már aktív"-ot ad.
+    makeSubscription($user, 'premium', 'price_pro');
 
     // accept_terms: a checkout kötelező consent-ellenőrzésén is át kell jutni.
     $this->actingAs($user)
-        ->post(route('pricing.checkout', 'basic'), ['accept_terms' => true])
+        ->post(route('pricing.checkout', 'premium'), ['accept_terms' => true])
         ->assertRedirect(route('pricing'))
         ->assertSessionHas('info');
 
@@ -176,13 +159,12 @@ test('checkout redirects with info when buying the already active plan', functio
 });
 
 test('canceled subscription past its end date no longer grants access', function () {
-    config(['services.stripe.basic_price_id' => 'price_basic', 'services.stripe.premium_price_id' => 'price_premium']);
     $user = User::factory()->create();
     $user->subscriptions()->create([
         'type' => 'default',
         'stripe_id' => 'sub_'.uniqid(),
         'stripe_status' => 'canceled',
-        'stripe_price' => 'price_basic',
+        'stripe_price' => 'price_pro',
         'quantity' => 1,
         'ends_at' => now()->subDay(),
     ]);
@@ -202,11 +184,6 @@ test('admin can grant any plan by email', function () {
         ->assertRedirect();
 
     expect($target->refresh()->currentPlan())->toBe('premium');
-
-    $this->actingAs($admin)
-        ->post(route('admin.access.set'), ['email' => $target->email, 'plan' => 'basic']);
-
-    expect($target->refresh()->currentPlan())->toBe('basic');
 
     $this->actingAs($admin)
         ->post(route('admin.access.set'), ['email' => $target->email, 'plan' => 'none']);
@@ -231,10 +208,6 @@ test('checkout is unavailable when stripe is disabled', function () {
     $user = User::factory()->create();
 
     $this->actingAs($user)
-        ->post(route('pricing.checkout', 'basic'))
-        ->assertNotFound();
-
-    $this->actingAs($user)
         ->post(route('pricing.checkout', 'premium'))
         ->assertNotFound();
 });
@@ -242,8 +215,7 @@ test('checkout is unavailable when stripe is disabled', function () {
 test('pricing page reports stripe state from config', function () {
     config([
         'services.stripe.enabled' => true,
-        'services.stripe.basic_price_id' => 'price_test_basic',
-        'services.stripe.premium_price_id' => 'price_test_premium',
+        'services.stripe.premium_price_id' => 'price_test_pro',
         'cashier.key' => 'pk_test_real',
     ]);
 
@@ -279,7 +251,7 @@ test('success route flashes a confirmation message', function () {
         'type' => 'default',
         'stripe_id' => 'sub_'.uniqid(),
         'stripe_status' => 'active',
-        'stripe_price' => 'price_basic',
+        'stripe_price' => 'price_pro',
         'quantity' => 1,
     ]);
 

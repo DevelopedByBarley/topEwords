@@ -1933,12 +1933,13 @@ export default function Welcome({
                                 Válaszd ki a hozzád illő csomagot
                             </h2>
                             <p className="mt-4 text-lg text-neutral-500 dark:text-neutral-400">
-                                Kezdd ingyen, és bármikor válts előfizetésre — a
-                                Prémiummal az AI-funkciók is elérhetők.
+                                Kezdd ingyen — kóstolj bele mindenbe, az AI-ba is
+                                —, és ha megtetszett, válts Próra a korlátlan
+                                használatért.
                             </p>
                         </div>
 
-                        <div className="mx-auto mt-12 grid max-w-[860px] gap-5 sm:grid-cols-3">
+                        <div className="mx-auto mt-12 grid max-w-[620px] gap-5 sm:grid-cols-2">
                             {[
                                 {
                                     name: 'Ingyenes',
@@ -1946,26 +1947,17 @@ export default function Welcome({
                                     price: '0 Ft',
                                     period: 'örökké',
                                     tagline:
-                                        'Szólista, flashcard, kvíz és a Chrome-bővítmény alapjai.',
+                                        'Szólista, flashcard, kvíz, a Chrome-bővítmény és egy kis AI-kóstoló.',
                                     featured: false,
                                 },
                                 {
-                                    name: 'Standard',
-                                    icon: 'bolt',
-                                    price: '1 490 Ft',
-                                    period: '/ hó · ~4 €',
-                                    tagline:
-                                        'Nagyobb limitek és mentés közvetlenül a bővítményből.',
-                                    featured: true,
-                                },
-                                {
-                                    name: 'Prémium',
+                                    name: 'Pro',
                                     icon: 'auto_awesome',
-                                    price: '2 490 Ft',
-                                    period: '/ hó · ~6 €',
+                                    price: '1 990 Ft',
+                                    period: '/ hó',
                                     tagline:
-                                        'Korlátlan használat és a teljes AI-eszköztár.',
-                                    featured: false,
+                                        'Korlátlan használat, a teljes AI-eszköztár és a legnagyobb keretek.',
+                                    featured: true,
                                 },
                             ].map((plan) => (
                                 <div

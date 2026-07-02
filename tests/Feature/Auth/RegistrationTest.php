@@ -7,6 +7,9 @@ use Laravel\Fortify\Features;
 
 beforeEach(function () {
     $this->skipUnlessFortifyFeature(Features::registration());
+    // A regisztráció-tesztek a nyílt regisztrációt vizsgálják; a fejlesztői
+    // .env-ben bekapcsolt meghívó-only mód ne szivárogjon be és ne kérjen kódot.
+    config(['registration.invite_only' => false]);
 });
 
 test('registration screen can be rendered', function () {
