@@ -91,6 +91,67 @@ test('an EPUB whose HTML files lack a .xhtml extension is extracted via manifest
     @unlink($path);
 });
 
+test('repeated spine idrefs are extracted only once (repeated-decompression guard)', function () {
+    $user = User::factory()->create();
+
+    // Egy preparált OPF ugyanarra a fejezetre mutató ismételt idref-ekkel nem
+    // dolgoztathatja fel többször ugyanazt a bejegyzést (SEC_AUDIT #R11).
+    $prose = str_repeat('<p>This is a sufficiently long sentence of readable prose.</p>', 4)
+        .'<p>The zebraunicorn paradox appears exactly once in this chapter.</p>';
+
+    $path = tempnam(sys_get_temp_dir(), 'epub').'.epub';
+    $zip = new ZipArchive;
+    $zip->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+    $zip->addFromString('META-INF/container.xml', <<<'XML'
+        <?xml version="1.0"?>
+        <container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+          <rootfiles><rootfile full-path="content.opf" media-type="application/oebps-package+xml"/></rootfiles>
+        </container>
+        XML);
+    $repeatedSpine = str_repeat('<itemref idref="ch1"/>', 50);
+    $zip->addFromString('content.opf', <<<XML
+        <?xml version="1.0"?>
+        <package xmlns="http://www.idpf.org/2007/opf" version="3.0">
+          <manifest><item id="ch1" href="chapter1.xhtml" media-type="application/xhtml+xml"/></manifest>
+          <spine>{$repeatedSpine}</spine>
+        </package>
+        XML);
+    $zip->addFromString('chapter1.xhtml', "<html><body>{$prose}</body></html>");
+    $zip->close();
+
+    $upload = new UploadedFile($path, 'repeated.epub', 'application/epub+zip', null, true);
+
+    $this->actingAs($user)
+        ->post(route('text-analysis.books.store'), ['file' => $upload])
+        ->assertOk();
+
+    $book = UserBook::where('user_id', $user->id)->firstOrFail();
+    expect(substr_count(gzdecode($book->compressed_text), 'zebraunicorn'))->toBe(1);
+
+    @unlink($path);
+});
+
+test('the per-plan book count limit blocks further uploads', function () {
+    $user = User::factory()->create(); // free csomag: 1 könyv
+
+    $prose = str_repeat('<p>This is a sufficiently long sentence of readable prose.</p>', 5);
+    $path = makeEpub($prose);
+
+    $first = new UploadedFile($path, 'first.epub', 'application/epub+zip', null, true);
+    $this->actingAs($user)
+        ->post(route('text-analysis.books.store'), ['file' => $first])
+        ->assertOk();
+
+    $second = new UploadedFile($path, 'second.epub', 'application/epub+zip', null, true);
+    $this->actingAs($user)
+        ->post(route('text-analysis.books.store'), ['file' => $second])
+        ->assertForbidden();
+
+    expect(UserBook::where('user_id', $user->id)->count())->toBe(1);
+
+    @unlink($path);
+});
+
 test('an EPUB entry larger than the per-entry cap is skipped (zip-bomb guard)', function () {
     $user = User::factory()->create();
 

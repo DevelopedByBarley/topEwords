@@ -21,7 +21,9 @@ Route::inertia('/handbook', 'handbook')->name('handbook');
 Route::inertia('/terms', 'legal/terms')->name('terms');
 Route::inertia('/privacy', 'legal/privacy')->name('privacy');
 Route::get('/pricing', [PricingController::class, 'index'])->name('pricing');
-Route::get('/pricing/success', [PricingController::class, 'success'])->name('pricing.success')->middleware('signed');
+// Az aláírást a kontroller ellenőrzi (nem a `signed` middleware), hogy a lejárt
+// aláírás ne nyers 403-as hibaoldal legyen közvetlenül egy sikeres fizetés után.
+Route::get('/pricing/success', [PricingController::class, 'success'])->name('pricing.success');
 
 Route::get('/sitemap.xml', function () {
     return response()->view('sitemap')->header('Content-Type', 'application/xml');
@@ -39,7 +41,7 @@ Route::post('stripe/webhook', [StripeWebhookController::class, 'handleWebhook'])
 
 // ── Admin ─────────────────────────────────────────────────────────────────────
 
-Route::middleware(['auth', 'can:admin'])->group(function () {
+Route::middleware(['auth', 'verified', 'can:admin'])->group(function () {
     Route::get('admin', [AdminController::class, 'index'])->name('admin');
     Route::post('admin/ai-access', [AdminController::class, 'toggleAiAccess'])->name('admin.ai-access.toggle');
     Route::post('admin/access', [AdminController::class, 'setAccess'])->name('admin.access.set');

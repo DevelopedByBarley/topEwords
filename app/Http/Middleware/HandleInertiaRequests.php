@@ -56,7 +56,7 @@ class HandleInertiaRequests extends Middleware
                         'isSubscribed' => $user->subscribed('default') || $user->subscribed('premium'),
                         'isPremium' => $plan === 'premium',
                         'hasAiAccess' => $user->hasAiAccess(),
-                        'isOnTrial' => $user->onTrial(),
+                        'isOnTrial' => $user->isOnAnyTrial(),
                     ];
                 })() : null,
             ],

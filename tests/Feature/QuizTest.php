@@ -130,6 +130,15 @@ test('quiz options never duplicate an answer even when meanings collide', functi
         ->and(array_count_values($options)['alma'])->toBe(1);
 });
 
+test('layout exposes the csrf token meta tag used by fetch posts', function () {
+    // Several pages (quiz complete, review, flashcard import, text-analysis) read
+    // the X-CSRF-TOKEN header value from this meta tag — without it every such
+    // POST is silently rejected with 419.
+    $this->get(route('words.quiz'))
+        ->assertOk()
+        ->assertSee('<meta name="csrf-token" content="', false);
+});
+
 test('quiz complete awards achievements and increments the counter', function () {
     $this->postJson(route('words.quiz.complete'), ['perfect' => true])
         ->assertSuccessful()

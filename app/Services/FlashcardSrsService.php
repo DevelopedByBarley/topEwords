@@ -371,7 +371,7 @@ class FlashcardSrsService
 
     private function learningAgain(FlashcardReview $review, array $steps): void
     {
-        $review->state = 'learning';
+        $review->state = $this->learningStateFor($review);
         $review->learning_step = 0;
         $review->due_at = Carbon::now()->addMinutes($steps[0]);
     }
@@ -379,9 +379,18 @@ class FlashcardSrsService
     private function learningHard(FlashcardReview $review, array $steps): void
     {
         $safeStep = min($review->learning_step, count($steps) - 1);
-        $review->state = 'learning';
+        $review->state = $this->learningStateFor($review);
         $minutes = max($steps[0] + 1, (int) round($steps[$safeStep] * 1.5));
         $review->due_at = Carbon::now()->addMinutes($minutes);
+    }
+
+    /**
+     * A lapsed card must stay 'relearning' through every learning step, otherwise
+     * graduation would treat it as a brand-new card and reset its interval and ease.
+     */
+    private function learningStateFor(FlashcardReview $review): string
+    {
+        return $review->state === 'relearning' ? 'relearning' : 'learning';
     }
 
     private function learningGood(FlashcardReview $review, array $steps, FlashcardSetting|FlashcardDeckSetting $settings): void
@@ -409,7 +418,7 @@ class FlashcardSrsService
                 $review->due_at = Carbon::now()->addDays($interval);
             }
         } else {
-            $review->state = 'learning';
+            $review->state = $this->learningStateFor($review);
             $review->learning_step = $nextStep;
             $review->due_at = Carbon::now()->addMinutes($steps[$nextStep]);
         }

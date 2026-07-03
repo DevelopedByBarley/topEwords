@@ -34,8 +34,8 @@ class PricingController extends Controller
 
         return Inertia::render('pricing', [
             'hasActiveAccess' => $user?->hasActiveAccess() ?? false,
-            'isOnTrial' => $user?->onTrial() ?? false,
-            'trialEndsAt' => $user?->trial_ends_at?->toIso8601String(),
+            'isOnTrial' => $user?->isOnAnyTrial() ?? false,
+            'trialEndsAt' => $user?->currentTrialEndsAt()?->toIso8601String(),
             'isSubscribed' => $user?->activeSubscription() !== null,
             'stripeConfigured' => Billing::enabled(),
             'trialDays' => $trialDays,
@@ -99,9 +99,10 @@ class PricingController extends Controller
             return redirect()->route('pricing')->with('success', 'Sikeres váltás Pro csomagra! Az összes funkció elérhető.');
         }
 
-        // 60 perc: a Stripe Checkout sokáig nyitva maradhat — rövidebb lejárat
-        // esetén a sikeres fizetés UTÁN 403-at kapna a visszairányításkor.
-        $successUrl = URL::temporarySignedRoute('pricing.success', now()->addHour());
+        // 25 óra: a Stripe Checkout session 24 óráig él, a lassan fizető user is
+        // érvényes aláírással érkezzen vissza — rövidebb lejáratnál a sikeres
+        // fizetés UTÁN kapna hibát a visszairányításkor.
+        $successUrl = URL::temporarySignedRoute('pricing.success', now()->addHours(25));
 
         $subscriptionBuilder = $user->newSubscription('premium', $priceId);
 
@@ -138,6 +139,14 @@ class PricingController extends Controller
 
     public function success(Request $request): RedirectResponse
     {
+        // Az aláírást itt ellenőrizzük a `signed` middleware helyett: lejárt/hibás
+        // aláírásnál a nyers 403-as hibaoldal helyett — ami közvetlenül egy SIKERES
+        // fizetés után fogadná a felhasználót — kecsesen a pricing oldalra irányítunk,
+        // ahol az (időközben webhookon létrejött) előfizetés állapota amúgy is látszik.
+        if (! $request->hasValidSignature()) {
+            return redirect()->route('pricing')->with('info', 'Ez a link már lejárt. Ha a fizetésed sikeres volt, az előfizetésed aktív – az állapotát ezen az oldalon látod.');
+        }
+
         // Az előfizetést a Stripe webhook (checkout.session.completed) hozza létre, ami a
         // visszairányításhoz képest pár másodperc késéssel futhat le. Ha még nincs aktív
         // előfizetés, "feldolgozás alatt" üzenetet adunk a megtévesztő "azonnal elérhető" helyett.
@@ -155,8 +164,18 @@ class PricingController extends Controller
             return redirect()->route('pricing');
         }
 
+        // A portál-URL kérése Stripe API-hívás — hibája (pl. a Customer Portal nincs
+        // live módban konfigurálva) ne 500-azzon, hanem érthető üzenettel térjen vissza.
+        try {
+            $portalUrl = $request->user()->billingPortalUrl(route('pricing'));
+        } catch (ApiErrorException $e) {
+            report($e);
+
+            return redirect()->route('pricing')->with('error', 'A számlázási portál most nem érhető el. Kérlek próbáld újra kicsit később.');
+        }
+
         // A Stripe portál külső URL — Inertia POST-nál Inertia::location kell,
         // különben a kliens nem navigál (sima redirectnél "nem történik semmi").
-        return Inertia::location($request->user()->billingPortalUrl(route('pricing')));
+        return Inertia::location($portalUrl);
     }
 }

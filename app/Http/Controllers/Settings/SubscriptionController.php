@@ -8,6 +8,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
+use Stripe\Exception\ApiErrorException;
 
 class SubscriptionController extends Controller
 {
@@ -30,8 +31,8 @@ class SubscriptionController extends Controller
             'isSubscribed' => $activeSub !== null,
             'isPremium' => $user->subscriptionPlan() === 'premium',
             'hasAiAccess' => $user->hasAiAccess(),
-            'isOnTrial' => $user->onTrial(),
-            'trialEndsAt' => $user->trial_ends_at?->toIso8601String(),
+            'isOnTrial' => $user->isOnAnyTrial(),
+            'trialEndsAt' => $user->currentTrialEndsAt()?->toIso8601String(),
             'aiUsage' => $user->hasAiAccess() ? $aiUsage->snapshot($user) : null,
             'paymentMethod' => $paymentMethod,
             'subscription' => $activeSub ? [
@@ -56,7 +57,14 @@ class SubscriptionController extends Controller
             return back()->with('info', 'Az előfizetésed már le van mondva, az időszak végéig aktív marad.');
         }
 
-        $subscription->cancel();
+        // Stripe API-hívás — hibája ne 500-azzon, hanem érthető üzenettel térjen vissza.
+        try {
+            $subscription->cancel();
+        } catch (ApiErrorException $e) {
+            report($e);
+
+            return back()->with('error', 'A lemondás most nem sikerült. Kérlek próbáld újra kicsit később.');
+        }
 
         return back()->with('success', 'Előfizetésed lemondva. Az időszak végéig még hozzáférsz a funkciókhoz.');
     }
@@ -66,7 +74,14 @@ class SubscriptionController extends Controller
         $subscription = $request->user()->activeSubscription();
 
         if ($subscription !== null && $subscription->onGracePeriod()) {
-            $subscription->resume();
+            // Stripe API-hívás — hibája ne 500-azzon, hanem érthető üzenettel térjen vissza.
+            try {
+                $subscription->resume();
+            } catch (ApiErrorException $e) {
+                report($e);
+
+                return back()->with('error', 'A visszavonás most nem sikerült. Kérlek próbáld újra kicsit később.');
+            }
 
             return back()->with('success', 'Lemondás visszavonva, az előfizetésed aktív marad.');
         }
@@ -81,8 +96,18 @@ class SubscriptionController extends Controller
             return redirect()->route('pricing');
         }
 
+        // A portál-URL kérése Stripe API-hívás — hibája (pl. a Customer Portal nincs
+        // live módban konfigurálva) ne 500-azzon, hanem érthető üzenettel térjen vissza.
+        try {
+            $portalUrl = $request->user()->billingPortalUrl(route('subscription.edit'));
+        } catch (ApiErrorException $e) {
+            report($e);
+
+            return back()->with('error', 'A számlázási portál most nem érhető el. Kérlek próbáld újra kicsit később.');
+        }
+
         // A Stripe portál külső URL — Inertia POST-nál Inertia::location kell,
         // különben a kliens nem navigál (sima redirectnél "nem történik semmi").
-        return Inertia::location($request->user()->billingPortalUrl(route('subscription.edit')));
+        return Inertia::location($portalUrl);
     }
 }

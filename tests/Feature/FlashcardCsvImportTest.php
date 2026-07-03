@@ -33,6 +33,30 @@ test('CSV import skips rows whose field exceeds the length cap', function () {
     expect($deck->flashcards()->first()->front)->toContain('ok');
 });
 
+test('CSV import is rejected when it would exceed the plan card budget', function () {
+    $user = User::factory()->create(); // free csomag: összesen 50 kártya
+    $deck = FlashcardDeck::create(['user_id' => $user->id, 'name' => 'Deck']);
+
+    $deck->flashcards()->insert(collect(range(1, 49))->map(fn ($i) => [
+        'deck_id' => $deck->id,
+        'front' => "f{$i}",
+        'back' => "b{$i}",
+        'direction' => 'front_to_back',
+        'created_at' => now(),
+        'updated_at' => now(),
+    ])->all());
+
+    $csv = UploadedFile::fake()->createWithContent('cards.csv', "one,egy\ntwo,kettő\n");
+
+    $this->actingAs($user)
+        ->post(route('flashcards.csv.import', $deck), ['csv_file' => $csv])
+        ->assertRedirect()
+        ->assertSessionHas('error');
+
+    // A keretet átlépő import egyetlen sort sem szúr be.
+    expect($deck->flashcards()->count())->toBe(49);
+});
+
 test('user cannot import into another users deck', function () {
     $owner = User::factory()->create();
     $other = User::factory()->create();

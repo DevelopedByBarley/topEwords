@@ -11,6 +11,7 @@ import {
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { csrfHeaders } from '@/lib/csrf';
 import { pricing } from '@/routes';
 import { quiz as quizRoute, index as wordsIndex } from '@/routes/words';
 import { complete as quizComplete } from '@/routes/words/quiz';
@@ -177,15 +178,11 @@ export default function Quiz({
     }
 
     async function submitQuizComplete(perfect: boolean) {
-        const csrfToken =
-            document
-                .querySelector('meta[name="csrf-token"]')
-                ?.getAttribute('content') ?? '';
         const res = await fetch(quizComplete().url, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': csrfToken,
+                ...csrfHeaders(),
             },
             body: JSON.stringify({ perfect }),
         }).catch(() => null);

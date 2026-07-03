@@ -96,6 +96,47 @@ test('password can be updated', function () {
     expect(Hash::check('new-password', $user->refresh()->password))->toBeTrue();
 });
 
+test('a session with a stale password hash is logged out', function () {
+    $user = User::factory()->create();
+
+    // Más eszköz sessionjét szimuláljuk: a benne tárolt jelszóhash már nem
+    // egyezik a user aktuális jelszavával (pl. időközben jelszót cserélt).
+    $this->actingAs($user)
+        ->withSession(['password_hash_web' => 'stale-password-hash'])
+        ->get(route('profile.edit'))
+        ->assertRedirect(route('login'));
+
+    $this->assertGuest();
+});
+
+test('changing the password keeps the current session authenticated', function () {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->put(route('user-password.update'), [
+            'current_password' => 'password',
+            'password' => 'new-password',
+            'password_confirmation' => 'new-password',
+        ])
+        ->assertSessionHasNoErrors();
+
+    $this->get(route('profile.edit'))->assertOk();
+});
+
+test('changing the password rotates the remember token', function () {
+    $user = User::factory()->create(['remember_token' => 'old-remember-token']);
+
+    $this->actingAs($user)
+        ->put(route('user-password.update'), [
+            'current_password' => 'password',
+            'password' => 'new-password',
+            'password_confirmation' => 'new-password',
+        ])
+        ->assertSessionHasNoErrors();
+
+    expect($user->refresh()->remember_token)->not->toBe('old-remember-token');
+});
+
 test('correct password must be provided to update password', function () {
     $user = User::factory()->create();
 

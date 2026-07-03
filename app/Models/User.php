@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\CarbonInterface;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -146,11 +147,19 @@ class User extends Authenticatable implements MustVerifyEmail
         return true;
     }
 
+    /**
+     * Admin = az ADMIN_EMAIL-lel egyező, MEGERŐSÍTETT e-mail-című fiók. A
+     * verified-feltétel nélkül az admin-fiók hiányakor (friss deploy,
+     * DB-visszaállítás) bárki admin-jogot szerezhetne az admin-emaillel való
+     * regisztrációval vagy e-mail-átírással, hitelesítés nélkül.
+     */
     public function isAdmin(): bool
     {
         $adminEmail = config('app.admin_email');
 
-        return $adminEmail !== null && $this->email === $adminEmail;
+        return $adminEmail !== null
+            && $this->email === $adminEmail
+            && $this->hasVerifiedEmail();
     }
 
     /**
@@ -171,6 +180,30 @@ class User extends Authenticatable implements MustVerifyEmail
     public function isOnFreePlan(): bool
     {
         return ! $this->hasActiveAccess();
+    }
+
+    /**
+     * Bármilyen próbaidőn van-e: generikus (admin-adta, users.trial_ends_at) vagy az
+     * aktív Stripe-előfizetés trial szakaszában. A Cashier onTrial()-ja argumentum
+     * nélkül csak a generikus trialt és a 'default' típusú előfizetés trialját nézi —
+     * az app előfizetései viszont 'premium' típusúak, ezért az aktív előfizetést
+     * külön kérdezzük meg. A UI trial-kijelzése ezt használja, ne az onTrial()-t.
+     */
+    public function isOnAnyTrial(): bool
+    {
+        return $this->onTrial() || ($this->activeSubscription()?->onTrial() ?? false);
+    }
+
+    /**
+     * Az aktív próbaidő vége, forrástól függetlenül (generikus vagy előfizetéses).
+     */
+    public function currentTrialEndsAt(): ?CarbonInterface
+    {
+        if ($this->onTrial()) {
+            return $this->trial_ends_at;
+        }
+
+        return $this->activeSubscription()?->trial_ends_at;
     }
 
     /**
@@ -235,8 +268,8 @@ class User extends Authenticatable implements MustVerifyEmail
      * Whether extension WRITE operations (custom word + flashcard from the
      * extension) are still within the plan's shared daily quota. Az olvasás
      * (lookup/search/statuses) mindenkinek ingyenes; a Free napi keretet kap
-     * (config: extension_writes_per_day), a Pro korlátlan. A sikeres írás
-     * beszámítását recordExtensionWrite() végzi.
+     * (config: extension_writes_per_day), a Pro korlátlan. Ez csak gyors
+     * előszűrés — a keretet ténylegesen a reserveExtensionWrite() foglalja le.
      */
     public function canWriteFromExtension(): bool
     {
@@ -255,16 +288,30 @@ class User extends Authenticatable implements MustVerifyEmail
     }
 
     /**
-     * Egy sikeres bővítmény-írás beszámítása a napi keretbe. Korlátlan
-     * csomagnál (Pro) nem számolunk, hogy ne írjunk fölöslegesen a cache-be.
+     * Egy bővítmény-írás atomi lefoglalása a napi keretből, közvetlenül az
+     * insert előtt hívva. Add+increment, így párhuzamos kérések nem mehetnek
+     * át ugyanazon az elavult számláló-értéken (SEC_AUDIT #R6). Betelt keretnél
+     * false-t ad, és a foglalást visszaadja. Korlátlan csomagnál (Pro) nem
+     * számolunk, hogy ne írjunk fölöslegesen a cache-be.
      */
-    public function recordExtensionWrite(): void
+    public function reserveExtensionWrite(): bool
     {
-        if ($this->planLimit('extension_writes_per_day') === null) {
-            return;
+        $limit = $this->planLimit('extension_writes_per_day');
+
+        if ($limit === null) {
+            return true;
         }
 
-        Cache::put($this->extensionWriteCacheKey(), $this->extensionWritesToday() + 1, now()->endOfDay());
+        $key = $this->extensionWriteCacheKey();
+        Cache::add($key, 0, now()->endOfDay());
+
+        if (Cache::increment($key) > $limit) {
+            Cache::decrement($key);
+
+            return false;
+        }
+
+        return true;
     }
 
     private function extensionWriteCacheKey(): string

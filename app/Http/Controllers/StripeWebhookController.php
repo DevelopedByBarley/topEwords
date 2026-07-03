@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Jobs\GenerateBillingoInvoice;
 use App\Models\User;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 use Laravel\Cashier\Http\Controllers\WebhookController;
 use Laravel\Cashier\Subscription;
 use Stripe\Subscription as StripeSubscription;
@@ -52,17 +53,35 @@ class StripeWebhookController extends WebhookController
         $user = $this->getUserByStripeId($payload['data']['object']['customer'] ?? null);
 
         if ($user instanceof User) {
-            foreach ($this->duplicateSubscriptionsFor($user) as $subscription) {
-                try {
-                    $subscription->cancelNow();
-                } catch (\Throwable $e) {
-                    // A takarítás soha ne buktassa meg a webhookot (a Stripe újraküldené).
-                    report($e);
-                }
-            }
+            $this->cancelDuplicateSubscriptions($user);
         }
 
         return $response;
+    }
+
+    /**
+     * Cancels the user's duplicate subscriptions with a loud alert. Trial nélküli
+     * (visszatérő) felhasználónál mindkét Checkout AZONNAL terhelt, és mindkét
+     * fizetésről Billingo (NAV) számla is készült — a cancelNow() viszont NEM
+     * refundál, a visszatérítés és a számla-sztornó kézi feladat. Ezért critical
+     * szinten riasztunk, még a lemondás előtt, hogy annak hibája esetén se
+     * maradjon észrevétlen a dupla terhelés.
+     */
+    public function cancelDuplicateSubscriptions(User $user): void
+    {
+        foreach ($this->duplicateSubscriptionsFor($user) as $subscription) {
+            Log::critical('Duplikált Stripe-előfizetés — lemondjuk; ellenőrizd, kell-e kézi refund és Billingo-sztornó!', [
+                'user_id' => $user->id,
+                'duplicate_subscription_stripe_id' => $subscription->stripe_id,
+            ]);
+
+            try {
+                $subscription->cancelNow();
+            } catch (\Throwable $e) {
+                // A takarítás soha ne buktassa meg a webhookot (a Stripe újraküldené).
+                report($e);
+            }
+        }
     }
 
     /**

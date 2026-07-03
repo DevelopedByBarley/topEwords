@@ -6,6 +6,7 @@ use App\Models\FlashcardDeck;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class FlashcardCsvController extends Controller
@@ -84,17 +85,29 @@ class FlashcardCsvController extends Controller
 
         fclose($handle);
 
-        if (! $request->user()->canAddFlashcards(count($rows))) {
+        // A kártyakeret-kapu és az insert egy user-szintű zár alatt fut, hogy
+        // párhuzamos importok ne mehessenek át ugyanazon az elavult kártyaszámon
+        // (SEC_AUDIT #R10).
+        $withinLimit = Cache::lock("plan-limit:flashcards:{$request->user()->id}", 15)
+            ->block(10, function () use ($request, $rows, $deck): bool {
+                if (! $request->user()->canAddFlashcards(count($rows))) {
+                    return false;
+                }
+
+                DB::transaction(function () use ($rows, $deck) {
+                    foreach (array_chunk($rows, 500) as $chunk) {
+                        $deck->flashcards()->insert($chunk);
+                    }
+                });
+
+                return true;
+            });
+
+        if (! $withinLimit) {
             $limit = $request->user()->planLimit('flashcards');
 
             return back()->with('error', "Elérted a csomagod kártyakeretét (összesen {$limit} kártya). Válts magasabb csomagra a folytatáshoz.");
         }
-
-        DB::transaction(function () use ($rows, $deck) {
-            foreach (array_chunk($rows, 500) as $chunk) {
-                $deck->flashcards()->insert($chunk);
-            }
-        });
 
         $imported = count($rows);
         $message = "{$imported} kártya importálva";

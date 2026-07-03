@@ -300,6 +300,93 @@ test('forgotten card increments lapses and becomes relearning', function () {
     expect($review->interval)->toBe(1); // lapse_new_interval=0 → reset to 1
 });
 
+test('lapsed card keeps relearning state and preserved interval through multiple learning steps', function () {
+    $settings = new FlashcardSetting([
+        'new_cards_per_day' => 20,
+        'max_reviews_per_day' => 200,
+        'learning_steps' => [1, 10],
+        'graduating_interval' => 1,
+        'easy_interval' => 4,
+        'starting_ease' => 250,
+        'easy_bonus' => 130,
+        'hard_interval_modifier' => 120,
+        'interval_modifier' => 100,
+        'max_interval' => 365,
+        'lapse_new_interval' => 50,
+        'leech_threshold' => 8,
+    ]);
+
+    $review = new FlashcardReview([
+        'state' => 'review',
+        'interval' => 100,
+        'ease_factor' => 230,
+        'repetitions' => 5,
+        'lapses' => 0,
+        'learning_step' => 0,
+    ]);
+
+    $srs = new FlashcardSrsService;
+
+    // Forgotten: relearning with the lapse-reduced interval (100 * 50% = 50) and ease penalty.
+    $method = new ReflectionMethod($srs, 'reviewAgain');
+    $method->invoke($srs, $review, $settings);
+
+    expect($review->state)->toBe('relearning');
+    expect($review->interval)->toBe(50);
+    expect($review->ease_factor)->toBe(210);
+
+    // First Good on step 0 of [1, 10]: must STAY relearning, not fall back to 'learning'.
+    $learningGood = new ReflectionMethod($srs, 'learningGood');
+    $learningGood->invoke($srs, $review, $settings->learning_steps, $settings);
+
+    expect($review->state)->toBe('relearning');
+    expect($review->learning_step)->toBe(1);
+
+    // Second Good graduates: the preserved interval and penalized ease must survive,
+    // instead of resetting to graduating_interval / starting_ease like a new card.
+    $learningGood->invoke($srs, $review, $settings->learning_steps, $settings);
+
+    expect($review->state)->toBe('review');
+    expect($review->interval)->toBe(50);
+    expect($review->ease_factor)->toBe(210);
+});
+
+test('lapsed card stays relearning after again and hard ratings during relearning', function () {
+    $settings = new FlashcardSetting([
+        'new_cards_per_day' => 20,
+        'max_reviews_per_day' => 200,
+        'learning_steps' => [1, 10],
+        'graduating_interval' => 1,
+        'easy_interval' => 4,
+        'starting_ease' => 250,
+        'easy_bonus' => 130,
+        'hard_interval_modifier' => 120,
+        'interval_modifier' => 100,
+        'max_interval' => 365,
+        'lapse_new_interval' => 50,
+        'leech_threshold' => 8,
+    ]);
+
+    $srs = new FlashcardSrsService;
+
+    $review = new FlashcardReview([
+        'state' => 'relearning',
+        'interval' => 50,
+        'ease_factor' => 210,
+        'repetitions' => 5,
+        'lapses' => 1,
+        'learning_step' => 1,
+    ]);
+
+    $again = new ReflectionMethod($srs, 'learningAgain');
+    $again->invoke($srs, $review, $settings->learning_steps);
+    expect($review->state)->toBe('relearning');
+
+    $hard = new ReflectionMethod($srs, 'learningHard');
+    $hard->invoke($srs, $review, $settings->learning_steps);
+    expect($review->state)->toBe('relearning');
+});
+
 test('card is marked as leech after exceeding leech threshold', function () {
     $settings = new FlashcardSetting([
         'new_cards_per_day' => 20,

@@ -1,7 +1,9 @@
 <?php
 
 use App\Models\User;
+use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Notification;
 use Laravel\Cashier\Subscription;
 
 test('profile page is displayed', function () {
@@ -33,6 +35,38 @@ test('profile information can be updated', function () {
     expect($user->name)->toBe('Test User');
     expect($user->email)->toBe('test@example.com');
     expect($user->email_verified_at)->toBeNull();
+});
+
+test('changing the email address sends a new verification email', function () {
+    Notification::fake();
+
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->patch(route('profile.update'), [
+            'name' => $user->name,
+            'email' => 'uj-cim@example.com',
+        ])
+        ->assertSessionHasNoErrors()
+        ->assertRedirect(route('profile.edit'));
+
+    Notification::assertSentTo($user, VerifyEmail::class);
+});
+
+test('no verification email is sent when the email address is unchanged', function () {
+    Notification::fake();
+
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->patch(route('profile.update'), [
+            'name' => 'Test User',
+            'email' => $user->email,
+        ])
+        ->assertSessionHasNoErrors()
+        ->assertRedirect(route('profile.edit'));
+
+    Notification::assertNothingSent();
 });
 
 test('email verification status is unchanged when the email address is unchanged', function () {

@@ -8,7 +8,6 @@ import {
     addHistoryEntry,
     computeTokenFrequencies,
     EXAMPLE_TEXT,
-    getCsrfToken,
     loadHistory,
     loadSession,
     postJson,
@@ -21,6 +20,7 @@ import { WholeVideoBanner, YoutubeList, YoutubeReader } from '@/components/text-
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { csrfHeaders } from '@/lib/csrf';
 import { sanitizeUploadFilename } from '@/lib/sanitize-filename';
 import { analyze as analyzeRoute, fetchSource as fetchSourceRoute, show as textAnalysisShow } from '@/routes/text-analysis';
 import { destroy as destroyBook, index as booksIndex, overview as bookOverviewRoute, page as bookPageRoute, store as storeBook } from '@/routes/text-analysis/books';
@@ -101,7 +101,7 @@ return;
         setError(null);
         fetch(fetchSourceRoute.url(), {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': getCsrfToken(), Accept: 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...csrfHeaders(), Accept: 'application/json' },
             body: JSON.stringify({ url: urlParam }),
         })
             .then((r) => r.json())
@@ -163,7 +163,14 @@ return;
             const res = await fetch(bookPageRoute.url(book.id, { query: { page } }), {
                 headers: { Accept: 'application/json' },
             });
-            const data = await res.json();
+            const data = await res.json().catch(() => null);
+
+            if (!res.ok || typeof data?.text !== 'string') {
+                setError((data?.error as string) ?? 'Nem sikerült betölteni az oldalt. Próbáld újra.');
+
+                return;
+            }
+
             const pageText = data.text as string;
             setFetchedSource(pageText);
             setSegments((data.segments as LyricSegment[] | undefined) ?? null);
@@ -212,7 +219,7 @@ return;
         try {
             const res = await fetch(storeBook.url(), {
                 method: 'POST',
-                headers: { 'X-CSRF-TOKEN': getCsrfToken(), Accept: 'application/json' },
+                headers: { ...csrfHeaders(), Accept: 'application/json' },
                 body: formData,
             });
             const data = await res.json();
@@ -281,7 +288,14 @@ return;
             const res = await fetch(ytPageRoute.url(transcript.id, { query: { page } }), {
                 headers: { Accept: 'application/json' },
             });
-            const data = await res.json();
+            const data = await res.json().catch(() => null);
+
+            if (!res.ok || typeof data?.text !== 'string') {
+                setError((data?.error as string) ?? 'Nem sikerült betölteni az oldalt. Próbáld újra.');
+
+                return;
+            }
+
             const pageText = data.text as string;
             setFetchedSource(pageText);
             setSegments((data.segments as LyricSegment[] | undefined) ?? null);
@@ -355,7 +369,7 @@ return;
 
         await fetch(ytDestroy.url(transcript.id), {
             method: 'DELETE',
-            headers: { 'X-CSRF-TOKEN': getCsrfToken() },
+            headers: csrfHeaders(),
         });
         setTranscripts((prev) => prev.filter((t) => t.id !== transcript.id));
 
@@ -375,7 +389,7 @@ return;
 
         await fetch(destroyBook.url(book.id), {
             method: 'DELETE',
-            headers: { 'X-CSRF-TOKEN': getCsrfToken() },
+            headers: csrfHeaders(),
         });
         setBooks((prev) => prev.filter((b) => b.id !== book.id));
 
@@ -413,8 +427,16 @@ return;
         setMode(m);
         reset();
 
-        if (m === 'book' && !booksLoaded) {
-            fetchBooks();
+        // reset() clears fetchedSource, so an already-selected book/transcript
+        // must be deselected too — otherwise the tab renders neither the list
+        // nor the reader and stays blank.
+        if (m === 'book') {
+            setActiveBook(null);
+            setBookOverview(null);
+
+            if (!booksLoaded) {
+                fetchBooks();
+            }
         }
 
         if (m === 'youtube') {

@@ -22,6 +22,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { RichTextContent } from '@/components/ui/rich-text-editor';
+import { csrfHeaders } from '@/lib/csrf';
 import { index, show } from '@/routes/flashcards';
 import {
     submit as submitReview,
@@ -206,16 +207,6 @@ function resolveCardSides(card: Card): {
 
 type HistoryEntry = { id: number; direction: string };
 
-function getXsrfToken(): string {
-    const cookie = document.cookie
-        .split('; ')
-        .find((r) => r.startsWith('XSRF-TOKEN='));
-
-    return cookie
-        ? decodeURIComponent(cookie.substring('XSRF-TOKEN='.length))
-        : '';
-}
-
 export default function FlashcardStudy({
     deck,
     cards,
@@ -345,7 +336,7 @@ export default function FlashcardStudy({
 
     const handleRate = useCallback(
         (ratingValue: number) => {
-            if (!current || submitting) {
+            if (!current || submitting || undoing || done) {
                 return;
             }
 
@@ -373,7 +364,7 @@ export default function FlashcardStudy({
                 headers: {
                     'Content-Type': 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',
-                    'X-XSRF-TOKEN': getXsrfToken(),
+                    ...csrfHeaders(),
                 },
                 body: JSON.stringify({
                     flashcard_id: cardId,
@@ -408,6 +399,8 @@ export default function FlashcardStudy({
             queue.length,
             deck.id,
             submitting,
+            undoing,
+            done,
             stopSpeaking,
         ],
     );
@@ -434,7 +427,7 @@ export default function FlashcardStudy({
                 headers: {
                     'Content-Type': 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',
-                    'X-XSRF-TOKEN': getXsrfToken(),
+                    ...csrfHeaders(),
                 },
                 body: JSON.stringify({
                     flashcard_id: last.id,
@@ -449,7 +442,10 @@ export default function FlashcardStudy({
 
         setHistory((prev) => prev.slice(0, -1));
         setDone(false);
-        setCurrentIndex((prev) => prev - 1);
+        // Derive the index from the history instead of decrementing: rating the
+        // last card sets `done` without advancing currentIndex, so a plain
+        // decrement would slip one card back too far (and could go below 0).
+        setCurrentIndex(Math.max(0, history.length - 1));
         setRevealed(false);
     }, [history, undoing, deck.id, stopSpeaking]);
 
@@ -473,6 +469,19 @@ export default function FlashcardStudy({
                 return;
             }
 
+            if (e.key === 'Backspace' && history.length > 0) {
+                e.preventDefault();
+                handleUndo();
+
+                return;
+            }
+
+            // On the done screen only undo is allowed; the reveal/rating keys
+            // would act on the already-rated last card.
+            if (done) {
+                return;
+            }
+
             if (e.key === ' ' || e.key === 'Enter') {
                 e.preventDefault();
 
@@ -484,17 +493,13 @@ export default function FlashcardStudy({
             if (revealed && ['1', '2', '3', '4'].includes(e.key)) {
                 handleRate(Number(e.key));
             }
-
-            if (e.key === 'Backspace' && history.length > 0) {
-                e.preventDefault();
-                handleUndo();
-            }
         };
         window.addEventListener('keydown', handler);
 
         return () => window.removeEventListener('keydown', handler);
     }, [
         revealed,
+        done,
         handleReveal,
         handleRate,
         handleUndo,
@@ -523,6 +528,17 @@ export default function FlashcardStudy({
                                 Vissza a deckhez
                             </Button>
                         </Link>
+                        {history.length > 0 && (
+                            <Button
+                                variant="outline"
+                                onClick={handleUndo}
+                                disabled={undoing}
+                                title="Visszavonás (Backspace)"
+                            >
+                                <Undo2 className="mr-2 size-4" />
+                                Visszavonás
+                            </Button>
+                        )}
                     </div>
                 </div>
             </>

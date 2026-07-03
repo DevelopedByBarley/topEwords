@@ -255,9 +255,14 @@ class TextAnalysisController extends Controller
 
         if ($dailyLimit !== null) {
             $cacheKey = "text_analysis_daily_{$user->id}_".today()->format('Y-m-d');
-            $dailyCount = Cache::get($cacheKey, 0);
 
-            if ($dailyCount >= $dailyLimit) {
+            // Atomi add+increment, hogy párhuzamos kérések ne mehessenek át
+            // ugyanazon az elavult számláló-értéken (SEC_AUDIT #R6).
+            Cache::add($cacheKey, 0, now()->endOfDay());
+
+            if (Cache::increment($cacheKey) > $dailyLimit) {
+                Cache::decrement($cacheKey);
+
                 $message = $user->currentPlan() === 'premium'
                     ? "Elérted a mai {$dailyLimit} szövegelemzési kereted. Holnap újra elérhető."
                     : "Napi {$dailyLimit} szövegelemzést használhatsz a csomagoddal. Válts magasabb csomagra a több elemzésért.";
@@ -268,8 +273,6 @@ class TextAnalysisController extends Controller
                     'upgrade_url' => route('pricing'),
                 ], 403);
             }
-
-            Cache::put($cacheKey, $dailyCount + 1, now()->endOfDay());
         }
 
         $analysis = $this->buildAnalysis($text, $user);
@@ -578,11 +581,40 @@ class TextAnalysisController extends Controller
     /** Max total uncompressed bytes read from an EPUB before stopping (zip-bomb guard). */
     private const MAX_EPUB_TOTAL_BYTES = 40 * 1024 * 1024;
 
+    /**
+     * Max spine items processed from an EPUB OPF (repeated-decompression CPU
+     * guard). Valódi könyveknél a spine jellemzően < 200 elem.
+     */
+    private const MAX_EPUB_SPINE_ITEMS = 500;
+
     /** Hány elmentett könyve lehet a felhasználónak (csomagtól függően: 1 / 2 / 7). */
     private function bookLimitFor(User $user): int
     {
         // A null korlátlant jelentene, de a books limit minden csomagban numerikus.
         return $user->planLimit('books') ?? PHP_INT_MAX;
+    }
+
+    /**
+     * A könyv-darabszám és tárhely-kapu. A feltöltés elején gyors előszűrésként
+     * fut, majd az insert előtt user-szintű zár alatt újra (#R10).
+     */
+    private function bookLimitError(User $user): ?JsonResponse
+    {
+        $bookLimit = $this->bookLimitFor($user);
+
+        if (UserBook::where('user_id', $user->id)->count() >= $bookLimit) {
+            return response()->json([
+                'error' => "Elérted a könyvek maximális számát ({$bookLimit}). Töröld valamelyiket, vagy válts magasabb csomagra.",
+            ], 403);
+        }
+
+        if (UserBook::where('user_id', $user->id)->sum('text_size') >= self::BOOK_STORAGE_LIMIT) {
+            return response()->json([
+                'error' => 'Elérted a 30 MB-os tárhely limitet. Töröld valamelyik könyvet a feltöltéshez.',
+            ], 403);
+        }
+
+        return null;
     }
 
     public function listBooks(Request $request): JsonResponse
@@ -1249,6 +1281,21 @@ PROMPT;
     }
 
     /**
+     * A felirat-darabszám kapu. A mentés elején gyors előszűrésként fut, majd
+     * az insert előtt user-szintű zár alatt újra (#R10).
+     */
+    private function youtubeLimitError(User $user, int $limit): ?JsonResponse
+    {
+        if (YoutubeTranscript::where('user_id', $user->id)->count() >= $limit) {
+            return response()->json([
+                'error' => "Elérted az elmentett YouTube-feliratok maximális számát ({$limit}). Törölj egyet, vagy válts magasabb csomagra.",
+            ], 403);
+        }
+
+        return null;
+    }
+
+    /**
      * @return array{id: int, title: string, video_id: string, total_pages: int}
      */
     private function transcriptPayload(YoutubeTranscript $t): array
@@ -1289,10 +1336,10 @@ PROMPT;
         $user = $request->user();
         $limit = $this->youtubeLimitFor($user);
 
-        if (YoutubeTranscript::where('user_id', $user->id)->count() >= $limit) {
-            return response()->json([
-                'error' => "Elérted az elmentett YouTube-feliratok maximális számát ({$limit}). Törölj egyet, vagy válts magasabb csomagra.",
-            ], 403);
+        // Gyors előszűrés a felirat-letöltés előtt; a tényleges kapu az insert
+        // körüli zár alatt fut újra (#R10).
+        if ($error = $this->youtubeLimitError($user, $limit)) {
+            return $error;
         }
 
         try {
@@ -1311,14 +1358,26 @@ PROMPT;
         $json = json_encode(array_values($segments), JSON_UNESCAPED_UNICODE) ?: '[]';
         $totalPages = max(1, (int) ceil(count($segments) / YoutubeTranscript::SEGMENTS_PER_PAGE));
 
-        $transcript = YoutubeTranscript::create([
-            'user_id' => $user->id,
-            'video_id' => $videoId,
-            'title' => mb_substr($title, 0, 255),
-            'compressed_segments' => gzencode($json, 6),
-            'total_pages' => $totalPages,
-            'text_size' => mb_strlen($json, '8bit'),
-        ]);
+        // User-szintű zár alatt újraellenőrzött kapu + insert, hogy párhuzamos
+        // kérések ne mehessenek át ugyanazon az elavult darabszámon (#R10).
+        $transcript = Cache::lock("plan-limit:youtube:{$user->id}", 15)->block(10, function () use ($user, $limit, $videoId, $title, $json, $totalPages): YoutubeTranscript|JsonResponse {
+            if ($error = $this->youtubeLimitError($user, $limit)) {
+                return $error;
+            }
+
+            return YoutubeTranscript::create([
+                'user_id' => $user->id,
+                'video_id' => $videoId,
+                'title' => mb_substr($title, 0, 255),
+                'compressed_segments' => gzencode($json, 6),
+                'total_pages' => $totalPages,
+                'text_size' => mb_strlen($json, '8bit'),
+            ]);
+        });
+
+        if ($transcript instanceof JsonResponse) {
+            return $transcript;
+        }
 
         $pageData = $transcript->getPage(1);
 
@@ -1373,20 +1432,11 @@ PROMPT;
         ]);
 
         $user = $request->user();
-        $bookLimit = $this->bookLimitFor($user);
-        $bookCount = UserBook::where('user_id', $user->id)->count();
 
-        if ($bookCount >= $bookLimit) {
-            return response()->json([
-                'error' => "Elérted a könyvek maximális számát ({$bookLimit}). Töröld valamelyiket, vagy válts magasabb csomagra.",
-            ], 403);
-        }
-
-        $usedStorage = UserBook::where('user_id', $user->id)->sum('text_size');
-        if ($usedStorage >= self::BOOK_STORAGE_LIMIT) {
-            return response()->json([
-                'error' => 'Elérted a 30 MB-os tárhely limitet. Töröld valamelyik könyvet a feltöltéshez.',
-            ], 403);
+        // Gyors előszűrés a drága szövegkinyerés előtt; a tényleges kapu az
+        // insert körüli zár alatt fut újra (#R10).
+        if ($error = $this->bookLimitError($user)) {
+            return $error;
         }
 
         $file = $request->file('file');
@@ -1414,14 +1464,27 @@ PROMPT;
         $totalPages = (int) ceil(mb_strlen($text) / UserBook::PAGE_SIZE);
         $compressed = gzencode($text, 6);
 
-        $book = UserBook::create([
-            'user_id' => $user->id,
-            'title' => mb_substr($title, 0, 255),
-            'file_type' => $extension,
-            'compressed_text' => $compressed,
-            'total_pages' => $totalPages,
-            'text_size' => mb_strlen($text, '8bit'),
-        ]);
+        // User-szintű zár alatt újraellenőrzött kapu + insert, hogy párhuzamos
+        // feltöltések ne mehessenek át ugyanazon az elavult darabszámon/tárhely-
+        // összegen (#R10).
+        $book = Cache::lock("plan-limit:books:{$user->id}", 15)->block(10, function () use ($user, $title, $extension, $compressed, $totalPages, $text): UserBook|JsonResponse {
+            if ($error = $this->bookLimitError($user)) {
+                return $error;
+            }
+
+            return UserBook::create([
+                'user_id' => $user->id,
+                'title' => mb_substr($title, 0, 255),
+                'file_type' => $extension,
+                'compressed_text' => $compressed,
+                'total_pages' => $totalPages,
+                'text_size' => mb_strlen($text, '8bit'),
+            ]);
+        });
+
+        if ($book instanceof JsonResponse) {
+            return $book;
+        }
 
         return response()->json([
             'book' => [
@@ -1661,6 +1724,8 @@ PROMPT;
         preg_match_all('/<itemref\s[^>]*idref="([^"]+)"/si', $opfContent, $refs, PREG_SET_ORDER);
 
         $files = [];
+        $seenPaths = [];
+        $processed = 0;
         foreach ($refs as $ref) {
             $id = $ref[1];
 
@@ -1681,6 +1746,19 @@ PROMPT;
 
             $fullPath = $opfDir !== '' ? $opfDir.'/'.$href : $href;
             $fullPath = $this->normalizePath($fullPath);
+
+            // Egy fájlt csak egyszer dolgozunk fel, és a feldolgozott spine-elemek
+            // számát is plafonozzuk — egy preparált OPF ismételt/tömeges idref-jei
+            // különben újra és újra kitömöríttetnék ugyanazt a bejegyzést (CPU-DoS,
+            // SEC_AUDIT #R11).
+            if (isset($seenPaths[$fullPath])) {
+                continue;
+            }
+            $seenPaths[$fullPath] = true;
+
+            if (++$processed > self::MAX_EPUB_SPINE_ITEMS) {
+                break;
+            }
 
             // The manifest media-type is authoritative; some EPUBs (e.g. Calibre
             // splits) name HTML documents without a .html/.xhtml extension.
@@ -1706,7 +1784,8 @@ PROMPT;
             $files[] = $fullPath;
         }
 
-        return array_values(array_unique($files));
+        // A $seenPaths dedup miatt a lista már egyedi.
+        return $files;
     }
 
     /**

@@ -32,11 +32,7 @@ class AppServiceProvider extends ServiceProvider
         $this->configureDefaults();
         $this->assertStripeWebhookSecured();
 
-        Gate::define('admin', function (User $user): bool {
-            $adminEmail = config('app.admin_email');
-
-            return $adminEmail !== null && $user->email === $adminEmail;
-        });
+        Gate::define('admin', fn (User $user): bool => $user->isAdmin());
     }
 
     /**

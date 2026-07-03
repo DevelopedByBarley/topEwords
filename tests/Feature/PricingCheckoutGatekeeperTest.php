@@ -56,6 +56,36 @@ test('success page confirms success once the subscription is active', function (
         ->assertSessionHas('success');
 });
 
+test('a lejárt aláírású success-link nem 403, hanem info üzenettel a pricing oldalra visz', function () {
+    // A Stripe Checkout session 24 óráig él — a lassan fizető felhasználó lejárt
+    // aláírással érkezhet vissza, közvetlenül egy SIKERES fizetés után. Nyers 403
+    // helyett kecses visszairányítást kap.
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->get(URL::temporarySignedRoute('pricing.success', now()->subMinute()))
+        ->assertRedirect(route('pricing'))
+        ->assertSessionHas('info');
+});
+
+test('aláírás nélküli success-hívás sem 403, hanem a pricing oldalra visz', function () {
+    $this->actingAs(User::factory()->create())
+        ->get(route('pricing.success'))
+        ->assertRedirect(route('pricing'))
+        ->assertSessionHas('info');
+});
+
+test('trial is disabled by default', function () {
+    // Üzleti döntés (2026-07): nincs próbaidőszak. A config default 0 —
+    // SUBSCRIPTION_TRIAL_DAYS env nélkül a pricing oldal nem hirdet trialt,
+    // és a checkout sem ad. Env-ből kapcsolható vissza.
+    $this->get(route('pricing'))
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('pricing')
+            ->where('trialDays', 0)
+        );
+});
+
 test('pricing page exposes the configured trial length as a prop', function () {
     // A trial hossz egyetlen forrásból (config) jön — a UI nem hardcode-olja.
     config(['registration.subscription_trial_days' => 9]);
@@ -110,6 +140,8 @@ test('a Stripe oldali hiba a csomagváltáskor nem dől 500-ba, hanem érthető 
     // A Pro-tól eltérő aktuális ár, hogy a "már ez az aktív csomagod" ág ne fogja
     // meg, hanem valóban a swap() fusson (és dobja a Stripe-hibát).
     $subscription->shouldReceive('getAttribute')->with('stripe_price')->andReturn('price_old');
+    // Az Inertia share (isOnAnyTrial) a válasz összeállításakor lekérdezi.
+    $subscription->shouldReceive('onTrial')->andReturnFalse();
     $subscription->shouldReceive('swap')->once()->andThrow(new ApiConnectionException('boom'));
 
     $user = Mockery::mock(User::class)->makePartial();

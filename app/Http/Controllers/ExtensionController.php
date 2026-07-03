@@ -169,9 +169,13 @@ class ExtensionController extends Controller
             return response()->json(['error' => 'duplicate']);
         }
 
-        $custom = $request->user()->customWords()->create($data);
+        // Atomi foglalás közvetlenül az insert előtt — a fenti canWriteFromExtension()
+        // csak gyors előszűrés, párhuzamos kérések ellen ez a tényleges kapu (#R6).
+        if (! $request->user()->reserveExtensionWrite()) {
+            return response()->json(['error' => 'plan'], 403);
+        }
 
-        $request->user()->recordExtensionWrite();
+        $custom = $request->user()->customWords()->create($data);
 
         return response()->json([
             'ok' => true,
@@ -244,6 +248,12 @@ class ExtensionController extends Controller
             return response()->json(['error' => 'limit']);
         }
 
+        // Atomi foglalás közvetlenül az insert előtt — a fenti canWriteFromExtension()
+        // csak gyors előszűrés, párhuzamos kérések ellen ez a tényleges kapu (#R6).
+        if (! $request->user()->reserveExtensionWrite()) {
+            return response()->json(['error' => 'plan'], 403);
+        }
+
         $flashcard = $deck->flashcards()->create([
             'word_id' => $data['word_id'] ?? null,
             'front' => $data['front'],
@@ -255,8 +265,6 @@ class ExtensionController extends Controller
             'back_speak' => $data['back_speak'] ?? null,
             'color' => $data['color'] ?? null,
         ]);
-
-        $request->user()->recordExtensionWrite();
 
         return response()->json([
             'ok' => true,

@@ -191,6 +191,30 @@ test('admin can grant any plan by email', function () {
     expect($target->refresh()->currentPlan())->toBe('free');
 });
 
+test('unverified user with the admin email is not an admin', function () {
+    config(['app.admin_email' => 'admin@example.com']);
+    // Az admin-email önmagában nem elég: megerősítetlen fiókkal (pl. az
+    // admin-emailre való regisztrációval/e-mail-átírással) nem jár admin-jog.
+    $impostor = User::factory()->unverified()->create(['email' => 'admin@example.com']);
+
+    expect($impostor->isAdmin())->toBeFalse();
+
+    $this->actingAs($impostor)
+        ->post(route('admin.access.set'), ['email' => $impostor->email, 'plan' => 'premium'])
+        ->assertRedirect(route('verification.notice'));
+
+    expect($impostor->refresh()->plan_override)->toBeNull();
+});
+
+test('verified admin passes the admin gate', function () {
+    config(['app.admin_email' => 'admin@example.com']);
+    $admin = User::factory()->create(['email' => 'admin@example.com']);
+
+    expect($admin->isAdmin())->toBeTrue();
+
+    $this->actingAs($admin)->get(route('admin'))->assertOk();
+});
+
 test('non-admin cannot grant access', function () {
     config(['app.admin_email' => 'admin@example.com']);
     $user = User::factory()->create();

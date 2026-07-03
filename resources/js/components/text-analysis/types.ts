@@ -1,4 +1,5 @@
 import { BookOpen, FileText, Globe, Youtube } from 'lucide-react';
+import { csrfHeaders } from '@/lib/csrf';
 
 export type InputMode = 'text' | 'youtube' | 'url' | 'book';
 
@@ -149,14 +150,10 @@ export function loadSession(): Partial<{ mode: InputMode; text: string; urlInput
     }
 }
 
-export function getCsrfToken(): string {
-    return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
-}
-
 export async function postJson(path: string, body: object): Promise<{ ok: boolean; data: Record<string, unknown> }> {
     const response = await fetch(path, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': getCsrfToken(), Accept: 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...csrfHeaders(), Accept: 'application/json' },
         body: JSON.stringify(body),
     });
     const data = await response.json();

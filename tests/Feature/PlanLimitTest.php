@@ -68,8 +68,22 @@ test('extension writes follow a shared daily quota, unlimited on Pro', function 
     Cache::put("extension_writes_daily_{$pro->id}_".today()->format('Y-m-d'), 9999, now()->endOfDay());
     expect($pro->canWriteFromExtension())->toBeTrue();
 
-    $pro->recordExtensionWrite();
+    expect($pro->reserveExtensionWrite())->toBeTrue();
     expect($pro->extensionWritesToday())->toBe(9999); // korlátlan → nem növel
+});
+
+test('reserveExtensionWrite atomically consumes the daily quota and refunds at the cap', function () {
+    $free = User::factory()->create();
+    $freeLimit = $free->planLimit('extension_writes_per_day');
+
+    // Egy hellyel a keret alatt: a foglalás átmegy és növeli a számlálót.
+    Cache::put("extension_writes_daily_{$free->id}_".today()->format('Y-m-d'), $freeLimit - 1, now()->endOfDay());
+    expect($free->reserveExtensionWrite())->toBeTrue()
+        ->and($free->extensionWritesToday())->toBe($freeLimit);
+
+    // Betelt keretnél elutasít, és a számláló nem szalad túl (visszaadja a foglalást).
+    expect($free->reserveExtensionWrite())->toBeFalse()
+        ->and($free->extensionWritesToday())->toBe($freeLimit);
 });
 
 test('quiz round size is capped by the plan', function () {

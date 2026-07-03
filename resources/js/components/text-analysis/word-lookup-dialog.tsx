@@ -21,9 +21,9 @@ import {
 } from '@/components/ui/select';
 import {
     EMPTY_CUSTOM_WORD_FORM,
-    getCsrfToken,
     POS_LABELS,
 } from '@/components/text-analysis/types';
+import { csrfHeaders } from '@/lib/csrf';
 import type {
     CustomWordForm,
     LookupResult,
@@ -173,7 +173,7 @@ export default function WordLookupDialog({
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': getCsrfToken(),
+                ...csrfHeaders(),
             },
             body: JSON.stringify({ status: newStatus }),
         });
@@ -194,7 +194,7 @@ export default function WordLookupDialog({
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': getCsrfToken(),
+                    ...csrfHeaders(),
                 },
                 body: JSON.stringify(body),
             });

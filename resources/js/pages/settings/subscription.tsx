@@ -27,6 +27,7 @@ interface Props {
 }
 
 export default function Subscription({
+    hasActiveAccess,
     isSubscribed,
     isPremium,
     isOnTrial,
@@ -214,12 +215,29 @@ export default function Subscription({
                     </div>
                 )}
 
+                {/* Előfizetés nélküli prémium hozzáférés (lifetime / admin-adta) —
+                    fizetnie nem kell és nem is tud, ezért CTA sincs */}
+                {!isSubscribed && !isOnTrial && hasActiveAccess && (
+                    <div className="rounded-xl border border-violet-200 bg-violet-50 p-5 dark:border-violet-800 dark:bg-violet-950/30">
+                        <div className="mb-1 flex items-center gap-2">
+                            <Crown className="size-4 text-violet-600 dark:text-violet-400" />
+                            <p className="font-semibold text-violet-700 dark:text-violet-300">
+                                Prémium hozzáférés
+                            </p>
+                        </div>
+                        <p className="text-sm text-violet-600 dark:text-violet-400">
+                            Prémium hozzáférésed van — előfizetés és fizetés
+                            nélkül, az összes funkcióval.
+                        </p>
+                    </div>
+                )}
+
                 {/* No subscription */}
-                {!isSubscribed && !isOnTrial && (
+                {!isSubscribed && !isOnTrial && !hasActiveAccess && (
                     <div className="rounded-xl border p-5">
                         <p className="mb-1 font-semibold">Alap csomag</p>
                         <p className="mb-4 text-sm text-muted-foreground">
-                            Váltj prémiumra a korlátlan hozzáférésért, vagy alap
+                            Válts prémiumra a korlátlan hozzáférésért, vagy alap
                             csomagra az AI nélküli funkcionalitásért.
                         </p>
                         <Link href={pricing()}>

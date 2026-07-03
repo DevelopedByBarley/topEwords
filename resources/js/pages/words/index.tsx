@@ -216,31 +216,11 @@ export default function WordsIndex({
             return customWords.map((w) => ({ type: 'custom', data: w }));
         }
 
-        const pageFirst = words.data[0]?.word ?? '';
-        const pageLast = words.data[words.data.length - 1]?.word ?? '';
-
-        // When active filters are applied (level, status, importance), the alphabetical
-        // page range doesn't apply to custom words — show all matching custom words.
-        const hasActiveFilter =
-            filters.level !== null ||
-            filters.status !== '' ||
-            filters.importance !== null;
-
+        // The main list is paginated by rank, so pages have no alphabetical
+        // range to slot custom words into. Merge every matching custom word
+        // into the first page — each one shows up exactly once.
         const customForPage =
-            hasActiveFilter || pageFirst === ''
-                ? customWords
-                : customWords.filter((cw) => {
-                      const afterFirst =
-                          cw.word.localeCompare(pageFirst, 'en', {
-                              sensitivity: 'base',
-                          }) >= 0;
-                      const beforeLast =
-                          cw.word.localeCompare(pageLast, 'en', {
-                              sensitivity: 'base',
-                          }) <= 0;
-
-                      return afterFirst && beforeLast;
-                  });
+            words.current_page === 1 ? customWords : [];
 
         return [
             ...customForPage.map(
@@ -254,14 +234,7 @@ export default function WordsIndex({
                 sensitivity: 'base',
             }),
         );
-    }, [
-        customFilter,
-        customWords,
-        words.data,
-        filters.level,
-        filters.status,
-        filters.importance,
-    ]);
+    }, [customFilter, customWords, words.data, words.current_page]);
 
     const STORAGE_KEY = 'words_filters';
 

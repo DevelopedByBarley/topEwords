@@ -2,6 +2,7 @@ import { Head, Link, router } from '@inertiajs/react';
 import { useState } from 'react';
 import { ArrowLeft, BookMarked, CheckCircle2, ChevronRight, Clock, Mic, RefreshCw, RotateCcw, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { csrfHeaders } from '@/lib/csrf';
 import { index as reviewIndex } from '@/routes/review';
 import { complete as reviewComplete } from '@/routes/review';
 import { dashboard } from '@/routes';
@@ -98,10 +99,9 @@ export default function Review({ words, dueCount, dueCounts, intervals }: Props)
 
     async function submitComplete(ids: string[]) {
         if (ids.length === 0) return;
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
         await fetch(reviewComplete().url, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
+            headers: { 'Content-Type': 'application/json', ...csrfHeaders() },
             body: JSON.stringify({ ids }),
         }).catch(() => null);
     }

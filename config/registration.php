@@ -11,6 +11,7 @@ return [
     | Az ELŐFIZETÉSKOR induló Stripe-próbaidő hossza napokban. A regisztráció
     | önmagában nem ad próbaidőt — minden új fiók a free csomagon indul, és
     | csak az előfizetés (kártyamegadás) indít próbaidőt. 0 esetén nincs trial.
+    | Üzleti döntés (2026-07): nincs próbaidőszak — env-ből kapcsolható vissza.
     */
-    'subscription_trial_days' => (int) env('SUBSCRIPTION_TRIAL_DAYS', 7),
+    'subscription_trial_days' => (int) env('SUBSCRIPTION_TRIAL_DAYS', 0),
 ];
