@@ -215,7 +215,73 @@ test('book overview returns whole-book comprehension', function () {
     $this->getJson(route('text-analysis.books.overview', ['book' => $book->id]))
         ->assertOk()
         ->assertJsonStructure(['comprehension', 'totalWords', 'uniqueWords', 'knownCount', 'learningCount'])
+        ->assertJsonPath('knownCount', 10)
+        // Az összesítőbe csak a számok kellenek, a token-térképek nem.
+        ->assertJsonMissingPath('tokenStatuses')
+        ->assertJsonMissingPath('phraseStatuses');
+});
+
+test('book overview is cached so repeated calls skip the full re-analysis', function () {
+    $this->user->knownWords()->attach(Word::where('word', 'dog')->first()->id, ['status' => 'known']);
+
+    $text = str_repeat('the quick dog ', 10);
+    $book = UserBook::create([
+        'user_id' => $this->user->id,
+        'title' => 'Teszt könyv',
+        'file_type' => 'pdf',
+        'compressed_text' => gzencode($text, 6),
+        'total_pages' => 1,
+        'text_size' => strlen($text),
+    ]);
+
+    $this->getJson(route('text-analysis.books.overview', ['book' => $book->id]))
+        ->assertOk()
         ->assertJsonPath('knownCount', 10);
+
+    // Új ismert szó a TTL-en belül: a cache-elt összesítő még a korábbi számokat adja.
+    $this->user->knownWords()->attach(Word::where('word', 'quick')->first()->id, ['status' => 'known']);
+
+    $this->getJson(route('text-analysis.books.overview', ['book' => $book->id]))
+        ->assertOk()
+        ->assertJsonPath('knownCount', 10);
+});
+
+test('book overview caps the analysed text length as a memory guard', function () {
+    $this->user->knownWords()->attach(Word::where('word', 'dog')->first()->id, ['status' => 'known']);
+
+    // 600 000 × "dog " = 2,4 M karakter; a 2 M-es sapka pontosan 500 000 teljes szót enged be.
+    $text = str_repeat('dog ', 600_000);
+    $book = UserBook::create([
+        'user_id' => $this->user->id,
+        'title' => 'Nagy könyv',
+        'file_type' => 'pdf',
+        'compressed_text' => gzencode($text, 6),
+        'total_pages' => 1,
+        'text_size' => strlen($text),
+    ]);
+
+    $this->getJson(route('text-analysis.books.overview', ['book' => $book->id]))
+        ->assertOk()
+        ->assertJsonPath('totalWords', 500_000)
+        ->assertJsonPath('knownCount', 500_000);
+});
+
+test('book overview is throttled', function () {
+    $book = UserBook::create([
+        'user_id' => $this->user->id,
+        'title' => 'Teszt könyv',
+        'file_type' => 'pdf',
+        'compressed_text' => gzencode('the quick dog', 6),
+        'total_pages' => 1,
+        'text_size' => 13,
+    ]);
+
+    for ($i = 0; $i < 10; $i++) {
+        $this->getJson(route('text-analysis.books.overview', ['book' => $book->id]))->assertOk();
+    }
+
+    $this->getJson(route('text-analysis.books.overview', ['book' => $book->id]))
+        ->assertStatus(429);
 });
 
 test('free plan is capped at the configured number of saved youtube transcripts', function () {
@@ -268,6 +334,26 @@ test('fetch-source extracts text from a public page', function () {
     $this->postJson(route('text-analysis.fetch-source'), ['url' => 'http://93.184.216.34/article'])
         ->assertOk()
         ->assertJsonPath('text', fn ($text) => str_contains($text, 'sufficiently long article paragraph'));
+});
+
+test('fetch-source rejects non-text content', function () {
+    Http::fake([
+        'http://93.184.216.34/*' => Http::response('%PDF-1.7 binary payload', 200, ['Content-Type' => 'application/pdf']),
+    ]);
+
+    $this->postJson(route('text-analysis.fetch-source'), ['url' => 'http://93.184.216.34/file.pdf'])
+        ->assertStatus(422)
+        ->assertJsonPath('error', 'A megadott cím nem weboldalra mutat (nem szöveges tartalom).');
+});
+
+test('fetch-source rejects a response body over the size cap', function () {
+    Http::fake([
+        'http://93.184.216.34/*' => Http::response(str_repeat('a', 2 * 1024 * 1024 + 1), 200, ['Content-Type' => 'text/html']),
+    ]);
+
+    $this->postJson(route('text-analysis.fetch-source'), ['url' => 'http://93.184.216.34/huge'])
+        ->assertStatus(422)
+        ->assertJsonPath('error', 'A megadott oldal túl nagy a beolvasáshoz.');
 });
 
 // ── Multi-word custom phrases must not hijack a plain word ────────────────────

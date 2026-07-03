@@ -152,6 +152,52 @@ test('the per-plan book count limit blocks further uploads', function () {
     @unlink($path);
 });
 
+test('a book whose extracted text exceeds the size cap is rejected with 422', function () {
+    $user = User::factory()->create();
+
+    // 3 fejezet, egyenként ~4,2 MB próza: a per-entry (5 MB) és az össz-HTML
+    // (40 MB) sapkák alatt marad, de a kinyert szöveg (~12,6 MB) átlépi a
+    // MAX_BOOK_TEXT_BYTES (10 MB) sapkát — a MEDIUMBLOB-túlcsordulás (500-as)
+    // helyett érthető 422-t kell kapnia.
+    $chapter = '<p>'.str_repeat('This is a sufficiently long sentence of readable prose. ', 75_000).'</p>';
+
+    $path = tempnam(sys_get_temp_dir(), 'epub').'.epub';
+    $zip = new ZipArchive;
+    $zip->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+    $zip->addFromString('META-INF/container.xml', <<<'XML'
+        <?xml version="1.0"?>
+        <container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+          <rootfiles><rootfile full-path="content.opf" media-type="application/oebps-package+xml"/></rootfiles>
+        </container>
+        XML);
+    $zip->addFromString('content.opf', <<<'XML'
+        <?xml version="1.0"?>
+        <package xmlns="http://www.idpf.org/2007/opf" version="3.0">
+          <manifest>
+            <item id="ch1" href="chapter1.xhtml" media-type="application/xhtml+xml"/>
+            <item id="ch2" href="chapter2.xhtml" media-type="application/xhtml+xml"/>
+            <item id="ch3" href="chapter3.xhtml" media-type="application/xhtml+xml"/>
+          </manifest>
+          <spine><itemref idref="ch1"/><itemref idref="ch2"/><itemref idref="ch3"/></spine>
+        </package>
+        XML);
+    foreach ([1, 2, 3] as $i) {
+        $zip->addFromString("chapter{$i}.xhtml", "<html><body>{$chapter}</body></html>");
+    }
+    $zip->close();
+
+    $upload = new UploadedFile($path, 'huge.epub', 'application/epub+zip', null, true);
+
+    $response = $this->actingAs($user)
+        ->post(route('text-analysis.books.store'), ['file' => $upload]);
+
+    $response->assertUnprocessable();
+    $response->assertJsonPath('error', fn (string $error) => str_contains($error, 'túl nagy'));
+    expect(UserBook::where('user_id', $user->id)->count())->toBe(0);
+
+    @unlink($path);
+});
+
 test('an EPUB entry larger than the per-entry cap is skipped (zip-bomb guard)', function () {
     $user = User::factory()->create();
 

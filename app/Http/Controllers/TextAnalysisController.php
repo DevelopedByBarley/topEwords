@@ -15,6 +15,7 @@ use App\Services\YouTubeCaptionService;
 use GuzzleHttp\Psr7\UriResolver;
 use GuzzleHttp\Psr7\Utils;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -199,14 +200,34 @@ class TextAnalysisController extends Controller
     }
 
     /**
+     * Max bytes downloaded by safeFetch. A 15 000 karakteres vágáshoz 2 MB HTML
+     * bőven elegendő; e nélkül egy nagy fájlra mutató URL-lel a worker OOM-ra
+     * futtatható lenne (a teljes válasz memóriába töltődne).
+     */
+    private const MAX_FETCH_BYTES = 2 * 1024 * 1024;
+
+    /**
      * SSRF-safe HTTP GET. Redirects are followed manually so every hop's host
      * is re-validated as public, and each request is pinned to the validated
      * IP (CURLOPT_RESOLVE) so a rebinding DNS answer cannot redirect the
      * connection to an internal address between the check and the connect.
+     * A curl progress-callback menet közben megszakítja a letöltést, ha a
+     * bejelentett vagy a ténylegesen letöltött méret átlépi a MAX_FETCH_BYTES-t.
      */
     private function safeFetch(string $url): \Illuminate\Http\Client\Response
     {
         $maxRedirects = 5;
+        $tooLarge = false;
+
+        $sizeGuard = function ($handle, int $downloadTotal, int $downloaded) use (&$tooLarge): int {
+            if ($downloadTotal > self::MAX_FETCH_BYTES || $downloaded > self::MAX_FETCH_BYTES) {
+                $tooLarge = true;
+
+                return 1;
+            }
+
+            return 0;
+        };
 
         for ($hop = 0; $hop <= $maxRedirects; $hop++) {
             $ip = $this->assertPublicHost($url);
@@ -214,11 +235,23 @@ class TextAnalysisController extends Controller
             $scheme = parse_url($url, PHP_URL_SCHEME) ?: 'http';
             $port = parse_url($url, PHP_URL_PORT) ?: ($scheme === 'https' ? 443 : 80);
 
-            $response = Http::timeout(15)
-                ->withoutRedirecting()
-                ->withHeaders(['User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'])
-                ->withOptions(['curl' => [CURLOPT_RESOLVE => ["{$host}:{$port}:{$ip}"]]])
-                ->get($url);
+            try {
+                $response = Http::timeout(15)
+                    ->withoutRedirecting()
+                    ->withHeaders(['User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'])
+                    ->withOptions(['curl' => [
+                        CURLOPT_RESOLVE => ["{$host}:{$port}:{$ip}"],
+                        CURLOPT_NOPROGRESS => false,
+                        CURLOPT_PROGRESSFUNCTION => $sizeGuard,
+                    ]])
+                    ->get($url);
+            } catch (ConnectionException $e) {
+                if ($tooLarge) {
+                    throw new \RuntimeException('A megadott oldal túl nagy a beolvasáshoz.');
+                }
+
+                throw $e;
+            }
 
             if (! $response->redirect()) {
                 return $response;
@@ -538,7 +571,20 @@ class TextAnalysisController extends Controller
             throw new \RuntimeException('A weboldal nem érhető el (HTTP '.$response->status().').');
         }
 
+        // Csak szöveges tartalom elemezhető — PDF/kép/videó/bináris letöltésének
+        // nincs értelme, és fölöslegesen terhelné a strip_tags/regex láncot.
+        $contentType = strtolower($response->header('Content-Type'));
+
+        if ($contentType !== '' && ! str_contains($contentType, 'text/') && ! str_contains($contentType, 'xml')) {
+            throw new \RuntimeException('A megadott cím nem weboldalra mutat (nem szöveges tartalom).');
+        }
+
         $html = $response->body();
+
+        // Védőháló a curl-szintű sapka mellé (pl. fake-elt HTTP kliens alatt is érvényes).
+        if (strlen($html) > self::MAX_FETCH_BYTES) {
+            throw new \RuntimeException('A megadott oldal túl nagy a beolvasáshoz.');
+        }
 
         // Try to isolate the main article body first
         $html = $this->extractMainContent($html) ?? $html;
@@ -586,6 +632,22 @@ class TextAnalysisController extends Controller
      * guard). Valódi könyveknél a spine jellemzően < 200 elem.
      */
     private const MAX_EPUB_SPINE_ITEMS = 500;
+
+    /**
+     * A kinyert könyvszöveg felső sapkája. A compressed_text oszlop MEDIUMBLOB
+     * (16 MB), és egy erősen tömörített PDF/EPUB több száz MB szöveget is
+     * kibonthat — sapka nélkül ez OOM-ot vagy "Data too long" 500-ast okozna.
+     * Valódi könyvek jóval alatta maradnak (a Háború és béke is ~3 MB).
+     */
+    private const MAX_BOOK_TEXT_BYTES = 10 * 1024 * 1024;
+
+    /** @throws \RuntimeException ha a kinyert szöveg átlépi a MAX_BOOK_TEXT_BYTES sapkát */
+    private function assertBookTextWithinCap(string $text): void
+    {
+        if (strlen($text) > self::MAX_BOOK_TEXT_BYTES) {
+            throw new \RuntimeException('A fájlból kinyert szöveg túl nagy (10 MB felett). Csak kisebb könyveket tudunk feldolgozni.');
+        }
+    }
 
     /** Hány elmentett könyve lehet a felhasználónak (csomagtól függően: 1 / 2 / 7). */
     private function bookLimitFor(User $user): int
@@ -1408,13 +1470,11 @@ PROMPT;
     {
         abort_unless($transcript->user_id === $request->user()->id, 403);
 
-        $fullText = implode(' ', array_map(fn ($s) => $s['x'] ?? '', $transcript->segments()));
-        $analysis = $this->buildAnalysis($fullText, $request->user());
-
-        // A teljes felirat token-státusz térképe nem kell ide, csak az összesített számok.
-        unset($analysis['tokenStatuses']);
-
-        return response()->json($analysis);
+        return response()->json($this->cachedOverview(
+            "ta-overview:yt:{$transcript->id}:u{$request->user()->id}",
+            fn (): string => implode(' ', array_map(fn ($s) => $s['x'] ?? '', $transcript->segments())),
+            $request->user()
+        ));
     }
 
     public function deleteYoutube(Request $request, YoutubeTranscript $transcript): JsonResponse
@@ -1515,12 +1575,51 @@ PROMPT;
     {
         abort_unless($book->user_id === $request->user()->id, 403);
 
-        $fullText = gzdecode($book->compressed_text) ?: '';
-        $analysis = $this->buildAnalysis($fullText, $request->user());
+        return response()->json($this->cachedOverview(
+            "ta-overview:book:{$book->id}:u{$request->user()->id}",
+            fn (): string => gzdecode($book->compressed_text) ?: '',
+            $request->user()
+        ));
+    }
 
-        unset($analysis['tokenStatuses']);
+    /**
+     * A teljes-szöveges elemzés bemeneti sapkája. A 2 M karakter fölötti rész
+     * a megértési %-on statisztikailag már nem változtat, a tokenize() több
+     * milliós token-tömbje viszont OOM-ig vinné a workert (a könyvszöveg-sapka
+     * 10 MB-ot enged be). A legtöbb valódi könyv bőven a sapka alatt marad.
+     */
+    private const MAX_OVERVIEW_CHARS = 2_000_000;
 
-        return response()->json($analysis);
+    /** Az overview-cache TTL-je — a szó-státusz változás legfeljebb ennyit késik az összesítőben. */
+    private const OVERVIEW_CACHE_TTL_MINUTES = 10;
+
+    /**
+     * A teljes könyv/felirat buildAnalysis-e a modul legdrágább művelete, ezért
+     * az eredmény rövid TTL-lel cache-elődik (a mögöttes szöveg immutábilis, csak
+     * a user szó-státuszai változhatnak). A szövegkinyerés closure-ként jön, hogy
+     * cache-találatnál a gzdecode/összefűzés se fusson le.
+     *
+     * @param  \Closure(): string  $resolveText
+     * @return array<string, mixed>
+     */
+    private function cachedOverview(string $cacheKey, \Closure $resolveText, User $user): array
+    {
+        return Cache::remember(
+            $cacheKey,
+            now()->addMinutes(self::OVERVIEW_CACHE_TTL_MINUTES),
+            function () use ($resolveText, $user): array {
+                $analysis = $this->buildAnalysis(
+                    mb_substr($resolveText(), 0, self::MAX_OVERVIEW_CHARS),
+                    $user
+                );
+
+                // Az összesítőbe csak a számok kellenek, a (nagy szövegnél óriási)
+                // token- és kifejezés-státusz térképek nem.
+                unset($analysis['tokenStatuses'], $analysis['phraseStatuses']);
+
+                return $analysis;
+            }
+        );
     }
 
     public function deleteBook(Request $request, UserBook $book): JsonResponse
@@ -1536,6 +1635,10 @@ PROMPT;
         $parser = new PdfParser;
         $pdf = $parser->parseFile($path);
         $raw = $pdf->getText();
+
+        // Még a tisztítás előtt, hogy egy kibontott óriás-szöveg ne járja végig
+        // a soronkénti feldolgozást (memória-védelem).
+        $this->assertBookTextWithinCap($raw);
 
         return $this->cleanExtractedText($raw);
     }
@@ -1586,7 +1689,10 @@ PROMPT;
 
         $zip->close();
 
-        return implode("\n\n", $parts);
+        $text = implode("\n\n", $parts);
+        $this->assertBookTextWithinCap($text);
+
+        return $text;
     }
 
     /**

@@ -10,8 +10,8 @@ Route::middleware(['auth', 'verified', EnsureOnboardingComplete::class])->group(
     // YouTube-feliratok (külön rendszer, időbélyeges sorokkal)
     Route::get('text-analysis/youtube', [TextAnalysisController::class, 'listYoutube'])->name('text-analysis.youtube.index');
     Route::post('text-analysis/youtube', [TextAnalysisController::class, 'storeYoutube'])->name('text-analysis.youtube.store')->middleware('throttle:10,1,ta-yt');
-    Route::get('text-analysis/youtube/{transcript}/page', [TextAnalysisController::class, 'getYoutubePage'])->name('text-analysis.youtube.page');
-    Route::get('text-analysis/youtube/{transcript}/overview', [TextAnalysisController::class, 'youtubeOverview'])->name('text-analysis.youtube.overview');
+    Route::get('text-analysis/youtube/{transcript}/page', [TextAnalysisController::class, 'getYoutubePage'])->name('text-analysis.youtube.page')->middleware('throttle:60,1,ta-page');
+    Route::get('text-analysis/youtube/{transcript}/overview', [TextAnalysisController::class, 'youtubeOverview'])->name('text-analysis.youtube.overview')->middleware('throttle:10,1,ta-overview');
     Route::delete('text-analysis/youtube/{transcript}', [TextAnalysisController::class, 'deleteYoutube'])->name('text-analysis.youtube.destroy');
     Route::post('text-analysis/analyze', [TextAnalysisController::class, 'analyze'])->name('text-analysis.analyze')->middleware('throttle:30,1,ta-analyze');
     Route::get('text-analysis/word-lookup', [TextAnalysisController::class, 'wordLookup'])->name('text-analysis.word-lookup');
@@ -23,7 +23,7 @@ Route::middleware(['auth', 'verified', EnsureOnboardingComplete::class])->group(
     // Könyvek (EPUB/PDF feltöltés és olvasás)
     Route::get('text-analysis/books', [TextAnalysisController::class, 'listBooks'])->name('text-analysis.books.index');
     Route::post('text-analysis/books', [TextAnalysisController::class, 'uploadBook'])->name('text-analysis.books.store')->middleware('throttle:10,1,ta-books');
-    Route::get('text-analysis/books/{book}/page', [TextAnalysisController::class, 'getBookPage'])->name('text-analysis.books.page');
-    Route::get('text-analysis/books/{book}/overview', [TextAnalysisController::class, 'bookOverview'])->name('text-analysis.books.overview');
+    Route::get('text-analysis/books/{book}/page', [TextAnalysisController::class, 'getBookPage'])->name('text-analysis.books.page')->middleware('throttle:60,1,ta-page');
+    Route::get('text-analysis/books/{book}/overview', [TextAnalysisController::class, 'bookOverview'])->name('text-analysis.books.overview')->middleware('throttle:10,1,ta-overview');
     Route::delete('text-analysis/books/{book}', [TextAnalysisController::class, 'deleteBook'])->name('text-analysis.books.destroy');
 });
