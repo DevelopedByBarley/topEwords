@@ -173,6 +173,17 @@ class User extends Authenticatable implements MustVerifyEmail
         return ! $this->hasActiveAccess();
     }
 
+    /**
+     * A próbaidő csak az első előfizetéshez jár. A Cashier előfizetés-rekord a
+     * lemondás után is megmarad, így a megléte jelzi a korábbi előfizetést —
+     * lemondás + újra-előfizetés ismételgetésével ezért nem szerezhető
+     * korlátlan ingyenes próbaidő.
+     */
+    public function isEligibleForSubscriptionTrial(): bool
+    {
+        return ! $this->subscriptions()->exists();
+    }
+
     public function hasBillingDetails(): bool
     {
         return filled($this->billing_name)

@@ -25,8 +25,6 @@ interface Props {
     isOnTrial: boolean;
     trialEndsAt: string | null;
     isSubscribed: boolean;
-    isPremium: boolean;
-    hasAiAccess: boolean;
     stripeConfigured: boolean;
     trialDays: number;
 }
@@ -63,7 +61,7 @@ const FREE_FEATURES: PlanFeature[] = [
     { value: '50', label: 'tanulókártya, 5 csomagban', info: INFO.flashcards },
     { value: '10', label: 'kérdés egy kvízkörben', info: INFO.quiz },
     {
-        value: '5',
+        value: '10',
         label: 'szó a szókiegészítős gyakorlatban',
         info: INFO.cloze,
     },
@@ -71,35 +69,31 @@ const FREE_FEATURES: PlanFeature[] = [
     { value: '1', label: 'mentett könyv, 3 YouTube-felirat' },
     { label: 'Fejlődés- és napi sorozatkövetés', info: INFO.streak },
     { label: 'Chrome-bővítmény: szókeresés és YouTube-feliratok' },
+    {
+        value: '20',
+        label: 'mentés naponta a Chrome-bővítményből',
+        info: INFO.extensionSave,
+    },
+    {
+        label: 'AI-kóstoló',
+        info: 'Egy kis havi AI-keret, amivel kipróbálhatod az AI-funkciókat – a Pro csomagban jóval nagyobb kerettel használhatod őket.',
+    },
 ];
 
-const BASIC_FEATURES: PlanFeature[] = [
+// A Pro csomag (nem-AI) többlete az Ingyeneshez képest…
+const PRO_FEATURES: PlanFeature[] = [
     { heading: true, label: 'Minden az Ingyenesből, plusz:' },
-    {
-        value: '2 000',
-        label: 'tanulókártya, 50 csomagban',
-        info: INFO.flashcards,
-    },
-    { value: '100', label: 'kérdés egy kvízkörben', info: INFO.quiz },
-    {
-        value: '100',
-        label: 'szó a szókiegészítős gyakorlatban',
-        info: INFO.cloze,
-    },
-    { value: '20', label: 'szövegelemzés naponta', info: INFO.textAnalysis },
-    { value: '2', label: 'mentett könyv, 15 YouTube-felirat' },
-    { label: 'Mentés a Chrome-bővítményből', info: INFO.extensionSave },
-];
-
-// A prémium csomag saját (nem-AI) többlete a Standardhoz képest…
-const PREMIUM_EXTRA: PlanFeature[] = [
-    { heading: true, label: 'Minden a Standardból, plusz:' },
     { value: 'Korlátlan', label: 'tanulókártya, csomag, kvíz és gyakorlat' },
-    { value: '50', label: 'szövegelemzés naponta' },
+    { value: '50', label: 'szövegelemzés naponta', info: INFO.textAnalysis },
     { value: '7', label: 'mentett könyv, 40 YouTube-felirat' },
+    {
+        value: 'Korlátlan',
+        label: 'mentés a Chrome-bővítményből',
+        info: INFO.extensionSave,
+    },
 ];
 
-// …és az öt AI-funkció (ezeket külön kiemeljük a kártyán).
+// …és az öt AI-funkció (ezeket külön kiemeljük a kártyán, teljes kerettel).
 const AI_FEATURES: PlanFeature[] = [
     {
         label: 'Az AI megkeresi és elmagyarázza a szavak jelentését',
@@ -182,10 +176,10 @@ function FeatureRow({
 }
 
 export default function Pricing({
+    hasActiveAccess,
     isOnTrial,
     trialEndsAt,
     isSubscribed,
-    isPremium,
     stripeConfigured,
     trialDays,
 }: Props) {
@@ -195,19 +189,20 @@ export default function Pricing({
     }>().props;
     const isLoggedIn = !!auth?.user;
 
+    // A "most" időpontot state-inicializálóban rögzítjük, mert a render tiszta
+    // függvény kell legyen (react-hooks/purity) — betöltésenként úgyis frissül.
+    const [now] = useState(() => Date.now());
     const trialDaysLeft = trialEndsAt
         ? Math.max(
               0,
-              Math.ceil(
-                  (new Date(trialEndsAt).getTime() - Date.now()) / 86400000,
-              ),
+              Math.ceil((new Date(trialEndsAt).getTime() - now) / 86400000),
           )
         : 0;
 
     const [consent, setConsent] = useState(false);
     const [consentError, setConsentError] = useState(false);
 
-    function handleCheckout(plan: 'basic' | 'premium') {
+    function handleCheckout() {
         if (!isLoggedIn) {
             router.visit(register());
 
@@ -220,7 +215,7 @@ export default function Pricing({
             return;
         }
 
-        router.post(checkout({ plan }).url, { accept_terms: true });
+        router.post(checkout({ plan: 'premium' }).url, { accept_terms: true });
     }
 
     function handlePortal() {
@@ -233,7 +228,7 @@ export default function Pricing({
                 <meta
                     head-key="description"
                     name="description"
-                    content="TopWords árazási csomagok – alap és prémium (AI) csomag."
+                    content="TopWords árazás – Ingyenes és Pro (AI) csomag."
                 />
             </Head>
 
@@ -308,8 +303,9 @@ export default function Pricing({
                             </h1>
                             {stripeConfigured ? (
                                 <p className="text-muted-foreground">
-                                    Az első {trialDays} nap ingyenes, az
-                                    előfizetés bármikor lemondható.
+                                    {trialDays > 0
+                                        ? `Az első ${trialDays} nap ingyenes, az előfizetés bármikor lemondható.`
+                                        : 'Az előfizetés bármikor lemondható.'}
                                 </p>
                             ) : (
                                 <p className="text-muted-foreground">
@@ -352,21 +348,17 @@ export default function Pricing({
                                             <strong>
                                                 {trialDaysLeft} napig
                                             </strong>{' '}
-                                            tart – élvezd{' '}
-                                            {isPremium
-                                                ? 'a prémium funkciókat'
-                                                : 'a választott csomagod funkcióit'}
-                                            !
+                                            tart – élvezd a Pro funkciókat!
                                         </p>
                                     </div>
                                 )}
 
-                                {isPremium && (
+                                {isSubscribed && (
                                     <div className="mb-8 rounded-xl border border-violet-200 bg-violet-50 px-6 py-4 text-center dark:border-violet-800 dark:bg-violet-950">
                                         <p className="mb-2 text-sm font-medium text-violet-700 dark:text-violet-300">
                                             <Crown className="mr-1.5 inline size-4" />
-                                            Aktív prémium előfizetésed van – AI
-                                            funkciók elérhetők.
+                                            Aktív Pro előfizetésed van – minden
+                                            funkció elérhető.
                                         </p>
                                         <button
                                             onClick={handlePortal}
@@ -377,23 +369,8 @@ export default function Pricing({
                                     </div>
                                 )}
 
-                                {isSubscribed && !isPremium && (
-                                    <div className="mb-8 rounded-xl border border-green-200 bg-green-50 px-6 py-4 text-center dark:border-green-800 dark:bg-green-950">
-                                        <p className="mb-2 text-sm font-medium text-green-700 dark:text-green-300">
-                                            <Check className="mr-1.5 inline size-4" />
-                                            Aktív alap előfizetésed van.
-                                        </p>
-                                        <button
-                                            onClick={handlePortal}
-                                            className="text-xs text-green-600 underline hover:text-green-800 dark:text-green-400"
-                                        >
-                                            Előfizetés kezelése →
-                                        </button>
-                                    </div>
-                                )}
-
                                 {/* Pricing cards */}
-                                <div className="grid gap-6 md:grid-cols-3">
+                                <div className="mx-auto grid max-w-3xl gap-6 md:grid-cols-2">
                                     {/* Free */}
                                     <div className="flex flex-col rounded-2xl border bg-card p-6">
                                         <div className="mb-4">
@@ -438,81 +415,29 @@ export default function Pricing({
                                         )}
                                     </div>
 
-                                    {/* Basic */}
-                                    <div className="relative flex flex-col rounded-2xl border-2 border-primary bg-card p-6">
+                                    {/* Pro */}
+                                    <div className="relative flex flex-col rounded-2xl border-2 border-violet-400 bg-card p-6 dark:border-violet-600">
                                         <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                                            <span className="rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground">
+                                            <span className="rounded-full bg-linear-to-br from-violet-500 to-violet-400 px-3 py-1 text-xs font-semibold whitespace-nowrap text-white">
                                                 Legnépszerűbb
                                             </span>
                                         </div>
                                         <div className="mb-4">
-                                            <p className="text-sm font-medium text-muted-foreground">
-                                                Standard
-                                            </p>
-                                            <p className="mt-1 text-3xl font-bold">
-                                                1 490 Ft
-                                            </p>
-                                            <p className="mt-1 text-xs text-muted-foreground">
-                                                / hónap · ~4 €
-                                            </p>
-                                        </div>
-                                        <ul className="mb-6 flex-1 space-y-2.5">
-                                            {BASIC_FEATURES.map((f) => (
-                                                <FeatureRow
-                                                    key={f.label}
-                                                    feature={f}
-                                                    checkClass="text-primary"
-                                                    valueClass="text-primary"
-                                                />
-                                            ))}
-                                        </ul>
-                                        {isSubscribed && !isPremium ? (
-                                            <Button
-                                                className="w-full"
-                                                onClick={handlePortal}
-                                            >
-                                                Előfizetés kezelése
-                                            </Button>
-                                        ) : (
-                                            <Button
-                                                className="w-full"
-                                                onClick={() =>
-                                                    handleCheckout('basic')
-                                                }
-                                                disabled={
-                                                    !stripeConfigured ||
-                                                    isPremium
-                                                }
-                                            >
-                                                {!stripeConfigured
-                                                    ? 'Hamarosan elérhető'
-                                                    : isPremium
-                                                      ? 'Prémium előfizető'
-                                                      : isLoggedIn
-                                                        ? 'Előfizetek'
-                                                        : 'Regisztrálok'}
-                                            </Button>
-                                        )}
-                                    </div>
-
-                                    {/* Premium */}
-                                    <div className="flex flex-col rounded-2xl border-2 border-violet-400 bg-card p-6 dark:border-violet-600">
-                                        <div className="mb-4">
                                             <div className="flex items-center gap-1.5">
                                                 <p className="text-sm font-medium text-muted-foreground">
-                                                    Prémium
+                                                    Pro
                                                 </p>
                                                 <Sparkles className="size-3.5 text-violet-500" />
                                             </div>
                                             <p className="mt-1 text-3xl font-bold">
-                                                2 490 Ft
+                                                1 990 Ft
                                             </p>
                                             <p className="mt-1 text-xs text-muted-foreground">
-                                                / hónap · ~6 €
+                                                / hónap · ~5 €
                                             </p>
                                         </div>
                                         <ul className="mb-6 flex-1 space-y-2.5">
-                                            {PREMIUM_EXTRA.map((f) => (
+                                            {PRO_FEATURES.map((f) => (
                                                 <FeatureRow
                                                     key={f.label}
                                                     feature={f}
@@ -523,7 +448,7 @@ export default function Pricing({
 
                                             <li className="flex items-center gap-1.5 pt-2 text-xs font-semibold tracking-wide text-violet-600 uppercase dark:text-violet-400">
                                                 <Sparkles className="size-3.5" />
-                                                AI-funkciók
+                                                Teljes AI-eszköztár
                                             </li>
                                             {AI_FEATURES.map((f) => (
                                                 <FeatureRow
@@ -535,7 +460,7 @@ export default function Pricing({
                                                 />
                                             ))}
                                         </ul>
-                                        {isPremium ? (
+                                        {isSubscribed ? (
                                             <Button
                                                 variant="outline"
                                                 className="w-full border-violet-300 dark:border-violet-700"
@@ -543,18 +468,20 @@ export default function Pricing({
                                             >
                                                 Előfizetés kezelése
                                             </Button>
+                                        ) : hasActiveAccess ? (
+                                            <Button className="w-full" disabled>
+                                                Már aktív hozzáférésed van
+                                            </Button>
                                         ) : (
                                             <Button
-                                                className="w-full bg-gradient-to-br from-violet-500 to-violet-400 text-white hover:bg-violet-700"
-                                                onClick={() =>
-                                                    handleCheckout('premium')
-                                                }
+                                                className="w-full bg-linear-to-br from-violet-500 to-violet-400 text-white hover:bg-violet-700"
+                                                onClick={handleCheckout}
                                                 disabled={!stripeConfigured}
                                             >
                                                 {!stripeConfigured
                                                     ? 'Hamarosan elérhető'
                                                     : isLoggedIn
-                                                      ? 'Prémiumra váltok'
+                                                      ? 'Előfizetek'
                                                       : 'Regisztrálok'}
                                             </Button>
                                         )}
@@ -567,7 +494,7 @@ export default function Pricing({
                                         <p className="text-center text-xs text-muted-foreground">
                                             A feltüntetett árak bruttó árak (az
                                             ÁFÁ-t tartalmazzák). A terhelés
-                                            euróban történik.
+                                            forintban történik.
                                         </p>
                                         <label
                                             className={`flex cursor-pointer items-start gap-3 rounded-xl border px-4 py-3 text-left text-xs transition-colors ${
@@ -640,7 +567,10 @@ export default function Pricing({
                                         {[
                                             {
                                                 q: 'Mikor kezdődik a számlázás?',
-                                                a: `A ${trialDays} napos próbaidőszak után, ha úgy döntesz hogy fizetsz.`,
+                                                a:
+                                                    trialDays > 0
+                                                        ? `A ${trialDays} napos próbaidőszak után, ha úgy döntesz hogy fizetsz.`
+                                                        : 'Az előfizetés indításakor, utána pedig havonta.',
                                             },
                                             {
                                                 q: 'Bármikor lemondhatom?',
@@ -648,7 +578,7 @@ export default function Pricing({
                                             },
                                             {
                                                 q: 'Mi történik a szavaimmal lemondás után?',
-                                                a: 'Minden adatod megmarad, csak a prémium funkciókhoz való hozzáférés szűnik meg.',
+                                                a: 'Minden adatod megmarad, csak a Pro funkciókhoz való hozzáférés szűnik meg.',
                                             },
                                             {
                                                 q: 'Biztonságos a fizetés?',

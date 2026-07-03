@@ -15,6 +15,8 @@ return [
     | kap egy kis kóstolót, a Pro a teljes keretet. Admin = korlátlan (User).
     | `extension_writes_per_day`: a bővítményből indított írások (státusz + egyéni
     | szó + flashcard) KÖZÖS napi számlálója; állítható itt, Pro = korlátlan.
+
+    1 000 000 mikro = 1 USD
     */
     'limits' => [
         'free' => [
@@ -26,7 +28,7 @@ return [
             'books' => 1,
             'youtube_transcripts' => 3,
             'extension_writes_per_day' => 20,
-            'ai_budget_micros' => 50000,
+            'ai_budget_micros' => 4000,
         ],
         'premium' => [
             'flashcards' => null,

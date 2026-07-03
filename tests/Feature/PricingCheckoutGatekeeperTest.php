@@ -127,6 +127,48 @@ test('a Stripe oldali hiba a csomagváltáskor nem dől 500-ba, hanem érthető 
         ->assertSessionHas('error');
 });
 
+test('a trial csak az első előfizetéshez jár — korábbi előfizetés után már nem', function () {
+    // #R3: a Cashier előfizetés-rekord lemondás után is megmarad, így a megléte
+    // jelzi a korábbi előfizetést. Enélkül lemondás + újra-checkout ismételgetésével
+    // korlátlan ingyenes próbaidő lenne szerezhető.
+    $user = User::factory()->create();
+
+    expect($user->isEligibleForSubscriptionTrial())->toBeTrue();
+
+    $user->subscriptions()->create([
+        'type' => 'premium',
+        'stripe_id' => 'sub_'.uniqid(),
+        'stripe_status' => 'canceled',
+        'stripe_price' => 'price_pro',
+        'quantity' => 1,
+        'ends_at' => now()->subDay(),
+    ]);
+
+    expect($user->fresh()->isEligibleForSubscriptionTrial())->toBeFalse();
+});
+
+test('a pricing oldal nem hirdet próbaidőt a korábban már előfizetett felhasználónak', function () {
+    // A checkout már nem adna trialt (#R3), így a UI se ígérjen — a trialDays prop 0.
+    config(['registration.subscription_trial_days' => 7]);
+
+    $user = User::factory()->create();
+    $user->subscriptions()->create([
+        'type' => 'premium',
+        'stripe_id' => 'sub_'.uniqid(),
+        'stripe_status' => 'canceled',
+        'stripe_price' => 'price_pro',
+        'quantity' => 1,
+        'ends_at' => now()->subDay(),
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('pricing'))
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('pricing')
+            ->where('trialDays', 0)
+        );
+});
+
 test('hasBillingDetails returns false when details are missing', function () {
     $user = User::factory()->create();
 

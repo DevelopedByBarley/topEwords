@@ -25,15 +25,20 @@ class PricingController extends Controller
             return redirect()->route('pricing')->with('info', 'A fizetést megszakítottad – nem történt levonás. Bármikor visszatérhetsz.');
         }
 
+        // A trial csak az első előfizetéshez jár — a visszatérő (korábban már
+        // előfizetett) felhasználónak 0-t adunk, hogy a UI ne hirdessen olyan
+        // próbaidőt, amit a checkout már nem adna meg.
+        $trialDays = ($user?->isEligibleForSubscriptionTrial() ?? true)
+            ? (int) config('registration.subscription_trial_days')
+            : 0;
+
         return Inertia::render('pricing', [
             'hasActiveAccess' => $user?->hasActiveAccess() ?? false,
             'isOnTrial' => $user?->onTrial() ?? false,
             'trialEndsAt' => $user?->trial_ends_at?->toIso8601String(),
             'isSubscribed' => $user?->activeSubscription() !== null,
-            'isPremium' => $user?->subscriptionPlan() === 'premium',
-            'hasAiAccess' => $user?->hasAiAccess() ?? false,
             'stripeConfigured' => Billing::enabled(),
-            'trialDays' => (int) config('registration.subscription_trial_days'),
+            'trialDays' => $trialDays,
         ]);
     }
 
@@ -102,9 +107,11 @@ class PricingController extends Controller
 
         // Első előfizetéskor próbaidő: a kártyát elkérik, de csak a trial végén
         // számláznak. A trial alatt a felhasználó a választott fizetett csomagot kapja.
+        // Csak az első előfizetéshez jár (isEligibleForSubscriptionTrial) — különben
+        // lemondás + újra-előfizetés ismételgetésével korlátlan ingyen Pro szerezhető.
         $trialDays = (int) config('registration.subscription_trial_days');
 
-        if ($trialDays > 0) {
+        if ($trialDays > 0 && $user->isEligibleForSubscriptionTrial()) {
             // A Stripe Checkout minimum 48 óra (2 nap) próbaidőt enged — kisebb beállított
             // értéket felkerekítünk, különben a Checkout session létrehozása hibára futna.
             $subscriptionBuilder->trialDays(max(2, $trialDays));

@@ -17,6 +17,9 @@
 .phpactor.json
 .phpunit.result.cache
 .claude
+claude
+SEC_AUDIT.md
+todo
 Homestead.json
 Homestead.yaml
 npm-debug.log
