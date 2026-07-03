@@ -346,8 +346,15 @@ function renderBody(data) {
 
     const body = shadow.querySelector('.body');
 
-    if (!data || data.error === 'unauthenticated' || data.error === 'network') {
-        body.innerHTML = `<span class="msg">${data?.error === 'network' ? 'Nincs kapcsolat a TopWords-szel.' : 'Jelentkezz be a TopWords-be a szókereséshez.'}</span>`;
+    // Bármilyen hiba (429 throttle, lejárt session, szerverhiba…) itt áll meg —
+    // korábban a not-found ágba esett, és „«undefined» nincs az adatbázisban"
+    // jelent meg, felkínálva a duplikált saját-szó felvételét.
+    if (!data || data.error) {
+        const msg =
+            data?.error === 'unauthenticated'
+                ? 'Jelentkezz be a TopWords-be a szókereséshez.'
+                : extErrorMessage(data?.error, 'Hiba történt — próbáld újra.');
+        body.innerHTML = `<span class="msg">${msg}</span>`;
 
         return;
     }
@@ -560,7 +567,10 @@ function handleStatusClick(btn, data) {
             if (body) {
                 const err = document.createElement('span');
                 err.className = 'error-feedback';
-                err.textContent = 'Nem sikerült menteni — próbáld újra.';
+                err.textContent = extErrorMessage(
+                    resp?.error,
+                    'Nem sikerült menteni — próbáld újra.',
+                );
                 body.prepend(err);
             }
         },

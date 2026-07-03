@@ -219,8 +219,12 @@ function renderSearchResults(results, error) {
     detail.classList.remove('visible');
     detail.innerHTML = '';
 
-    if (error === 'unauthenticated' || error === 'network') {
-        container.innerHTML = `<div id="empty">${error === 'network' ? 'Nincs kapcsolat a TopWords-szel.' : 'Jelentkezz be a TopWords-be a kereséshez.'}</div>`;
+    if (error) {
+        const msg =
+            error === 'unauthenticated'
+                ? 'Jelentkezz be a TopWords-be a kereséshez.'
+                : extErrorMessage(error, 'Hiba történt — próbáld újra.');
+        container.innerHTML = `<div id="empty">${msg}</div>`;
 
         return;
     }
@@ -502,6 +506,23 @@ function showSearchDetail(data) {
                             return;
                         }
 
+                        // Korábban némán elnyelődött (pl. 429 throttle) — a gomb
+                        // visszaállt, de a user semmilyen visszajelzést nem kapott.
+                        if (!resp || resp.error) {
+                            const fb = detail.querySelector('#add-feedback');
+
+                            if (fb) {
+                                fb.textContent = extErrorMessage(
+                                    resp?.error,
+                                    'Az AI-kitöltés nem sikerült — próbáld újra.',
+                                );
+                                fb.style.color = '#f97316';
+                                fb.style.display = 'block';
+                            }
+
+                            return;
+                        }
+
                         // Az AI nem létező szónak ítélte (gibberish / elgépelés): jelezzük.
                         if (resp.is_real_word === false) {
                             const fb = detail.querySelector('#add-feedback');
@@ -514,10 +535,6 @@ function showSearchDetail(data) {
                                 fb.style.display = 'block';
                             }
 
-                            return;
-                        }
-
-                        if (!resp || resp.error) {
                             return;
                         }
 
@@ -677,7 +694,10 @@ function showSearchDetail(data) {
                 } else {
                     btn.disabled = false;
                     btn.textContent = 'Hozzáadás';
-                    fb.textContent = 'Nem sikerült menteni — próbáld újra.';
+                    fb.textContent = extErrorMessage(
+                        resp?.error,
+                        'Nem sikerült menteni — próbáld újra.',
+                    );
                     fb.style.color = '#ef4444';
                     fb.style.display = 'block';
                 }

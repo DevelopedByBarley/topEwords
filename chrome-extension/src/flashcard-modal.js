@@ -189,7 +189,10 @@ function wireFlashcardForm(root, data, csrf, onBack) {
                 if (!resp || resp.error || (!resp.front && !resp.back)) {
                     showFcFeedback(
                         feedback,
-                        'Az AI nem tudott kártyát készíteni.',
+                        extErrorMessage(
+                            resp?.error,
+                            'Az AI nem tudott kártyát készíteni.',
+                        ),
                         '#ef4444',
                     );
 
@@ -281,7 +284,10 @@ function wireFlashcardForm(root, data, csrf, onBack) {
                 saveBtn.textContent = 'Mentés';
                 showFcFeedback(
                     feedback,
-                    'Nem sikerült menteni — próbáld újra.',
+                    extErrorMessage(
+                        resp?.error,
+                        'Nem sikerült menteni — próbáld újra.',
+                    ),
                     '#ef4444',
                 );
             }
@@ -365,8 +371,12 @@ function openFlashcardModal(data, csrf) {
         }
 
         if (!resp || resp.error) {
-            body.innerHTML =
-                '<div class="fc-empty">Nem sikerült betölteni a paklikat.</div>';
+            body.innerHTML = `<div class="fc-empty">${esc(
+                extErrorMessage(
+                    resp?.error,
+                    'Nem sikerült betölteni a paklikat.',
+                ),
+            )}</div>`;
 
             return;
         }

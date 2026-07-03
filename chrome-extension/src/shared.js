@@ -90,6 +90,21 @@ function storageSet(values) {
     }
 }
 
+// A háttér fetchJson-je a HTTP-hibákat tipizált kódokká alakítja (network /
+// unauthenticated / csrf / rate_limit / server); itt kapnak egységes magyar
+// üzenetet. A fallback a hívóhely kontextus-specifikus szövege az ismeretlen
+// (vagy végpont-specifikus) hibakódokra.
+function extErrorMessage(error, fallback) {
+    const messages = {
+        network: 'Nincs kapcsolat a TopWords-szel.',
+        unauthenticated: 'Jelentkezz be a TopWords-be.',
+        csrf: 'A munkameneted lejárt — jelentkezz be újra a TopWords-be.',
+        rate_limit: 'Túl sok kérés — várj egy kicsit, és próbáld újra.',
+    };
+
+    return messages[error] ?? fallback;
+}
+
 function sendMsg(msg, callback) {
     try {
         chrome.runtime.sendMessage(msg, (response) => {

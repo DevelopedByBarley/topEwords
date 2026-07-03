@@ -385,7 +385,8 @@ function startYtObserver() {
 
 /**
  * A szó→státusz térképet egyszer kéri le és cache-eli; a sáv és az oldalsáv is ezt hívja.
- * A callback megkapja az esetleges hibát ('network' | 'unauthenticated' | null).
+ * A callback megkapja az esetleges hibát ('network' | 'unauthenticated' | 'rate_limit' |
+ * 'server' | 'cooldown' | null).
  */
 function ensureYtStatusMap(callback) {
     if (ytStatusMap) {
@@ -547,9 +548,12 @@ function reconcileYtLyrics() {
             // Bejelentkezés/kapcsolat hiányában nem rejtjük el a natív feliratot —
             // a felhasználó látja az okát, és megmaradnak a normál feliratai.
             showYtBarNotice(
-                error === 'network'
-                    ? 'Nincs kapcsolat a TopWords-szel.'
-                    : 'Jelentkezz be a TopWords-be a szókiemeléshez.',
+                error === 'unauthenticated'
+                    ? 'Jelentkezz be a TopWords-be a szókiemeléshez.'
+                    : extErrorMessage(
+                          error,
+                          'Nem sikerült betölteni a szavaidat — próbáld újra később.',
+                      ),
             );
 
             return;
@@ -855,8 +859,20 @@ function enableYtPanel() {
                 return;
             }
 
-            if (!resp || resp.error === 'network') {
-                setYtPanelMessage('Nincs kapcsolat a TopWords-szel.');
+            // Kapcsolat-/kiszolgáló-jellegű hibák nem jelenthetik azt, hogy „nincs
+            // átirat” — külön üzenetet kapnak, hogy a user tudja: érdemes újrapróbálni.
+            if (
+                !resp ||
+                resp.error === 'network' ||
+                resp.error === 'rate_limit' ||
+                resp.error === 'server'
+            ) {
+                setYtPanelMessage(
+                    extErrorMessage(
+                        resp?.error ?? 'network',
+                        'Nem sikerült betölteni az átiratot — próbáld újra.',
+                    ),
+                );
 
                 return;
             }

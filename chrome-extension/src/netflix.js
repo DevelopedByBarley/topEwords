@@ -347,9 +347,12 @@ function reconcileNfxLyrics() {
             }
 
             showNfxBarNotice(
-                error === 'network'
-                    ? 'Nincs kapcsolat a TopWords-szel.'
-                    : 'Jelentkezz be a TopWords-be a szókiemeléshez.',
+                error === 'unauthenticated'
+                    ? 'Jelentkezz be a TopWords-be a szókiemeléshez.'
+                    : extErrorMessage(
+                          error,
+                          'Nem sikerült betölteni a szavaidat — próbáld újra később.',
+                      ),
             );
 
             return;
