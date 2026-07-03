@@ -48,4 +48,21 @@ class FlashcardSettingRequest extends FormRequest
             'calib_well_max' => ['sometimes', 'integer', 'min:1', 'max:365'],
         ];
     }
+
+    /**
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return [
+            'learning_steps' => 'tanulási lépések',
+            'learning_steps.*' => 'tanulási lépés',
+            'calib_somewhat_min' => '„Valamennyire" minimum',
+            'calib_somewhat_max' => '„Valamennyire" maximum',
+            'calib_know_min' => '„Tudom" minimum',
+            'calib_know_max' => '„Tudom" maximum',
+            'calib_well_min' => '„Jól tudom" minimum',
+            'calib_well_max' => '„Jól tudom" maximum',
+        ];
+    }
 }

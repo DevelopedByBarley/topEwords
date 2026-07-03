@@ -10,6 +10,8 @@ import {
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { RichTextContent } from '@/components/ui/rich-text-editor';
+import { httpErrorMessage, postJson } from '@/lib/http';
+import { showToast } from '@/lib/toast';
 import { calibrate, index, show } from '@/routes/flashcards';
 import {
     rate as rateCard,
@@ -38,16 +40,6 @@ type CalibIntervals = {
     well_min: number;
     well_max: number;
 };
-
-function getXsrfToken(): string {
-    const cookie = document.cookie
-        .split('; ')
-        .find((r) => r.startsWith('XSRF-TOKEN='));
-
-    return cookie
-        ? decodeURIComponent(cookie.substring('XSRF-TOKEN='.length))
-        : '';
-}
 
 function IntervalInput({
     label,
@@ -174,21 +166,27 @@ export default function FlashcardCalibrate({
 
             setCounts((prev) => ({ ...prev, [rating]: prev[rating] + 1 }));
 
-            fetch(rateCard(deck.id).url, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'X-XSRF-TOKEN': getXsrfToken(),
-                },
-                body: JSON.stringify({
-                    flashcard_id: current.id,
-                    rating,
-                    direction: current.calibration_direction,
-                    is_last_direction: current.is_last_direction,
-                    ...intervals,
-                }),
-            }).catch(() => {});
+            // Fire-and-forget, but surface failures (expired session, 500) —
+            // otherwise calibration ratings are lost silently.
+            postJson(rateCard(deck.id).url, {
+                flashcard_id: current.id,
+                rating,
+                direction: current.calibration_direction,
+                is_last_direction: current.is_last_direction,
+                ...intervals,
+            })
+                .then(({ ok, status }) => {
+                    if (!ok) {
+                        showToast(
+                            'error',
+                            httpErrorMessage(
+                                status,
+                                'A kalibrálás mentése nem sikerült — ez a kártya nem lett elmentve.',
+                            ),
+                        );
+                    }
+                })
+                .catch(() => showToast('error', httpErrorMessage()));
 
             const next = currentIndex + 1;
 

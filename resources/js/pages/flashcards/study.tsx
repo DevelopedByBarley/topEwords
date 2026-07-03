@@ -22,7 +22,8 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { RichTextContent } from '@/components/ui/rich-text-editor';
-import { csrfHeaders } from '@/lib/csrf';
+import { httpErrorMessage, postJson } from '@/lib/http';
+import { showToast } from '@/lib/toast';
 import { index, show } from '@/routes/flashcards';
 import {
     submit as submitReview,
@@ -358,22 +359,27 @@ export default function FlashcardStudy({
                 setRevealed(false);
             }
 
-            // Fire-and-forget: submit rating in the background
-            const promise = fetch(submitReview(deck.id).url, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                    ...csrfHeaders(),
-                },
-                body: JSON.stringify({
-                    flashcard_id: cardId,
-                    direction,
-                    rating: ratingValue,
-                }),
+            // Fire-and-forget: submit rating in the background, but surface
+            // failures (expired session, throttle, 500) — otherwise ratings
+            // are lost silently while the UI keeps advancing.
+            const promise = postJson(submitReview(deck.id).url, {
+                flashcard_id: cardId,
+                direction,
+                rating: ratingValue,
             })
-                .then((res) => res.json())
-                .then((data) => {
+                .then(({ ok, status, data }) => {
+                    if (!ok) {
+                        showToast(
+                            'error',
+                            httpErrorMessage(
+                                status,
+                                'Az értékelés mentése nem sikerült — ez a kártya nem lett elmentve.',
+                            ),
+                        );
+
+                        return;
+                    }
+
                     if (
                         Array.isArray(data?.achievements) &&
                         data.achievements.length > 0
@@ -385,7 +391,7 @@ export default function FlashcardStudy({
                         );
                     }
                 })
-                .catch(() => {})
+                .catch(() => showToast('error', httpErrorMessage()))
                 .finally(() => {
                     pendingRatings.current.delete(key);
                     setSubmitting(false);
@@ -421,21 +427,30 @@ export default function FlashcardStudy({
             await pendingRatings.current.get(key);
         }
 
+        // Only roll back the UI if the server-side undo succeeded — otherwise
+        // the screen would step back while the review still counts on the
+        // server, and re-rating the card would create a duplicate review.
         try {
-            await fetch(undoReview(deck.id).url, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                    ...csrfHeaders(),
-                },
-                body: JSON.stringify({
-                    flashcard_id: last.id,
-                    direction: last.direction,
-                }),
+            const { ok, status } = await postJson(undoReview(deck.id).url, {
+                flashcard_id: last.id,
+                direction: last.direction,
             });
+
+            if (!ok) {
+                showToast(
+                    'error',
+                    httpErrorMessage(
+                        status,
+                        'A visszavonás nem sikerült — próbáld újra.',
+                    ),
+                );
+
+                return;
+            }
         } catch {
-            // continue anyway
+            showToast('error', httpErrorMessage());
+
+            return;
         } finally {
             setUndoing(false);
         }

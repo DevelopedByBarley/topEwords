@@ -1,6 +1,8 @@
 import { Link, usePage } from '@inertiajs/react';
 import { AlertCircle, CheckCircle, Info, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import type { ClientToastDetail } from '@/lib/toast';
+import { CLIENT_TOAST_EVENT } from '@/lib/toast';
 import { pricing } from '@/routes';
 
 type ToastKind = 'error' | 'info' | 'success';
@@ -14,8 +16,9 @@ const DISPLAY_MS = 8000;
 
 /**
  * Globális flash üzenet megjelenítő — a backend `error` és `info` flash-eit
- * mutatja (pl. free csomag limit-üzenetek). Ha az üzenet csomagváltást
- * javasol, linket is kap az árak oldalra.
+ * mutatja (pl. free csomag limit-üzenetek), valamint a kliens-oldali kódból
+ * a `showToast()` helperrel (lib/toast.ts) küldött üzeneteket. Ha az üzenet
+ * csomagváltást javasol, linket is kap az árak oldalra.
  */
 export default function FlashToast() {
     const { flash, billingEnabled } = usePage().props;
@@ -38,6 +41,17 @@ export default function FlashToast() {
         setSeen(incoming.message);
         setToast(incoming);
     }
+
+    useEffect(() => {
+        const handler = (e: Event) => {
+            const { kind, message } = (e as CustomEvent<ClientToastDetail>)
+                .detail;
+            setToast({ kind, message });
+        };
+        window.addEventListener(CLIENT_TOAST_EVENT, handler);
+
+        return () => window.removeEventListener(CLIENT_TOAST_EVENT, handler);
+    }, []);
 
     useEffect(() => {
         if (!toast) {

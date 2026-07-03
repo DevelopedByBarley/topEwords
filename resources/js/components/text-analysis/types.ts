@@ -1,5 +1,4 @@
 import { BookOpen, FileText, Globe, Youtube } from 'lucide-react';
-import { csrfHeaders } from '@/lib/csrf';
 
 export type InputMode = 'text' | 'youtube' | 'url' | 'book';
 
@@ -150,15 +149,7 @@ export function loadSession(): Partial<{ mode: InputMode; text: string; urlInput
     }
 }
 
-export async function postJson(path: string, body: object): Promise<{ ok: boolean; data: Record<string, unknown> }> {
-    const response = await fetch(path, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...csrfHeaders(), Accept: 'application/json' },
-        body: JSON.stringify(body),
-    });
-    const data = await response.json();
-    return { ok: response.ok, data };
-}
+export { postJson } from '@/lib/http';
 
 export function computeTokenFrequencies(text: string): Record<string, number> {
     const frequencies: Record<string, number> = {};

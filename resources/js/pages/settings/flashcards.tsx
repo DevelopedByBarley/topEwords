@@ -2,7 +2,9 @@ import { Transition } from '@headlessui/react';
 import { Form, Head } from '@inertiajs/react';
 import { Plus, X } from 'lucide-react';
 import { useState } from 'react';
-import FlashcardController, { edit } from '@/actions/App/Http/Controllers/Settings/FlashcardController';
+import FlashcardController, {
+    edit,
+} from '@/actions/App/Http/Controllers/Settings/FlashcardController';
 import Heading from '@/components/heading';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
@@ -56,7 +58,9 @@ function SettingField({
     return (
         <div className="grid gap-1.5">
             <Label htmlFor={id}>{label}</Label>
-            {description && <p className="text-xs text-muted-foreground">{description}</p>}
+            {description && (
+                <p className="text-xs text-muted-foreground">{description}</p>
+            )}
             <div className="flex items-center gap-2">
                 <Input
                     id={id}
@@ -67,18 +71,27 @@ function SettingField({
                     max={max}
                     className="w-32"
                 />
-                {suffix && <span className="text-sm text-muted-foreground">{suffix}</span>}
+                {suffix && (
+                    <span className="text-sm text-muted-foreground">
+                        {suffix}
+                    </span>
+                )}
             </div>
             <InputError message={error} />
         </div>
     );
 }
 
-export default function FlashcardSettings({ settings }: { settings: Settings }) {
+export default function FlashcardSettings({
+    settings,
+}: {
+    settings: Settings;
+}) {
     const [steps, setSteps] = useState<number[]>(settings.learning_steps);
 
     const addStep = () => setSteps((prev) => [...prev, 10]);
-    const removeStep = (i: number) => setSteps((prev) => prev.filter((_, idx) => idx !== i));
+    const removeStep = (i: number) =>
+        setSteps((prev) => prev.filter((_, idx) => idx !== i));
     const updateStep = (i: number, val: number) =>
         setSteps((prev) => prev.map((s, idx) => (idx === i ? val : s)));
 
@@ -104,14 +117,18 @@ export default function FlashcardSettings({ settings }: { settings: Settings }) 
                         <>
                             {/* Daily limits */}
                             <div className="space-y-4">
-                                <h3 className="text-sm font-semibold">Napi korlátok</h3>
+                                <h3 className="text-sm font-semibold">
+                                    Napi korlátok
+                                </h3>
                                 <div className="grid gap-4 sm:grid-cols-2">
                                     <SettingField
                                         id="new_cards_per_day"
                                         label="Új kártyák / nap"
                                         description="Hány új kártyát mutasson naponta"
                                         name="new_cards_per_day"
-                                        defaultValue={settings.new_cards_per_day}
+                                        defaultValue={
+                                            settings.new_cards_per_day
+                                        }
                                         min={1}
                                         max={9999}
                                         error={errors.new_cards_per_day}
@@ -122,7 +139,9 @@ export default function FlashcardSettings({ settings }: { settings: Settings }) 
                                         label="Max ismétlések / nap"
                                         description="Maximális esedékes kártyaszám naponta"
                                         name="max_reviews_per_day"
-                                        defaultValue={settings.max_reviews_per_day}
+                                        defaultValue={
+                                            settings.max_reviews_per_day
+                                        }
                                         min={1}
                                         max={9999}
                                         error={errors.max_reviews_per_day}
@@ -136,55 +155,93 @@ export default function FlashcardSettings({ settings }: { settings: Settings }) 
                             {/* Learning steps */}
                             <div className="space-y-4">
                                 <div>
-                                    <h3 className="text-sm font-semibold">Tanulási lépések</h3>
-                                    <p className="text-xs text-muted-foreground mt-0.5">
-                                        Percek sorozata, amelyen az új kártyák végigmennek tanulás közben
+                                    <h3 className="text-sm font-semibold">
+                                        Tanulási lépések
+                                    </h3>
+                                    <p className="mt-0.5 text-xs text-muted-foreground">
+                                        Percek sorozata, amelyen az új kártyák
+                                        végigmennek tanulás közben
                                     </p>
                                 </div>
-                                <div className="flex flex-wrap gap-2 items-center">
+                                <div className="flex flex-wrap items-center gap-2">
                                     {steps.map((step, i) => (
-                                        <div key={i} className="flex items-center gap-1">
+                                        <div
+                                            key={i}
+                                            className="flex items-center gap-1"
+                                        >
                                             <Input
                                                 type="number"
                                                 name="learning_steps[]"
                                                 value={step}
-                                                onChange={(e) => updateStep(i, Number(e.target.value))}
+                                                onChange={(e) =>
+                                                    updateStep(
+                                                        i,
+                                                        Number(e.target.value),
+                                                    )
+                                                }
                                                 min={1}
                                                 max={1440}
                                                 className="w-20"
                                             />
-                                            <span className="text-xs text-muted-foreground">perc</span>
+                                            <span className="text-xs text-muted-foreground">
+                                                perc
+                                            </span>
                                             {steps.length > 1 && (
                                                 <button
                                                     type="button"
-                                                    onClick={() => removeStep(i)}
-                                                    className="text-muted-foreground hover:text-destructive transition-colors"
+                                                    onClick={() =>
+                                                        removeStep(i)
+                                                    }
+                                                    className="text-muted-foreground transition-colors hover:text-destructive"
                                                 >
                                                     <X className="size-3.5" />
                                                 </button>
                                             )}
                                         </div>
                                     ))}
-                                    <Button type="button" variant="outline" size="sm" onClick={addStep}>
-                                        <Plus className="size-3.5 mr-1" />
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={addStep}
+                                    >
+                                        <Plus className="mr-1 size-3.5" />
                                         Lépés hozzáadása
                                     </Button>
                                 </div>
-                                <InputError message={errors['learning_steps']} />
+                                {/* A learning_steps.* szabályok elem-szintű
+                                    kulcsokon (learning_steps.0, …) adnak hibát,
+                                    ezért nem elég a learning_steps kulcsot nézni. */}
+                                {Object.entries(errors)
+                                    .filter(
+                                        ([key]) =>
+                                            key === 'learning_steps' ||
+                                            key.startsWith('learning_steps.'),
+                                    )
+                                    .map(([key, message]) => (
+                                        <InputError
+                                            key={key}
+                                            message={message}
+                                        />
+                                    ))}
                             </div>
 
                             <Separator />
 
                             {/* Graduation */}
                             <div className="space-y-4">
-                                <h3 className="text-sm font-semibold">Végzés & könnyű intervallum</h3>
+                                <h3 className="text-sm font-semibold">
+                                    Végzés & könnyű intervallum
+                                </h3>
                                 <div className="grid gap-4 sm:grid-cols-2">
                                     <SettingField
                                         id="graduating_interval"
                                         label="Végzési intervallum"
                                         description='Intervallum, amivel a kártya "Jó" után kerül ismétlésbe'
                                         name="graduating_interval"
-                                        defaultValue={settings.graduating_interval}
+                                        defaultValue={
+                                            settings.graduating_interval
+                                        }
                                         min={1}
                                         max={365}
                                         error={errors.graduating_interval}
@@ -208,7 +265,9 @@ export default function FlashcardSettings({ settings }: { settings: Settings }) 
 
                             {/* Ease factors */}
                             <div className="space-y-4">
-                                <h3 className="text-sm font-semibold">Ease (könnyűségi) faktorok</h3>
+                                <h3 className="text-sm font-semibold">
+                                    Ease (könnyűségi) faktorok
+                                </h3>
                                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                                     <SettingField
                                         id="starting_ease"
@@ -237,7 +296,9 @@ export default function FlashcardSettings({ settings }: { settings: Settings }) 
                                         label="Nehéz intervallum"
                                         description='"Nehéz" értékelésnél alkalmazott szorzó'
                                         name="hard_interval_modifier"
-                                        defaultValue={settings.hard_interval_modifier}
+                                        defaultValue={
+                                            settings.hard_interval_modifier
+                                        }
                                         min={100}
                                         max={999}
                                         error={errors.hard_interval_modifier}
@@ -248,7 +309,9 @@ export default function FlashcardSettings({ settings }: { settings: Settings }) 
                                         label="Intervallum módosító"
                                         description="Általános szorzó minden intervallumra"
                                         name="interval_modifier"
-                                        defaultValue={settings.interval_modifier}
+                                        defaultValue={
+                                            settings.interval_modifier
+                                        }
                                         min={10}
                                         max={999}
                                         error={errors.interval_modifier}
@@ -272,14 +335,18 @@ export default function FlashcardSettings({ settings }: { settings: Settings }) 
 
                             {/* Lapses */}
                             <div className="space-y-4">
-                                <h3 className="text-sm font-semibold">Tévesztések</h3>
+                                <h3 className="text-sm font-semibold">
+                                    Tévesztések
+                                </h3>
                                 <div className="grid gap-4 sm:grid-cols-2">
                                     <SettingField
                                         id="lapse_new_interval"
                                         label="Tévesztés új intervallum"
                                         description="Az intervallum hány %-a maradjon meg tévesztés után"
                                         name="lapse_new_interval"
-                                        defaultValue={settings.lapse_new_interval}
+                                        defaultValue={
+                                            settings.lapse_new_interval
+                                        }
                                         min={0}
                                         max={100}
                                         error={errors.lapse_new_interval}
@@ -303,19 +370,28 @@ export default function FlashcardSettings({ settings }: { settings: Settings }) 
 
                             {/* Shuffle */}
                             <div className="space-y-4">
-                                <h3 className="text-sm font-semibold">Sorrendbeállítás</h3>
+                                <h3 className="text-sm font-semibold">
+                                    Sorrendbeállítás
+                                </h3>
                                 <label className="flex cursor-pointer items-start gap-3">
                                     <input
                                         type="checkbox"
                                         name="shuffle_cards"
                                         defaultChecked={settings.shuffle_cards}
                                         value="1"
-                                        className="mt-0.5 size-4 rounded border-input accent-primary cursor-pointer"
+                                        className="mt-0.5 size-4 cursor-pointer rounded border-input accent-primary"
                                     />
                                     <div className="grid gap-0.5">
-                                        <span className="text-sm font-medium">Kártyák keverése</span>
+                                        <span className="text-sm font-medium">
+                                            Kártyák keverése
+                                        </span>
                                         <span className="text-xs text-muted-foreground">
-                                            Bekapcsolva a rendszer véletlenszerű sorrendben mutatja a kártyákat — az új és az esedékes kártyákat egyaránt keverve. Kétoldalú kártyáknál az előlap és hátlap nem kerül egymás mellé.
+                                            Bekapcsolva a rendszer véletlenszerű
+                                            sorrendben mutatja a kártyákat — az
+                                            új és az esedékes kártyákat egyaránt
+                                            keverve. Kétoldalú kártyáknál az
+                                            előlap és hátlap nem kerül egymás
+                                            mellé.
                                         </span>
                                     </div>
                                 </label>
@@ -326,27 +402,91 @@ export default function FlashcardSettings({ settings }: { settings: Settings }) 
                             {/* Calibration intervals */}
                             <div className="space-y-4">
                                 <div>
-                                    <h3 className="text-sm font-semibold">Kalibrálási intervallumok</h3>
-                                    <p className="text-xs text-muted-foreground mt-0.5">
-                                        Mennyi időre ütemezi be a kártyát az egyes kalibrálási értékelések
+                                    <h3 className="text-sm font-semibold">
+                                        Kalibrálási intervallumok
+                                    </h3>
+                                    <p className="mt-0.5 text-xs text-muted-foreground">
+                                        Mennyi időre ütemezi be a kártyát az
+                                        egyes kalibrálási értékelések
                                     </p>
                                 </div>
                                 <div className="space-y-3">
                                     {[
-                                        { label: 'Valamennyire', minName: 'calib_somewhat_min', maxName: 'calib_somewhat_max', minVal: settings.calib_somewhat_min, maxVal: settings.calib_somewhat_max },
-                                        { label: 'Tudom', minName: 'calib_know_min', maxName: 'calib_know_max', minVal: settings.calib_know_min, maxVal: settings.calib_know_max },
-                                        { label: 'Jól tudom', minName: 'calib_well_min', maxName: 'calib_well_max', minVal: settings.calib_well_min, maxVal: settings.calib_well_max },
-                                    ].map(({ label, minName, maxName, minVal, maxVal }) => (
-                                        <div key={label} className="flex items-center gap-3">
-                                            <span className="w-28 text-sm shrink-0">{label}</span>
-                                            <div className="flex items-center gap-2">
-                                                <Input type="number" name={minName} defaultValue={minVal} min={1} max={365} className="w-20" />
-                                                <span className="text-muted-foreground text-sm">–</span>
-                                                <Input type="number" name={maxName} defaultValue={maxVal} min={1} max={365} className="w-20" />
-                                                <span className="text-sm text-muted-foreground">nap</span>
+                                        {
+                                            label: 'Valamennyire',
+                                            minName: 'calib_somewhat_min',
+                                            maxName: 'calib_somewhat_max',
+                                            minVal: settings.calib_somewhat_min,
+                                            maxVal: settings.calib_somewhat_max,
+                                        },
+                                        {
+                                            label: 'Tudom',
+                                            minName: 'calib_know_min',
+                                            maxName: 'calib_know_max',
+                                            minVal: settings.calib_know_min,
+                                            maxVal: settings.calib_know_max,
+                                        },
+                                        {
+                                            label: 'Jól tudom',
+                                            minName: 'calib_well_min',
+                                            maxName: 'calib_well_max',
+                                            minVal: settings.calib_well_min,
+                                            maxVal: settings.calib_well_max,
+                                        },
+                                    ].map(
+                                        ({
+                                            label,
+                                            minName,
+                                            maxName,
+                                            minVal,
+                                            maxVal,
+                                        }) => (
+                                            <div
+                                                key={label}
+                                                className="grid gap-1"
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <span className="w-28 shrink-0 text-sm">
+                                                        {label}
+                                                    </span>
+                                                    <div className="flex items-center gap-2">
+                                                        <Input
+                                                            type="number"
+                                                            name={minName}
+                                                            defaultValue={
+                                                                minVal
+                                                            }
+                                                            min={1}
+                                                            max={365}
+                                                            className="w-20"
+                                                        />
+                                                        <span className="text-sm text-muted-foreground">
+                                                            –
+                                                        </span>
+                                                        <Input
+                                                            type="number"
+                                                            name={maxName}
+                                                            defaultValue={
+                                                                maxVal
+                                                            }
+                                                            min={1}
+                                                            max={365}
+                                                            className="w-20"
+                                                        />
+                                                        <span className="text-sm text-muted-foreground">
+                                                            nap
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <InputError
+                                                    message={
+                                                        errors[minName] ??
+                                                        errors[maxName]
+                                                    }
+                                                />
                                             </div>
-                                        </div>
-                                    ))}
+                                        ),
+                                    )}
                                 </div>
                             </div>
 
@@ -359,7 +499,9 @@ export default function FlashcardSettings({ settings }: { settings: Settings }) 
                                     leave="transition ease-in-out"
                                     leaveTo="opacity-0"
                                 >
-                                    <p className="text-sm text-neutral-600">Mentve</p>
+                                    <p className="text-sm text-neutral-600">
+                                        Mentve
+                                    </p>
                                 </Transition>
                             </div>
                         </>

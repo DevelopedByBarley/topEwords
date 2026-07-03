@@ -159,6 +159,58 @@ test('shuffle_cards can be turned off (unchecked checkbox)', function () {
     expect($user->fresh()->flashcardSettings->shuffle_cards)->toBeFalse();
 });
 
+test('an invalid learning step errors on an element-level key with a readable name', function () {
+    $user = User::factory()->create();
+
+    // A kiürített lépés-mező a kliensen Number('') = 0-ként megy fel → min:1 bukik.
+    $this->actingAs($user)
+        ->put(route('flashcard-settings.update'), [
+            'new_cards_per_day' => 20,
+            'max_reviews_per_day' => 200,
+            'learning_steps' => [0, 10],
+            'graduating_interval' => 1,
+            'easy_interval' => 4,
+            'starting_ease' => 250,
+            'easy_bonus' => 130,
+            'hard_interval_modifier' => 120,
+            'interval_modifier' => 100,
+            'max_interval' => 365,
+            'lapse_new_interval' => 0,
+            'leech_threshold' => 8,
+        ])
+        ->assertSessionHasErrors(['learning_steps.0']);
+
+    $message = session('errors')->get('learning_steps.0')[0];
+    expect($message)->toContain('tanulási lépés');
+
+    expect($user->fresh()->flashcardSettings)->toBeNull();
+});
+
+test('an invalid calibration interval errors with a readable field name', function () {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->put(route('flashcard-settings.update'), [
+            'new_cards_per_day' => 20,
+            'max_reviews_per_day' => 200,
+            'learning_steps' => [1, 10],
+            'graduating_interval' => 1,
+            'easy_interval' => 4,
+            'starting_ease' => 250,
+            'easy_bonus' => 130,
+            'hard_interval_modifier' => 120,
+            'interval_modifier' => 100,
+            'max_interval' => 365,
+            'lapse_new_interval' => 0,
+            'leech_threshold' => 8,
+            'calib_know_min' => 0,
+        ])
+        ->assertSessionHasErrors(['calib_know_min']);
+
+    $message = session('errors')->get('calib_know_min')[0];
+    expect($message)->toContain('„Tudom" minimum');
+});
+
 test('flashcard settings validation rejects invalid data', function () {
     $user = User::factory()->create();
 
