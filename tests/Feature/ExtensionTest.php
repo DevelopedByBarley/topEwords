@@ -46,6 +46,21 @@ test('lookup matches inflected verb forms', function () {
         ->assertJson(['found' => true, 'word' => 'run']);
 });
 
+test('lookup matches slash-separated alternative verb forms', function () {
+    Word::create([
+        'word' => 'get',
+        'meaning_hu' => 'kap',
+        'verb_past' => 'got',
+        'verb_past_participle' => 'got/gotten',
+        'rank' => 4,
+    ]);
+
+    $this->actingAs($this->user)
+        ->getJson(route('extension.lookup', ['word' => 'gotten']))
+        ->assertSuccessful()
+        ->assertJson(['found' => true, 'word' => 'get']);
+});
+
 test('lookup finds custom words with example fields', function () {
     $this->user->customWords()->create([
         'word' => 'serendipity',
@@ -331,6 +346,25 @@ test('statuses includes multi-word phrases without hijacking single words', func
 
     expect($response->json('statuses'))->not->toHaveKey('use');
     expect($response->json('statuses'))->not->toHaveKey('used');
+});
+
+test('statuses maps each slash-separated alternative form separately', function () {
+    $get = Word::create([
+        'word' => 'get',
+        'meaning_hu' => 'kap',
+        'verb_past' => 'got',
+        'verb_past_participle' => 'got/gotten',
+        'rank' => 4,
+    ]);
+    $this->user->knownWords()->attach($get->id, ['status' => 'known']);
+
+    $statuses = $this->actingAs($this->user)
+        ->getJson(route('extension.statuses'))
+        ->assertSuccessful()
+        ->json('statuses');
+
+    expect($statuses)->toMatchArray(['get' => 'known', 'got' => 'known', 'gotten' => 'known'])
+        ->not->toHaveKey('got/gotten');
 });
 
 test('statuses excludes periphrastic comparatives so they are not treated as phrases', function () {

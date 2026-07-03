@@ -11,6 +11,8 @@ use App\Services\AchievementService;
 use App\Services\AiCacheService;
 use App\Services\AiUsageService;
 use App\Services\WordFormMapService;
+use App\Services\WordFormVariants;
+use App\Services\WordStatusFormExpander;
 use App\Services\YouTubeCaptionService;
 use GuzzleHttp\Psr7\UriResolver;
 use GuzzleHttp\Psr7\Utils;
@@ -92,14 +94,9 @@ class TextAnalysisController extends Controller
                     ->orWhere(function ($q2) use ($raw) {
                         $q2->where('word', 'not like', '% %')
                             ->where(function ($q3) use ($raw) {
-                                $q3->whereRaw('LOWER(form_base) = ?', [$raw])
-                                    ->orWhereRaw('LOWER(verb_past) = ?', [$raw])
-                                    ->orWhereRaw('LOWER(verb_past_participle) = ?', [$raw])
-                                    ->orWhereRaw('LOWER(verb_present_participle) = ?', [$raw])
-                                    ->orWhereRaw('LOWER(verb_third_person) = ?', [$raw])
-                                    ->orWhereRaw('LOWER(noun_plural) = ?', [$raw])
-                                    ->orWhereRaw('LOWER(adj_comparative) = ?', [$raw])
-                                    ->orWhereRaw('LOWER(adj_superlative) = ?', [$raw]);
+                                foreach (WordStatusFormExpander::FORM_COLUMNS as $column) {
+                                    WordFormVariants::orWhereFormMatches($q3, $column, $raw);
+                                }
                             });
                     });
             })
@@ -118,15 +115,11 @@ class TextAnalysisController extends Controller
 
         // Check main word list (all forms)
         $word = Word::where(function ($q) use ($raw) {
-            $q->whereRaw('LOWER(word) = ?', [$raw])
-                ->orWhereRaw('LOWER(form_base) = ?', [$raw])
-                ->orWhereRaw('LOWER(verb_past) = ?', [$raw])
-                ->orWhereRaw('LOWER(verb_past_participle) = ?', [$raw])
-                ->orWhereRaw('LOWER(verb_present_participle) = ?', [$raw])
-                ->orWhereRaw('LOWER(verb_third_person) = ?', [$raw])
-                ->orWhereRaw('LOWER(noun_plural) = ?', [$raw])
-                ->orWhereRaw('LOWER(adj_comparative) = ?', [$raw])
-                ->orWhereRaw('LOWER(adj_superlative) = ?', [$raw]);
+            $q->whereRaw('LOWER(word) = ?', [$raw]);
+
+            foreach (WordStatusFormExpander::FORM_COLUMNS as $column) {
+                WordFormVariants::orWhereFormMatches($q, $column, $raw);
+            }
         })->first();
 
         if (! $word) {
@@ -418,20 +411,22 @@ class TextAnalysisController extends Controller
                 continue;
             }
 
+            // Az oszlopok '/'-szeparált alternatívákat tartalmazhatnak
+            // ("got/gotten") — a token-térképbe változatonként kell kulcsolni.
             foreach (
-                array_filter([
-                    mb_strtolower($customWord->word),
-                    $customWord->form_base ? mb_strtolower($customWord->form_base) : null,
-                    $customWord->verb_past ? mb_strtolower($customWord->verb_past) : null,
-                    $customWord->verb_past_participle ? mb_strtolower($customWord->verb_past_participle) : null,
-                    $customWord->verb_present_participle ? mb_strtolower($customWord->verb_present_participle) : null,
-                    $customWord->verb_third_person ? mb_strtolower($customWord->verb_third_person) : null,
-                    $customWord->noun_plural ? mb_strtolower($customWord->noun_plural) : null,
-                    $customWord->adj_comparative ? mb_strtolower($customWord->adj_comparative) : null,
-                    $customWord->adj_superlative ? mb_strtolower($customWord->adj_superlative) : null,
+                WordFormVariants::splitAll([
+                    $customWord->word,
+                    $customWord->form_base,
+                    $customWord->verb_past,
+                    $customWord->verb_past_participle,
+                    $customWord->verb_present_participle,
+                    $customWord->verb_third_person,
+                    $customWord->noun_plural,
+                    $customWord->adj_comparative,
+                    $customWord->adj_superlative,
                 ]) as $form
             ) {
-                $formToCustomWord[$form] ??= $customWord;
+                $formToCustomWord[mb_strtolower($form)] ??= $customWord;
             }
         }
 
@@ -514,7 +509,7 @@ class TextAnalysisController extends Controller
 
         foreach ($phraseCustomWords as $phrase) {
             foreach (
-                array_filter([
+                WordFormVariants::splitAll([
                     $phrase->word,
                     $phrase->verb_past,
                     $phrase->verb_past_participle,

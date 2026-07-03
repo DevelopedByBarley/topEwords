@@ -31,6 +31,19 @@ test('maps every inflected form to its word id', function () {
         ]);
 });
 
+test('maps slash-separated alternative forms as separate keys', function () {
+    $word = Word::create([
+        'word' => 'get', 'rank' => 10, 'meaning_hu' => 'kap',
+        'verb_past' => 'got', 'verb_past_participle' => 'got/gotten',
+    ]);
+
+    $map = $this->service->map();
+
+    expect($map['forms']['got'])->toBe($word->id)
+        ->and($map['forms']['gotten'])->toBe($word->id)
+        ->and($map['forms'])->not->toHaveKey('got/gotten');
+});
+
 test('lowercases form keys so case-variant tokens resolve', function () {
     $word = Word::create(['word' => 'English', 'rank' => 50, 'meaning_hu' => 'angol']);
 

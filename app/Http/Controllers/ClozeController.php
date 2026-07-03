@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Folder;
 use App\Models\UserCustomWord;
 use App\Models\Word;
+use App\Services\WordFormVariants;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -142,7 +143,9 @@ class ClozeController extends Controller
             }
 
             foreach ($regularWords as $word) {
-                $cloze = $this->makeCloze($word->example_en, array_filter([
+                // splitAll: a '/'-szeparált alternatívák ("got/gotten") külön
+                // alakként keresendők a példamondatban, együtt sosem szerepelnek.
+                $cloze = $this->makeCloze($word->example_en, WordFormVariants::splitAll([
                     $word->word,
                     $word->form_base,
                     $word->verb_past,

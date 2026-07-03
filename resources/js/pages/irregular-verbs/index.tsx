@@ -148,146 +148,166 @@ function SetupScreen({
 
                 <div className="mx-auto max-w-2xl">
                     <div className="rounded-3xl bg-card p-5 shadow-sm">
-                        {/* Mode tabs */}
-                        <div className="mb-5 flex gap-2 rounded-xl bg-muted/60 p-1">
-                            <button
-                                onClick={() => setMode('random')}
-                                className={`flex flex-1 items-center justify-center gap-2 rounded-lg py-2 text-sm font-semibold transition-all ${
-                                    mode === 'random'
-                                        ? 'bg-background shadow-sm'
-                                        : 'text-muted-foreground hover:text-foreground'
-                                }`}
-                            >
-                                <Shuffle className="size-4" />
-                                Véletlenszerű
-                            </button>
-                            <button
-                                onClick={() => setMode('select')}
-                                className={`flex flex-1 items-center justify-center gap-2 rounded-lg py-2 text-sm font-semibold transition-all ${
-                                    mode === 'select'
-                                        ? 'bg-background shadow-sm'
-                                        : 'text-muted-foreground hover:text-foreground'
-                                }`}
-                            >
-                                <List className="size-4" />
-                                Kiválasztom
-                                {selectedIds.size > 0 && (
-                                    <span className="rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
-                                        {selectedIds.size}
-                                    </span>
-                                )}
-                            </button>
-                        </div>
-
-                        {/* Random mode */}
-                        {mode === 'random' && (
-                            <div className="flex flex-col gap-3">
-                                <p className="text-sm font-semibold">
-                                    Hány igével gyakorolsz?
-                                </p>
-                                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                                    {uniqueCounts.map((c) => (
-                                        <button
-                                            key={c}
-                                            onClick={() => startRandom(c)}
-                                            className="rounded-xl border-2 border-border bg-background px-4 py-3 text-center text-sm font-semibold transition-colors hover:border-rose-400 hover:bg-rose-50/60 dark:hover:bg-rose-950/20"
-                                        >
-                                            {c === verbs.length
-                                                ? `Mind (${c})`
-                                                : c}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Select mode */}
-                        {mode === 'select' && (
-                            <div className="flex flex-col gap-3">
-                                <div className="flex items-center gap-2">
-                                    <Input
-                                        placeholder="Keresés..."
-                                        value={search}
-                                        onChange={(e) =>
-                                            setSearch(e.target.value)
-                                        }
-                                        className="flex-1"
-                                    />
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={toggleAll}
-                                        className="shrink-0"
+                        {verbs.length === 0 ? (
+                            <p className="py-8 text-center text-sm text-muted-foreground">
+                                Jelenleg nincs elérhető rendhagyó ige — nézz
+                                vissza később!
+                            </p>
+                        ) : (
+                            <>
+                                {/* Mode tabs */}
+                                <div className="mb-5 flex gap-2 rounded-xl bg-muted/60 p-1">
+                                    <button
+                                        onClick={() => setMode('random')}
+                                        className={`flex flex-1 items-center justify-center gap-2 rounded-lg py-2 text-sm font-semibold transition-all ${
+                                            mode === 'random'
+                                                ? 'bg-background shadow-sm'
+                                                : 'text-muted-foreground hover:text-foreground'
+                                        }`}
                                     >
-                                        {allFilteredSelected
-                                            ? 'Mind ki'
-                                            : 'Mind be'}
-                                    </Button>
+                                        <Shuffle className="size-4" />
+                                        Véletlenszerű
+                                    </button>
+                                    <button
+                                        onClick={() => setMode('select')}
+                                        className={`flex flex-1 items-center justify-center gap-2 rounded-lg py-2 text-sm font-semibold transition-all ${
+                                            mode === 'select'
+                                                ? 'bg-background shadow-sm'
+                                                : 'text-muted-foreground hover:text-foreground'
+                                        }`}
+                                    >
+                                        <List className="size-4" />
+                                        Kiválasztom
+                                        {selectedIds.size > 0 && (
+                                            <span className="rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                                                {selectedIds.size}
+                                            </span>
+                                        )}
+                                    </button>
                                 </div>
 
-                                <div className="max-h-100 divide-y overflow-y-auto rounded-xl border">
-                                    {filtered.length === 0 ? (
-                                        <p className="px-4 py-6 text-center text-sm text-muted-foreground">
-                                            Nincs találat
+                                {/* Random mode */}
+                                {mode === 'random' && (
+                                    <div className="flex flex-col gap-3">
+                                        <p className="text-sm font-semibold">
+                                            Hány igével gyakorolsz?
                                         </p>
-                                    ) : (
-                                        filtered.map((verb) => {
-                                            const picked = selectedIds.has(
-                                                verb.id,
-                                            );
-
-                                            return (
+                                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                                            {uniqueCounts.map((c) => (
                                                 <button
-                                                    key={verb.id}
+                                                    key={c}
                                                     onClick={() =>
-                                                        toggle(verb.id)
+                                                        startRandom(c)
                                                     }
-                                                    className={`flex w-full items-center gap-2 px-4 py-3 text-left transition-colors sm:gap-3 ${
-                                                        picked
-                                                            ? 'bg-rose-50/60 dark:bg-rose-950/20'
-                                                            : 'hover:bg-muted'
-                                                    }`}
+                                                    className="rounded-xl border-2 border-border bg-background px-4 py-3 text-center text-sm font-semibold transition-colors hover:border-rose-400 hover:bg-rose-50/60 dark:hover:bg-rose-950/20"
                                                 >
-                                                    <span
-                                                        className={`flex size-4 shrink-0 items-center justify-center rounded border transition-colors ${
-                                                            picked
-                                                                ? 'border-rose-500 bg-rose-500'
-                                                                : 'border-input bg-background'
-                                                        }`}
-                                                    >
-                                                        {picked && (
-                                                            <Check className="size-3 text-white" />
-                                                        )}
-                                                    </span>
-                                                    <span className="w-20 text-sm font-semibold sm:w-28 sm:text-base">
-                                                        {verb.infinitive}
-                                                    </span>
-                                                    <span className="w-16 text-sm text-muted-foreground sm:w-24">
-                                                        {verb.past_simple}
-                                                    </span>
-                                                    <span className="w-16 text-sm text-muted-foreground sm:w-24">
-                                                        {verb.past_participle}
-                                                    </span>
-                                                    {verb.meaning_hu && (
-                                                        <span className="hidden truncate text-xs text-muted-foreground/70 sm:inline">
-                                                            {verb.meaning_hu}
-                                                        </span>
-                                                    )}
+                                                    {c === verbs.length
+                                                        ? `Mind (${c})`
+                                                        : c}
                                                 </button>
-                                            );
-                                        })
-                                    )}
-                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
 
-                                <Button
-                                    size="lg"
-                                    onClick={startSelected}
-                                    disabled={selectedIds.size === 0}
-                                    className="w-full"
-                                >
-                                    Indítás ({selectedIds.size} igével)
-                                </Button>
-                            </div>
+                                {/* Select mode */}
+                                {mode === 'select' && (
+                                    <div className="flex flex-col gap-3">
+                                        <div className="flex items-center gap-2">
+                                            <Input
+                                                placeholder="Keresés..."
+                                                value={search}
+                                                onChange={(e) =>
+                                                    setSearch(e.target.value)
+                                                }
+                                                className="flex-1"
+                                            />
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={toggleAll}
+                                                className="shrink-0"
+                                            >
+                                                {allFilteredSelected
+                                                    ? 'Mind ki'
+                                                    : 'Mind be'}
+                                            </Button>
+                                        </div>
+
+                                        <div className="max-h-100 divide-y overflow-y-auto rounded-xl border">
+                                            {filtered.length === 0 ? (
+                                                <p className="px-4 py-6 text-center text-sm text-muted-foreground">
+                                                    Nincs találat
+                                                </p>
+                                            ) : (
+                                                filtered.map((verb) => {
+                                                    const picked =
+                                                        selectedIds.has(
+                                                            verb.id,
+                                                        );
+
+                                                    return (
+                                                        <button
+                                                            key={verb.id}
+                                                            onClick={() =>
+                                                                toggle(verb.id)
+                                                            }
+                                                            className={`flex w-full items-center gap-2 px-4 py-3 text-left transition-colors sm:gap-3 ${
+                                                                picked
+                                                                    ? 'bg-rose-50/60 dark:bg-rose-950/20'
+                                                                    : 'hover:bg-muted'
+                                                            }`}
+                                                        >
+                                                            <span
+                                                                className={`flex size-4 shrink-0 items-center justify-center rounded border transition-colors ${
+                                                                    picked
+                                                                        ? 'border-rose-500 bg-rose-500'
+                                                                        : 'border-input bg-background'
+                                                                }`}
+                                                            >
+                                                                {picked && (
+                                                                    <Check className="size-3 text-white" />
+                                                                )}
+                                                            </span>
+                                                            <span className="w-20 text-sm font-semibold sm:w-28 sm:text-base">
+                                                                {
+                                                                    verb.infinitive
+                                                                }
+                                                            </span>
+                                                            <span className="w-16 text-sm text-muted-foreground sm:w-24">
+                                                                {
+                                                                    verb.past_simple
+                                                                }
+                                                            </span>
+                                                            <span className="w-16 text-sm text-muted-foreground sm:w-24">
+                                                                {
+                                                                    verb.past_participle
+                                                                }
+                                                            </span>
+                                                            {verb.meaning_hu && (
+                                                                <span className="hidden truncate text-xs text-muted-foreground/70 sm:inline">
+                                                                    {
+                                                                        verb.meaning_hu
+                                                                    }
+                                                                </span>
+                                                            )}
+                                                        </button>
+                                                    );
+                                                })
+                                            )}
+                                        </div>
+
+                                        <Button
+                                            size="lg"
+                                            onClick={startSelected}
+                                            disabled={selectedIds.size === 0}
+                                            className="w-full"
+                                        >
+                                            Indítás ({selectedIds.size} igével)
+                                        </Button>
+                                    </div>
+                                )}
+                            </>
                         )}
                     </div>
                 </div>
@@ -515,13 +535,19 @@ export default function IrregularVerbsIndex({ verbs }: Props) {
     }
 
     // ── Quiz ──────────────────────────────────────────────────────────────────
+    // Üres kvízlista vagy tartományon kívüli index esetén nincs kártya —
+    // vissza a beállítás-képernyőre a fehér képernyő helyett.
+    if (!card) {
+        return <SetupScreen verbs={verbs} onStart={startQuiz} />;
+    }
+
     const pastCorrect =
         answerState !== 'unanswered' &&
-        isCorrectAnswer(pastInput, card!.past_simple);
+        isCorrectAnswer(pastInput, card.past_simple);
     const pastWrong = answerState !== 'unanswered' && !pastCorrect;
     const participleCorrect =
         answerState !== 'unanswered' &&
-        isCorrectAnswer(participleInput, card!.past_participle);
+        isCorrectAnswer(participleInput, card.past_participle);
     const participleWrong = answerState !== 'unanswered' && !participleCorrect;
 
     const inputStateClass = (correct: boolean) =>
@@ -572,10 +598,10 @@ export default function IrregularVerbsIndex({ verbs }: Props) {
                     {/* Verb */}
                     <div className="relative mx-auto mt-8 max-w-xl pb-4 text-center">
                         <h2 className="text-4xl font-bold tracking-tight text-white sm:text-5xl">
-                            to {card!.infinitive}
+                            to {card.infinitive}
                         </h2>
                         <p className="mt-3 text-sm text-white/75">
-                            {card!.meaning_hu ??
+                            {card.meaning_hu ??
                                 'Írd be a két rendhagyó alakot!'}
                         </p>
                     </div>
@@ -615,7 +641,7 @@ export default function IrregularVerbsIndex({ verbs }: Props) {
                                 <p className="text-sm text-green-700 dark:text-green-400">
                                     Helyes:{' '}
                                     <span className="font-bold">
-                                        {card!.past_simple}
+                                        {card.past_simple}
                                     </span>
                                 </p>
                             )}
@@ -653,7 +679,7 @@ export default function IrregularVerbsIndex({ verbs }: Props) {
                                 <p className="text-sm text-green-700 dark:text-green-400">
                                     Helyes:{' '}
                                     <span className="font-bold">
-                                        {card!.past_participle}
+                                        {card.past_participle}
                                     </span>
                                 </p>
                             )}
@@ -661,9 +687,9 @@ export default function IrregularVerbsIndex({ verbs }: Props) {
                     </div>
 
                     {/* Example sentence after answer */}
-                    {answerState !== 'unanswered' && card!.example_en && (
+                    {answerState !== 'unanswered' && card.example_en && (
                         <div className="animate-in rounded-2xl bg-accent/60 px-4 py-3 text-sm text-muted-foreground italic duration-200 fade-in slide-in-from-bottom-2">
-                            "{card!.example_en}"
+                            "{card.example_en}"
                         </div>
                     )}
 

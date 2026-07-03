@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\UserCustomWord;
 use App\Models\Word;
+use App\Services\WordFormVariants;
 use App\Services\WordStatusFormExpander;
 use App\Services\YouTubeCaptionService;
 use Illuminate\Http\JsonResponse;
@@ -42,15 +43,11 @@ class ExtensionController extends Controller
         $lower = strtolower($word);
 
         $match = Word::where(function ($q) use ($lower) {
-            $q->whereRaw('LOWER(word) = ?', [$lower])
-                ->orWhereRaw('LOWER(form_base) = ?', [$lower])
-                ->orWhereRaw('LOWER(verb_past) = ?', [$lower])
-                ->orWhereRaw('LOWER(verb_past_participle) = ?', [$lower])
-                ->orWhereRaw('LOWER(verb_present_participle) = ?', [$lower])
-                ->orWhereRaw('LOWER(verb_third_person) = ?', [$lower])
-                ->orWhereRaw('LOWER(noun_plural) = ?', [$lower])
-                ->orWhereRaw('LOWER(adj_comparative) = ?', [$lower])
-                ->orWhereRaw('LOWER(adj_superlative) = ?', [$lower]);
+            $q->whereRaw('LOWER(word) = ?', [$lower]);
+
+            foreach (WordStatusFormExpander::FORM_COLUMNS as $column) {
+                WordFormVariants::orWhereFormMatches($q, $column, $lower);
+            }
         })->first(['id', 'word', 'meaning_hu', 'extra_meanings', 'synonyms', 'part_of_speech', 'rank', 'example_en', 'example_hu']);
 
         if ($match) {
@@ -87,14 +84,9 @@ class ExtensionController extends Controller
                     ->orWhere(function ($q2) use ($lower) {
                         $q2->where('word', 'not like', '% %')
                             ->where(function ($q3) use ($lower) {
-                                $q3->whereRaw('LOWER(form_base) = ?', [$lower])
-                                    ->orWhereRaw('LOWER(verb_past) = ?', [$lower])
-                                    ->orWhereRaw('LOWER(verb_past_participle) = ?', [$lower])
-                                    ->orWhereRaw('LOWER(verb_present_participle) = ?', [$lower])
-                                    ->orWhereRaw('LOWER(verb_third_person) = ?', [$lower])
-                                    ->orWhereRaw('LOWER(noun_plural) = ?', [$lower])
-                                    ->orWhereRaw('LOWER(adj_comparative) = ?', [$lower])
-                                    ->orWhereRaw('LOWER(adj_superlative) = ?', [$lower]);
+                                foreach (WordStatusFormExpander::FORM_COLUMNS as $column) {
+                                    WordFormVariants::orWhereFormMatches($q3, $column, $lower);
+                                }
                             });
                     });
             })
@@ -367,14 +359,9 @@ class ExtensionController extends Controller
 
         $words = Word::where('word', 'LIKE', $like.'%')
             ->orWhere(function ($query) use ($lower) {
-                $query->whereRaw('LOWER(form_base) = ?', [$lower])
-                    ->orWhereRaw('LOWER(verb_past) = ?', [$lower])
-                    ->orWhereRaw('LOWER(verb_past_participle) = ?', [$lower])
-                    ->orWhereRaw('LOWER(verb_present_participle) = ?', [$lower])
-                    ->orWhereRaw('LOWER(verb_third_person) = ?', [$lower])
-                    ->orWhereRaw('LOWER(noun_plural) = ?', [$lower])
-                    ->orWhereRaw('LOWER(adj_comparative) = ?', [$lower])
-                    ->orWhereRaw('LOWER(adj_superlative) = ?', [$lower]);
+                foreach (WordStatusFormExpander::FORM_COLUMNS as $column) {
+                    WordFormVariants::orWhereFormMatches($query, $column, $lower);
+                }
             })
             ->orderBy('rank')
             ->limit(10)
@@ -400,15 +387,11 @@ class ExtensionController extends Controller
 
         $customs = UserCustomWord::where('user_id', $userId)
             ->where(function ($q2) use ($like, $lower) {
-                $q2->where('word', 'LIKE', $like.'%')
-                    ->orWhereRaw('LOWER(form_base) = ?', [$lower])
-                    ->orWhereRaw('LOWER(verb_past) = ?', [$lower])
-                    ->orWhereRaw('LOWER(verb_past_participle) = ?', [$lower])
-                    ->orWhereRaw('LOWER(verb_present_participle) = ?', [$lower])
-                    ->orWhereRaw('LOWER(verb_third_person) = ?', [$lower])
-                    ->orWhereRaw('LOWER(noun_plural) = ?', [$lower])
-                    ->orWhereRaw('LOWER(adj_comparative) = ?', [$lower])
-                    ->orWhereRaw('LOWER(adj_superlative) = ?', [$lower]);
+                $q2->where('word', 'LIKE', $like.'%');
+
+                foreach (WordStatusFormExpander::FORM_COLUMNS as $column) {
+                    WordFormVariants::orWhereFormMatches($q2, $column, $lower);
+                }
             })
             ->limit(5)
             ->get(['id', 'word', 'meaning_hu', 'extra_meanings', 'part_of_speech', 'status']);

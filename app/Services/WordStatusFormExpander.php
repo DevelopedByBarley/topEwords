@@ -32,6 +32,11 @@ class WordStatusFormExpander
         $word = (string) $row->word;
         $forms = [];
 
+        // A form-oszlopok '/'-szeparált alternatívákat tartalmazhatnak (pl.
+        // "got/gotten", "was/were") — a szóköz-szűrés és a térkép-kulcs is
+        // változatonként értendő, ezért minden érték előbb szétbontódik.
+        $columnValues = array_map(fn ($column) => $row->{$column} ?? null, self::FORM_COLUMNS);
+
         if (str_contains($word, ' ')) {
             // Többszavas kifejezés (pl. "used to", "cut through"): az alap-kifejezés,
             // és bármely TÖBBSZAVAS ragozott alak (pl. "make for" → "made for").
@@ -39,20 +44,18 @@ class WordStatusFormExpander
             // elvinné a "cut through" státuszát minden sima előforduláskor.
             $forms[] = mb_strtolower($word);
 
-            foreach (self::FORM_COLUMNS as $column) {
-                $form = $row->{$column} ?? null;
-
-                if ($form !== null && $form !== '' && str_contains((string) $form, ' ')) {
-                    $forms[] = mb_strtolower(trim((string) preg_replace('/\s+/', ' ', (string) $form)));
+            foreach (WordFormVariants::splitAll($columnValues) as $variant) {
+                if (str_contains($variant, ' ')) {
+                    $forms[] = mb_strtolower(trim((string) preg_replace('/\s+/', ' ', $variant)));
                 }
             }
         } else {
             // Egyszavas alak: maga a szó, és minden EGYSZAVAS ragozott alak.
             // A körülírásos közép-/felsőfokok ("more desperate") szóközösek, ezért
             // kimaradnak — különben a kliens kifejezésként emelné ki őket.
-            foreach ([$word, ...array_map(fn ($column) => $row->{$column} ?? null, self::FORM_COLUMNS)] as $form) {
-                if ($form !== null && $form !== '' && ! str_contains((string) $form, ' ')) {
-                    $forms[] = mb_strtolower((string) $form);
+            foreach (WordFormVariants::splitAll([$word, ...$columnValues]) as $variant) {
+                if (! str_contains($variant, ' ')) {
+                    $forms[] = mb_strtolower($variant);
                 }
             }
         }

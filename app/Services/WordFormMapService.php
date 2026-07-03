@@ -92,8 +92,10 @@ class WordFormMapService
                         'meaning_hu' => $word->meaning_hu,
                     ];
 
+                    // Az oszlopok '/'-szeparált alternatívákat tartalmazhatnak
+                    // ("got/gotten") — a térképbe változatonként kell kulcsolni.
                     foreach (
-                        array_filter([
+                        WordFormVariants::splitAll([
                             $word->word,
                             $word->form_base,
                             $word->verb_past,
