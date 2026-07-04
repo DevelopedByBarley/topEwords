@@ -88,10 +88,13 @@ class BillingoClient
      * (nem a Billingo-fiók alappénznemében kiállított) számlánál a Billingo kötelezően
      * kéri a conversion_rate-et, és nem konvertál magától — ezért a teljesítés napi
      * MNB-árfolyamot innen kérjük le. A válasz mezőneve a Billingónál `conversation_rate`.
+     *
+     * @throws \RuntimeException ha a válaszból hiányzik vagy nem pozitív az árfolyam —
+     *                           0.0 továbbengedése érthetetlen Billingo 422-t okozna a számlán.
      */
     public function exchangeRate(string $from, string $to, ?string $date = null): float
     {
-        return (float) $this->request()
+        $rate = (float) $this->request()
             ->get('/currencies', array_filter([
                 'from' => $from,
                 'to' => $to,
@@ -99,6 +102,14 @@ class BillingoClient
             ]))
             ->throw()
             ->json('conversation_rate');
+
+        if ($rate <= 0) {
+            throw new \RuntimeException(
+                "A Billingo nem adott érvényes {$from}→{$to} árfolyamot (kapott érték: {$rate})."
+            );
+        }
+
+        return $rate;
     }
 
     private function request(): PendingRequest

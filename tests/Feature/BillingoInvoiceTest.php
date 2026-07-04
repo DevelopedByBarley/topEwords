@@ -4,6 +4,7 @@ use App\Jobs\GenerateBillingoInvoice;
 use App\Models\BillingoInvoice;
 use App\Models\User;
 use App\Services\Billingo\InvoiceGenerator;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
@@ -190,6 +191,26 @@ test('devizás (nem HUF) számlán a teljesítés napi MNB-árfolyam kerül a co
     });
 });
 
+test('érvénytelen árfolyam-válasznál nem állít ki számlát, hanem kivételt dob', function () {
+    Http::fake([
+        // Hiányzó conversation_rate mező — (float) null = 0.0 kerülne a számlára.
+        'api.billingo.hu/v3/currencies*' => Http::response(['detail' => 'no rate'], 200),
+        'api.billingo.hu/v3/partners' => Http::response(['id' => 777], 200),
+    ]);
+    $user = billableUser();
+
+    // A kivétel felfut, így a job backoff-fal újrapróbálja, ahelyett hogy 0-s
+    // árfolyammal érthetetlen Billingo 422-t kapnánk.
+    expect(fn () => app(InvoiceGenerator::class)->generateForStripeInvoice($user, stripeInvoice([
+        'id' => 'in_bad_rate',
+        'amount_paid' => 2990,
+        'currency' => 'eur',
+    ])))->toThrow(RuntimeException::class, 'EUR→HUF');
+
+    // Dokumentum-kiállítás nem történt.
+    Http::assertNotSent(fn ($request) => str_ends_with($request->url(), '/documents'));
+});
+
 test('idempotens: a megismételt hívás nem állít ki második számlát', function () {
     fakeBillingo();
     $user = billableUser();
@@ -233,6 +254,46 @@ test('a meglévő partnert a friss számlázási adatokkal frissíti számlázá
         && str_ends_with($request->url(), '/partners/555')
         && $request->data()['name'] === 'Új Név Kft.'
         && $request->data()['address']['address'] === 'Új utca 9.');
+});
+
+test('ha a mentett partnert a Billingo-fiókból törölték (404), újra létrehozza és számláz', function () {
+    Http::fake([
+        // A mentett partner frissítése 404 — a partnert időközben törölték a fiókból.
+        'api.billingo.hu/v3/partners/*' => Http::response(['error' => 'Partner not found'], 404),
+        'api.billingo.hu/v3/partners' => Http::response(['id' => 888], 200),
+        'api.billingo.hu/v3/documents/*/send' => Http::response([], 200),
+        'api.billingo.hu/v3/documents' => Http::response(['id' => 5001, 'invoice_number' => 'TESZT-2026-1'], 200),
+    ]);
+    $user = billableUser();
+    $user->forceFill(['billingo_partner_id' => 555])->save();
+
+    $record = app(InvoiceGenerator::class)->generateForStripeInvoice($user, stripeInvoice(['id' => 'in_gone_partner']));
+
+    // A halott azonosító helyett új partner készül, azzal megy ki a számla,
+    // és a friss azonosító mentődik a felhasználóhoz a későbbi számlákhoz.
+    expect($record?->isIssued())->toBeTrue();
+    expect($user->refresh()->billingo_partner_id)->toBe(888);
+    Http::assertSent(fn ($request) => str_ends_with($request->url(), '/documents')
+        && $request->data()['partner_id'] === 888);
+});
+
+test('a partner-frissítés nem-404 hibáját továbbdobja, hogy a job újrapróbálja', function () {
+    Http::fake([
+        'api.billingo.hu/v3/partners/*' => Http::response(['error' => 'Server error'], 500),
+        'api.billingo.hu/v3/partners' => Http::response(['id' => 888], 200),
+        'api.billingo.hu/v3/documents' => Http::response(['id' => 5001], 200),
+    ]);
+    $user = billableUser();
+    $user->forceFill(['billingo_partner_id' => 555])->save();
+
+    // Átmeneti (pl. 500-as) hibánál NEM hozunk létre új partnert — az duplikálná a
+    // vevőt —, hanem a kivétel felfut, és a job backoff-fal újrapróbálja.
+    expect(fn () => app(InvoiceGenerator::class)->generateForStripeInvoice($user, stripeInvoice(['id' => 'in_partner_500'])))
+        ->toThrow(RequestException::class);
+
+    expect($user->refresh()->billingo_partner_id)->toBe(555);
+    Http::assertNotSent(fn ($request) => $request->method() === 'POST'
+        && str_ends_with($request->url(), '/partners'));
 });
 
 test('párhuzamos kiállításnál a zár csak egy folyamatot enged számlázni', function () {

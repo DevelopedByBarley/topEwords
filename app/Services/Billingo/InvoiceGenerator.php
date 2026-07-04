@@ -4,8 +4,10 @@ namespace App\Services\Billingo;
 
 use App\Models\BillingoInvoice;
 use App\Models\User;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Date;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Egy sikeresen kifizetett Stripe számlából NAV-kompatibilis Billingo számlát állít
@@ -107,9 +109,24 @@ class InvoiceGenerator
         // számlázáskor frissítjük, hogy a számla mindig a friss adatokkal menjen ki.
         if ($user->billingo_partner_id !== null) {
             $partnerId = (int) $user->billingo_partner_id;
-            $this->client->updatePartner($partnerId, $payload);
 
-            return $partnerId;
+            try {
+                $this->client->updatePartner($partnerId, $payload);
+
+                return $partnerId;
+            } catch (RequestException $e) {
+                if ($e->response->status() !== 404) {
+                    throw $e;
+                }
+
+                // A partnert időközben törölték a Billingo-fiókból — a mentett azonosító
+                // örökre halott, minden újrapróba ugyanígy bukna, és a felhasználó
+                // számlázása kézi beavatkozásig állna. Eldobjuk, és alább újra létrehozzuk.
+                Log::warning('A mentett Billingo partner nem létezik (404), újra létrehozzuk.', [
+                    'user_id' => $user->id,
+                    'billingo_partner_id' => $partnerId,
+                ]);
+            }
         }
 
         $partnerId = $this->client->createPartner($payload);
