@@ -2,6 +2,7 @@
 
 use App\Models\User;
 use App\Models\UserCustomWord;
+use Illuminate\Support\Facades\Cache;
 
 beforeEach(function () {
     $this->user = User::factory()->create();
@@ -139,6 +140,29 @@ test('toggling same status removes the status (sets to null)', function () {
         ->assertRedirect();
 
     expect($word->fresh()->status)->toBeNull();
+});
+
+test('extension-origin custom word status write consumes the daily extension quota and blocks over it', function () {
+    $word = UserCustomWord::create([
+        'user_id' => $this->user->id,
+        'word' => 'ephemeral',
+        'status' => null,
+    ]);
+
+    $this->postJson(route('custom-words.status', $word), ['status' => 'known'], ['Origin' => 'chrome-extension://abcdefghijklmnop'])
+        ->assertOk()
+        ->assertJson(['ok' => true]);
+
+    expect($this->user->extensionWritesToday())->toBe(1);
+
+    $limit = $this->user->planLimit('extension_writes_per_day');
+    Cache::put("extension_writes_daily_{$this->user->id}_".today()->format('Y-m-d'), $limit, now()->endOfDay());
+
+    $this->postJson(route('custom-words.status', $word), ['status' => 'learning'], ['Origin' => 'chrome-extension://abcdefghijklmnop'])
+        ->assertForbidden()
+        ->assertJson(['error' => 'plan']);
+
+    expect($word->fresh()->status)->toBe('known');
 });
 
 test('extension JSON request gets a JSON ack for custom word status', function () {

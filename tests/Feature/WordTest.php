@@ -2,6 +2,8 @@
 
 use App\Models\User;
 use App\Models\Word;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Route;
 
 beforeEach(function () {
     $this->user = User::factory()->create();
@@ -144,6 +146,79 @@ test('inertia request still receives a redirect, not JSON', function () {
 
     $this->post(route('words.status', $word), ['status' => 'known'], ['X-Inertia' => 'true', 'X-Requested-With' => 'XMLHttpRequest'])
         ->assertRedirect();
+});
+
+test('extension-origin status write consumes the daily extension quota', function () {
+    $word = Word::where('word', 'the')->first();
+
+    $this->postJson(route('words.status', $word), ['status' => 'known'], ['Origin' => 'chrome-extension://abcdefghijklmnop'])
+        ->assertOk()
+        ->assertJson(['ok' => true]);
+
+    expect($this->user->extensionWritesToday())->toBe(1);
+});
+
+test('extension-origin status write is blocked once the free daily quota is exhausted', function () {
+    $word = Word::where('word', 'the')->first();
+    $limit = $this->user->planLimit('extension_writes_per_day');
+    Cache::put("extension_writes_daily_{$this->user->id}_".today()->format('Y-m-d'), $limit, now()->endOfDay());
+
+    $this->postJson(route('words.status', $word), ['status' => 'known'], ['Origin' => 'chrome-extension://abcdefghijklmnop'])
+        ->assertForbidden()
+        ->assertJson(['error' => 'plan']);
+
+    expect($this->user->knownWords()->where('word_id', $word->id)->exists())->toBeFalse();
+});
+
+test('extension-origin status removal stays free even over the exhausted quota', function () {
+    // A levétel nem fogyaszt keretet, hogy a betelt keret ne akadályozza a visszavonást.
+    $word = Word::where('word', 'the')->first();
+    $this->user->knownWords()->attach($word->id, ['status' => 'known']);
+    $limit = $this->user->planLimit('extension_writes_per_day');
+    Cache::put("extension_writes_daily_{$this->user->id}_".today()->format('Y-m-d'), $limit, now()->endOfDay());
+
+    $this->postJson(route('words.status', $word), ['status' => ''], ['Origin' => 'chrome-extension://abcdefghijklmnop'])
+        ->assertOk()
+        ->assertJson(['ok' => true, 'status' => null]);
+
+    expect($this->user->knownWords()->where('word_id', $word->id)->exists())->toBeFalse();
+});
+
+test('web status writes do not consume the extension quota', function () {
+    // A gyakorlás-oldal fetch-e is a JSON-ágat használja, de app-originnel érkezik
+    // — nem számíthat extension-írásnak, betelt extension-keretnél is működnie kell.
+    $word = Word::where('word', 'the')->first();
+    $limit = $this->user->planLimit('extension_writes_per_day');
+    Cache::put("extension_writes_daily_{$this->user->id}_".today()->format('Y-m-d'), $limit, now()->endOfDay());
+
+    $this->postJson(route('words.status', $word), ['status' => 'known'], ['Origin' => config('app.url')])
+        ->assertOk()
+        ->assertJson(['ok' => true]);
+
+    expect($this->user->knownWords()->where('word_id', $word->id)->exists())->toBeTrue()
+        ->and($this->user->extensionWritesToday())->toBe($limit);
+});
+
+test('a premium user status-writes from the extension without quota', function () {
+    $premium = User::factory()->premium()->create();
+    $word = Word::where('word', 'the')->first();
+
+    $this->actingAs($premium)
+        ->postJson(route('words.status', $word), ['status' => 'known'], ['Origin' => 'chrome-extension://abcdefghijklmnop'])
+        ->assertOk()
+        ->assertJson(['ok' => true]);
+
+    expect($premium->knownWords()->where('word_id', $word->id)->exists())->toBeTrue()
+        ->and($premium->extensionWritesToday())->toBe(0);
+});
+
+test('word write endpoints carry the shared per-user throttle limiter', function () {
+    foreach (['words.status', 'words.importance', 'custom-words.store', 'custom-words.update', 'custom-words.status', 'custom-words.importance', 'custom-words.destroy'] as $name) {
+        $route = Route::getRoutes()->getByName($name);
+
+        expect($route)->not->toBeNull()
+            ->and($route->middleware())->toContain('throttle:60,1,word-writes');
+    }
 });
 
 test('words index shows correct status counts', function () {

@@ -28,6 +28,31 @@ trait TogglesWordStatus
     }
 
     /**
+     * A bővítményből indított státusz-FELVÉTEL a közös napi extension-írás
+     * keretbe számít (config: extension_writes_per_day), ugyanúgy, mint az
+     * ExtensionController::addWord/createFlashcard. A levétel (detach) nem
+     * fogyaszt keretet, hogy a betelt keret ne akadályozza a visszavonást.
+     * A bővítményt az Origin azonosítja: a háttér-script fetch-e extension-
+     * origint küld, amit weboldal nem tud hamisítani; az Origint elhagyó
+     * kézi (curl/szkript) hívásokat a végpont throttle-ja fogja meg.
+     * Betelt keretnél az ExtensionControllerrel azonos hibaforma megy vissza.
+     */
+    private function reserveExtensionStatusWrite(Request $request): ?JsonResponse
+    {
+        $origin = (string) $request->header('Origin');
+
+        $fromExtension = str_starts_with($origin, 'chrome-extension://')
+            || str_starts_with($origin, 'moz-extension://')
+            || str_starts_with($origin, 'safari-web-extension://');
+
+        if ($fromExtension && ! $request->user()->reserveExtensionWrite()) {
+            return response()->json(['error' => 'plan'], 403);
+        }
+
+        return null;
+    }
+
+    /**
      * A bővítmény rövid JSON-nyugtát vár (nincs felesleges redirect-követés,
      * ami minden mentésnél letöltené a teljes oldalt); az Inertia webfelület
      * viszont redirectet igényel a látogatás feloldásához. Inertia-kérésre

@@ -447,6 +447,52 @@ test('youtube transcript validates the video id', function () {
         ->assertJson(['error' => 'invalid_video_id']);
 });
 
+test('youtube transcript is cached per video and shared across users', function () {
+    Http::fake([
+        '*api/timedtext*' => Http::response('{"events":[{"tStartMs":0,"segs":[{"utf8":"hello world"}]}]}'),
+        '*youtube.com/watch*' => Http::response('<html><head><title>Test Video - YouTube</title></head></html>'),
+        '*' => Http::response(''),
+    ]);
+
+    $this->actingAs($this->user)
+        ->getJson(route('extension.youtube-transcript', ['v' => 'abcdefghijk']))
+        ->assertSuccessful()
+        ->assertJsonPath('title', 'Test Video');
+
+    $scrapeRequestCount = count(Http::recorded());
+
+    // A cím a caption-letöltés watch-oldalából jön, nem külön kérésből (#M7):
+    // pontosan egy watch-oldal letöltés történt.
+    expect(Http::recorded(fn ($request) => str_contains($request->url(), 'youtube.com/watch')))->toHaveCount(1);
+
+    // Másik user ugyanazzal a videóval a cache-ből kap választ, scrape nélkül.
+    $this->actingAs(User::factory()->premium()->create())
+        ->getJson(route('extension.youtube-transcript', ['v' => 'abcdefghijk']))
+        ->assertSuccessful()
+        ->assertJsonPath('title', 'Test Video')
+        ->assertJsonPath('segments.0.x', 'hello world');
+
+    expect(Http::recorded())->toHaveCount($scrapeRequestCount);
+});
+
+test('youtube transcript failure is negative-cached so retries do not re-scrape', function () {
+    Http::fake(['*' => Http::response('')]);
+
+    $this->actingAs($this->user)
+        ->getJson(route('extension.youtube-transcript', ['v' => 'abcdefghijk']))
+        ->assertStatus(422)
+        ->assertJson(['error' => 'no_captions']);
+
+    $scrapeRequestCount = count(Http::recorded());
+
+    $this->actingAs($this->user)
+        ->getJson(route('extension.youtube-transcript', ['v' => 'abcdefghijk']))
+        ->assertStatus(422)
+        ->assertJson(['error' => 'no_captions']);
+
+    expect(Http::recorded())->toHaveCount($scrapeRequestCount);
+});
+
 test('youtube transcript returns timestamped segments for premium users', function () {
     Http::fake([
         '*api/timedtext*' => Http::response('{"events":[{"tStartMs":0,"segs":[{"utf8":"hello world"}]},{"tStartMs":2000,"segs":[{"utf8":"second line"}]}]}'),

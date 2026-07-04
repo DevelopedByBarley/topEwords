@@ -17,8 +17,21 @@ Route::middleware(['auth', 'verified', EnsureOnboardingComplete::class])->group(
     Route::get('words', [WordController::class, 'index'])->name('words.index');
     Route::get('words/search', [WordController::class, 'search'])->name('words.search');
     Route::patch('words/{word}', [WordController::class, 'update'])->name('words.update')->middleware('can:admin');
-    Route::post('words/{word}/status', [WordController::class, 'status'])->name('words.status');
-    Route::post('words/{word}/importance', [WordController::class, 'importance'])->name('words.importance');
+
+    // Szó-írások (státusz, fontosság, saját szó CRUD) közös percenkénti sapkája:
+    // minden hívás streak-update + achievement-ellenőrzést futtat, és az Origint
+    // elhagyó szkriptelt extension-kvóta-kerülésnek is ez a plafonja.
+    Route::middleware('throttle:60,1,word-writes')->group(function () {
+        Route::post('words/{word}/status', [WordController::class, 'status'])->name('words.status');
+        Route::post('words/{word}/importance', [WordController::class, 'importance'])->name('words.importance');
+
+        // Saját szavak
+        Route::post('custom-words', [UserCustomWordController::class, 'store'])->name('custom-words.store');
+        Route::patch('custom-words/{customWord}', [UserCustomWordController::class, 'update'])->name('custom-words.update');
+        Route::post('custom-words/{customWord}/status', [UserCustomWordController::class, 'status'])->name('custom-words.status');
+        Route::post('custom-words/{customWord}/importance', [UserCustomWordController::class, 'importance'])->name('custom-words.importance');
+        Route::delete('custom-words/{customWord}', [UserCustomWordController::class, 'destroy'])->name('custom-words.destroy');
+    });
 
     // Gyakorlások: szabad írás, mondatkiegészítés, kvíz
     Route::get('words/practice', [WordController::class, 'practice'])->name('words.practice');
@@ -33,13 +46,6 @@ Route::middleware(['auth', 'verified', EnsureOnboardingComplete::class])->group(
     Route::post('review/complete', [ReviewController::class, 'complete'])->name('review.complete');
 
     Route::get('irregular-verbs', [IrregularVerbController::class, 'index'])->name('irregular-verbs.index');
-
-    // Saját szavak
-    Route::post('custom-words', [UserCustomWordController::class, 'store'])->name('custom-words.store');
-    Route::patch('custom-words/{customWord}', [UserCustomWordController::class, 'update'])->name('custom-words.update');
-    Route::post('custom-words/{customWord}/status', [UserCustomWordController::class, 'status'])->name('custom-words.status');
-    Route::post('custom-words/{customWord}/importance', [UserCustomWordController::class, 'importance'])->name('custom-words.importance');
-    Route::delete('custom-words/{customWord}', [UserCustomWordController::class, 'destroy'])->name('custom-words.destroy');
 
     // Szó-mappák
     Route::post('folders', [FolderController::class, 'store'])->name('folders.store');

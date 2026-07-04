@@ -152,7 +152,7 @@ class TextAnalysisController extends Controller
             }
 
             $text = $videoId !== null
-                ? $this->captions->segmentsToText($this->captions->fetchCaptions($videoId))
+                ? $this->captions->segmentsToText($this->captions->fetchTranscript($videoId)['segments'])
                 : $this->fetchWebpageText($url);
         } catch (\RuntimeException $e) {
             return response()->json(['error' => $e->getMessage()], 422);
@@ -1400,18 +1400,20 @@ PROMPT;
         }
 
         try {
-            $segments = $this->captions->fetchCaptions($videoId);
+            $transcript = $this->captions->fetchTranscript($videoId);
         } catch (\RuntimeException $e) {
             return response()->json(['error' => $e->getMessage()], 422);
         } catch (\Throwable) {
             return response()->json(['error' => 'A felirat nem érhető el. Próbáld újra később.'], 422);
         }
 
+        $segments = $transcript['segments'];
+
         if (empty($segments)) {
             return response()->json(['error' => 'Ehhez a videóhoz nem érhetők el angol feliratok.'], 422);
         }
 
-        $title = $this->captions->fetchTitle($videoId) ?? 'YouTube videó';
+        $title = $transcript['title'] ?? 'YouTube videó';
         $json = json_encode(array_values($segments), JSON_UNESCAPED_UNICODE) ?: '[]';
         $totalPages = max(1, (int) ceil(count($segments) / YoutubeTranscript::SEGMENTS_PER_PAGE));
 

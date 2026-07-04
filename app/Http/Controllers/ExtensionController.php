@@ -309,15 +309,17 @@ class ExtensionController extends Controller
             return response()->json(['error' => 'invalid_video_id'], 422);
         }
 
+        // Videónkénti cache-ből jön (userek közt megosztva), így ugyanaz a videó
+        // naponta legfeljebb egyszer scrape-eli a YouTube-ot (#M7).
         try {
-            $segments = $captions->fetchCaptions($videoId);
+            $transcript = $captions->fetchTranscript($videoId);
         } catch (\Throwable) {
             return response()->json(['error' => 'no_captions'], 422);
         }
 
         return response()->json([
-            'title' => $captions->fetchTitle($videoId) ?? 'YouTube',
-            'segments' => $segments,
+            'title' => $transcript['title'] ?? 'YouTube',
+            'segments' => $transcript['segments'],
         ]);
     }
 

@@ -82,6 +82,10 @@ class UserCustomWordController extends Controller
             return $this->statusToggleResponse($request, null, $forms);
         }
 
+        if ($limitResponse = $this->reserveExtensionStatusWrite($request)) {
+            return $limitResponse;
+        }
+
         $customWord->update(['status' => $status]);
 
         if ($request->user()->updateStreak()) {

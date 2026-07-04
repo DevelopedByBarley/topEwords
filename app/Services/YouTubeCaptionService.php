@@ -2,10 +2,23 @@
 
 namespace App\Services;
 
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
 class YouTubeCaptionService
 {
+    /** Sikeres átirat ennyi ideig él a videónkénti cache-ben. */
+    private const CACHE_TTL_HOURS = 24;
+
+    /** „Nincs felirat" eredmény rövid negatív cache-e, hogy az ismételt próbálkozás se scrape-eljen. */
+    private const MISS_CACHE_TTL_MINUTES = 15;
+
+    /**
+     * A caption-letöltés közben már lekért watch-oldalból kinyert cím, hogy a
+     * fetchTranscript ne töltse le még egyszer ugyanazt az oldalt a címért.
+     */
+    private ?string $watchPageTitle = null;
+
     /**
      * Extract the 11-character video id from any common YouTube URL form.
      */
@@ -25,6 +38,49 @@ class YouTubeCaptionService
         }
 
         return null;
+    }
+
+    /**
+     * Videónként cache-elt átirat (cím + szegmensek), userek közt megosztva —
+     * ugyanahhoz a videóhoz naponta legfeljebb egyszer scrape-elünk. A definitív
+     * „nincs felirat" eredmény rövid negatív cache-t kap; az átmeneti hálózati
+     * hibát (ConnectionException stb.) nem cache-eljük, az újrapróbálható.
+     *
+     * @return array{title: ?string, segments: array<int, array{t: int, x: string}>}
+     *
+     * @throws \RuntimeException when no usable English captions are available
+     */
+    public function fetchTranscript(string $videoId): array
+    {
+        $cacheKey = "youtube:transcript:{$videoId}";
+
+        $cached = Cache::get($cacheKey);
+        if (is_array($cached)) {
+            return $cached;
+        }
+
+        if (Cache::has("youtube:transcript-miss:{$videoId}")) {
+            throw new \RuntimeException('Ehhez a videóhoz nem érhetők el angol feliratok, vagy a felirat nem feldolgozható.');
+        }
+
+        $this->watchPageTitle = null;
+
+        try {
+            $segments = $this->fetchCaptions($videoId);
+        } catch (\RuntimeException $e) {
+            Cache::put("youtube:transcript-miss:{$videoId}", true, now()->addMinutes(self::MISS_CACHE_TTL_MINUTES));
+
+            throw $e;
+        }
+
+        $transcript = [
+            'title' => $this->watchPageTitle ?? $this->fetchTitle($videoId),
+            'segments' => $segments,
+        ];
+
+        Cache::put($cacheKey, $transcript, now()->addHours(self::CACHE_TTL_HOURS));
+
+        return $transcript;
     }
 
     /**
@@ -74,17 +130,25 @@ class YouTubeCaptionService
                 return null;
             }
 
-            if (preg_match('/<meta\s+name="title"\s+content="([^"]+)"/', $response->body(), $m)) {
-                return html_entity_decode($m[1], ENT_QUOTES | ENT_HTML5, 'UTF-8');
-            }
-
-            if (preg_match('/<title>(.*?)<\/title>/s', $response->body(), $m)) {
-                $title = html_entity_decode(trim($m[1]), ENT_QUOTES | ENT_HTML5, 'UTF-8');
-
-                return trim(preg_replace('/\s*-\s*YouTube\s*$/', '', $title) ?? $title);
-            }
+            return $this->parseWatchPageTitle($response->body());
         } catch (\Throwable) {
-            // Fallback to default title below.
+            return null;
+        }
+    }
+
+    /**
+     * Video title from a watch page's HTML; null when it cannot be found.
+     */
+    private function parseWatchPageTitle(string $html): ?string
+    {
+        if (preg_match('/<meta\s+name="title"\s+content="([^"]+)"/', $html, $m)) {
+            return html_entity_decode($m[1], ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        }
+
+        if (preg_match('/<title>(.*?)<\/title>/s', $html, $m)) {
+            $title = html_entity_decode(trim($m[1]), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+            return trim(preg_replace('/\s*-\s*YouTube\s*$/', '', $title) ?? $title);
         }
 
         return null;
@@ -115,6 +179,8 @@ class YouTubeCaptionService
         if (! $pageResponse->ok()) {
             return [];
         }
+
+        $this->watchPageTitle ??= $this->parseWatchPageTitle($pageResponse->body());
 
         if (! preg_match('/"INNERTUBE_API_KEY"\s*:\s*"([a-zA-Z0-9_-]+)"/', $pageResponse->body(), $keyMatch)) {
             return [];
@@ -209,6 +275,8 @@ class YouTubeCaptionService
         if (! $pageResponse->ok()) {
             return [];
         }
+
+        $this->watchPageTitle ??= $this->parseWatchPageTitle($pageResponse->body());
 
         $captionUrl = $this->extractCaptionUrl($pageResponse->body());
         if ($captionUrl === null) {

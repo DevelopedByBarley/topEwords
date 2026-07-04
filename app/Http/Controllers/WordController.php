@@ -534,6 +534,10 @@ class WordController extends Controller
             return $this->statusToggleResponse($request, null, $forms);
         }
 
+        if ($limitResponse = $this->reserveExtensionStatusWrite($request)) {
+            return $limitResponse;
+        }
+
         $request->user()->knownWords()->syncWithoutDetaching([$word->id => ['status' => $status]]);
 
         if ($request->user()->updateStreak()) {

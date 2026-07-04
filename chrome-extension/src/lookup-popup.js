@@ -567,10 +567,13 @@ function handleStatusClick(btn, data) {
             if (body) {
                 const err = document.createElement('span');
                 err.className = 'error-feedback';
-                err.textContent = extErrorMessage(
-                    resp?.error,
-                    'Nem sikerült menteni — próbáld újra.',
-                );
+                err.textContent =
+                    resp?.error === 'plan'
+                        ? 'Elérted a bővítmény napi ingyenes keretét — holnap folytathatod.'
+                        : extErrorMessage(
+                              resp?.error,
+                              'Nem sikerült menteni — próbáld újra.',
+                          );
                 body.prepend(err);
             }
         },
