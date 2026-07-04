@@ -429,3 +429,78 @@ test('importance updates an already saved word', function () {
 
     expect($this->user->knownWords()->wherePivot('importance', 4)->where('word_id', $word->id)->exists())->toBeTrue();
 });
+
+test('words can be filtered by importance', function () {
+    $words = Word::whereIn('word', ['the', 'of'])->get()->keyBy('word');
+    $this->user->knownWords()->attach($words['the']->id, ['status' => 'known', 'importance' => 5]);
+    $this->user->knownWords()->attach($words['of']->id, ['status' => 'known', 'importance' => 2]);
+
+    $this->get(route('words.index', ['importance' => 5]))
+        ->assertInertia(fn ($page) => $page
+            ->where('words.total', 1)
+            ->where('words.data.0.word', 'the')
+            ->where('words.data.0.importance', 5)
+            ->where('filters.importance', 5)
+        );
+});
+
+test('custom words and stats are included on the index', function () {
+    $this->user->customWords()->createMany([
+        ['word' => 'ephemeral', 'meaning_hu' => 'illékony', 'status' => 'learning', 'importance' => 3],
+        ['word' => 'apricot', 'meaning_hu' => 'sárgabarack', 'status' => 'known'],
+    ]);
+
+    $this->get(route('words.index'))
+        ->assertInertia(fn ($page) => $page
+            ->count('customWords', 2)
+            ->where('customStats.total', 2)
+            ->where('customStats.known', 1)
+            ->where('customStats.learning', 1)
+        );
+});
+
+test('custom words follow the active search, letter, status and importance filters', function () {
+    $this->user->customWords()->createMany([
+        ['word' => 'ephemeral', 'meaning_hu' => 'illékony', 'status' => 'learning', 'importance' => 3],
+        ['word' => 'apricot', 'meaning_hu' => 'sárgabarack', 'status' => 'known'],
+    ]);
+
+    // Keresés: substring-egyezés, kis/nagybetű-független
+    $this->get(route('words.index', ['search' => 'PHEM']))
+        ->assertInertia(fn ($page) => $page
+            ->count('customWords', 1)
+            ->where('customWords.0.word', 'ephemeral')
+        );
+
+    // Kezdőbetű
+    $this->get(route('words.index', ['letter' => 'A']))
+        ->assertInertia(fn ($page) => $page
+            ->count('customWords', 1)
+            ->where('customWords.0.word', 'apricot')
+        );
+
+    // Státusz
+    $this->get(route('words.index', ['status' => 'known']))
+        ->assertInertia(fn ($page) => $page
+            ->count('customWords', 1)
+            ->where('customWords.0.word', 'apricot')
+        );
+
+    // Fontosság
+    $this->get(route('words.index', ['importance' => 3]))
+        ->assertInertia(fn ($page) => $page
+            ->count('customWords', 1)
+            ->where('customWords.0.word', 'ephemeral')
+        );
+});
+
+test('folder filter hides custom words because they cannot be foldered', function () {
+    $this->user->customWords()->create(['word' => 'ephemeral', 'meaning_hu' => 'illékony']);
+    $folder = $this->user->folders()->create(['name' => 'Teszt mappa']);
+
+    $this->get(route('words.index', ['folder' => $folder->id]))
+        ->assertInertia(fn ($page) => $page
+            ->count('customWords', 0)
+            ->where('customStats.total', 1)
+        );
+});

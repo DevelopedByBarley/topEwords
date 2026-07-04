@@ -46,8 +46,6 @@ import {
     POS_LABELS,
     STATUS_CONFIG,
     speak,
-    statusRowBg,
-    statusRowText,
     wordToFormData,
 } from '@/components/words/types';
 import type {
@@ -58,6 +56,8 @@ import type {
 } from '@/components/words/types';
 import WordFormFields from '@/components/words/word-form-fields';
 import WordInsightPanel from '@/components/words/word-insight-panel';
+import WordRow from '@/components/words/word-row';
+import type { UnifiedItem } from '@/components/words/word-row';
 import { httpErrorMessage } from '@/lib/http';
 import { withMinDuration } from '@/lib/min-duration';
 import {
@@ -207,10 +207,6 @@ export default function WordsIndex({
     const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
     const progressPercent =
         stats.total > 0 ? Math.round((stats.known / stats.total) * 100) : 0;
-
-    type UnifiedItem =
-        | { type: 'custom'; data: CustomWord }
-        | { type: 'regular'; data: Word };
 
     const unifiedList = useMemo((): UnifiedItem[] => {
         if (customFilter === 'custom') {
@@ -504,7 +500,9 @@ export default function WordsIndex({
         navigate({ importance: value, page: 1 });
     }
 
-    function handleStatus(word: Word, newStatus: WordStatus) {
+    // A sor-kezelők useCallback-ben vannak, hogy a memoizált WordRow propjai
+    // stabilak maradjanak — enélkül a memo semmit sem érne.
+    const handleStatus = useCallback((word: Word, newStatus: WordStatus) => {
         const nextStatus = word.status === newStatus ? null : newStatus;
 
         router.post(
@@ -552,7 +550,7 @@ export default function WordsIndex({
                 },
             },
         );
-    }
+    }, []);
 
     // Az AI által visszaadott mezőket beolvasztja a meglévő űrlapba. Ahol az AI
     // ad értéket, az felülírja a korábbit (admin szerkesztésnél így újratölt),
@@ -713,19 +711,19 @@ export default function WordsIndex({
         });
     }
 
-    function handleCustomWordStatus(
-        wordId: number,
-        newStatus: Exclude<WordStatus, null>,
-    ) {
-        router.post(
-            customWordStatus(wordId),
-            { status: newStatus },
-            {
-                preserveScroll: true,
-                only: ['customWords', 'customStats', 'stats', 'flash'],
-            },
-        );
-    }
+    const handleCustomWordStatus = useCallback(
+        (wordId: number, newStatus: Exclude<WordStatus, null>) => {
+            router.post(
+                customWordStatus(wordId),
+                { status: newStatus },
+                {
+                    preserveScroll: true,
+                    only: ['customWords', 'customStats', 'stats', 'flash'],
+                },
+            );
+        },
+        [],
+    );
 
     function handleDeleteCustomWord(wordId: number) {
         router.delete(destroyCustomWord(wordId), {
@@ -744,9 +742,12 @@ export default function WordsIndex({
         });
     }
 
-    function openPracticeModal(word: string, meaning_hu: string | null) {
-        setPracticeModalWord({ word, meaning_hu });
-    }
+    const openPracticeModal = useCallback(
+        (word: string, meaning_hu: string | null) => {
+            setPracticeModalWord({ word, meaning_hu });
+        },
+        [],
+    );
 
     function handleImportance(wordId: number, value: number | null) {
         router.post(
@@ -1414,79 +1415,21 @@ export default function WordsIndex({
                     <div className="overflow-hidden rounded-3xl bg-card shadow-sm">
                         <ul className="divide-y">
                             {unifiedList.map((item) => (
-                                <li
+                                <WordRow
                                     key={
                                         item.type === 'custom'
                                             ? `custom-${item.data.id}`
                                             : item.data.id
                                     }
-                                    className={`flex items-center gap-3 px-3 py-2.5 transition-colors ${statusRowBg(item.data.status)}`}
-                                >
-                                    <button
-                                        onClick={() =>
-                                            item.type === 'custom'
-                                                ? setSelectedCustomWordId(
-                                                      item.data.id,
-                                                  )
-                                                : setSelectedWordId(
-                                                      item.data.id,
-                                                  )
-                                        }
-                                        className={`flex-1 text-left underline decoration-dotted underline-offset-2 transition-opacity hover:opacity-70 ${
-                                            flipMode
-                                                ? 'text-sm font-normal'
-                                                : 'font-medium'
-                                        } ${statusRowText(item.data.status)}`}
-                                    >
-                                        {flipMode
-                                            ? (item.data.meaning_hu ?? (
-                                                  <span className="text-muted-foreground italic">
-                                                      (nincs fordítás)
-                                                  </span>
-                                              ))
-                                            : item.data.word}
-                                        <Info className="mb-0.5 ml-1 inline size-3 opacity-40" />
-                                        {item.type === 'custom' && (
-                                            <span className="ml-1.5 rounded-full bg-primary/12 px-1.5 py-0.5 text-[10px] font-medium text-primary">
-                                                saját
-                                            </span>
-                                        )}
-                                    </button>
-                                    <button
-                                        onClick={() => speak(item.data.word)}
-                                        title="Felolvasás"
-                                        className="hidden shrink-0 cursor-pointer rounded p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground sm:block"
-                                    >
-                                        <Volume2 className="size-3.5" />
-                                    </button>
-                                    {hasAiAccess && (
-                                        <button
-                                            onClick={() =>
-                                                openPracticeModal(
-                                                    item.data.word,
-                                                    item.data.meaning_hu ??
-                                                        null,
-                                                )
-                                            }
-                                            title="Gyakorlás"
-                                            className="shrink-0 cursor-pointer rounded p-1 text-violet-500 transition-colors hover:bg-violet-50 hover:text-violet-700 dark:hover:bg-violet-950/30"
-                                        >
-                                            <Sparkles className="size-3.5" />
-                                        </button>
-                                    )}
-                                    <StatusButtons
-                                        variant="row"
-                                        current={item.data.status}
-                                        onSelect={(s) =>
-                                            item.type === 'custom'
-                                                ? handleCustomWordStatus(
-                                                      item.data.id,
-                                                      s,
-                                                  )
-                                                : handleStatus(item.data, s)
-                                        }
-                                    />
-                                </li>
+                                    item={item}
+                                    flipMode={flipMode}
+                                    hasAiAccess={hasAiAccess}
+                                    onSelectWord={setSelectedWordId}
+                                    onSelectCustomWord={setSelectedCustomWordId}
+                                    onStatus={handleStatus}
+                                    onCustomStatus={handleCustomWordStatus}
+                                    onPractice={openPracticeModal}
+                                />
                             ))}
                         </ul>
                     </div>
