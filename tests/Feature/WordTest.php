@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\User;
 use App\Models\Word;
 use Illuminate\Support\Facades\Cache;
@@ -323,6 +324,34 @@ test('marked pages are returned correctly', function () {
             ->has('markedPages')
             ->where('markedPages', [1, $lastPage])
         );
+});
+
+test('partial reload returns fresh page and letter annotations with stats', function () {
+    // A szólista státusz-váltás után only:[words,stats,markedPages,completedPages,
+    // markedLetters,flash] partial reloadot kér; ez a teszt garantálja, hogy ezek
+    // a propok partial válaszban is frissen visszajönnek (nem optional/deferred).
+    $this->user->knownWords()->attach(Word::where('word', 'the')->first()->id, ['status' => 'known']);
+    $this->user->knownWords()->attach(Word::where('word', 'apple')->first()->id, ['status' => 'practice']);
+
+    $version = app(HandleInertiaRequests::class)->version(request()) ?? '';
+
+    $response = $this->get(route('words.index'), [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => $version,
+        'X-Inertia-Partial-Component' => 'words/index',
+        'X-Inertia-Partial-Data' => 'words,stats,markedPages,completedPages,markedLetters,flash',
+    ])
+        ->assertOk();
+
+    // Partial (JSON) Inertia-válasznál nincs view, ezért assertInertia helyett
+    // közvetlenül a props-okat ellenőrizzük.
+    $response->assertJsonPath('props.markedPages', [1])
+        ->assertJsonPath('props.stats.known', 1)
+        ->assertJsonPath('props.stats.practice', 1)
+        ->assertJsonMissingPath('props.folders');
+
+    expect(collect($response->json('props.markedLetters'))->sort()->values()->all())->toBe(['A', 'T'])
+        ->and($response->json('props.completedPages'))->toBeArray();
 });
 
 test('words index requires authentication', function () {

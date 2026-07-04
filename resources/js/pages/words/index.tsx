@@ -58,6 +58,7 @@ import type {
 } from '@/components/words/types';
 import WordFormFields from '@/components/words/word-form-fields';
 import WordInsightPanel from '@/components/words/word-insight-panel';
+import { httpErrorMessage } from '@/lib/http';
 import { withMinDuration } from '@/lib/min-duration';
 import {
     destroy as destroyCustomWord,
@@ -219,8 +220,7 @@ export default function WordsIndex({
         // The main list is paginated by rank, so pages have no alphabetical
         // range to slot custom words into. Merge every matching custom word
         // into the first page — each one shows up exactly once.
-        const customForPage =
-            words.current_page === 1 ? customWords : [];
+        const customForPage = words.current_page === 1 ? customWords : [];
 
         return [
             ...customForPage.map(
@@ -268,20 +268,41 @@ export default function WordsIndex({
             search.has('letter') ||
             search.has('level') ||
             search.has('status') ||
+            search.has('importance') ||
+            search.has('folder') ||
             search.has('search');
 
         if (!hasParams) {
             const saved = localStorage.getItem(STORAGE_KEY);
 
             if (saved) {
-                const parsed = JSON.parse(saved);
-                router.get(index(), parsed, {
-                    preserveScroll: false,
-                    preserveState: false,
-                    replace: true,
-                });
+                try {
+                    const parsed = JSON.parse(saved);
+
+                    if (parsed && typeof parsed === 'object') {
+                        router.get(index(), parsed, {
+                            preserveScroll: false,
+                            preserveState: false,
+                            replace: true,
+                        });
+                    } else {
+                        localStorage.removeItem(STORAGE_KEY);
+                    }
+                } catch {
+                    localStorage.removeItem(STORAGE_KEY);
+                }
             }
         }
+    }, []);
+
+    // A kereső-debounce unmountkor törlendő, különben gyors oldalváltás után
+    // a késői router.get visszanavigálná a usert a szólistára.
+    useEffect(() => {
+        return () => {
+            if (searchTimeout.current) {
+                clearTimeout(searchTimeout.current);
+            }
+        };
     }, []);
 
     const navigate = useCallback(
@@ -492,10 +513,21 @@ export default function WordsIndex({
             {
                 preserveScroll: true,
                 preserveState: true,
-                only: ['words', 'stats', 'flash'],
+                // A jelölés a lapozó/betű-annotációkat is érinti, ezért azokat
+                // is újratöltjük, különben a pöttyök és a zöld oldalak elavulnak.
+                only: [
+                    'words',
+                    'stats',
+                    'markedPages',
+                    'completedPages',
+                    'markedLetters',
+                    'flash',
+                ],
 
                 optimistic: (props: any) => {
                     const prev = word.status;
+                    const delta = (s: WordStatus) =>
+                        nextStatus === s ? 1 : prev === s ? -1 : 0;
 
                     return {
                         words: {
@@ -508,34 +540,13 @@ export default function WordsIndex({
                         },
                         stats: {
                             ...props.stats,
-                            known:
-                                props.stats.known +
-                                (nextStatus === 'known'
-                                    ? 1
-                                    : prev === 'known'
-                                      ? -1
-                                      : 0),
-                            learning:
-                                props.stats.learning +
-                                (nextStatus === 'learning'
-                                    ? 1
-                                    : prev === 'learning'
-                                      ? -1
-                                      : 0),
-                            saved:
-                                props.stats.saved +
-                                (nextStatus === 'saved'
-                                    ? 1
-                                    : prev === 'saved'
-                                      ? -1
-                                      : 0),
+                            known: props.stats.known + delta('known'),
+                            learning: props.stats.learning + delta('learning'),
+                            saved: props.stats.saved + delta('saved'),
                             pronunciation:
                                 props.stats.pronunciation +
-                                (nextStatus === 'pronunciation'
-                                    ? 1
-                                    : prev === 'pronunciation'
-                                      ? -1
-                                      : 0),
+                                delta('pronunciation'),
+                            practice: props.stats.practice + delta('practice'),
                         },
                     };
                 },
@@ -560,8 +571,7 @@ export default function WordsIndex({
                 data.verb_past_participle || prev.verb_past_participle,
             verb_present_participle:
                 data.verb_present_participle || prev.verb_present_participle,
-            verb_third_person:
-                data.verb_third_person || prev.verb_third_person,
+            verb_third_person: data.verb_third_person || prev.verb_third_person,
             is_irregular: data.is_irregular ?? prev.is_irregular,
             noun_plural: data.noun_plural || prev.noun_plural,
             adj_comparative: data.adj_comparative || prev.adj_comparative,
@@ -606,9 +616,22 @@ export default function WordsIndex({
                     },
                 ),
             );
-            const data = await res.json();
+            const data = await res.json().catch(() => ({}));
 
-            if (data.error) {
+            // A 429-es AI-keret válaszban az `error` gépi kód (ai_limit), az
+            // emberi szöveg a `message`-ben jön; a többi hibaágon az `error`
+            // maga a magyar üzenet.
+            if (!res.ok || data.error) {
+                setErrors({
+                    word:
+                        data.message ??
+                        data.error ??
+                        httpErrorMessage(
+                            res.status,
+                            'Az AI-kitöltés nem sikerült — próbáld újra.',
+                        ),
+                });
+
                 return;
             }
 
@@ -624,6 +647,10 @@ export default function WordsIndex({
             }
 
             applyForm((prev) => mergeGeminiData(prev, data));
+        } catch {
+            setErrors({
+                word: 'Nincs hálózati kapcsolat — az AI-kitöltés nem sikerült.',
+            });
         } finally {
             setGeminiLoading(false);
         }
@@ -728,7 +755,15 @@ export default function WordsIndex({
             {
                 preserveScroll: true,
                 preserveState: true,
-                only: ['words'],
+                // Jelöletlen szónál a backend "known" pivotot hoz létre, ezért
+                // a fejléc-statisztika és a lapozó/betű-annotációk is változhatnak.
+                only: [
+                    'words',
+                    'stats',
+                    'markedPages',
+                    'completedPages',
+                    'markedLetters',
+                ],
             },
         );
     }
@@ -1620,122 +1655,112 @@ export default function WordsIndex({
                                         </div>
                                     )}
                                     {cw.verb_past && (
-                                            <div className="rounded-xl border bg-card px-4 py-3.5">
-                                                <p className="mb-3 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
-                                                    Igealakok
-                                                </p>
-                                                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                                                    {(
-                                                        [
-                                                            {
-                                                                label: 'Alap',
-                                                                value: cw.form_base,
-                                                            },
-                                                            {
-                                                                label: 'Múlt idő',
-                                                                value: cw.verb_past,
-                                                            },
-                                                            {
-                                                                label: 'Befejezett igenév',
-                                                                value: cw.verb_past_participle,
-                                                            },
-                                                            {
-                                                                label: 'Folyamatos (-ing)',
-                                                                value: cw.verb_present_participle,
-                                                            },
-                                                            {
-                                                                label: 'E/3 jelen',
-                                                                value: cw.verb_third_person,
-                                                            },
-                                                        ] as const
+                                        <div className="rounded-xl border bg-card px-4 py-3.5">
+                                            <p className="mb-3 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
+                                                Igealakok
+                                            </p>
+                                            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                                                {(
+                                                    [
+                                                        {
+                                                            label: 'Alap',
+                                                            value: cw.form_base,
+                                                        },
+                                                        {
+                                                            label: 'Múlt idő',
+                                                            value: cw.verb_past,
+                                                        },
+                                                        {
+                                                            label: 'Befejezett igenév',
+                                                            value: cw.verb_past_participle,
+                                                        },
+                                                        {
+                                                            label: 'Folyamatos (-ing)',
+                                                            value: cw.verb_present_participle,
+                                                        },
+                                                        {
+                                                            label: 'E/3 jelen',
+                                                            value: cw.verb_third_person,
+                                                        },
+                                                    ] as const
+                                                )
+                                                    .filter(
+                                                        ({ value }) => value,
                                                     )
-                                                        .filter(
-                                                            ({ value }) =>
-                                                                value,
-                                                        )
-                                                        .map(
-                                                            ({
-                                                                label,
-                                                                value,
-                                                            }) => (
-                                                                <div
-                                                                    key={label}
-                                                                    className="rounded-lg bg-muted/50 px-3 py-2"
-                                                                >
-                                                                    <p className="text-[10px] text-muted-foreground">
-                                                                        {label}
-                                                                    </p>
-                                                                    <p className="font-semibold">
-                                                                        {value}
-                                                                    </p>
-                                                                </div>
-                                                            ),
-                                                        )}
-                                                </div>
+                                                    .map(({ label, value }) => (
+                                                        <div
+                                                            key={label}
+                                                            className="rounded-lg bg-muted/50 px-3 py-2"
+                                                        >
+                                                            <p className="text-[10px] text-muted-foreground">
+                                                                {label}
+                                                            </p>
+                                                            <p className="font-semibold">
+                                                                {value}
+                                                            </p>
+                                                        </div>
+                                                    ))}
                                             </div>
-                                        )}
+                                        </div>
+                                    )}
                                     {cw.noun_plural && (
-                                            <div className="rounded-xl border bg-card px-4 py-3.5">
-                                                <p className="mb-3 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
-                                                    Többes szám
-                                                </p>
-                                                <div className="flex items-center gap-3">
-                                                    <div className="rounded-lg bg-muted/50 px-3 py-2">
-                                                        <p className="text-[10px] text-muted-foreground">
-                                                            Egyes szám
-                                                        </p>
-                                                        <p className="font-semibold">
-                                                            {cw.form_base ??
-                                                                cw.word}
-                                                        </p>
-                                                    </div>
-                                                    <span className="text-muted-foreground">
-                                                        →
-                                                    </span>
-                                                    <div className="rounded-lg bg-muted/50 px-3 py-2">
-                                                        <p className="text-[10px] text-muted-foreground">
-                                                            Többes szám
-                                                        </p>
-                                                        <p className="font-semibold">
-                                                            {cw.noun_plural}
-                                                        </p>
-                                                    </div>
+                                        <div className="rounded-xl border bg-card px-4 py-3.5">
+                                            <p className="mb-3 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
+                                                Többes szám
+                                            </p>
+                                            <div className="flex items-center gap-3">
+                                                <div className="rounded-lg bg-muted/50 px-3 py-2">
+                                                    <p className="text-[10px] text-muted-foreground">
+                                                        Egyes szám
+                                                    </p>
+                                                    <p className="font-semibold">
+                                                        {cw.form_base ??
+                                                            cw.word}
+                                                    </p>
+                                                </div>
+                                                <span className="text-muted-foreground">
+                                                    →
+                                                </span>
+                                                <div className="rounded-lg bg-muted/50 px-3 py-2">
+                                                    <p className="text-[10px] text-muted-foreground">
+                                                        Többes szám
+                                                    </p>
+                                                    <p className="font-semibold">
+                                                        {cw.noun_plural}
+                                                    </p>
                                                 </div>
                                             </div>
-                                        )}
+                                        </div>
+                                    )}
                                     {cw.adj_comparative && (
-                                            <div className="rounded-xl border bg-card px-4 py-3.5">
-                                                <p className="mb-3 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
-                                                    Fokozás
-                                                </p>
-                                                <div className="flex gap-2">
-                                                    {cw.adj_comparative && (
-                                                        <div className="rounded-lg bg-muted/50 px-3 py-2">
-                                                            <p className="text-[10px] text-muted-foreground">
-                                                                Középfok
-                                                            </p>
-                                                            <p className="font-semibold">
-                                                                {
-                                                                    cw.adj_comparative
-                                                                }
-                                                            </p>
-                                                        </div>
-                                                    )}
-                                                    {cw.adj_superlative && (
-                                                        <div className="rounded-lg bg-muted/50 px-3 py-2">
-                                                            <p className="text-[10px] text-muted-foreground">
-                                                                Felsőfok
-                                                            </p>
-                                                            <p className="font-semibold">
-                                                                {
-                                                                    cw.adj_superlative
-                                                                }
-                                                            </p>
-                                                        </div>
-                                                    )}
-                                                </div>
+                                        <div className="rounded-xl border bg-card px-4 py-3.5">
+                                            <p className="mb-3 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
+                                                Fokozás
+                                            </p>
+                                            <div className="flex gap-2">
+                                                {cw.adj_comparative && (
+                                                    <div className="rounded-lg bg-muted/50 px-3 py-2">
+                                                        <p className="text-[10px] text-muted-foreground">
+                                                            Középfok
+                                                        </p>
+                                                        <p className="font-semibold">
+                                                            {cw.adj_comparative}
+                                                        </p>
+                                                    </div>
+                                                )}
+                                                {cw.adj_superlative && (
+                                                    <div className="rounded-lg bg-muted/50 px-3 py-2">
+                                                        <p className="text-[10px] text-muted-foreground">
+                                                            Felsőfok
+                                                        </p>
+                                                        <p className="font-semibold">
+                                                            {cw.adj_superlative}
+                                                        </p>
+                                                    </div>
+                                                )}
                                             </div>
-                                        )}
+                                        </div>
+                                    )}
                                     {(cw.example_en || cw.example_hu) && (
                                         <div className="rounded-xl border-l-4 border-primary/40 bg-muted/30 px-4 py-3.5">
                                             <p className="mb-2 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
@@ -2087,41 +2112,39 @@ export default function WordsIndex({
                                 {/* Igealakok — a szófajtól függetlenül látszik, ha
                                     a szó hordoz igealakot (pl. "interest" főnév + ige) */}
                                 {selectedWord.verb_past && (
-                                        <div className="rounded-xl border bg-card px-4 py-3.5">
-                                            <p className="mb-3 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
-                                                Igealakok
-                                            </p>
-                                            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                                                {(
-                                                    [
-                                                        {
-                                                            label: 'Alap',
-                                                            value:
-                                                                selectedWord.form_base ||
-                                                                selectedWord.word,
-                                                        },
-                                                        {
-                                                            label: 'Múlt idő',
-                                                            value: selectedWord.verb_past,
-                                                        },
-                                                        {
-                                                            label: 'Befejezett igenév',
-                                                            value: selectedWord.verb_past_participle,
-                                                        },
-                                                        {
-                                                            label: 'Folyamatos (-ing)',
-                                                            value: selectedWord.verb_present_participle,
-                                                        },
-                                                        {
-                                                            label: 'E/3 jelen',
-                                                            value: selectedWord.verb_third_person,
-                                                        },
-                                                    ] as const
-                                                )
-                                                    .filter(
-                                                        ({ value }) => value,
-                                                    )
-                                                    .map(({ label, value }) => (
+                                    <div className="rounded-xl border bg-card px-4 py-3.5">
+                                        <p className="mb-3 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
+                                            Igealakok
+                                        </p>
+                                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                                            {(
+                                                [
+                                                    {
+                                                        label: 'Alap',
+                                                        value:
+                                                            selectedWord.form_base ||
+                                                            selectedWord.word,
+                                                    },
+                                                    {
+                                                        label: 'Múlt idő',
+                                                        value: selectedWord.verb_past,
+                                                    },
+                                                    {
+                                                        label: 'Befejezett igenév',
+                                                        value: selectedWord.verb_past_participle,
+                                                    },
+                                                    {
+                                                        label: 'Folyamatos (-ing)',
+                                                        value: selectedWord.verb_present_participle,
+                                                    },
+                                                    {
+                                                        label: 'E/3 jelen',
+                                                        value: selectedWord.verb_third_person,
+                                                    },
+                                                ] as const
+                                            )
+                                                .filter(({ value }) => value)
+                                                .map(({ label, value }) => (
                                                     <div
                                                         key={label}
                                                         className="rounded-lg bg-muted/50 px-3 py-2"
@@ -2134,88 +2157,86 @@ export default function WordsIndex({
                                                         </p>
                                                     </div>
                                                 ))}
-                                            </div>
                                         </div>
-                                    )}
+                                    </div>
+                                )}
 
                                 {/* Többes szám — szófajtól függetlenül, ha van adat */}
                                 {selectedWord.noun_plural && (
-                                        <div className="rounded-xl border bg-card px-4 py-3.5">
-                                            <p className="mb-3 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
-                                                Többes szám
-                                            </p>
-                                            <div className="flex items-center gap-3">
-                                                <div className="rounded-lg bg-muted/50 px-3 py-2">
-                                                    <p className="text-[10px] text-muted-foreground">
-                                                        Egyes szám
-                                                    </p>
-                                                    <p className="font-semibold">
-                                                        {selectedWord.form_base ||
-                                                            selectedWord.word}
-                                                    </p>
-                                                </div>
-                                                <span className="text-muted-foreground">
-                                                    →
-                                                </span>
-                                                <div className="rounded-lg bg-muted/50 px-3 py-2">
-                                                    <p className="text-[10px] text-muted-foreground">
-                                                        Többes szám
-                                                    </p>
-                                                    <p className="font-semibold">
-                                                        {
-                                                            selectedWord.noun_plural
-                                                        }
-                                                    </p>
-                                                </div>
+                                    <div className="rounded-xl border bg-card px-4 py-3.5">
+                                        <p className="mb-3 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
+                                            Többes szám
+                                        </p>
+                                        <div className="flex items-center gap-3">
+                                            <div className="rounded-lg bg-muted/50 px-3 py-2">
+                                                <p className="text-[10px] text-muted-foreground">
+                                                    Egyes szám
+                                                </p>
+                                                <p className="font-semibold">
+                                                    {selectedWord.form_base ||
+                                                        selectedWord.word}
+                                                </p>
+                                            </div>
+                                            <span className="text-muted-foreground">
+                                                →
+                                            </span>
+                                            <div className="rounded-lg bg-muted/50 px-3 py-2">
+                                                <p className="text-[10px] text-muted-foreground">
+                                                    Többes szám
+                                                </p>
+                                                <p className="font-semibold">
+                                                    {selectedWord.noun_plural}
+                                                </p>
                                             </div>
                                         </div>
-                                    )}
+                                    </div>
+                                )}
 
                                 {/* Fokozás — szófajtól függetlenül, ha van adat */}
                                 {selectedWord.adj_comparative && (
-                                        <div className="rounded-xl border bg-card px-4 py-3.5">
-                                            <p className="mb-3 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
-                                                Fokozás
-                                            </p>
-                                            <div className="flex flex-wrap items-center gap-2">
-                                                <div className="rounded-lg bg-muted/50 px-3 py-2">
-                                                    <p className="text-[10px] text-muted-foreground">
-                                                        Alapfok
-                                                    </p>
-                                                    <p className="font-semibold">
-                                                        {selectedWord.form_base ||
-                                                            selectedWord.word}
-                                                    </p>
-                                                </div>
-                                                <span className="text-muted-foreground">
-                                                    →
-                                                </span>
-                                                <div className="rounded-lg bg-muted/50 px-3 py-2">
-                                                    <p className="text-[10px] text-muted-foreground">
-                                                        Középfok
-                                                    </p>
-                                                    <p className="font-semibold">
-                                                        {
-                                                            selectedWord.adj_comparative
-                                                        }
-                                                    </p>
-                                                </div>
-                                                <span className="text-muted-foreground">
-                                                    →
-                                                </span>
-                                                <div className="rounded-lg bg-muted/50 px-3 py-2">
-                                                    <p className="text-[10px] text-muted-foreground">
-                                                        Felsőfok
-                                                    </p>
-                                                    <p className="font-semibold">
-                                                        {
-                                                            selectedWord.adj_superlative
-                                                        }
-                                                    </p>
-                                                </div>
+                                    <div className="rounded-xl border bg-card px-4 py-3.5">
+                                        <p className="mb-3 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
+                                            Fokozás
+                                        </p>
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <div className="rounded-lg bg-muted/50 px-3 py-2">
+                                                <p className="text-[10px] text-muted-foreground">
+                                                    Alapfok
+                                                </p>
+                                                <p className="font-semibold">
+                                                    {selectedWord.form_base ||
+                                                        selectedWord.word}
+                                                </p>
+                                            </div>
+                                            <span className="text-muted-foreground">
+                                                →
+                                            </span>
+                                            <div className="rounded-lg bg-muted/50 px-3 py-2">
+                                                <p className="text-[10px] text-muted-foreground">
+                                                    Középfok
+                                                </p>
+                                                <p className="font-semibold">
+                                                    {
+                                                        selectedWord.adj_comparative
+                                                    }
+                                                </p>
+                                            </div>
+                                            <span className="text-muted-foreground">
+                                                →
+                                            </span>
+                                            <div className="rounded-lg bg-muted/50 px-3 py-2">
+                                                <p className="text-[10px] text-muted-foreground">
+                                                    Felsőfok
+                                                </p>
+                                                <p className="font-semibold">
+                                                    {
+                                                        selectedWord.adj_superlative
+                                                    }
+                                                </p>
                                             </div>
                                         </div>
-                                    )}
+                                    </div>
+                                )}
 
                                 {/* Szinonimák */}
                                 {selectedWord.synonyms && (
