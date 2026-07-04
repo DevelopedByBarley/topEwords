@@ -143,7 +143,12 @@ export default function Quiz({
     ) {
         router.get(
             quizRoute(),
-            { status, ...(level ? { level } : {}), ...(folder ? { folder } : {}), count },
+            {
+                status,
+                ...(level ? { level } : {}),
+                ...(folder ? { folder } : {}),
+                count,
+            },
             { preserveScroll: false },
         );
     }
@@ -162,18 +167,18 @@ export default function Quiz({
     }
 
     function handleAnswer(option: string) {
-        if (answerState !== 'unanswered') {
+        if (answerState !== 'unanswered' || !card) {
             return;
         }
 
         setSelected(option);
-        const correct = option === card!.meaning_hu;
+        const correct = option === card.meaning_hu;
         setAnswerState(correct ? 'correct' : 'wrong');
 
         if (correct) {
             setScore((s) => s + 1);
         } else {
-            setWrongAnswers((w) => [...w, card!]);
+            setWrongAnswers((w) => [...w, card]);
         }
     }
 
@@ -356,6 +361,14 @@ export default function Quiz({
                 </div>
             </>
         );
+    }
+
+    // Vissza-navigációnál az Inertia a régi state-tel rendereli újra a komponenst:
+    // rövidebb words listánál a beragadt current index kifuthat a tartományból,
+    // mielőtt a fenti reset-effect lefutna. Ilyenkor nincs kártya — egy üres
+    // képkocka a fehér képernyős TypeError helyett; a reset-effect helyreállít.
+    if (!card) {
+        return null;
     }
 
     const OPTION_LABELS = ['A', 'B', 'C', 'D'];
@@ -715,7 +728,9 @@ function QuizSetup({
                     </div>
                 </div>
 
-                <div className={`grid gap-6 ${folders.length > 0 ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
+                <div
+                    className={`grid gap-6 ${folders.length > 0 ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}
+                >
                     {/* Folder filter */}
                     {folders.length > 0 && (
                         <div className="rounded-3xl bg-card p-5 shadow-sm">
@@ -777,9 +792,7 @@ function QuizSetup({
 
                     {/* Level filter */}
                     <div className="rounded-3xl bg-card p-5 shadow-sm">
-                        <p className="mb-3 text-sm font-semibold">
-                            Szint
-                        </p>
+                        <p className="mb-3 text-sm font-semibold">Szint</p>
                         <div className="grid grid-cols-2 gap-2">
                             {LEVEL_LABELS.map(({ value, label }) => (
                                 <button
@@ -834,8 +847,8 @@ function QuizSetup({
 
                         {freeQuizLimit !== null && (
                             <p className="mt-3 text-xs text-muted-foreground">
-                                Alap csomaggal legfeljebb {freeQuizLimit}{' '}
-                                szavas kvíz indítható.{' '}
+                                Alap csomaggal legfeljebb {freeQuizLimit} szavas
+                                kvíz indítható.{' '}
                                 <Link
                                     href={pricing()}
                                     className="font-medium text-primary underline underline-offset-2"
