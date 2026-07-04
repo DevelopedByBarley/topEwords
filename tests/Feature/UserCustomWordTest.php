@@ -2,6 +2,7 @@
 
 use App\Models\User;
 use App\Models\UserCustomWord;
+use App\Models\Word;
 use Illuminate\Support\Facades\Cache;
 
 beforeEach(function () {
@@ -48,6 +49,34 @@ test('custom word persists form columns across word classes', function () {
         'verb_past' => 'interested',
         'verb_present_participle' => 'interesting',
         'verb_third_person' => 'interests',
+    ]);
+});
+
+test('a 500 character example sentence is accepted and persisted', function () {
+    $example = str_repeat('a', 500);
+
+    $this->post(route('custom-words.store'), [
+        'word' => 'ephemeral',
+        'meaning_hu' => 'illékony',
+        'status' => 'learning',
+        'example_en' => $example,
+    ])->assertRedirect()->assertSessionHasNoErrors();
+
+    expect(UserCustomWord::where('user_id', $this->user->id)->where('word', 'ephemeral')->value('example_en'))
+        ->toBe($example);
+});
+
+test('an example sentence over 500 characters is rejected with a validation error', function () {
+    $this->post(route('custom-words.store'), [
+        'word' => 'ephemeral',
+        'meaning_hu' => 'illékony',
+        'status' => 'learning',
+        'example_en' => str_repeat('a', 501),
+    ])->assertSessionHasErrors('example_en');
+
+    $this->assertDatabaseMissing('user_custom_words', [
+        'user_id' => $this->user->id,
+        'word' => 'ephemeral',
     ]);
 });
 
@@ -101,6 +130,91 @@ test('user can update their custom word', function () {
     ])->assertRedirect();
 
     expect($word->fresh()->meaning_hu)->toBe('múlandó');
+});
+
+test('renaming a custom word to another own custom word is rejected with validation error', function () {
+    UserCustomWord::create([
+        'user_id' => $this->user->id,
+        'word' => 'ephemeral',
+        'status' => 'learning',
+    ]);
+    $word = UserCustomWord::create([
+        'user_id' => $this->user->id,
+        'word' => 'serendipity',
+        'status' => 'learning',
+    ]);
+
+    $this->patch(route('custom-words.update', $word), [
+        'word' => 'ephemeral',
+    ])->assertSessionHasErrors('word');
+
+    expect($word->fresh()->word)->toBe('serendipity');
+});
+
+test('updating a custom word without renaming passes the uniqueness check', function () {
+    $word = UserCustomWord::create([
+        'user_id' => $this->user->id,
+        'word' => 'ephemeral',
+        'status' => 'learning',
+    ]);
+
+    $this->patch(route('custom-words.update', $word), [
+        'word' => 'ephemeral',
+        'meaning_hu' => 'múlandó',
+    ])->assertRedirect()->assertSessionHasNoErrors();
+
+    expect($word->fresh()->meaning_hu)->toBe('múlandó');
+});
+
+test('renaming a custom word to a main list word form is rejected', function () {
+    Word::create(['word' => 'run', 'rank' => 5000, 'verb_past' => 'ran']);
+
+    $word = UserCustomWord::create([
+        'user_id' => $this->user->id,
+        'word' => 'ephemeral',
+        'status' => 'learning',
+    ]);
+
+    $this->patch(route('custom-words.update', $word), ['word' => 'run'])
+        ->assertSessionHasErrors('word');
+
+    $this->patch(route('custom-words.update', $word), ['word' => 'Ran'])
+        ->assertSessionHasErrors('word');
+
+    expect($word->fresh()->word)->toBe('ephemeral');
+});
+
+test('custom word stays editable if its word later appears in the main list', function () {
+    $word = UserCustomWord::create([
+        'user_id' => $this->user->id,
+        'word' => 'run',
+        'status' => 'learning',
+    ]);
+
+    Word::create(['word' => 'run', 'rank' => 5000]);
+
+    $this->patch(route('custom-words.update', $word), [
+        'word' => 'run',
+        'meaning_hu' => 'futni',
+    ])->assertRedirect()->assertSessionHasNoErrors();
+
+    expect($word->fresh()->meaning_hu)->toBe('futni');
+});
+
+test('renaming a custom word to another users custom word is allowed', function () {
+    $other = User::factory()->create();
+    UserCustomWord::create(['user_id' => $other->id, 'word' => 'ephemeral', 'status' => 'learning']);
+
+    $word = UserCustomWord::create([
+        'user_id' => $this->user->id,
+        'word' => 'serendipity',
+        'status' => 'learning',
+    ]);
+
+    $this->patch(route('custom-words.update', $word), ['word' => 'ephemeral'])
+        ->assertRedirect()->assertSessionHasNoErrors();
+
+    expect($word->fresh()->word)->toBe('ephemeral');
 });
 
 test('user cannot update another users custom word', function () {

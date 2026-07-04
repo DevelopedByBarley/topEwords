@@ -25,23 +25,7 @@ class StoreUserCustomWordRequest extends FormRequest
                 'string',
                 'max:100',
                 Rule::unique('user_custom_words')->where('user_id', $this->user()->id),
-                function (string $attribute, mixed $value, \Closure $fail) {
-                    $lower = mb_strtolower(trim($value));
-                    $exists = Word::where('word', $lower)
-                        ->orWhere('form_base', $lower)
-                        ->orWhere('verb_past', $lower)
-                        ->orWhere('verb_past_participle', $lower)
-                        ->orWhere('verb_present_participle', $lower)
-                        ->orWhere('verb_third_person', $lower)
-                        ->orWhere('noun_plural', $lower)
-                        ->orWhere('adj_comparative', $lower)
-                        ->orWhere('adj_superlative', $lower)
-                        ->exists();
-
-                    if ($exists) {
-                        $fail('Ez a szó már szerepel a fő szólistában, ott jelölheted be a státuszát.');
-                    }
-                },
+                self::notInMainWordList(),
             ],
             'meaning_hu' => ['required', 'string', 'max:255'],
             'extra_meanings' => ['nullable', 'string', 'max:500'],
@@ -61,5 +45,30 @@ class StoreUserCustomWordRequest extends FormRequest
             'adj_comparative' => ['nullable', 'string', 'max:100'],
             'adj_superlative' => ['nullable', 'string', 'max:100'],
         ];
+    }
+
+    /**
+     * A fő szólista bármely ragozott alakjával ütköző szót elutasító szabály
+     * (a store és az update request közösen használja).
+     */
+    public static function notInMainWordList(): \Closure
+    {
+        return function (string $attribute, mixed $value, \Closure $fail) {
+            $lower = mb_strtolower(trim($value));
+            $exists = Word::where('word', $lower)
+                ->orWhere('form_base', $lower)
+                ->orWhere('verb_past', $lower)
+                ->orWhere('verb_past_participle', $lower)
+                ->orWhere('verb_present_participle', $lower)
+                ->orWhere('verb_third_person', $lower)
+                ->orWhere('noun_plural', $lower)
+                ->orWhere('adj_comparative', $lower)
+                ->orWhere('adj_superlative', $lower)
+                ->exists();
+
+            if ($exists) {
+                $fail('Ez a szó már szerepel a fő szólistában, ott jelölheted be a státuszát.');
+            }
+        };
     }
 }

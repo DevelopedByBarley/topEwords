@@ -23,6 +23,8 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
+import { httpErrorMessage, postJson } from '@/lib/http';
+import { showToast } from '@/lib/toast';
 import { status as customWordStatus } from '@/routes/custom-words';
 import {
     index as wordsIndex,
@@ -56,16 +58,6 @@ type CheckResult = {
     overall_hu: string;
     corrected_text: string | null;
 };
-
-function getXsrfToken(): string {
-    const cookie = document.cookie
-        .split('; ')
-        .find((r) => r.startsWith('XSRF-TOKEN='));
-
-    return cookie
-        ? decodeURIComponent(cookie.substring('XSRF-TOKEN='.length))
-        : '';
-}
 
 type PracticeWord = {
     id: number;
@@ -132,18 +124,18 @@ export default function WordsPractice({
         const url = pw.is_custom
             ? customWordStatus(pw.id).url
             : wordStatus(pw.id).url;
-        const body = newStatus ? { status: newStatus } : { status: 'practice' };
-        await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-                'X-XSRF-TOKEN': getXsrfToken(),
-            },
-            body: JSON.stringify(body),
-        }).catch(() => {});
 
-        if (newStatus !== 'practice') {
+        try {
+            const res = await postJson(url, {
+                status: newStatus ?? 'practice',
+            });
+
+            if (!res.ok) {
+                showToast('error', httpErrorMessage(res.status));
+
+                return;
+            }
+
             setPracticeWords((prev) =>
                 prev.filter(
                     (w) => !(w.id === pw.id && w.is_custom === pw.is_custom),
@@ -154,10 +146,12 @@ export default function WordsPractice({
                     (w) => w.word.toLowerCase() !== pw.word.toLowerCase(),
                 ),
             );
+            setStatusModalWord(null);
+        } catch {
+            showToast('error', httpErrorMessage());
+        } finally {
+            setStatusUpdating(false);
         }
-
-        setStatusUpdating(false);
-        setStatusModalWord(null);
     }
     const [wordInput, setWordInput] = useState('');
     const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
@@ -255,21 +249,19 @@ export default function WordsPractice({
         setResult(null);
 
         try {
-            const res = await fetch(practiceCheck().url, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'X-XSRF-TOKEN': getXsrfToken(),
-                },
-                body: JSON.stringify({ words: targetWords, text: text.trim() }),
+            const res = await postJson(practiceCheck().url, {
+                words: targetWords,
+                text: text.trim(),
             });
-            const data = await res.json();
 
-            if (!res.ok || data.error) {
-                setError(data.error ?? 'Ismeretlen hiba.');
+            if (!res.ok || res.data.error) {
+                setError(
+                    typeof res.data.error === 'string'
+                        ? res.data.error
+                        : 'Ismeretlen hiba.',
+                );
             } else {
-                setResult(data as CheckResult);
+                setResult(res.data as unknown as CheckResult);
             }
         } catch {
             setError('Kapcsolódási hiba.');
@@ -307,9 +299,7 @@ export default function WordsPractice({
                                 <p className="text-2xl font-bold text-white">
                                     {targetWords.length}
                                 </p>
-                                <p className="text-xs text-white/70">
-                                    célszó
-                                </p>
+                                <p className="text-xs text-white/70">célszó</p>
                             </div>
                             <div className="h-8 w-px bg-white/30" />
                             <div className="text-center">
@@ -326,7 +316,7 @@ export default function WordsPractice({
 
                 <div className="grid gap-6 lg:grid-cols-[380px_1fr] xl:grid-cols-[420px_1fr]">
                     {/* Left: target words */}
-                    <div className="flex flex-col gap-4 lg:sticky lg:top-4 lg:self-start lg:max-h-[calc(100vh-7rem)]">
+                    <div className="flex flex-col gap-4 lg:sticky lg:top-4 lg:max-h-[calc(100vh-7rem)] lg:self-start">
                         <div className="flex flex-col gap-4 overflow-y-auto rounded-3xl bg-card p-6 shadow-sm">
                             {/* Section header */}
                             <div className="flex items-center justify-between">
@@ -581,7 +571,9 @@ export default function WordsPractice({
                         <div className="space-y-4 rounded-3xl bg-card p-6 shadow-sm">
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <p className="font-semibold">Írj szabadon</p>
+                                    <p className="font-semibold">
+                                        Írj szabadon
+                                    </p>
                                     <p className="mt-0.5 text-xs text-muted-foreground">
                                         Próbáld beleépíteni a célszavakat
                                         természetes módon.

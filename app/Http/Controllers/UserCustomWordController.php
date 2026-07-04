@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Concerns\TogglesWordStatus;
 use App\Http\Requests\StoreUserCustomWordRequest;
+use App\Http\Requests\UpdateUserCustomWordRequest;
 use App\Models\UserCustomWord;
 use App\Services\AchievementService;
 use Illuminate\Http\JsonResponse;
@@ -38,32 +39,11 @@ class UserCustomWordController extends Controller
         return back();
     }
 
-    public function update(Request $request, UserCustomWord $customWord): RedirectResponse
+    public function update(UpdateUserCustomWordRequest $request, UserCustomWord $customWord): RedirectResponse
     {
         Gate::authorize('update', $customWord);
 
-        $data = $request->validate([
-            'word' => ['sometimes', 'string', 'max:100'],
-            'meaning_hu' => ['nullable', 'string', 'max:255'],
-            'extra_meanings' => ['nullable', 'string', 'max:500'],
-            'synonyms' => ['nullable', 'string', 'max:255'],
-            'part_of_speech' => ['nullable', 'string', 'max:20'],
-            'example_en' => ['nullable', 'string', 'max:500'],
-            'example_hu' => ['nullable', 'string', 'max:500'],
-            'form_base' => ['nullable', 'string', 'max:100'],
-            'verb_past' => ['nullable', 'string', 'max:100'],
-            'verb_past_participle' => ['nullable', 'string', 'max:100'],
-            'verb_present_participle' => ['nullable', 'string', 'max:100'],
-            'verb_third_person' => ['nullable', 'string', 'max:100'],
-            'is_irregular' => ['boolean'],
-            'noun_plural' => ['nullable', 'string', 'max:100'],
-            'adj_comparative' => ['nullable', 'string', 'max:100'],
-            'adj_superlative' => ['nullable', 'string', 'max:100'],
-            'status' => ['nullable', 'in:known,learning,saved,pronunciation,practice'],
-            'importance' => ['nullable', 'integer', 'min:1', 'max:5'],
-        ]);
-
-        $customWord->update($data);
+        $customWord->update($request->validated());
 
         return back();
     }
