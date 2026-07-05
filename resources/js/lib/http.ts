@@ -7,16 +7,17 @@ export interface JsonResult {
 }
 
 /**
- * POST JSON to a Laravel endpoint with CSRF + AJAX headers. Reports the HTTP
- * status instead of silently swallowing non-2xx responses — callers must
- * check `ok`. Network-level failures still reject.
+ * Send a JSON request to a Laravel endpoint with CSRF + AJAX headers. Reports
+ * the HTTP status instead of silently swallowing non-2xx responses — callers
+ * must check `ok`. Network-level failures still reject.
  */
-export async function postJson(
+async function requestJson(
+    method: 'POST' | 'DELETE',
     url: string,
     body?: object,
 ): Promise<JsonResult> {
     const response = await fetch(url, {
-        method: 'POST',
+        method,
         headers: {
             'Content-Type': 'application/json',
             'X-Requested-With': 'XMLHttpRequest',
@@ -32,6 +33,17 @@ export async function postJson(
     >;
 
     return { ok: response.ok, status: response.status, data };
+}
+
+export async function postJson(
+    url: string,
+    body?: object,
+): Promise<JsonResult> {
+    return requestJson('POST', url, body);
+}
+
+export async function deleteJson(url: string): Promise<JsonResult> {
+    return requestJson('DELETE', url);
 }
 
 /**

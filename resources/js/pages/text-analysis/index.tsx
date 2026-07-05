@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { csrfHeaders } from '@/lib/csrf';
+import { deleteJson, httpErrorMessage } from '@/lib/http';
 import { sanitizeUploadFilename } from '@/lib/sanitize-filename';
 import { analyze as analyzeRoute, fetchSource as fetchSourceRoute, show as textAnalysisShow } from '@/routes/text-analysis';
 import { destroy as destroyBook, index as booksIndex, overview as bookOverviewRoute, page as bookPageRoute, store as storeBook } from '@/routes/text-analysis/books';
@@ -373,10 +374,22 @@ return;
 return;
 }
 
-        await fetch(ytDestroy.url(transcript.id), {
-            method: 'DELETE',
-            headers: csrfHeaders(),
-        });
+        setError(null);
+
+        try {
+            const { ok, status } = await deleteJson(ytDestroy.url(transcript.id));
+
+            if (!ok) {
+                setError(httpErrorMessage(status, 'A törlés nem sikerült — próbáld újra.'));
+
+                return;
+            }
+        } catch {
+            setError(httpErrorMessage());
+
+            return;
+        }
+
         setTranscripts((prev) => prev.filter((t) => t.id !== transcript.id));
 
         if (activeTranscript?.id === transcript.id) {
@@ -393,10 +406,22 @@ return;
 return;
 }
 
-        await fetch(destroyBook.url(book.id), {
-            method: 'DELETE',
-            headers: csrfHeaders(),
-        });
+        setError(null);
+
+        try {
+            const { ok, status } = await deleteJson(destroyBook.url(book.id));
+
+            if (!ok) {
+                setError(httpErrorMessage(status, 'A törlés nem sikerült — próbáld újra.'));
+
+                return;
+            }
+        } catch {
+            setError(httpErrorMessage());
+
+            return;
+        }
+
         setBooks((prev) => prev.filter((b) => b.id !== book.id));
 
         if (activeBook?.id === book.id) {

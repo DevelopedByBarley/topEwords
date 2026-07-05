@@ -482,3 +482,71 @@ test('gemini lookup does not retry a non-retryable 400', function () {
 
     Http::assertSentCount(1);
 });
+
+test('youtube transcript can be deleted by its owner', function () {
+    $transcript = YoutubeTranscript::create([
+        'user_id' => $this->user->id,
+        'video_id' => 'abcdefghijk',
+        'title' => 'My Video',
+        'compressed_segments' => gzencode(json_encode([['t' => 0, 'x' => 'the quick dog']]), 6),
+        'total_pages' => 1,
+        'text_size' => 13,
+    ]);
+
+    $this->deleteJson(route('text-analysis.youtube.destroy', ['transcript' => $transcript->id]))
+        ->assertOk()
+        ->assertJsonPath('ok', true);
+
+    expect(YoutubeTranscript::find($transcript->id))->toBeNull();
+});
+
+test('youtube transcript of another user cannot be deleted', function () {
+    $other = User::factory()->create();
+    $transcript = YoutubeTranscript::create([
+        'user_id' => $other->id,
+        'video_id' => 'abcdefghijk',
+        'title' => 'Más videója',
+        'compressed_segments' => gzencode(json_encode([['t' => 0, 'x' => 'the quick dog']]), 6),
+        'total_pages' => 1,
+        'text_size' => 13,
+    ]);
+
+    $this->deleteJson(route('text-analysis.youtube.destroy', ['transcript' => $transcript->id]))
+        ->assertForbidden();
+
+    expect(YoutubeTranscript::find($transcript->id))->not->toBeNull();
+});
+
+test('book can be deleted by its owner', function () {
+    $book = UserBook::create([
+        'user_id' => $this->user->id,
+        'title' => 'Teszt könyv',
+        'file_type' => 'pdf',
+        'compressed_text' => gzencode('the quick dog', 6),
+        'total_pages' => 1,
+        'text_size' => 13,
+    ]);
+
+    $this->deleteJson(route('text-analysis.books.destroy', ['book' => $book->id]))
+        ->assertOk()
+        ->assertJsonPath('ok', true);
+
+    expect(UserBook::find($book->id))->toBeNull();
+});
+
+test('book of another user cannot be deleted', function () {
+    $other = User::factory()->create();
+    $book = UserBook::create([
+        'user_id' => $other->id,
+        'title' => 'Más könyve',
+        'file_type' => 'pdf',
+        'compressed_text' => gzencode('the quick dog', 6),
+        'total_pages' => 1,
+        'text_size' => 13,
+    ]);
+
+    $this->deleteJson(route('text-analysis.books.destroy', ['book' => $book->id]))
+        ->assertForbidden();
+
+    expect(UserBook::find($book->id))->not->toBeNull();
+});
