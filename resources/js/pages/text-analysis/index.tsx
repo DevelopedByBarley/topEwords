@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import AnalysisResultView from '@/components/text-analysis/analysis-result';
 import { BookList, BookPager, BookReader } from '@/components/text-analysis/book-panel';
 import HistoryPanel from '@/components/text-analysis/history-panel';
+import { phraseKey } from '@/components/text-analysis/tokenize-render';
 import {
     addHistoryEntry,
     computeTokenFrequencies,
@@ -586,6 +587,21 @@ return;
             if (!prev) {
 return prev;
 }
+
+            // Többszavas kifejezést a renderelés csak a phraseStatuses-ben keres,
+            // ezért oda írjuk; levételkor töröljük, ahogy az újraelemzés is tenné.
+            // A statisztikákat nem érinti: a kifejezés nem szerepel a token-frekvenciákban.
+            if (/\s/.test(word.trim())) {
+                const phraseStatuses = { ...prev.phraseStatuses };
+
+                if (nextStatus) {
+                    phraseStatuses[phraseKey(word)] = nextStatus;
+                } else {
+                    delete phraseStatuses[phraseKey(word)];
+                }
+
+                return { ...prev, phraseStatuses };
+            }
 
             let knownDelta = 0;
             let learningDelta = 0;

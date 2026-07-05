@@ -14,6 +14,12 @@ const WORD_SPLIT = /([a-zA-Z]+(?:['’][a-zA-Z]+)*)/;
 export const tokenKey = (word: string): string =>
     word.toLowerCase().replace(/[‘’′]/g, "'");
 
+// Multi-word phrases are keyed by their tokenKey-ed words joined with single
+// spaces — the same normalization the backend applies when building
+// phraseStatuses and the matcher below uses when looking phrases up.
+export const phraseKey = (text: string): string =>
+    text.trim().split(/\s+/).map(tokenKey).join(' ');
+
 const MAX_PHRASE_WORDS = 3;
 
 /**
