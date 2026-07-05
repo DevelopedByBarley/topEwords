@@ -49,9 +49,9 @@ class FlashcardDeckController extends Controller
             'decks' => $decks,
             'folders' => $folders,
             'deckFolderIds' => $deckFolderIds,
-            // Use the canonical study queue (getDueCards) so the badge matches
-            // exactly what a study session will present: uncalibrated imports are
-            // excluded and the per-deck daily limits are applied.
+            // countDueCards mirrors the canonical study queue (getDueCards) so the
+            // badge matches exactly what a study session will present: uncalibrated
+            // imports are excluded and the per-deck daily limits are applied.
             'dueCounts' => Inertia::defer(function () use ($decks, $user, $srs) {
                 $userSettings = $user->flashcardSettings;
                 $defaultSettings = $srs->defaultSettings();
@@ -59,7 +59,7 @@ class FlashcardDeckController extends Controller
                 $dueCounts = [];
                 foreach ($decks as $deck) {
                     $settings = $deck->deckSettings ?? $userSettings ?? $defaultSettings;
-                    $dueCounts[$deck->id] = $srs->getDueCards($deck->id, $settings)->count();
+                    $dueCounts[$deck->id] = array_sum($srs->countDueCards($deck->id, $settings));
                 }
 
                 return $dueCounts;
@@ -105,15 +105,7 @@ class FlashcardDeckController extends Controller
         session()->save();
 
         $effectiveSettings = $deck->deckSettings ?? $request->user()->flashcardSettings ?? $srs->defaultSettings();
-        $dueItems = $srs->getDueCards($deck->id, $effectiveSettings);
-
-        $newDueCount = $dueItems->filter(
-            fn (array $item) => ! $item['review'] || $item['review']->state === 'new'
-        )->count();
-
-        $reviewDueCount = $dueItems->filter(
-            fn (array $item) => $item['review'] && in_array($item['review']->state, ['learning', 'relearning', 'review'])
-        )->count();
+        $dueCounts = $srs->countDueCards($deck->id, $effectiveSettings);
 
         return Inertia::render('flashcards/show', [
             'deck' => $deck,
@@ -162,8 +154,8 @@ class FlashcardDeckController extends Controller
                     ];
                 });
             }),
-            'newDueCount' => $newDueCount,
-            'reviewDueCount' => $reviewDueCount,
+            'newDueCount' => $dueCounts['new'],
+            'reviewDueCount' => $dueCounts['review'],
             'nextDueAt' => DB::table('flashcard_reviews')
                 ->join('flashcards', 'flashcards.id', '=', 'flashcard_reviews.flashcard_id')
                 ->where('flashcards.deck_id', $deck->id)

@@ -8,6 +8,7 @@ use App\Models\FlashcardReview;
 use App\Models\FlashcardSetting;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 class FlashcardSrsService
 {
@@ -272,6 +273,82 @@ class FlashcardSrsService
         }
 
         return $result;
+    }
+
+    /**
+     * Count the study items getDueCards() would return, without hydrating models.
+     *
+     * Mirrors getDueCards() exactly (calibration exclusion, per-direction items,
+     * unique-card daily limits) but aggregates the reviews per card in SQL, so
+     * large decks are never fully loaded just to render a badge number.
+     *
+     * @return array{new: int, review: int} 'new' = items without a review or in 'new'
+     *                                      state; 'review' = due learning/relearning/review items
+     */
+    public function countDueCards(int $deckId, FlashcardSetting|FlashcardDeckSetting $settings): array
+    {
+        $now = Carbon::now()->toDateTimeString();
+        $today = Carbon::today()->toDateString();
+
+        // A review only counts as a study item if its direction is one the card still
+        // uses (getDueCards() iterates directionsFor() and skips stale directions).
+        // The IS NOT NULL guard keeps the LEFT JOIN's all-NULL row (card without any
+        // review) from slipping through the 'both' branch. The daily-limit trackers
+        // (introduced_on / reviewed_on) intentionally look at every review, matching
+        // the unfiltered loop in getDueCards().
+        $matchesDirection = "flashcard_reviews.id IS NOT NULL AND (flashcards.direction = 'both' OR flashcard_reviews.direction = flashcards.direction)";
+
+        $cards = DB::table('flashcards')
+            ->leftJoin('flashcard_reviews', 'flashcard_reviews.flashcard_id', '=', 'flashcards.id')
+            ->where('flashcards.deck_id', $deckId)
+            ->groupBy('flashcards.id', 'flashcards.direction', 'flashcards.is_imported')
+            ->orderBy('flashcards.id')
+            ->selectRaw("
+                CASE WHEN flashcards.direction = 'both' THEN 2 ELSE 1 END as direction_count,
+                flashcards.is_imported,
+                COUNT(CASE WHEN {$matchesDirection} THEN 1 END) as review_rows,
+                COUNT(CASE WHEN {$matchesDirection} AND flashcard_reviews.state = 'new' THEN 1 END) as new_state_rows,
+                COUNT(CASE WHEN {$matchesDirection} AND flashcard_reviews.state IN ('learning', 'relearning') AND (flashcard_reviews.due_at IS NULL OR flashcard_reviews.due_at <= ?) THEN 1 END) as learning_due,
+                COUNT(CASE WHEN {$matchesDirection} AND flashcard_reviews.state = 'review' AND flashcard_reviews.due_at <= ? THEN 1 END) as review_due,
+                MAX(CASE WHEN flashcard_reviews.introduced_on = ? THEN 1 ELSE 0 END) as introduced_today,
+                MAX(CASE WHEN flashcard_reviews.reviewed_on = ? AND flashcard_reviews.introduced_on < ? THEN 1 ELSE 0 END) as reviewed_today
+            ", [$now, $now, $today, $today, $today])
+            ->get();
+
+        // Same budget arithmetic as takeByUniqueCards(): cards introduced today are
+        // pre-counted toward the new limit, so only (limit - introducedToday) further
+        // unique cards may enter the new queue; reviews done today shrink that limit.
+        $newBudget = max(0, $settings->new_cards_per_day - $cards->where('introduced_today', 1)->count());
+        $reviewBudget = max(0, $settings->max_reviews_per_day - $cards->where('reviewed_today', 1)->count());
+
+        $newCount = 0;
+        $reviewCount = 0;
+
+        foreach ($cards as $card) {
+            // Directions with a 'new' review, plus directions with no review at all —
+            // except on imported cards, where review-less directions await calibration.
+            $missingDirections = $card->is_imported ? 0 : $card->direction_count - $card->review_rows;
+            $newItems = $card->new_state_rows + $missingDirections;
+
+            if ($newItems > 0) {
+                if ($card->introduced_today) {
+                    // Already counted toward today's limit — remaining directions come through free.
+                    $newCount += $newItems;
+                } elseif ($newBudget > 0) {
+                    $newCount += $newItems;
+                    $newBudget--;
+                }
+            }
+
+            $reviewCount += $card->learning_due;
+
+            if ($card->review_due > 0 && $reviewBudget > 0) {
+                $reviewCount += $card->review_due;
+                $reviewBudget--;
+            }
+        }
+
+        return ['new' => $newCount, 'review' => $reviewCount];
     }
 
     /**

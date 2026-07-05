@@ -508,3 +508,87 @@ test('both-direction card shows its second side the day it was introduced even a
     // card already counted toward today's single new-card slot.
     expect($due->contains(fn ($item) => $item['direction'] === 'back_to_front'))->toBeTrue();
 });
+
+test('countDueCards matches the study queue getDueCards builds', function () {
+    $user = User::factory()->create();
+    $deck = FlashcardDeck::create(['user_id' => $user->id, 'name' => 'Deck']);
+
+    $srs = new FlashcardSrsService;
+    $settings = $srs->defaultSettings();
+    $settings->new_cards_per_day = 5;
+    $settings->max_reviews_per_day = 2;
+
+    $today = now()->toDateString();
+    $yesterday = now()->subDay()->toDateString();
+
+    $makeCard = fn (array $attributes) => Flashcard::create(array_merge(
+        ['deck_id' => $deck->id, 'front' => uniqid(), 'back' => 'x', 'direction' => 'front_to_back'],
+        $attributes,
+    ));
+
+    // 'both' card introduced today: its learning direction is not yet due, its other
+    // direction is still new and comes through free (pre-counted toward the limit).
+    $introducedToday = $makeCard(['direction' => 'both']);
+    FlashcardReview::create(['flashcard_id' => $introducedToday->id, 'direction' => 'front_to_back', 'state' => 'learning', 'due_at' => now()->addHour(), 'introduced_on' => $today]);
+
+    // Plain new cards; the 'both' one takes a single new-card slot but yields two items.
+    $makeCard([]);
+    $makeCard(['direction' => 'both']);
+    $makeCard([]);
+
+    // Imported card without any review — pending calibration, excluded entirely.
+    $makeCard(['is_imported' => true]);
+
+    // Imported 'both' card with one calibrated ('new') direction: that direction counts,
+    // the review-less one is still awaiting calibration.
+    $importedHalfCalibrated = $makeCard(['direction' => 'both', 'is_imported' => true]);
+    FlashcardReview::create(['flashcard_id' => $importedHalfCalibrated->id, 'direction' => 'front_to_back', 'state' => 'new']);
+
+    // Fifth new-card slot is taken by the half-calibrated import — this one is over the limit.
+    $makeCard([]);
+
+    // One due learning card; two due review cards against a review budget of one
+    // (a third card was already reviewed today and shrinks max_reviews_per_day).
+    $learningDue = $makeCard([]);
+    FlashcardReview::create(['flashcard_id' => $learningDue->id, 'direction' => 'front_to_back', 'state' => 'learning', 'due_at' => now()->subMinute(), 'introduced_on' => $yesterday]);
+
+    foreach (range(1, 2) as $i) {
+        $reviewDue = $makeCard([]);
+        FlashcardReview::create(['flashcard_id' => $reviewDue->id, 'direction' => 'front_to_back', 'state' => 'review', 'due_at' => now()->subMinute(), 'introduced_on' => $yesterday]);
+    }
+
+    $reviewedToday = $makeCard([]);
+    FlashcardReview::create(['flashcard_id' => $reviewedToday->id, 'direction' => 'front_to_back', 'state' => 'review', 'due_at' => now()->addDay(), 'introduced_on' => $yesterday, 'reviewed_on' => $today]);
+
+    // Stale review on a direction the card no longer studies — ignored by the queue.
+    $staleDirection = $makeCard([]);
+    FlashcardReview::create(['flashcard_id' => $staleDirection->id, 'direction' => 'back_to_front', 'state' => 'review', 'due_at' => now()->subMinute()]);
+
+    $counts = $srs->countDueCards($deck->id, $settings);
+    $queue = $srs->getDueCards($deck->id, $settings);
+
+    // free 'both' second side (1) + three plain new (1+2+1) + calibrated import side (1)
+    expect($counts['new'])->toBe(6)
+        // due learning (1) + due review capped at the remaining budget (1)
+        ->and($counts['review'])->toBe(2)
+        // and the split mirrors the hydrated queue exactly
+        ->and($counts['new'])->toBe($queue->filter(fn (array $item) => ! $item['review'] || $item['review']->state === 'new')->count())
+        ->and($counts['review'])->toBe($queue->filter(fn (array $item) => $item['review'] && $item['review']->state !== 'new')->count());
+});
+
+test('deck show page reports due counts without hydrating the whole deck', function () {
+    $user = User::factory()->create();
+    $deck = FlashcardDeck::create(['user_id' => $user->id, 'name' => 'Deck']);
+
+    Flashcard::create(['deck_id' => $deck->id, 'front' => 'new', 'back' => 'x', 'direction' => 'front_to_back']);
+
+    $reviewCard = Flashcard::create(['deck_id' => $deck->id, 'front' => 'due', 'back' => 'x', 'direction' => 'front_to_back']);
+    FlashcardReview::create(['flashcard_id' => $reviewCard->id, 'direction' => 'front_to_back', 'state' => 'review', 'due_at' => now()->subMinute(), 'introduced_on' => now()->subDay()->toDateString()]);
+
+    $this->actingAs($user)
+        ->get(route('flashcards.show', $deck))
+        ->assertInertia(fn ($page) => $page
+            ->component('flashcards/show')
+            ->where('newDueCount', 1)
+            ->where('reviewDueCount', 1));
+});
