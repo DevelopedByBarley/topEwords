@@ -161,6 +161,43 @@ test('user can create a deck', function () {
     expect(FlashcardDeck::where('user_id', $user->id)->first()->name)->toBe('Üzleti angol');
 });
 
+test('a deck created with a folder_id is attached to that folder', function () {
+    $user = User::factory()->create();
+    $folder = $user->flashcardFolders()->create(['name' => 'Nyelvvizsga']);
+
+    $this->actingAs($user)
+        ->post(route('flashcards.store'), ['name' => 'Szókincs', 'folder_id' => $folder->id])
+        ->assertRedirect();
+
+    $deck = FlashcardDeck::where('user_id', $user->id)->firstOrFail();
+    expect($folder->decks()->pluck('flashcard_decks.id')->all())->toBe([$deck->id]);
+});
+
+test('a deck created with an empty folder_id ends up in no folder', function () {
+    $user = User::factory()->create();
+    $user->flashcardFolders()->create(['name' => 'Nyelvvizsga']);
+
+    // The new-deck dialog submits folder_id as '' when no folder is selected.
+    $this->actingAs($user)
+        ->post(route('flashcards.store'), ['name' => 'Szókincs', 'folder_id' => ''])
+        ->assertRedirect()
+        ->assertSessionDoesntHaveErrors();
+
+    expect(FlashcardDeck::where('user_id', $user->id)->firstOrFail()->folders()->count())->toBe(0);
+});
+
+test('a deck cannot be attached to another users folder', function () {
+    $user = User::factory()->create();
+    $otherFolder = User::factory()->create()->flashcardFolders()->create(['name' => 'Idegen']);
+
+    $this->actingAs($user)
+        ->from(route('flashcards.index'))
+        ->post(route('flashcards.store'), ['name' => 'Szókincs', 'folder_id' => $otherFolder->id])
+        ->assertSessionHasErrors('folder_id');
+
+    expect(FlashcardDeck::where('user_id', $user->id)->exists())->toBeFalse();
+});
+
 test('user cannot view another users deck', function () {
     $owner = User::factory()->create();
     $other = User::factory()->create();

@@ -106,6 +106,14 @@ export default function FlashcardsIndex({
 
     const newDeckForm = useForm({ name: '', description: '', folder_id: '' });
 
+    const openNewDeckDialog = () => {
+        newDeckForm.setData(
+            'folder_id',
+            activeFolderId !== null ? String(activeFolderId) : '',
+        );
+        setShowNewDeckDialog(true);
+    };
+
     const displayedDecks =
         activeFolderId !== null
             ? decks.filter((d) =>
@@ -351,7 +359,7 @@ export default function FlashcardsIndex({
                                 </button>
                             )}
                             <button
-                                onClick={() => setShowNewDeckDialog(true)}
+                                onClick={openNewDeckDialog}
                                 className="inline-flex items-center gap-1.5 rounded-xl bg-white px-5 py-2.5 text-sm font-bold text-sky-600 shadow-[0_4px_0_0_oklch(0.55_0.12_230)] transition-all hover:brightness-95 active:translate-y-0.75 active:shadow-[0_1px_0_0_oklch(0.55_0.12_230)]"
                             >
                                 <Plus className="size-4" />
@@ -425,22 +433,22 @@ export default function FlashcardsIndex({
                                     <Label>Mappa (opcionális)</Label>
                                     <Select
                                         value={
-                                            newDeckForm.data.folder_id ||
-                                            undefined
+                                            newDeckForm.data.folder_id || 'none'
                                         }
                                         onValueChange={(v) =>
-                                            newDeckForm.setData('folder_id', v)
-                                        }
-                                        defaultValue={
-                                            activeFolderId !== null
-                                                ? String(activeFolderId)
-                                                : undefined
+                                            newDeckForm.setData(
+                                                'folder_id',
+                                                v === 'none' ? '' : v,
+                                            )
                                         }
                                     >
                                         <SelectTrigger>
                                             <SelectValue placeholder="Nincs mappában" />
                                         </SelectTrigger>
                                         <SelectContent>
+                                            <SelectItem value="none">
+                                                Nincs mappában
+                                            </SelectItem>
                                             {folders.map((f) => (
                                                 <SelectItem
                                                     key={f.id}
@@ -710,7 +718,7 @@ export default function FlashcardsIndex({
                         <BookOpen className="mb-4 size-12 opacity-30" />
                         <p className="text-sm">Még nincs egy decked sem.</p>
                         <button
-                            onClick={() => setShowNewDeckDialog(true)}
+                            onClick={openNewDeckDialog}
                             className="mt-3 text-sm text-primary underline underline-offset-2 hover:no-underline"
                         >
                             Hozz létre egy decket →
@@ -721,7 +729,7 @@ export default function FlashcardsIndex({
                         <BookOpen className="mb-4 size-12 opacity-30" />
                         <p className="text-sm">Nincs deck ebben a mappában.</p>
                         <button
-                            onClick={() => setShowNewDeckDialog(true)}
+                            onClick={openNewDeckDialog}
                             className="mt-3 text-sm text-primary underline underline-offset-2 hover:no-underline"
                         >
                             Hozz létre egy decket →
