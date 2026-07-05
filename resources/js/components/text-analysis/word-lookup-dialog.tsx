@@ -172,17 +172,25 @@ export default function WordLookupDialog({
             },
             signal: controller.signal,
         })
-            .then((res) => res.json())
-            .then((data) => {
+            .then(async (res) => {
+                const data = (await res.json().catch(() => null)) as
+                    | (LookupResult & { status?: string | null })
+                    | null;
+
                 if (controller.signal.aborted) {
                     return;
                 }
 
+                // Hiba-JSON-t (401/419/5xx) nem renderelünk találatként:
+                // az érvényes lookup-válasznak mindig van `type` mezője.
+                if (!res.ok || !data?.type) {
+                    setLookupError(true);
+
+                    return;
+                }
+
                 setLookupResult(data);
-                setLookupStatus(
-                    (data as LookupResult & { status?: string | null })
-                        .status ?? null,
-                );
+                setLookupStatus(data.status ?? null);
             })
             .catch(() => {
                 if (!controller.signal.aborted) {
@@ -379,7 +387,7 @@ export default function WordLookupDialog({
                 )}
                 {!lookupLoading && lookupError && (
                     <p className="px-5 py-8 text-center text-sm text-muted-foreground">
-                        Hálózati hiba. Zárd be, és próbáld újra.
+                        A keresés nem sikerült. Zárd be, és próbáld újra.
                     </p>
                 )}
                 {!lookupLoading && lookupResult && (

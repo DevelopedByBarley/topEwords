@@ -407,6 +407,33 @@ test('looking up a plain word does not return a multi-word custom phrase', funct
         ->assertJsonPath('status', 'known');
 });
 
+test('every word lookup outcome carries a type field', function () {
+    // A szóelemző dialógus (word-lookup-dialog.tsx) a `type` meglétén
+    // különbözteti meg az érvényes találatot a hiba-JSON-tól: minden
+    // sikeres válasznak (word / custom / not_found) tartalmaznia kell.
+    $this->user->customWords()->create(['word' => 'ephemeral', 'status' => 'learning']);
+
+    $this->getJson(route('text-analysis.word-lookup', ['word' => 'dog']))
+        ->assertOk()
+        ->assertJsonPath('type', 'word');
+
+    $this->getJson(route('text-analysis.word-lookup', ['word' => 'ephemeral']))
+        ->assertOk()
+        ->assertJsonPath('type', 'custom');
+
+    $this->getJson(route('text-analysis.word-lookup', ['word' => 'xyzzyx']))
+        ->assertOk()
+        ->assertJsonPath('type', 'not_found');
+});
+
+test('unauthenticated word lookup returns 401 json instead of a fake result', function () {
+    auth()->logout();
+
+    $this->getJson(route('text-analysis.word-lookup', ['word' => 'dog']))
+        ->assertUnauthorized()
+        ->assertJsonMissingPath('type');
+});
+
 function geminiSuccess(array $payload): array
 {
     return ['candidates' => [['content' => ['parts' => [['text' => json_encode($payload)]]]]]];
