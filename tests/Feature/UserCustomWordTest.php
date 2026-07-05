@@ -106,6 +106,17 @@ test('different users can have the same custom word', function () {
     expect(UserCustomWord::where('word', 'ephemeral')->count())->toBe(2);
 });
 
+test('JSON store request reports validation failure as 422 with a message', function () {
+    // A szóelemző dialógus (word-lookup-dialog.tsx) erre a szerződésre épít:
+    // JSON-kérésnél a validációs hiba 422 + kitöltött `message` mező.
+    $this->postJson(route('custom-words.store'), [
+        'word' => 'ephemeral',
+        'status' => 'known',
+    ])->assertUnprocessable()
+        ->assertJsonValidationErrors('meaning_hu')
+        ->assertJson(fn ($json) => $json->whereType('message', 'string')->etc());
+});
+
 test('meaning_hu is required when adding a custom word', function () {
     $this->post(route('custom-words.store'), [
         'word' => 'ephemeral',

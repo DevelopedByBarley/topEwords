@@ -1,20 +1,24 @@
 import { ChevronLeft, ChevronRight, Loader2, ScanText, Trash2, Youtube } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import LyricsView from '@/components/text-analysis/lyrics-view';
 import type { LyricSegment, VideoOverview, YoutubeTranscript } from '@/components/text-analysis/types';
+import { Button } from '@/components/ui/button';
 
-/** „A teljes videóból/könyvből X%-át ismered" sáv. */
+/** „A teljes videóból/könyvből X%-át ismered" sáv. `'failed'`-nél nem jelenik meg. */
 export function WholeVideoBanner({
     overview,
     heading = 'A teljes videóból ismered',
     source = 'feliratban',
     loadingLabel = 'Teljes videó kiértékelése…',
 }: {
-    overview: VideoOverview | null;
+    overview: VideoOverview | 'failed' | null;
     heading?: string;
     source?: string;
     loadingLabel?: string;
 }) {
+    if (overview === 'failed') {
+        return null;
+    }
+
     if (!overview) {
         return (
             <div className="flex items-center gap-2 rounded-3xl bg-card p-4 text-sm text-muted-foreground shadow-sm">
@@ -79,6 +83,7 @@ export function YoutubeList({ transcripts, youtubeLimit, loaded, loadBookmark, o
             <div className="flex flex-col divide-y rounded-3xl bg-card shadow-sm">
                 {transcripts.map((t) => {
                     const bookmark = loadBookmark(t.id);
+
                     return (
                         <div key={t.id} className="group flex items-center gap-3 px-4 py-3 transition-colors first:rounded-t-3xl last:rounded-b-3xl hover:bg-accent/40">
                             <Youtube className="size-4 shrink-0 text-red-500" />
@@ -110,7 +115,7 @@ interface YoutubeReaderProps {
     transcript: YoutubeTranscript;
     page: number;
     segments: LyricSegment[] | null;
-    overview: VideoOverview | null;
+    overview: VideoOverview | 'failed' | null;
     isLoadingPage: boolean;
     isAnalyzing: boolean;
     onBack: () => void;

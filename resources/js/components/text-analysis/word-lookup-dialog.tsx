@@ -9,6 +9,15 @@ import {
     Volume2,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import {
+    EMPTY_CUSTOM_WORD_FORM,
+    POS_LABELS,
+} from '@/components/text-analysis/types';
+import type {
+    CustomWordForm,
+    LookupResult,
+    TokenStatus,
+} from '@/components/text-analysis/types';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -19,23 +28,15 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import {
-    EMPTY_CUSTOM_WORD_FORM,
-    POS_LABELS,
-} from '@/components/text-analysis/types';
 import { csrfHeaders } from '@/lib/csrf';
-import type {
-    CustomWordForm,
-    LookupResult,
-    TokenStatus,
-} from '@/components/text-analysis/types';
+import { httpErrorMessage, postJson } from '@/lib/http';
+import { withMinDuration } from '@/lib/min-duration';
 import {
     status as customWordStatus,
     store as customWordsStore,
 } from '@/routes/custom-words';
 import { geminiLookup, wordLookup } from '@/routes/text-analysis';
 import { status as wordStatus } from '@/routes/words';
-import { withMinDuration } from '@/lib/min-duration';
 
 interface WordLookupDialogProps {
     word: string | null;
@@ -83,6 +84,34 @@ const STATUS_BUTTONS = [
     },
 ] as const;
 
+/**
+ * Hibaüzenet a Gemini-kitöltéshez. Az AI-kvóta 429-e saját magyar üzenettel
+ * érkezik (`error: 'ai_limit'` + `message`); a route-throttle 429 viszont csak
+ * angol `message`-et ad, arra a közös magyar szöveget mutatjuk. A 422/502
+ * `error` mezője már felhasználóbarát magyar szöveg a backendről.
+ */
+function geminiErrorMessage(
+    status: number,
+    data: Record<string, unknown>,
+): string {
+    if (data.error === 'ai_limit' && typeof data.message === 'string') {
+        return data.message;
+    }
+
+    if (status === 429) {
+        return httpErrorMessage(429);
+    }
+
+    if (typeof data.error === 'string' && data.error !== '') {
+        return data.error;
+    }
+
+    return httpErrorMessage(
+        status,
+        'A Gemini-kitöltés nem sikerült — próbáld újra.',
+    );
+}
+
 export default function WordLookupDialog({
     word,
     context,
@@ -103,11 +132,15 @@ export default function WordLookupDialog({
     );
     const [addingCustom, setAddingCustom] = useState(false);
     const [addedCustom, setAddedCustom] = useState(false);
+    const [customAddError, setCustomAddError] = useState<string | null>(null);
     const [geminiLoading, setGeminiLoading] = useState(false);
     const [geminiNotice, setGeminiNotice] = useState<string | null>(null);
 
     useEffect(() => {
-        if (!word) return;
+        if (!word) {
+            return;
+        }
+
         // A megszakító egyben a still-mounted jelzés is: a cleanup abortálja a
         // folyamatban lévő kérést (gyors szóváltogatásnál így nem terheljük feleslegesen
         // a szervert), és az abort utáni válaszokra/hibákra már nem frissítünk state-et.
@@ -121,6 +154,7 @@ export default function WordLookupDialog({
         setGeminiNotice(null);
         setCustomWordForm(EMPTY_CUSTOM_WORD_FORM);
         setAddedCustom(false);
+        setCustomAddError(null);
 
         fetch(wordLookup.url({ query: { word } }), {
             headers: {
@@ -131,7 +165,10 @@ export default function WordLookupDialog({
         })
             .then((res) => res.json())
             .then((data) => {
-                if (controller.signal.aborted) return;
+                if (controller.signal.aborted) {
+                    return;
+                }
+
                 setLookupResult(data);
                 setLookupStatus(
                     (data as LookupResult & { status?: string | null })
@@ -139,10 +176,14 @@ export default function WordLookupDialog({
                 );
             })
             .catch(() => {
-                if (!controller.signal.aborted) setLookupError(true);
+                if (!controller.signal.aborted) {
+                    setLookupError(true);
+                }
             })
             .finally(() => {
-                if (!controller.signal.aborted) setLookupLoading(false);
+                if (!controller.signal.aborted) {
+                    setLookupLoading(false);
+                }
             });
 
         return () => {
@@ -151,7 +192,9 @@ export default function WordLookupDialog({
     }, [word]);
 
     const handleStatusClick = async (newStatus: string) => {
-        if (!word || !lookupResult || lookupResult.type === 'not_found') return;
+        if (!word || !lookupResult || lookupResult.type === 'not_found') {
+            return;
+        }
 
         const path =
             lookupResult.type === 'word'
@@ -180,54 +223,90 @@ export default function WordLookupDialog({
     };
 
     const handleAddAsCustom = async () => {
-        if (!word || !lookupResult || lookupResult.type !== 'not_found') return;
+        if (!word || !lookupResult || lookupResult.type !== 'not_found') {
+            return;
+        }
+
         setAddingCustom(true);
+        setCustomAddError(null);
+
         try {
             const body: Record<string, unknown> = { word: lookupResult.word };
             (Object.keys(customWordForm) as (keyof CustomWordForm)[]).forEach(
                 (k) => {
                     const v = customWordForm[k];
-                    if (v !== '' && v !== false) body[k] = v;
+
+                    if (v !== '' && v !== false) {
+                        body[k] = v;
+                    }
                 },
             );
-            const response = await fetch(customWordsStore.url(), {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...csrfHeaders(),
-                },
-                body: JSON.stringify(body),
-            });
-            if (response.ok || response.redirected) {
+            const { ok, status, data } = await postJson(
+                customWordsStore.url(),
+                body,
+            );
+
+            if (ok) {
                 setAddedCustom(true);
                 onCustomAdded(word);
+
+                return;
             }
+
+            // 422-nél a Laravel `message` az első validációs hiba (magyarul);
+            // más státuszoknál (419/429/5xx) a közös magyar üzenetet mutatjuk.
+            setCustomAddError(
+                status === 422 && typeof data.message === 'string'
+                    ? data.message
+                    : httpErrorMessage(
+                          status,
+                          'A hozzáadás nem sikerült — próbáld újra.',
+                      ),
+            );
+        } catch {
+            setCustomAddError(httpErrorMessage());
         } finally {
             setAddingCustom(false);
         }
     };
 
     const handleGeminiAutofill = async () => {
-        if (!lookupResult || lookupResult.type !== 'not_found') return;
+        if (!lookupResult || lookupResult.type !== 'not_found') {
+            return;
+        }
+
         setGeminiLoading(true);
         setGeminiNotice(null);
+
         try {
             const query: Record<string, string> = { word: lookupResult.word };
-            if (context) query.context = context;
+
+            if (context) {
+                query.context = context;
+            }
+
             const res = await withMinDuration(
                 fetch(geminiLookup.url({ query }), {
                     headers: { Accept: 'application/json' },
                 }),
             );
-            const data = await res.json();
-            if (data.error) return;
+            const data = await res.json().catch(() => ({}));
+
+            if (!res.ok || data.error) {
+                setGeminiNotice(geminiErrorMessage(res.status, data));
+
+                return;
+            }
+
             // Az AI nem létező szónak ítélte (gibberish / elgépelés): nem töltünk ki kamu adatot.
             if (data.is_real_word === false) {
                 setGeminiNotice(
                     data.message ?? 'Ez nem tűnik valódi angol szónak.',
                 );
+
                 return;
             }
+
             setCustomWordForm((prev) => ({
                 ...prev,
                 meaning_hu: data.meaning_hu || prev.meaning_hu,
@@ -249,9 +328,12 @@ export default function WordLookupDialog({
                 adj_comparative: data.adj_comparative || prev.adj_comparative,
                 adj_superlative: data.adj_superlative || prev.adj_superlative,
             }));
+
             if (data.context_explanation) {
                 setContextExplanation(data.context_explanation);
             }
+        } catch {
+            setGeminiNotice('Hálózati hiba — próbáld újra.');
         } finally {
             setGeminiLoading(false);
         }
@@ -832,9 +914,14 @@ export default function WordLookupDialog({
                                             </div>
 
                                             {/* Footer */}
-                                            <div className="flex gap-2 border-t px-5 py-4">
+                                            <div className="space-y-2 border-t px-5 py-4">
+                                                {customAddError && (
+                                                    <p className="text-sm text-red-600 dark:text-red-400">
+                                                        {customAddError}
+                                                    </p>
+                                                )}
                                                 <Button
-                                                    className="flex-1"
+                                                    className="w-full"
                                                     onClick={handleAddAsCustom}
                                                     disabled={addingCustom}
                                                 >

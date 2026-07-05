@@ -53,7 +53,7 @@ export default function TextAnalysis() {
     const [booksLoaded, setBooksLoaded] = useState(false);
     const [activeBook, setActiveBook] = useState<UserBook | null>(null);
     const [bookPage, setBookPage] = useState(1);
-    const [bookOverview, setBookOverview] = useState<VideoOverview | null>(null);
+    const [bookOverview, setBookOverview] = useState<VideoOverview | 'failed' | null>(null);
 
     // YouTube-feliratok (külön rendszer)
     const [transcripts, setTranscripts] = useState<YoutubeTranscript[]>([]);
@@ -62,7 +62,7 @@ export default function TextAnalysis() {
     const [activeTranscript, setActiveTranscript] = useState<YoutubeTranscript | null>(null);
     const [ytPage, setYtPage] = useState(1);
     const [segments, setSegments] = useState<LyricSegment[] | null>(null);
-    const [overview, setOverview] = useState<VideoOverview | null>(null);
+    const [overview, setOverview] = useState<VideoOverview | 'failed' | null>(null);
     const [isUploadingBook, setIsUploadingBook] = useState(false);
     const [isLoadingPage, setIsLoadingPage] = useState(false);
 
@@ -196,9 +196,12 @@ return;
 
             if (res.ok) {
                 setBookOverview((await res.json()) as VideoOverview);
+            } else {
+                setBookOverview('failed');
             }
         } catch {
             // A teljes könyv %-a opcionális — hiba esetén nem mutatjuk.
+            setBookOverview('failed');
         }
     };
 
@@ -274,9 +277,12 @@ return;
 
             if (res.ok) {
                 setOverview((await res.json()) as VideoOverview);
+            } else {
+                setOverview('failed');
             }
         } catch {
             // A teljes videó %-a opcionális — hiba esetén egyszerűen nem mutatjuk.
+            setOverview('failed');
         }
     };
 
