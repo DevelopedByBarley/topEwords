@@ -156,6 +156,7 @@ function renderNfxBar(text) {
     }
 
     if (!text.trim()) {
+        nfxLastCaptionText = '';
         bar.innerHTML = '';
         bar.style.display = 'none';
 
@@ -518,3 +519,13 @@ if (location.hostname === 'www.netflix.com') {
         }
     }
 }
+
+// A közös szókincs-frissítés (shared.js: refreshVocabHighlights) hookja: friss
+// státusztérkép érkezésekor újrarajzolja a Netflix felirat-sávot.
+registerVocabRefreshHook({
+    isActive: () => nfxEnabled && !!nfxLastCaptionText,
+    apply(map) {
+        ytStatusMap = map;
+        renderNfxBar(nfxLastCaptionText);
+    },
+});

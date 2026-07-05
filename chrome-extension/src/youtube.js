@@ -12,6 +12,11 @@ let ytWeEnabledCC = false;
 // felirat-track ilyenkor gyakran nem renderel, amíg egy valódi ki→be kapcsolás meg
 // nem rángatja. Ezt menetenként egyszer kényszerítjük ki (lásd ensureNativeCaptionsOn).
 let ytCcKicked = false;
+// A kick épp lekapcsolta a user SAJÁT CC-jét, és a visszakapcsoló tick még nem
+// futott le. Amíg igaz, a CC a useré: a visszakapcsolás nem veheti át a
+// tulajdonjogát (ytWeEnabledCC), kikapcsolásnál/navigációnál pedig vissza kell
+// állítani neki.
+let ytCcKickPending = false;
 let ytStatusMap = null;
 let ytObserver = null;
 let ytBarHost = null;
@@ -26,6 +31,12 @@ let ytPanelTimeHandler = null;
 let ytPanelLastUserScroll = 0;
 let ytControlsObserver = null;
 let ytLastCaptionText = '';
+// Bizonyíték, hogy az observer tud felirat-szöveget olvasni a natív DOM-ból
+// (.ytp-caption-segment). A natív feliratot csak ezután rejtjük el — ha a
+// YouTube átnevezi az osztályokat, a natív felirat látható marad, nem lesz
+// néma, teljes felirat-kiesés.
+let ytCaptionTextSeen = false;
+let ytNoCaptionNoticeShown = false;
 
 // A navigáció/újrainicializálás versenyhelyzetei ellen: minden navigáció növeli,
 // az aszinkron init-callbackek ezzel ellenőrzik, hogy még az ő menetük aktuális-e.
@@ -82,7 +93,14 @@ function ensureNativeCaptionsOn() {
 
     if (btn.getAttribute('aria-pressed') === 'false') {
         btn.click();
-        ytWeEnabledCC = true;
+
+        if (ytCcKickPending) {
+            // A kick utáni visszakapcsolás: a CC eredetileg a useré volt, nem
+            // jelöljük sajátunknak — a TW-sáv kikapcsolásakor bekapcsolva marad.
+            ytCcKickPending = false;
+        } else {
+            ytWeEnabledCC = true;
+        }
 
         return true;
     }
@@ -93,6 +111,7 @@ function ensureNativeCaptionsOn() {
     // ütemezett reconcile-tick visszakapcsolja és elindítja a renderelést.
     if (!ytWeEnabledCC && !ytCcKicked) {
         ytCcKicked = true;
+        ytCcKickPending = true;
         btn.click();
         setTimeout(() => {
             if (ytEnabled && extAlive() && isYouTubePage()) {
@@ -107,12 +126,25 @@ function ensureNativeCaptionsOn() {
 }
 
 function restoreNativeCaptionState() {
+    const btn = ytCaptionButton();
+
+    // A kick lekapcsolta a user saját CC-jét, de a visszakapcsoló tick már nem
+    // fut le (közben kikapcsolták a TW-sávot) — az ő beállítását állítjuk vissza.
+    if (ytCcKickPending) {
+        ytCcKickPending = false;
+
+        if (btn && btn.getAttribute('aria-pressed') === 'false') {
+            btn.click();
+        }
+
+        return;
+    }
+
     if (!ytWeEnabledCC) {
         return;
     }
 
     ytWeEnabledCC = false;
-    const btn = ytCaptionButton();
 
     if (btn && btn.getAttribute('aria-pressed') === 'true') {
         btn.click();
@@ -319,6 +351,7 @@ function renderYtBar(text) {
     }
 
     if (!text.trim()) {
+        ytLastCaptionText = '';
         bar.innerHTML = '';
         bar.style.display = 'none';
 
@@ -368,6 +401,13 @@ function startYtObserver() {
             return;
         }
 
+        // Az első sikeresen kiolvasott felirat-szöveg a bizonyíték, hogy a
+        // felirat-DOM olvasható — a natív feliratot csak innentől rejtjük el.
+        if (text && !ytCaptionTextSeen) {
+            ytCaptionTextSeen = true;
+            hideNativeCaptions();
+        }
+
         lastText = text;
         renderYtBar(text);
     });
@@ -379,6 +419,25 @@ function startYtObserver() {
         subtree: true,
         characterData: true,
     });
+
+    // Ha pár másodperc után sem sikerült felirat-szöveget olvasni (pl. a
+    // YouTube átnevezte a felirat-osztályokat), egyszeri értesítéssel
+    // jelezzük, miért üres a TW-sáv — a natív felirat ilyenkor látható marad.
+    setTimeout(() => {
+        if (
+            ytEnabled &&
+            extAlive() &&
+            isYouTubePage() &&
+            ytObserver &&
+            !ytCaptionTextSeen &&
+            !ytNoCaptionNoticeShown
+        ) {
+            ytNoCaptionNoticeShown = true;
+            showYtBarNotice(
+                'Nem sikerült felirat-szöveget beolvasni — a YouTube saját felirata látható marad.',
+            );
+        }
+    }, 5000);
 }
 
 // ── Be/ki kapcsolás ──
@@ -454,48 +513,23 @@ function showYtBarNotice(text) {
     }, 6000);
 }
 
-/**
- * Egy szó státuszának/felvitelének mentése után frissíti a státusztérképet, és
- * azonnal újrarajzolja az aktív felületeket (feliratsáv, átirat-oldalsáv, oldali
- * kiemelés), hogy a változás külön frissítés nélkül látszódjon. Saját mentés után a
- * cache úgyis érvénytelen (a háttér dobta), így nem kell forceFresh; a fülre
- * visszatéréskor viszont forceFresh=true kell, hogy a más eszközön történt változás
- * is azonnal bekerüljön (a friss cache-t megkerülve).
- */
-function refreshVocabHighlights(forceFresh = false) {
-    sendMsg({ type: 'GET_STATUSES', forceFresh }, (resp) => {
-        if (!resp || resp.error || !resp.statuses) {
-            return;
+// A közös szókincs-frissítés (shared.js: refreshVocabHighlights) hookja: friss
+// státusztérkép érkezésekor újrarajzolja a felirat-sávot és az átirat-panelt.
+// A Netflix-sáv a sajátját a netflix.js-ben regisztrálja (közös ytStatusMap-pel).
+registerVocabRefreshHook({
+    isActive: () => !!ytStatusMap,
+    apply(map) {
+        ytStatusMap = map;
+
+        if (ytLastCaptionText) {
+            renderYtBar(ytLastCaptionText);
         }
 
-        const map = new Map(
-            Object.entries(resp.statuses).map(([w, s]) => [w.toLowerCase(), s]),
-        );
-
-        if (ytStatusMap) {
-            ytStatusMap = map;
-
-            if (ytLastCaptionText) {
-                renderYtBar(ytLastCaptionText);
-            }
-
-            if (ytPanelSegments.length) {
-                renderYtPanelSegments();
-            }
+        if (ytPanelSegments.length) {
+            renderYtPanelSegments();
         }
-
-        if (nfxEnabled && nfxLastCaptionText) {
-            ytStatusMap = map;
-            renderNfxBar(nfxLastCaptionText);
-        }
-
-        if (hlWordMap) {
-            hlWordMap = map;
-            removeHighlights();
-            applyHighlights();
-        }
-    });
-}
+    },
+});
 
 /**
  * A feliratsáv kívánt állapotát (ytEnabled) idempotensen összehangolja a tényleges
@@ -517,6 +551,7 @@ function reconcileYtLyrics() {
             ytBarHost ||
             ytObserver ||
             ytWeEnabledCC ||
+            ytCcKickPending ||
             document.getElementById(YT_HIDE_STYLE_ID)
         ) {
             disableYtLyrics();
@@ -559,10 +594,16 @@ function reconcileYtLyrics() {
             return;
         }
 
-        hideNativeCaptions();
-
         if (!ytObserver) {
             startYtObserver();
+        }
+
+        // A natív feliratot csak akkor rejtjük, ha az observer már
+        // bizonyítottan olvasott felirat-szöveget (M2: felirat-blackout
+        // védelem DOM-változás ellen). Az első elrejtést az observer végzi;
+        // ez az ág a lejátszó-újrarenderelés utáni visszaállítást fedi.
+        if (ytCaptionTextSeen) {
+            hideNativeCaptions();
         }
     });
 }
@@ -573,6 +614,8 @@ function disableYtLyrics() {
     ytBarHost?.remove();
     ytBarHost = null;
     ytCcKicked = false;
+    ytCaptionTextSeen = false;
+    ytNoCaptionNoticeShown = false;
     showNativeCaptions();
     restoreNativeCaptionState();
 }
@@ -853,9 +896,16 @@ function enableYtPanel() {
 
     setYtPanelMessage('Betöltés…');
 
+    // A→B navigációnál A késve érkező átirata nem renderelődhet B paneljébe.
+    const token = ytNavToken;
+
     ensureYtStatusMap(() => {
+        if (token !== ytNavToken) {
+            return;
+        }
+
         sendMsg({ type: 'GET_YT_TRANSCRIPT', videoId }, (resp) => {
-            if (!ytPanelEnabled || !ytPanelHost) {
+            if (token !== ytNavToken || !ytPanelEnabled || !ytPanelHost) {
                 return;
             }
 
@@ -1023,6 +1073,22 @@ function destroyYtSubtitles() {
     // csak a flag-et és a rejtő CSS-t takarítjuk.
     ytWeEnabledCC = false;
     ytCcKicked = false;
+
+    // Kivétel: ha a kick épp lekapcsolta a user saját CC-jét, visszakattintjuk —
+    // a CC-beállítást a YouTube videók közt megőrzi, enélkül a user felirata
+    // tartósan kikapcsolva maradna.
+    if (ytCcKickPending) {
+        ytCcKickPending = false;
+        const btn = ytCaptionButton();
+
+        if (btn && btn.getAttribute('aria-pressed') === 'false') {
+            btn.click();
+        }
+    }
+
+    // Az új videón újra bizonyítani kell, hogy a felirat-DOM olvasható.
+    ytCaptionTextSeen = false;
+    ytNoCaptionNoticeShown = false;
     showNativeCaptions();
 }
 

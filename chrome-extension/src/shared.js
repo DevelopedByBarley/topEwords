@@ -168,3 +168,48 @@ function paintStars(container, value) {
         star.classList.toggle('filled', parseInt(star.dataset.star) <= v);
     });
 }
+
+// ── Szókincs-frissítési hookok ────────────────────────────────────────────────
+//
+// A modulok (page-highlight, youtube, netflix) ide regisztrálják a saját
+// újrarajzolójukat: { isActive: () => boolean, apply: (map) => void }. Így a
+// refreshVocabHighlights nem függ attól, mely modulok töltődtek be az adott
+// oldalon — a youtube.js/netflix.js csak a saját domainjén fut (lásd manifest).
+
+const vocabRefreshHooks = [];
+
+function registerVocabRefreshHook(hook) {
+    vocabRefreshHooks.push(hook);
+}
+
+// Igaz, ha bármely modul épp szó-státuszokat jelenít meg (kiemelés, felirat-sáv) —
+// csak ilyenkor érdemes a fülre visszatérve frissítést kérni.
+function anyVocabUiActive() {
+    return vocabRefreshHooks.some((hook) => hook.isActive());
+}
+
+/**
+ * Egy szó státuszának/felvitelének mentése után frissíti a státusztérképet, és a
+ * regisztrált hookokon át azonnal újrarajzolja az aktív felületeket (feliratsáv,
+ * átirat-oldalsáv, oldali kiemelés), hogy a változás külön frissítés nélkül
+ * látszódjon. Saját mentés után a cache úgyis érvénytelen (a háttér dobta), így nem
+ * kell forceFresh; a fülre visszatéréskor viszont forceFresh=true kell, hogy a más
+ * eszközön történt változás is azonnal bekerüljön (a friss cache-t megkerülve).
+ */
+function refreshVocabHighlights(forceFresh = false) {
+    sendMsg({ type: 'GET_STATUSES', forceFresh }, (resp) => {
+        if (!resp || resp.error || !resp.statuses) {
+            return;
+        }
+
+        const map = new Map(
+            Object.entries(resp.statuses).map(([w, s]) => [w.toLowerCase(), s]),
+        );
+
+        vocabRefreshHooks.forEach((hook) => {
+            if (hook.isActive()) {
+                hook.apply(map);
+            }
+        });
+    });
+}
