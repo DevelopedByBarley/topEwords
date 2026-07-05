@@ -40,4 +40,13 @@ class UpdateFlashcardDeckSettingsRequest extends FormRequest
             'shuffle_cards' => ['boolean'],
         ];
     }
+
+    /** @return array<string, string> */
+    public function attributes(): array
+    {
+        return [
+            'learning_steps' => 'tanulási lépések',
+            'learning_steps.*' => 'tanulási lépés',
+        ];
+    }
 }

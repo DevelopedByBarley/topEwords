@@ -148,6 +148,14 @@ export default function DeckSettingsDialog({
     type StepUnit = 'perc' | 'óra' | 'nap';
     type StepEntry = { value: number; unit: StepUnit };
 
+    // A backend 1440 percben (1 nap) maximálja a tanulási lépést, ezért
+    // egységenként ennyi a beírható maximum.
+    const UNIT_MAX: Record<StepUnit, number> = { perc: 1440, óra: 24, nap: 1 };
+
+    function clampStepValue(value: number, unit: StepUnit): number {
+        return Math.min(UNIT_MAX[unit], Math.max(1, value));
+    }
+
     function minutesToEntry(minutes: number): StepEntry {
         if (minutes >= 1440 && minutes % 1440 === 0) {
             return { value: minutes / 1440, unit: 'nap' };
@@ -182,11 +190,19 @@ export default function DeckSettingsDialog({
         setSteps((prev) => prev.filter((_, idx) => idx !== i));
     const updateStepValue = (i: number, value: number) =>
         setSteps((prev) =>
-            prev.map((step, idx) => (idx === i ? { ...step, value } : step)),
+            prev.map((step, idx) =>
+                idx === i
+                    ? { ...step, value: clampStepValue(value, step.unit) }
+                    : step,
+            ),
         );
     const updateStepUnit = (i: number, unit: StepUnit) =>
         setSteps((prev) =>
-            prev.map((step, idx) => (idx === i ? { ...step, unit } : step)),
+            prev.map((step, idx) =>
+                idx === i
+                    ? { unit, value: clampStepValue(step.value, unit) }
+                    : step,
+            ),
         );
 
     const applyPreset = (preset: (typeof PRESETS)[0]) => {
@@ -317,16 +333,13 @@ export default function DeckSettingsDialog({
                                                     onChange={(e) =>
                                                         updateStepValue(
                                                             i,
-                                                            Math.max(
-                                                                1,
-                                                                Number(
-                                                                    e.target
-                                                                        .value,
-                                                                ),
+                                                            Number(
+                                                                e.target.value,
                                                             ),
                                                         )
                                                     }
                                                     min={1}
+                                                    max={UNIT_MAX[step.unit]}
                                                     className="w-20"
                                                 />
                                                 <select
@@ -376,9 +389,24 @@ export default function DeckSettingsDialog({
                                             Lépés hozzáadása
                                         </Button>
                                     </div>
-                                    <InputError
-                                        message={errors['learning_steps']}
-                                    />
+                                    {/* A learning_steps.* szabályok elem-szintű
+                                        kulcsokon (learning_steps.0, …) adnak
+                                        hibát, ezért nem elég a learning_steps
+                                        kulcsot nézni. */}
+                                    {Object.entries(errors)
+                                        .filter(
+                                            ([key]) =>
+                                                key === 'learning_steps' ||
+                                                key.startsWith(
+                                                    'learning_steps.',
+                                                ),
+                                        )
+                                        .map(([key, message]) => (
+                                            <InputError
+                                                key={key}
+                                                message={message}
+                                            />
+                                        ))}
                                 </div>
 
                                 <Separator />

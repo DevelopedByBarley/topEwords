@@ -87,6 +87,34 @@ test('a deck can get its own custom settings overriding the global defaults', fu
     expect($settings->shuffle_cards)->toBeFalse();
 });
 
+test('a learning step above 1440 minutes is rejected on the indexed error key', function () {
+    $user = User::factory()->create();
+    $deck = FlashcardDeck::create(['user_id' => $user->id, 'name' => 'Deck']);
+
+    // "2 nap" a paklidialógusban = 2880 perc — a hibának az elem-szintű
+    // learning_steps.1 kulcson kell jönnie, mert a frontend azt jeleníti meg.
+    $this->actingAs($user)
+        ->from(route('flashcards.show', $deck))
+        ->put(route('flashcards.settings.update', $deck), [
+            'new_cards_per_day' => 20,
+            'max_reviews_per_day' => 200,
+            'learning_steps' => [10, 2880],
+            'graduating_interval' => 1,
+            'easy_interval' => 4,
+            'starting_ease' => 250,
+            'easy_bonus' => 130,
+            'hard_interval_modifier' => 120,
+            'interval_modifier' => 100,
+            'max_interval' => 365,
+            'lapse_new_interval' => 0,
+            'leech_threshold' => 8,
+        ])
+        ->assertSessionHasErrors(['learning_steps.1'])
+        ->assertRedirect(route('flashcards.show', $deck));
+
+    expect($deck->fresh()->deckSettings)->toBeNull();
+});
+
 test('deck shuffle_cards can be turned off (unchecked checkbox)', function () {
     $user = User::factory()->create();
     $deck = FlashcardDeck::create(['user_id' => $user->id, 'name' => 'Deck']);
