@@ -8,7 +8,7 @@ import {
     Sparkles,
     Volume2,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
     EMPTY_CUSTOM_WORD_FORM,
     POS_LABELS,
@@ -28,7 +28,6 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { csrfHeaders } from '@/lib/csrf';
 import { httpErrorMessage, postJson } from '@/lib/http';
 import { withMinDuration } from '@/lib/min-duration';
 import {
@@ -124,6 +123,7 @@ export default function WordLookupDialog({
     const [lookupLoading, setLookupLoading] = useState(false);
     const [lookupStatus, setLookupStatus] = useState<string | null>(null);
     const [lookupError, setLookupError] = useState(false);
+    const [statusError, setStatusError] = useState<string | null>(null);
     const [contextExplanation, setContextExplanation] = useState<string | null>(
         null,
     );
@@ -135,6 +135,14 @@ export default function WordLookupDialog({
     const [customAddError, setCustomAddError] = useState<string | null>(null);
     const [geminiLoading, setGeminiLoading] = useState(false);
     const [geminiNotice, setGeminiNotice] = useState<string | null>(null);
+
+    // A státusz-POST rollbackje csak akkor nyúlhat a dialógus lokális state-jéhez,
+    // ha közben nem váltott másik szóra a felhasználó.
+    const activeWordRef = useRef(word);
+
+    useEffect(() => {
+        activeWordRef.current = word;
+    }, [word]);
 
     useEffect(() => {
         if (!word) {
@@ -150,6 +158,7 @@ export default function WordLookupDialog({
         setLookupLoading(true);
         setLookupStatus(null);
         setLookupError(false);
+        setStatusError(null);
         setContextExplanation(null);
         setGeminiNotice(null);
         setCustomWordForm(EMPTY_CUSTOM_WORD_FORM);
@@ -203,23 +212,39 @@ export default function WordLookupDialog({
         const nextStatus =
             lookupStatus === newStatus ? null : (newStatus as TokenStatus);
         const prevStatus = lookupStatus;
+        const fallback: TokenStatus =
+            lookupResult.type === 'word' ? 'in_list' : 'not_in_list';
 
+        setStatusError(null);
         setLookupStatus(nextStatus);
-        onStatusChange(
-            word,
-            prevStatus,
-            nextStatus,
-            lookupResult.type === 'word' ? 'in_list' : 'not_in_list',
-        );
+        onStatusChange(word, prevStatus, nextStatus, fallback);
 
-        await fetch(path, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                ...csrfHeaders(),
-            },
-            body: JSON.stringify({ status: newStatus }),
-        });
+        // Sikertelen mentésnél visszagörgetjük az optimista frissítést: a szülő
+        // statisztikáit fordított irányú deltával, a dialógus gombjait pedig csak
+        // akkor, ha még mindig ez a szó van megnyitva.
+        const rollback = (status?: number) => {
+            onStatusChange(
+                word,
+                nextStatus,
+                prevStatus as TokenStatus | null,
+                fallback,
+            );
+
+            if (activeWordRef.current === word) {
+                setLookupStatus(prevStatus);
+                setStatusError(httpErrorMessage(status));
+            }
+        };
+
+        try {
+            const { ok, status } = await postJson(path, { status: newStatus });
+
+            if (!ok) {
+                rollback(status);
+            }
+        } catch {
+            rollback();
+        }
     };
 
     const handleAddAsCustom = async () => {
@@ -459,6 +484,11 @@ export default function WordLookupDialog({
                                             ),
                                         )}
                                     </div>
+                                    {statusError && (
+                                        <p className="text-sm text-red-600 dark:text-red-400">
+                                            {statusError}
+                                        </p>
+                                    )}
                                 </>
                             )}
 
