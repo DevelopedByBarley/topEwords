@@ -2,6 +2,7 @@
 
 use App\Models\User;
 use App\Models\Word;
+use App\Services\AchievementService;
 use Illuminate\Support\Facades\Cache;
 
 test('every plan defines every limit key so a typo key never becomes unlimited', function () {
@@ -150,6 +151,23 @@ test('daily text analysis is capped per plan', function (string $state, int $lim
     'free' => ['free', 2],
     'premium' => ['premium', 50],
 ]);
+
+test('a failed text analysis does not consume the daily quota', function () {
+    $user = User::factory()->create();
+    $cacheKey = "text_analysis_daily_{$user->id}_".today()->format('Y-m-d');
+
+    $this->mock(AchievementService::class)
+        ->shouldReceive('checkAndAwardAnalysis')
+        ->andThrow(new RuntimeException('analysis blew up'));
+
+    $this->withoutExceptionHandling();
+
+    expect(fn () => $this->actingAs($user)
+        ->postJson(route('text-analysis.analyze'), ['text' => 'the quick dog'])
+    )->toThrow(RuntimeException::class);
+
+    expect(Cache::get($cacheKey))->toBe(0);
+});
 
 test('saved book limit is reported per plan', function (string $state, int $limit) {
     $user = $state === 'free'

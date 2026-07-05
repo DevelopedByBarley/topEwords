@@ -301,10 +301,19 @@ class TextAnalysisController extends Controller
             }
         }
 
-        $analysis = $this->buildAnalysis($text, $user);
+        try {
+            $analysis = $this->buildAnalysis($text, $user);
 
-        $newAchievements = app(AchievementService::class)
-            ->checkAndAwardAnalysis($user, $analysis['comprehension']);
+            $newAchievements = app(AchievementService::class)
+                ->checkAndAwardAnalysis($user, $analysis['comprehension']);
+        } catch (\Throwable $e) {
+            // Sikertelen elemzés nem fogyaszthatja a napi keretet.
+            if ($dailyLimit !== null) {
+                Cache::decrement($cacheKey);
+            }
+
+            throw $e;
+        }
 
         return response()->json([...$analysis, 'achievements' => $newAchievements]);
     }
