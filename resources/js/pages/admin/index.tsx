@@ -4,6 +4,7 @@ import {
     CheckCheck,
     Clock,
     BookMarked,
+    Gift,
     Mic,
     Sparkles,
     Trash2,
@@ -16,6 +17,7 @@ import AppLogoIcon from '@/components/app-logo-icon';
 import { Input } from '@/components/ui/input';
 import { set as setAccess } from '@/routes/admin/access';
 import { toggle as toggleAiAccess } from '@/routes/admin/ai-access';
+import { grant as grantFreeMonth } from '@/routes/admin/free-month';
 
 interface Stats {
     totalUsers: number;
@@ -55,6 +57,7 @@ interface AccessUser {
     has_ai: boolean;
     subscribed: boolean;
     subscription_plan: 'premium' | null;
+    trial_ends_at: string | null;
 }
 
 interface Invite {
@@ -140,6 +143,14 @@ export default function AdminIndex({
 
     function setUserPlan(email: string, plan: 'premium' | 'none') {
         router.post(setAccess().url, { email, plan }, { preserveScroll: true });
+    }
+
+    function giveFreeMonth(email: string) {
+        router.post(
+            grantFreeMonth().url,
+            { email },
+            { preserveScroll: true },
+        );
     }
 
     return (
@@ -491,7 +502,9 @@ export default function AdminIndex({
                                 Free = napi keretek + kis AI-kóstoló · Pro =
                                 korlátlan + teljes AI-keret. Az AI minden
                                 csomagon elérhető (a havi keret a korlát); a ✨
-                                gomb az ai_access jelzőt kapcsolja.
+                                gomb az ai_access jelzőt kapcsolja. A „+1 hó"
+                                gomb egy hónap ingyen Prót ad — halmozható,
+                                lejáratkor magától visszaáll Free-re.
                             </p>
                             <Input
                                 type="text"
@@ -543,6 +556,17 @@ export default function AdminIndex({
                                                                 felülírás)
                                                             </span>
                                                         )}
+                                                        {u.trial_ends_at && (
+                                                            <span className="ml-1.5 rounded bg-sky-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-sky-400">
+                                                                Ingyen Pro ·{' '}
+                                                                {new Date(
+                                                                    u.trial_ends_at,
+                                                                ).toLocaleDateString(
+                                                                    'hu-HU',
+                                                                )}
+                                                                -ig
+                                                            </span>
+                                                        )}
                                                     </div>
                                                     <div className="truncate text-xs text-zinc-500">
                                                         {u.email}
@@ -565,6 +589,16 @@ export default function AdminIndex({
                                                     }`}
                                                 >
                                                     Pro
+                                                </button>
+                                                <button
+                                                    onClick={() =>
+                                                        giveFreeMonth(u.email)
+                                                    }
+                                                    title="+1 hónap ingyen Pro (halmozható, lejáratkor magától visszaáll)"
+                                                    className="flex items-center gap-1 rounded-md bg-zinc-800 px-2 py-1 text-xs font-semibold text-zinc-300 transition-colors hover:bg-sky-500/20 hover:text-sky-400"
+                                                >
+                                                    <Gift className="size-3.5" />
+                                                    +1 hó
                                                 </button>
                                                 <button
                                                     onClick={() =>

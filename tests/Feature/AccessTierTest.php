@@ -191,6 +191,59 @@ test('admin can grant any plan by email', function () {
     expect($target->refresh()->currentPlan())->toBe('free');
 });
 
+test('admin can grant a free month by email', function () {
+    config(['app.admin_email' => 'admin@example.com']);
+    $admin = User::factory()->create(['email' => 'admin@example.com']);
+    $target = User::factory()->create();
+
+    $this->actingAs($admin)
+        ->post(route('admin.free-month.grant'), ['email' => $target->email])
+        ->assertRedirect()
+        ->assertSessionHas('success');
+
+    $target->refresh();
+    expect($target->currentPlan())->toBe('premium')
+        ->and($target->trial_ends_at->toDateString())->toBe(now()->addMonth()->toDateString());
+});
+
+test('granting a free month stacks on an active trial', function () {
+    config(['app.admin_email' => 'admin@example.com']);
+    $admin = User::factory()->create(['email' => 'admin@example.com']);
+    // Már fut egy próbaidő — az új hónap annak a végéhez adódik hozzá.
+    $target = User::factory()->create(['trial_ends_at' => now()->addDays(10)]);
+
+    $this->actingAs($admin)
+        ->post(route('admin.free-month.grant'), ['email' => $target->email]);
+
+    expect($target->refresh()->trial_ends_at->toDateString())
+        ->toBe(now()->addDays(10)->addMonth()->toDateString());
+});
+
+test('granting a free month after an expired trial starts from now', function () {
+    config(['app.admin_email' => 'admin@example.com']);
+    $admin = User::factory()->create(['email' => 'admin@example.com']);
+    // Lejárt próbaidő — az új hónap mostantól számít, nem a régi dátumtól.
+    $target = User::factory()->create(['trial_ends_at' => now()->subMonths(3)]);
+
+    $this->actingAs($admin)
+        ->post(route('admin.free-month.grant'), ['email' => $target->email]);
+
+    expect($target->refresh()->trial_ends_at->toDateString())
+        ->toBe(now()->addMonth()->toDateString());
+});
+
+test('non-admin cannot grant a free month', function () {
+    config(['app.admin_email' => 'admin@example.com']);
+    $user = User::factory()->create();
+    $target = User::factory()->create();
+
+    $this->actingAs($user)
+        ->post(route('admin.free-month.grant'), ['email' => $target->email])
+        ->assertForbidden();
+
+    expect($target->refresh()->trial_ends_at)->toBeNull();
+});
+
 test('unverified user with the admin email is not an admin', function () {
     config(['app.admin_email' => 'admin@example.com']);
     // Az admin-email önmagában nem elég: megerősítetlen fiókkal (pl. az

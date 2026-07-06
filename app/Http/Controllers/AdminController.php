@@ -66,6 +66,8 @@ class AdminController extends Controller
                 // admin felülírástól / próbaidőtől / lifetime-tól függetlenül.
                 'subscribed' => $u->activeSubscription() !== null,
                 'subscription_plan' => $u->subscriptionPlan(),
+                // Aktív generikus próbaidő (admin-adta ingyen hónap) vége, ha van.
+                'trial_ends_at' => $u->onTrial() ? $u->trial_ends_at->toIso8601String() : null,
             ]);
 
         $invites = Invite::withCount('users')
@@ -160,6 +162,29 @@ class AdminController extends Controller
         };
 
         return back()->with('success', $message);
+    }
+
+    /**
+     * Egy hónap ingyenes Pro kiosztása email alapján, a generikus próbaidővel
+     * (users.trial_ends_at — a currentPlan() az onTrial()-on át már figyeli).
+     * Halmozható: aktív próbaidőnél annak végéhez ad egy hónapot, egyébként
+     * mostantól számít; lejáratkor a fiók magától visszaáll Free-re.
+     */
+    public function grantFreeMonth(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'email' => ['required', 'email', 'exists:users,email'],
+        ]);
+
+        $user = User::where('email', $data['email'])->firstOrFail();
+
+        $base = $user->onTrial() ? $user->trial_ends_at : now();
+        $user->trial_ends_at = $base->copy()->addMonth();
+        $user->save();
+
+        $until = $user->trial_ends_at->timezone(config('app.timezone'))->isoFormat('YYYY. MM. DD.');
+
+        return back()->with('success', "{$user->name} +1 hónap ingyen Prót kapott ({$until}-ig).");
     }
 
     public function toggleAiAccess(Request $request): RedirectResponse

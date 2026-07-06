@@ -45,6 +45,7 @@ Route::middleware(['auth', 'verified', 'can:admin'])->group(function () {
     Route::get('admin', [AdminController::class, 'index'])->name('admin');
     Route::post('admin/ai-access', [AdminController::class, 'toggleAiAccess'])->name('admin.ai-access.toggle');
     Route::post('admin/access', [AdminController::class, 'setAccess'])->name('admin.access.set');
+    Route::post('admin/free-month', [AdminController::class, 'grantFreeMonth'])->name('admin.free-month.grant');
     Route::post('admin/invites', [AdminController::class, 'storeInvite'])->name('admin.invites.store');
     Route::delete('admin/invites/{invite}', [AdminController::class, 'destroyInvite'])->name('admin.invites.destroy');
 });
