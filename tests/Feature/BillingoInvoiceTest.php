@@ -3,7 +3,9 @@
 use App\Jobs\GenerateBillingoInvoice;
 use App\Models\BillingoInvoice;
 use App\Models\User;
+use App\Services\Billingo\BillingoClient;
 use App\Services\Billingo\InvoiceGenerator;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -296,19 +298,25 @@ test('a partner-frissítés nem-404 hibáját továbbdobja, hogy a job újrapró
         && str_ends_with($request->url(), '/partners'));
 });
 
-test('párhuzamos kiállításnál a zár csak egy folyamatot enged számlázni', function () {
+test('foglalt zárnál kivételt dob, hogy a job újrapróbáljon — nem csendes siker', function () {
     fakeBillingo();
     $user = billableUser();
     $invoice = stripeInvoice(['id' => 'in_race']);
 
-    // Egy másik folyamat már tartja a zárat erre a fizetésre.
+    // Egy másik folyamat már tartja a zárat erre a fizetésre. Várakozás nélküli
+    // generátort használunk, hogy a teszt ne aludjon végig a block() időkeretén.
     $heldByOther = Cache::lock('billingo:issue:in_race', 120);
     expect($heldByOther->get())->toBeTrue();
 
-    $record = app(InvoiceGenerator::class)->generateForStripeInvoice($user, $invoice);
+    $generator = new InvoiceGenerator(app(BillingoClient::class), lockWaitSeconds: 0);
 
-    // A zárat nem kapta meg → nem állít ki semmit, és egyetlen Billingo-hívás sem megy ki.
-    expect($record)->toBeNull();
+    // A meg nem szerzett zár NEM csendes siker (az egy hard-killelt worker beragadt
+    // zárjánál riasztás nélkül nyelné el a NAV-számlát), hanem kivétel: a
+    // job-próbálkozás elbukik, és a queue a backoff — vagyis a zár lejárta — után
+    // újrapróbálja. Számla-sor és Billingo-hívás közben nem keletkezik.
+    expect(fn () => $generator->generateForStripeInvoice($user, $invoice))
+        ->toThrow(LockTimeoutException::class);
+
     expect(BillingoInvoice::where('stripe_invoice_id', 'in_race')->exists())->toBeFalse();
     Http::assertNothingSent();
 

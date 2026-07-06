@@ -4,6 +4,7 @@ namespace App\Services\Billingo;
 
 use App\Models\BillingoInvoice;
 use App\Models\User;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Date;
@@ -17,7 +18,10 @@ use Illuminate\Support\Facades\Log;
  */
 class InvoiceGenerator
 {
-    public function __construct(private BillingoClient $client) {}
+    public function __construct(
+        private BillingoClient $client,
+        private int $lockWaitSeconds = 10,
+    ) {}
 
     /**
      * Kiállítja (vagy idempotensen visszaadja) a Stripe számlához tartozó Billingo
@@ -25,6 +29,8 @@ class InvoiceGenerator
      * webhook és az újrafutó job sem hoz létre második számlát.
      *
      * @param  array<string, mixed>  $stripeInvoice  a Stripe invoice objektum (webhook payload data.object)
+     *
+     * @throws LockTimeoutException ha a zár a várakozási időn belül sem szabadul fel — a hívó job-próbálkozás elbukik, és a queue backoff után újrapróbálja
      */
     public function generateForStripeInvoice(User $user, array $stripeInvoice): ?BillingoInvoice
     {
@@ -49,12 +55,15 @@ class InvoiceGenerator
         // garantálja, hogy egy fizetéshez egyszerre csak egy folyamat számlázzon.
         $lock = Cache::lock("billingo:issue:{$stripeInvoiceId}", 120);
 
-        if (! $lock->get()) {
-            // Másik folyamat épp ezt a számlát állítja ki — ez a futás ne csináljon semmit.
-            // Ha amaz sikerrel jár, kész; ha elbukik, dob → a Stripe újraküld / a job
-            // újrapróbál, és a zár felszabadulása után valaki befejezi a kiállítást.
-            return null;
-        }
+        // Rövid várakozással szerezzük meg: ha egy másik folyamat épp ezt a számlát
+        // állítja ki, kivárjuk, és az idempotens ág már kiállítottként látja. Ha viszont
+        // a zár nem szabadul fel (a tartóját hard-kill érte — OOM, deploy-restart —, és a
+        // zár a TTL-ig beragadt), a LockTimeoutException buktatja a job-próbálkozást, így
+        // a backoff utáni újrapróba a zár lejárta után befejezi a kiállítást. Csendes
+        // kihagyás (return null) itt riasztás nélkül nyelné el a NAV-számlát: a database
+        // queue már 90 mp után újra kiadja a hard-killelt jobot, az a még élő 120 mp-es
+        // zárba ütközne, és „sikerrel" zárulna — több próbálkozás nélkül.
+        $lock->block($this->lockWaitSeconds);
 
         try {
             // Foglalás: a unique kulcs miatt egy fizetéshez egy sor. Ha már létezik és ki
