@@ -61,7 +61,9 @@ class PricingController extends Controller
         // Akinek admin-adta (plan_override) vagy élethosszig tartó (lifetime_access) hozzáférése
         // van, annak nincs Stripe-előfizetése — a swap-ág ezért nem fogná meg, és fölöslegesen
         // indítana fizetős előfizetést azért, amit már ingyen megkap. Szerveroldalon elzárjuk.
-        if ($user->activeSubscription() === null && $user->hasActiveAccess()) {
+        // A generikus próbaidő (admin-adta ingyen hónap) viszont NEM zár el: alatta is lehet
+        // előfizetni, a megmaradt idő a checkout próbaidejeként megy tovább (lásd lejjebb).
+        if ($user->activeSubscription() === null && ($user->plan_override === 'premium' || $user->lifetime_access)) {
             return redirect()->route('pricing')->with('info', 'Már aktív hozzáférésed van, nincs szükség fizetésre.');
         }
 
@@ -112,10 +114,22 @@ class PricingController extends Controller
         // lemondás + újra-előfizetés ismételgetésével korlátlan ingyen Pro szerezhető.
         $trialDays = (int) config('registration.subscription_trial_days');
 
-        if ($trialDays > 0 && $user->isEligibleForSubscriptionTrial()) {
-            // A Stripe Checkout minimum 48 óra (2 nap) próbaidőt enged — kisebb beállított
-            // értéket felkerekítünk, különben a Checkout session létrehozása hibára futna.
-            $subscriptionBuilder->trialDays(max(2, $trialDays));
+        $trialEndsAt = $trialDays > 0 && $user->isEligibleForSubscriptionTrial()
+            ? now()->addDays($trialDays)
+            : null;
+
+        // A generikus próbaidő (admin-adta ingyen hónap) maradéka az előfizetés
+        // próbaidejévé válik, ha az hosszabb: az előfizetés létrejöttekor a Cashier
+        // webhookja nullázza a users.trial_ends_at-ot, e transzfer nélkül a megmaradt
+        // ajándék-idő szó nélkül elveszne.
+        if ($user->onGenericTrial() && $user->trial_ends_at->gt($trialEndsAt ?? now())) {
+            $trialEndsAt = $user->trial_ends_at;
+        }
+
+        if ($trialEndsAt !== null) {
+            // A Stripe Checkout minimum 48 óra próbaidőt követel meg — az ennél
+            // rövidebbet a Cashier checkout()-ja magától felkerekíti.
+            $subscriptionBuilder->trialUntil($trialEndsAt);
         }
 
         // A Cashier előbb létrehozza (és elmenti) a Stripe-ügyfelet, majd nyitja a Checkout

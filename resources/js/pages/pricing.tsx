@@ -350,6 +350,14 @@ export default function Pricing({
                                             </strong>{' '}
                                             tart – élvezd a Pro funkciókat!
                                         </p>
+                                        {!isSubscribed && stripeConfigured && (
+                                            <p className="mt-1 text-xs text-blue-600 dark:text-blue-400">
+                                                Ha most előfizetsz, a megmaradt
+                                                idő nem vész el – a terhelés
+                                                csak a próbaidőszak vége után
+                                                indul.
+                                            </p>
+                                        )}
                                     </div>
                                 )}
 
@@ -468,7 +476,7 @@ export default function Pricing({
                                             >
                                                 Előfizetés kezelése
                                             </Button>
-                                        ) : hasActiveAccess ? (
+                                        ) : hasActiveAccess && !isOnTrial ? (
                                             <Button className="w-full" disabled>
                                                 Már aktív hozzáférésed van
                                             </Button>

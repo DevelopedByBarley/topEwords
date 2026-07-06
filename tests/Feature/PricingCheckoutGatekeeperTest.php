@@ -4,6 +4,7 @@ use App\Models\User;
 use Illuminate\Support\Facades\URL;
 use Inertia\Testing\AssertableInertia as Assert;
 use Laravel\Cashier\Subscription;
+use Laravel\Cashier\SubscriptionBuilder;
 use Stripe\Exception\ApiConnectionException;
 
 beforeEach(function () {
@@ -131,6 +132,80 @@ test('checkout blocks users who already have non-Stripe access', function () {
         ->assertSessionHas('info');
 
     expect($user->fresh()->subscriptions()->count())->toBe(0);
+});
+
+test('checkout blocks lifetime access users without a subscription', function () {
+    // Élethosszig tartó hozzáférésnél sincs Stripe-előfizetés — a gate a generikus
+    // próbaidő átengedése után is zárja el a fölösleges fizetést.
+    $user = User::factory()->withBilling()->create();
+    $user->lifetime_access = true;
+    $user->save();
+
+    $this->actingAs($user)
+        ->post(route('pricing.checkout', 'premium'), ['accept_terms' => true])
+        ->assertRedirect(route('pricing'))
+        ->assertSessionHas('info');
+
+    expect($user->fresh()->subscriptions()->count())->toBe(0);
+});
+
+test('a generikus próbaidő (ajándék hónap) alatt is lehet előfizetni, a megmaradt idő a checkout próbaidejeként megy tovább', function () {
+    // M2: a hasActiveAccess() gate eddig a generikus trialt is elzárta a checkouttól,
+    // így az ajándék hónap alatt nem lehetett konvertálni. Az átengedés önmagában
+    // viszont kevés: előfizetés-létrejöttekor a Cashier webhookja nullázza a
+    // users.trial_ends_at-ot, ezért a megmaradt ajándék-időt trialUntil()-lal az
+    // előfizetés próbaidejeként visszük tovább — különben szó nélkül elveszne.
+    $trialEndsAt = now()->addDays(20)->startOfSecond();
+
+    $builder = Mockery::mock(SubscriptionBuilder::class);
+    $builder->shouldReceive('trialUntil')
+        ->once()
+        ->withArgs(fn ($until) => $until->eq($trialEndsAt))
+        ->andReturnSelf();
+    $builder->shouldReceive('checkout')
+        ->once()
+        ->andReturn((object) ['url' => 'https://checkout.stripe.test/c/session']);
+
+    $user = Mockery::mock(User::class)->makePartial();
+    $user->shouldReceive('hasVerifiedEmail')->andReturnTrue();
+    $user->shouldReceive('hasBillingDetails')->andReturnTrue();
+    $user->shouldReceive('activeSubscription')->andReturnNull();
+    $user->shouldReceive('newSubscription')->once()->with('premium', 'price_pro')->andReturn($builder);
+    // A consent-naplózás (forceFill->save) ne próbáljon DB-be írni a mock usernél.
+    $user->shouldReceive('save')->andReturnTrue();
+    $user->trial_ends_at = $trialEndsAt;
+
+    $this->actingAs($user)
+        ->post(route('pricing.checkout', 'premium'), ['accept_terms' => true])
+        ->assertRedirect('https://checkout.stripe.test/c/session');
+});
+
+test('ha a konfigurált első-előfizetési trial hosszabb a megmaradt ajándék-időnél, a hosszabb érvényesül', function () {
+    // A két próbaidő-forrás közül a későbbi végdátum nyer — a rövidebb ajándék-maradék
+    // ne vágja le a felhasználónak amúgy járó hosszabb first-subscription trialt.
+    config(['registration.subscription_trial_days' => 9]);
+
+    $builder = Mockery::mock(SubscriptionBuilder::class);
+    $builder->shouldReceive('trialUntil')
+        ->once()
+        ->withArgs(fn ($until) => $until->between(now()->addDays(9)->subMinute(), now()->addDays(9)->addMinute()))
+        ->andReturnSelf();
+    $builder->shouldReceive('checkout')
+        ->once()
+        ->andReturn((object) ['url' => 'https://checkout.stripe.test/c/session']);
+
+    $user = Mockery::mock(User::class)->makePartial();
+    $user->shouldReceive('hasVerifiedEmail')->andReturnTrue();
+    $user->shouldReceive('hasBillingDetails')->andReturnTrue();
+    $user->shouldReceive('activeSubscription')->andReturnNull();
+    $user->shouldReceive('isEligibleForSubscriptionTrial')->andReturnTrue();
+    $user->shouldReceive('newSubscription')->once()->with('premium', 'price_pro')->andReturn($builder);
+    $user->shouldReceive('save')->andReturnTrue();
+    $user->trial_ends_at = now()->addDays(3)->startOfSecond();
+
+    $this->actingAs($user)
+        ->post(route('pricing.checkout', 'premium'), ['accept_terms' => true])
+        ->assertRedirect('https://checkout.stripe.test/c/session');
 });
 
 test('a Stripe oldali hiba a csomagváltáskor nem dől 500-ba, hanem érthető hibaüzenettel tér vissza', function () {
