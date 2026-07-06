@@ -23,14 +23,29 @@ export default function DeleteUser() {
         <div className="space-y-6">
             <Heading
                 variant="small"
-                title="Delete account"
-                description="Delete your account and all of its resources"
+                title="Fiók törlése"
+                description="A fiókod és minden hozzá tartozó adat végleges törlése"
             />
             <div className="space-y-4 rounded-lg border border-red-100 bg-red-50 p-4 dark:border-red-200/10 dark:bg-red-700/10">
-                <div className="relative space-y-0.5 text-red-600 dark:text-red-100">
-                    <p className="font-medium">Warning</p>
+                <div className="relative space-y-2 text-red-600 dark:text-red-100">
+                    <p className="font-medium">Figyelem — ez nem vonható vissza</p>
                     <p className="text-sm">
-                        Please proceed with caution, this cannot be undone.
+                        A fiókod törlésével véglegesen és
+                        visszaállíthatatlanul elveszíted az összes hozzá
+                        kapcsolódó adatot, többek között:
+                    </p>
+                    <ul className="ml-4 list-disc space-y-1 text-sm">
+                        <li>a szavaidat, szólistáidat és a hozzájuk mentett haladást,</li>
+                        <li>a flashcard-tanulási előzményeidet és statisztikáidat,</li>
+                        <li>a kvíz-, kihagyásos (cloze) és szövegelemzési eredményeidet,</li>
+                        <li>a profil- és fiókbeállításaidat.</li>
+                    </ul>
+                    <p className="text-sm">
+                        Ha van aktív előfizetésed, azt a törléskor
+                        automatikusan lemondjuk, így a kártyádat többé nem
+                        terheljük meg. A törlés után nem tudjuk az adataidat
+                        visszaállítani — ha később újra használni szeretnéd a
+                        szolgáltatást, új fiókot kell létrehoznod.
                     </p>
                 </div>
 
@@ -40,18 +55,19 @@ export default function DeleteUser() {
                             variant="destructive"
                             data-test="delete-user-button"
                         >
-                            Delete account
+                            Fiók törlése
                         </Button>
                     </DialogTrigger>
                     <DialogContent>
                         <DialogTitle>
-                            Are you sure you want to delete your account?
+                            Biztosan törölni szeretnéd a fiókodat?
                         </DialogTitle>
                         <DialogDescription>
-                            Once your account is deleted, all of its resources
-                            and data will also be permanently deleted. Please
-                            enter your password to confirm you would like to
-                            permanently delete your account.
+                            A fiók törlésével minden hozzá tartozó adat és
+                            haladás véglegesen elvész, és ez a művelet nem
+                            vonható vissza. Esetleges aktív előfizetésedet a
+                            törléskor automatikusan lemondjuk. A megerősítéshez
+                            add meg a jelszavadat.
                         </DialogDescription>
 
                         <Form
@@ -71,14 +87,14 @@ export default function DeleteUser() {
                                             htmlFor="password"
                                             className="sr-only"
                                         >
-                                            Password
+                                            Jelszó
                                         </Label>
 
                                         <PasswordInput
                                             id="password"
                                             name="password"
                                             ref={passwordInput}
-                                            placeholder="Password"
+                                            placeholder="Jelszó"
                                             autoComplete="current-password"
                                         />
 
@@ -93,7 +109,7 @@ export default function DeleteUser() {
                                                     resetAndClearErrors()
                                                 }
                                             >
-                                                Cancel
+                                                Mégse
                                             </Button>
                                         </DialogClose>
 
@@ -106,7 +122,7 @@ export default function DeleteUser() {
                                                 type="submit"
                                                 data-test="confirm-delete-user-button"
                                             >
-                                                Delete account
+                                                Fiók végleges törlése
                                             </button>
                                         </Button>
                                     </DialogFooter>

@@ -30,7 +30,7 @@ export default function AuthSplitLayout({
                             Tanulj okosan,<br />minden nap.
                         </h2>
                         <p className="text-white/70 text-base leading-relaxed">
-                            A 10 000 leggyakoribb angol szó — szólista, flashcard SRS, kvíz és szövegelemzés egy helyen.
+                            A 10 000 leggyakoribb angol szó — szólista, flashcard SRS, kvíz, mondatkiegészítés, AI-segítség és szövegelemzés egy helyen.
                         </p>
                     </div>
 
@@ -63,8 +63,11 @@ export default function AuthSplitLayout({
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-6 text-sm text-white/60">
-                        <span>✓ Gyors tanulás</span>
+                    <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-white/60">
+                        <span>✓ Ingyenes regisztráció</span>
+                        <span>✓ Flashcard SRS &amp; kvíz</span>
+                        <span>✓ AI-segítség</span>
+                        <span>✓ Nincs hirdetés</span>
                     </div>
                 </div>
             </div>

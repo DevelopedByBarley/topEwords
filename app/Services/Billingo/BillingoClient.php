@@ -72,6 +72,19 @@ class BillingoClient
     }
 
     /**
+     * Letölti a kiállított dokumentum (számla) PDF-jét, és visszaadja a nyers bináris
+     * tartalmat. A Billingo a /documents/{id}/download végponton application/pdf-et ad
+     * vissza (nem JSON) — a felhasználó a settingsben innen tölti le a saját számláit.
+     */
+    public function downloadDocument(int $id): string
+    {
+        return $this->request()
+            ->get("/documents/{$id}/download")
+            ->throw()
+            ->body();
+    }
+
+    /**
      * Az első elérhető számlatömb azonosítója. Akkor használjuk, ha a konfigban nincs
      * explicit block_id megadva — teszt profilnál így nem kell kézzel kikeresni.
      */

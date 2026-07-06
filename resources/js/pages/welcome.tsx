@@ -41,9 +41,9 @@ import {
     X,
     XCircle,
     Zap,
-    type LucideProps,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import type { LucideProps } from 'lucide-react';
+import { useState } from 'react';
 import BetaBanner from '@/components/beta-banner';
 import ChromeExtensionsLink from '@/components/chrome-extensions-link';
 import { Button } from '@/components/ui/button';
@@ -120,7 +120,11 @@ function MI({
     className?: string;
 }) {
     const Icon = ICON_MAP[n];
-    if (!Icon) return null;
+
+    if (!Icon) {
+        return null;
+    }
+
     return <Icon size={s} style={style} className={className} />;
 }
 
@@ -273,44 +277,24 @@ export default function Welcome({
     const [cardIdx, setCardIdx] = useState(0);
     const [quizAnswer, setQuizAnswer] = useState<number | null>(null);
 
-    const [installPrompt, setInstallPrompt] = useState<Event | null>(null);
-    const [isInstalled, setIsInstalled] = useState(
-        () =>
-            typeof window !== 'undefined' &&
-            window.matchMedia('(display-mode: standalone)').matches,
-    );
-    const isIOS =
-        typeof navigator !== 'undefined' &&
-        /iPad|iPhone|iPod/.test(navigator.userAgent);
-
-    useEffect(() => {
-        const handler = (e: Event) => {
-            e.preventDefault();
-            setInstallPrompt(e);
-        };
-        window.addEventListener('beforeinstallprompt', handler);
-        return () => window.removeEventListener('beforeinstallprompt', handler);
-    }, []);
-
-    const handleInstall = async () => {
-        if (!installPrompt) return;
-        (installPrompt as any).prompt();
-        const { outcome } = await (installPrompt as any).userChoice;
-        if (outcome === 'accepted') {
-            setIsInstalled(true);
-            setInstallPrompt(null);
-        }
-    };
-
     const knownCount = Object.values(statuses).filter(
         (s) => s === 'tudom',
     ).length;
     const knownPct = Math.round((knownCount / DEMO_WORDS.length) * 100);
 
     const filteredWords = DEMO_WORDS.filter((w) => {
-        if (wordTab === 'all') return true;
-        if (wordTab === 'tanulom') return statuses[w.word] === 'tanulom';
-        if (wordTab === 'tudom') return statuses[w.word] === 'tudom';
+        if (wordTab === 'all') {
+            return true;
+        }
+
+        if (wordTab === 'tanulom') {
+            return statuses[w.word] === 'tanulom';
+        }
+
+        if (wordTab === 'tudom') {
+            return statuses[w.word] === 'tudom';
+        }
+
         return true;
     });
 
@@ -334,7 +318,7 @@ export default function Welcome({
                 <meta
                     head-key="description"
                     name="description"
-                    content="Tanuld meg a 10 000 leggyakoribb angol szót. Szólista, flashcard SRS rendszer, kvíz mód és Chrome bővítmény – egy helyen, magyarul."
+                    content="Tanuld meg a 10 000 leggyakoribb angol szót. Szólista, flashcard SRS, kvíz, mondatkiegészítés, szabad írás és rendhagyó igék, AI-segítséggel, szövegelemzővel és Chrome-bővítménnyel – egy helyen, magyarul."
                 />
                 <meta
                     head-key="og:title"
@@ -344,7 +328,7 @@ export default function Welcome({
                 <meta
                     head-key="og:description"
                     property="og:description"
-                    content="Tanuld meg a 10 000 leggyakoribb angol szót. Jelöld meg amit tudsz, amit tanulsz, és kövesd a haladásodat."
+                    content="Tanuld a 10 000 leggyakoribb angol szót flashcard SRS-sel, kvízzel, mondatkiegészítéssel, AI-alapú szabad írással és szövegelemzővel. Jelöld amit tudsz, és kövesd a haladásodat."
                 />
                 <meta
                     head-key="og:url"
@@ -380,7 +364,8 @@ export default function Welcome({
                                 ['Funkciók', '#features'],
                                 ['Szólista', '#wordlist'],
                                 ['Flashcard', '#flashcard'],
-                                ['Kvíz', '#quiz'],
+                                ['Gyakorlás', '#quiz'],
+                                ['AI', '#ai'],
                                 ['Bővítmény', '#extension'],
                             ].map(([label, href]) => (
                                 <a
@@ -578,9 +563,11 @@ export default function Welcome({
                             </h1>
                             <p className="mt-5 max-w-[540px] text-lg leading-relaxed text-neutral-500 dark:text-neutral-400">
                                 Tanuld az angolt okosan. Szólista nyomon
-                                követéssel, flashcard SRS-rendszerrel, kvíz
-                                móddal, szövegelemzéssel és Chrome-bővítménnyel
-                                — minden egy helyen, magyarul.
+                                követéssel, flashcard SRS-sel, kvízzel,
+                                mondatkiegészítéssel, AI-alapú szabad írással,
+                                rendhagyó igékkel, szövegelemzővel és
+                                Chrome-bővítménnyel — minden egy helyen,
+                                magyarul.
                             </p>
                             <div className="mt-8 flex flex-wrap items-center gap-3">
                                 {auth.user ? (
@@ -815,13 +802,18 @@ export default function Welcome({
                                 },
                                 {
                                     icon: 'quiz',
-                                    title: 'Kvíz mód',
-                                    desc: '4 válaszlehetőséges kvíz — szűrhető nehézség és státusz szerint.',
+                                    title: 'Gyakorlási módok',
+                                    desc: 'Kvíz, mondatkiegészítés, AI-alapú szabad írás és rendhagyó igék — több módszer ugyanahhoz a szókincshez.',
                                 },
                                 {
                                     icon: 'article',
                                     title: 'Szövegelemzés',
-                                    desc: 'Elemezz bármilyen szöveget, webcímet vagy YouTube videót — látod hány szót ismersz belőle.',
+                                    desc: 'Elemezz bármilyen szöveget, webcímet, YouTube-feliratot vagy egész könyvet — látod hány szót ismersz belőle.',
+                                },
+                                {
+                                    icon: 'auto_awesome',
+                                    title: 'AI-segítség',
+                                    desc: 'AI tölti ki a szó jelentését és példamondatait, ellenőrzi a szabad írásod, és gyárt kész flashcardot.',
                                 },
                                 {
                                     icon: 'extension',
@@ -832,6 +824,11 @@ export default function Welcome({
                                     icon: 'add_circle',
                                     title: 'Saját szavak',
                                     desc: 'Ha a top 10k-ban nem szerepel a szó, add hozzá saját szóként — ugyanúgy viselkedik, mint a lista többi tagja.',
+                                },
+                                {
+                                    icon: 'trending_up',
+                                    title: 'Haladás & teljesítmények',
+                                    desc: 'Napi sorozat (streak), haladás-sávok és feloldható teljesítmények motiválnak a folytatásra.',
                                 },
                             ].map(({ icon, title, desc }) => (
                                 <div
@@ -1272,37 +1269,36 @@ export default function Welcome({
                             {/* left */}
                             <div>
                                 <div className="mb-3 text-xs font-bold tracking-[1.6px] text-violet-200 uppercase">
-                                    KVÍZ MÓD
+                                    GYAKORLÁSI MÓDOK
                                 </div>
                                 <h2 className="text-[clamp(24px,3.2vw,40px)] leading-tight font-extrabold tracking-tight text-white">
-                                    Teszteld magad kvíz módban
+                                    Több módszer ugyanahhoz a szókincshez
                                 </h2>
                                 <p className="mt-4 text-base leading-relaxed text-violet-200">
-                                    Válaszd ki melyik szavakból és hányból
-                                    kvízzeljünk — a rendszer automatikusan
-                                    generálja a kérdéseket és a
-                                    válaszlehetőségeket.{' '}
+                                    Ugyanazokat a szavakat többféleképp gyakorolhatod
+                                    — a rendszer a szólistádból automatikusan
+                                    generálja a feladatokat.{' '}
                                     <strong className="text-white">
-                                        Próbáld ki: válassz egy választ.
+                                        Próbáld ki jobbra: válassz egy választ.
                                     </strong>
                                 </p>
                                 <div className="mt-6 flex flex-col gap-3">
                                     {[
                                         {
-                                            icon: 'filter_alt',
-                                            text: 'Szűrj státusz szerint — tanulom, elmentettem, tudom',
+                                            icon: 'quiz',
+                                            text: 'Kvíz — 4 válaszos teszt, szűrhető státusz, nehézség és mappa szerint',
                                         },
                                         {
-                                            icon: 'stairs',
-                                            text: 'Válassz nehézségi szintet — kezdőtől haladóig',
+                                            icon: 'subtitles',
+                                            text: 'Mondatkiegészítés — írd be a hiányzó szót a példamondatba (cloze)',
                                         },
                                         {
-                                            icon: 'tag',
-                                            text: '10, 20, 50 kérdés — vagy az összes elérhető szó egyszerre',
+                                            icon: 'auto_awesome',
+                                            text: 'Szabad írás — írj a célszavakkal, az AI ellenőrzi a szóhasználatot és a grammatikát',
                                         },
                                         {
-                                            icon: 'folder',
-                                            text: 'Mappa szerint — csak egy adott témából kvízzelhetsz',
+                                            icon: 'sync_alt',
+                                            text: 'Rendhagyó igék — gyakorold be a Past Simple és Past Participle alakokat',
                                         },
                                     ].map(({ icon, text }) => (
                                         <div
@@ -1558,9 +1554,10 @@ export default function Welcome({
                                     Elemezz bármilyen angol szöveget
                                 </h2>
                                 <p className="mt-4 text-base leading-relaxed text-neutral-600 dark:text-neutral-400">
-                                    Illeszd be a szöveget, adj meg egy webcímet
-                                    — vagy egy YouTube videót — és az alkalmazás
-                                    azonnal megmutatja, mennyit értesz belőle.
+                                    Illeszd be a szöveget, adj meg egy webcímet,
+                                    egy YouTube-videót — vagy tölts fel egy egész
+                                    könyvet — és az alkalmazás azonnal megmutatja,
+                                    mennyit értesz belőle.
                                 </p>
                                 <div className="mt-6 flex flex-col gap-3">
                                     {[
@@ -1573,12 +1570,12 @@ export default function Welcome({
                                             text: 'Kiemelés — zölddel, kékkel, pirossal jelöli a szavakat státusz szerint',
                                         },
                                         {
-                                            icon: 'subtitles',
-                                            text: 'YouTube felirat — bármely videó angol felirata elemezhető',
+                                            icon: 'menu_book',
+                                            text: 'Könyv & YouTube — tölts fel könyvet vagy elemezz videófeliratot, lapozható nézetben',
                                         },
                                         {
                                             icon: 'history',
-                                            text: 'Előzmények — az utolsó 10 elemzés automatikusan mentve',
+                                            text: 'Előzmények — korábbi elemzéseid, könyveid és felirataid elmentve',
                                         },
                                     ].map(({ icon, text }) => (
                                         <div
@@ -1603,6 +1600,66 @@ export default function Welcome({
                                 </div>
                             </div>
                         </div>
+                    </div>
+                </section>
+
+                {/* ===================== AI ===================== */}
+                <section
+                    id="ai"
+                    className="border-y border-neutral-200 bg-white dark:border-neutral-700 dark:bg-neutral-800"
+                >
+                    <div className="mx-auto max-w-[1200px] px-4 py-14 sm:px-6 md:py-24">
+                        <div className="mx-auto max-w-[680px] text-center">
+                            <div className="mb-3 inline-flex items-center gap-1.5 text-xs font-bold tracking-[1.6px] text-violet-600 uppercase dark:text-violet-400">
+                                <MI n="auto_awesome" f s={15} /> AI-SEGÍTSÉG
+                            </div>
+                            <h2 className="text-[clamp(26px,3.6vw,44px)] leading-tight font-extrabold tracking-tight">
+                                Az AI végzi a nehezét helyetted
+                            </h2>
+                            <p className="mt-4 text-lg text-neutral-500 dark:text-neutral-400">
+                                Nem kell szótárazni és példamondatokat keresgélni
+                                — beépített AI segít a tanulás minden lépésénél.
+                            </p>
+                        </div>
+
+                        <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                            {[
+                                {
+                                    icon: 'auto_awesome',
+                                    title: 'AI szó-kitöltés',
+                                    desc: 'Egy kattintással kitölti egy szó magyar jelentését, szófaját és példamondatait — nálad marad a végső szó.',
+                                },
+                                {
+                                    icon: 'article',
+                                    title: 'Szabad írás ellenőrzése',
+                                    desc: 'Írj szabadon a célszavakkal, és az AI visszajelez a szóhasználatról és a grammatikáról.',
+                                },
+                                {
+                                    icon: 'style',
+                                    title: 'AI flashcard',
+                                    desc: 'A szövegelemzőben talált ismeretlen szóból az AI azonnal kész, kétoldalas kártyát gyárt.',
+                                },
+                            ].map(({ icon, title, desc }) => (
+                                <div
+                                    key={title}
+                                    className="rounded-2xl border border-neutral-200 bg-neutral-50 p-6 dark:border-neutral-700 dark:bg-neutral-900"
+                                >
+                                    <div className="mb-4 flex size-12 items-center justify-center rounded-[13px] bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-400">
+                                        <MI n={icon} s={26} />
+                                    </div>
+                                    <h3 className="mb-2 text-[17px] font-bold">
+                                        {title}
+                                    </h3>
+                                    <p className="text-sm leading-relaxed text-neutral-500 dark:text-neutral-400">
+                                        {desc}
+                                    </p>
+                                </div>
+                            ))}
+                        </div>
+                        <p className="mt-6 text-center text-xs text-neutral-400 dark:text-neutral-500">
+                            Az ingyenes csomagban is kipróbálható; a teljes
+                            AI-eszköztár Próval korlátlan.
+                        </p>
                     </div>
                 </section>
 
@@ -1933,8 +1990,8 @@ export default function Welcome({
                                 Válaszd ki a hozzád illő csomagot
                             </h2>
                             <p className="mt-4 text-lg text-neutral-500 dark:text-neutral-400">
-                                Kezdd ingyen — kóstolj bele mindenbe, az AI-ba is
-                                —, és ha megtetszett, válts Próra a korlátlan
+                                Kezdd ingyen — kóstolj bele mindenbe, az AI-ba
+                                is —, és ha megtetszett, válts Próra a korlátlan
                                 használatért.
                             </p>
                         </div>
@@ -2034,8 +2091,9 @@ export default function Welcome({
                                 Készen állsz elkezdeni?
                             </h2>
                             <p className="mx-auto mt-4 max-w-xl text-violet-200">
-                                Szólista, flashcard SRS, kvíz mód és Chrome
-                                extension — egy helyen, magyarul.
+                                Szólista, flashcard SRS, gyakorlási módok,
+                                AI-segítség, szövegelemző és Chrome-bővítmény —
+                                egy helyen, magyarul.
                             </p>
                             <div className="mt-8 flex flex-wrap justify-center gap-3">
                                 {canRegister && (

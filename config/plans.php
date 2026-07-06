@@ -28,7 +28,7 @@ return [
             'books' => 1,
             'youtube_transcripts' => 3,
             'extension_writes_per_day' => 20,
-            'ai_budget_micros' => 4000,
+            'ai_budget_micros' => 8000,
         ],
         'premium' => [
             'flashcards' => null,

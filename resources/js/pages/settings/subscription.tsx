@@ -1,11 +1,20 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { CreditCard, Crown, ExternalLink, Sparkles, Zap } from 'lucide-react';
+import { CreditCard, Crown, Download, ExternalLink, FileText, Sparkles, Zap } from 'lucide-react';
+import { useState } from 'react';
 import Heading from '@/components/heading';
 import { Button } from '@/components/ui/button';
 import { pricing } from '@/routes';
 import { cancel, portal, resume } from '@/routes/subscription';
+import { download } from '@/routes/subscription/invoice';
+
+interface Invoice {
+    id: number;
+    number: string | null;
+    date: string;
+}
 
 interface Props {
+    invoices: Invoice[];
     hasActiveAccess: boolean;
     isSubscribed: boolean;
     isPremium: boolean;
@@ -27,6 +36,7 @@ interface Props {
 }
 
 export default function Subscription({
+    invoices,
     hasActiveAccess,
     isSubscribed,
     isPremium,
@@ -38,19 +48,19 @@ export default function Subscription({
 }: Props) {
     const { flash } = usePage<{ flash: { success?: string } }>().props;
 
+    const [now] = useState(() => Date.now());
+
     const trialDaysLeft = trialEndsAt
         ? Math.max(
               0,
-              Math.ceil(
-                  (new Date(trialEndsAt).getTime() - Date.now()) / 86400000,
-              ),
+              Math.ceil((new Date(trialEndsAt).getTime() - now) / 86400000),
           )
         : 0;
 
     function handleCancel() {
         if (
             confirm(
-                'Biztosan le szeretnéd mondani az előfizetésed? A hónap végéig még hozzáférsz a funkciókhoz.',
+                'Biztosan le szeretnéd mondani az előfizetésed?\n\nA hónap végéig (a már kifizetett időszak lejártáig) minden funkciót ugyanúgy használhatsz, és a kártyádat nem terheljük meg újra. Utána a fiókod automatikusan az ingyenes csomagra vált. A lemondást a lejárat előtt bármikor visszavonhatod.',
             )
         ) {
             router.post(cancel().url);
@@ -112,18 +122,25 @@ export default function Subscription({
                         </div>
                         {subscription?.cancel_at_period_end ? (
                             <p className="mb-4 text-sm text-violet-600 dark:text-violet-400">
-                                Lemondva — hozzáférésed{' '}
+                                Lemondva — a prémium hozzáférésed{' '}
                                 <strong>
                                     {new Date(
                                         subscription.ends_at!,
                                     ).toLocaleDateString('hu-HU')}
-                                </strong>{' '}
-                                lejárig megmarad.
+                                </strong>
+                                -ig megmarad, addig minden funkciót
+                                korlátozás nélkül használhatsz. Utána a fiókod
+                                automatikusan az ingyenes csomagra vált, és
+                                nem terheljük meg többé a kártyádat.
                             </p>
                         ) : (
                             <p className="mb-4 text-sm text-violet-600 dark:text-violet-400">
-                                Aktív prémium előfizetés — AI funkciókkal
-                                együtt.
+                                Aktív prémium előfizetés. Korlátlan szavak,
+                                szólisták, flashcardok, kvíz- és cloze-körök,
+                                magasabb napi szövegelemzési és AI-keret, plusz
+                                a teljes AI-funkcionalitás. Havonta automatikusan
+                                megújul; bármikor lemondhatod, és a hónap végéig
+                                akkor is megmarad a hozzáférésed.
                             </p>
                         )}
                         <div className="flex flex-wrap gap-2">
@@ -164,17 +181,24 @@ export default function Subscription({
                             <p className="font-semibold">Alap előfizetés</p>
                             {subscription?.cancel_at_period_end ? (
                                 <p className="mt-1 text-sm text-muted-foreground">
-                                    Lemondva — hozzáférésed{' '}
+                                    Lemondva — a hozzáférésed{' '}
                                     <strong>
                                         {new Date(
                                             subscription.ends_at!,
                                         ).toLocaleDateString('hu-HU')}
-                                    </strong>{' '}
-                                    lejárig megmarad.
+                                    </strong>
+                                    -ig megmarad. Utána a fiókod automatikusan
+                                    az ingyenes csomagra vált, és nem terheljük
+                                    meg többé a kártyádat.
                                 </p>
                             ) : (
                                 <p className="mt-1 text-sm text-muted-foreground">
-                                    Aktív előfizetés
+                                    Aktív alap előfizetés — korlátlan szavak,
+                                    szólisták, flashcardok, kvíz- és cloze-körök,
+                                    AI-funkciók nélkül. Havonta automatikusan
+                                    megújul. Válts prémiumra az AI-funkciókért,
+                                    vagy mondd le bármikor — a hónap végéig
+                                    akkor is megmarad a hozzáférésed.
                                 </p>
                             )}
                         </div>
@@ -235,14 +259,56 @@ export default function Subscription({
                 {/* No subscription */}
                 {!isSubscribed && !isOnTrial && !hasActiveAccess && (
                     <div className="rounded-xl border p-5">
-                        <p className="mb-1 font-semibold">Alap csomag</p>
+                        <div className="mb-1 flex items-center gap-2">
+                            <Zap className="size-4 text-muted-foreground" />
+                            <p className="font-semibold">Jelenlegi csomag</p>
+                        </div>
                         <p className="mb-4 text-sm text-muted-foreground">
-                            Válts prémiumra a korlátlan hozzáférésért, vagy alap
-                            csomagra az AI nélküli funkcionalitásért.
+                            Az <strong className="text-foreground">
+                                ingyenes csomagot
+                            </strong>{' '}
+                            használod. Minden fő funkciót kipróbálhatsz, de napi
+                            és havi limitekkel: korlátozott flashcard- és
+                            szólista-szám, kevesebb napi szövegelemzés, és csak
+                            egy kis AI-kóstoló.
                         </p>
-                        <Link href={pricing()}>
-                            <Button size="sm">Csomagok megtekintése</Button>
-                        </Link>
+
+                        <div className="mb-4 rounded-lg border border-violet-200 bg-violet-50 p-4 dark:border-violet-800 dark:bg-violet-950/30">
+                            <div className="mb-2 flex items-center gap-2">
+                                <Crown className="size-4 text-violet-600 dark:text-violet-400" />
+                                <p className="text-sm font-semibold text-violet-700 dark:text-violet-300">
+                                    Prémiummal a tiéd lenne:
+                                </p>
+                            </div>
+                            <ul className="space-y-1.5 text-sm text-violet-600 dark:text-violet-400">
+                                <li>
+                                    ✓ Korlátlan szó, szólista, flashcard, kvíz-
+                                    és cloze-kör
+                                </li>
+                                <li>
+                                    ✓ Lényegesen magasabb napi szövegelemzési
+                                    keret
+                                </li>
+                                <li>
+                                    ✓ Teljes AI-funkcionalitás a nagyobb havi
+                                    AI-kerettel
+                                </li>
+                            </ul>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                            <Link href={pricing()}>
+                                <Button size="sm">
+                                    <Sparkles className="mr-1.5 size-3.5" />
+                                    Váltás Prémiumra
+                                </Button>
+                            </Link>
+                            <Link href={pricing()}>
+                                <Button size="sm" variant="outline">
+                                    Csomagok összehasonlítása
+                                </Button>
+                            </Link>
+                        </div>
                     </div>
                 )}
 
@@ -309,6 +375,45 @@ export default function Subscription({
                             <ExternalLink className="mr-1.5 size-3.5" />
                             Kártya módosítása
                         </Button>
+                    </div>
+                )}
+
+                {/* Számláim */}
+                {invoices.length > 0 && (
+                    <div className="rounded-xl border p-5">
+                        <div className="mb-3 flex items-center gap-2">
+                            <FileText className="size-4 text-muted-foreground" />
+                            <p className="font-semibold">Számláim</p>
+                        </div>
+                        <ul className="divide-y">
+                            {invoices.map((invoice) => (
+                                <li
+                                    key={invoice.id}
+                                    className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0"
+                                >
+                                    <div className="min-w-0">
+                                        <p className="truncate text-sm font-medium">
+                                            {invoice.number ??
+                                                'Számla'}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground">
+                                            {new Date(
+                                                invoice.date,
+                                            ).toLocaleDateString('hu-HU')}
+                                        </p>
+                                    </div>
+                                    <a
+                                        href={download(invoice.id).url}
+                                        download
+                                    >
+                                        <Button variant="outline" size="sm">
+                                            <Download className="mr-1.5 size-3.5" />
+                                            PDF
+                                        </Button>
+                                    </a>
+                                </li>
+                            ))}
+                        </ul>
                     </div>
                 )}
 

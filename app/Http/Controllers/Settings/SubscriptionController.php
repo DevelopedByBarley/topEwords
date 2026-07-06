@@ -3,12 +3,16 @@
 namespace App\Http\Controllers\Settings;
 
 use App\Http\Controllers\Controller;
+use App\Models\BillingoInvoice;
 use App\Services\AiUsageService;
+use App\Services\Billingo\BillingoClient;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 use Stripe\Exception\ApiErrorException;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class SubscriptionController extends Controller
 {
@@ -26,7 +30,20 @@ class SubscriptionController extends Controller
             ];
         }
 
+        // Kiállított (dokumentum-azonosítóval rendelkező) NAV-számlák — a még csak
+        // lefoglalt, de be nem fejezett sorok nem tölthetők le, ezért kimaradnak.
+        $invoices = $user->billingoInvoices()
+            ->whereNotNull('billingo_document_id')
+            ->latest()
+            ->get()
+            ->map(fn (BillingoInvoice $invoice): array => [
+                'id' => $invoice->id,
+                'number' => $invoice->invoice_number,
+                'date' => $invoice->created_at->toIso8601String(),
+            ]);
+
         return Inertia::render('settings/subscription', [
+            'invoices' => $invoices,
             'hasActiveAccess' => $user->hasActiveAccess(),
             'isSubscribed' => $activeSub !== null,
             'isPremium' => $user->subscriptionPlan() === 'premium',
@@ -42,6 +59,35 @@ class SubscriptionController extends Controller
                 'type' => $user->subscriptionPlan() === 'premium' ? 'premium' : 'default',
             ] : null,
         ]);
+    }
+
+    /**
+     * Letölti a felhasználó egy kiállított NAV-számlájának PDF-jét a Billingóról.
+     * A route-model-binding csak a saját (user_id egyező) számlát adja vissza — így
+     * más felhasználó számlája azonosító-tippeléssel sem érhető el.
+     */
+    public function downloadInvoice(Request $request, BillingoInvoice $invoice, BillingoClient $client): StreamedResponse
+    {
+        abort_unless($invoice->user_id === $request->user()->id, 403);
+        abort_unless($invoice->isIssued(), 404);
+
+        // A Billingo-hívás hibája (hálózat, törölt dokumentum) ne 500-azzon nyers
+        // stack trace-szel — érthető üzenettel dobjunk 404-et.
+        try {
+            $pdf = $client->downloadDocument((int) $invoice->billingo_document_id);
+        } catch (RequestException $e) {
+            report($e);
+
+            abort(404, 'A számla most nem tölthető le. Kérlek próbáld újra kicsit később.');
+        }
+
+        $fileName = 'szamla-'.str_replace('/', '-', (string) ($invoice->invoice_number ?: $invoice->id)).'.pdf';
+
+        return response()->streamDownload(
+            fn () => print ($pdf),
+            $fileName,
+            ['Content-Type' => 'application/pdf'],
+        );
     }
 
     public function cancel(Request $request): RedirectResponse

@@ -1,6 +1,8 @@
 <?php
 
+use App\Models\BillingoInvoice;
 use App\Models\User;
+use Illuminate\Support\Facades\Http;
 use Inertia\Testing\AssertableInertia as Assert;
 
 test('subscription page marks non-subscribed premium-access users correctly', function (array $attributes) {
@@ -41,6 +43,85 @@ test('resume without a cancellation informs the user instead of staying silent',
         ->assertRedirect(route('subscription.edit'))
         ->assertSessionHas('info')
         ->assertSessionMissing('success');
+});
+
+test('the subscription page lists only issued invoices', function () {
+    $user = User::factory()->create();
+
+    $issued = BillingoInvoice::create([
+        'user_id' => $user->id,
+        'stripe_invoice_id' => 'in_issued',
+        'billingo_document_id' => 5001,
+        'invoice_number' => 'TESZT-2026-1',
+    ]);
+
+    // Lefoglalt, de ki nem állított sor (nincs dokumentum-azonosítója) — nem tölthető le,
+    // ezért nem szabad megjelennie a listában.
+    BillingoInvoice::create([
+        'user_id' => $user->id,
+        'stripe_invoice_id' => 'in_reserved',
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('subscription.edit'))
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('settings/subscription')
+            ->has('invoices', 1)
+            ->where('invoices.0.id', $issued->id)
+            ->where('invoices.0.number', 'TESZT-2026-1')
+        );
+});
+
+test('a user can download their own issued invoice pdf', function () {
+    Http::fake([
+        'api.billingo.hu/v3/documents/*/download' => Http::response('%PDF-1.4 fake', 200, ['Content-Type' => 'application/pdf']),
+    ]);
+
+    config(['services.billingo.api_key' => 'test-key']);
+
+    $user = User::factory()->create();
+    $invoice = BillingoInvoice::create([
+        'user_id' => $user->id,
+        'stripe_invoice_id' => 'in_dl',
+        'billingo_document_id' => 5001,
+        'invoice_number' => '2026/A/42',
+    ]);
+
+    $response = $this->actingAs($user)
+        ->get(route('subscription.invoice.download', $invoice));
+
+    $response->assertOk();
+    expect($response->headers->get('content-type'))->toContain('application/pdf');
+    expect($response->streamedContent())->toBe('%PDF-1.4 fake');
+});
+
+test('a user cannot download another users invoice', function () {
+    $owner = User::factory()->create();
+    $other = User::factory()->create();
+
+    $invoice = BillingoInvoice::create([
+        'user_id' => $owner->id,
+        'stripe_invoice_id' => 'in_other',
+        'billingo_document_id' => 5001,
+        'invoice_number' => 'TESZT-2026-2',
+    ]);
+
+    $this->actingAs($other)
+        ->get(route('subscription.invoice.download', $invoice))
+        ->assertForbidden();
+});
+
+test('an unissued invoice cannot be downloaded', function () {
+    $user = User::factory()->create();
+
+    $invoice = BillingoInvoice::create([
+        'user_id' => $user->id,
+        'stripe_invoice_id' => 'in_unissued',
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('subscription.invoice.download', $invoice))
+        ->assertNotFound();
 });
 
 test('the subscription portal route is rate limited', function () {

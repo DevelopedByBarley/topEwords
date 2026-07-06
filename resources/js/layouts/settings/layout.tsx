@@ -30,7 +30,7 @@ const baseNavItems: NavItem[] = [
         icon: null,
     },
     {
-        title: 'Kártyák',
+        title: 'Flashcard Beállítások',
         href: editFlashcards(),
         icon: null,
     },
