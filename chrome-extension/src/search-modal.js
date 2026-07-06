@@ -8,9 +8,10 @@ let searchDebounce = null;
 let searchCsrf = null;
 let searchIsAdmin = false;
 let searchHasAi = false;
-// Írás (státusz/fontosság/saját szó) csak Standard+ csomaggal; a szerver
-// has_active_access:false-t ad ingyenes felhasználónak, ilyenkor az írás-UI
-// helyett előfizetésre buzdító hint jelenik meg.
+// Saját szó felvitele / flashcard-készítés csak Pro csomaggal (+ napi keret
+// Free-nél); a szerver has_active_access:false-t ad ingyenes felhasználónak,
+// ilyenkor ezek helyett előfizetésre buzdító hint jelenik meg. A státusz/
+// fontosság mindenkinek elérhető, ahogy a weboldalon is.
 let searchHasActiveAccess = false;
 let searchResultsData = [];
 let searchSelIdx = -1;
@@ -293,23 +294,22 @@ function showSearchDetail(data) {
 
     const detail = searchShadow.getElementById('detail');
 
-    // Az írás (státusz/fontosság/saját szó/flashcard) Standard+ csomaghoz kötött.
+    // A státusz/fontosság a weboldalon is mindenkinek elérhető, ezért itt sincs
+    // csomaghoz kötve. Ami ténylegesen Pro+napi-keretes (canWriteFromExtension):
+    // saját szó felvitele és flashcard-készítés a bővítményből.
     const canWrite = searchHasActiveAccess;
-    const upgradeHint = `<a class="upgrade-hint" href="${APP_URL}/pricing" target="_blank">🔒 A szavak mentése Standard csomaggal érhető el →</a>`;
+    const addWordUpgradeHint = `<a class="upgrade-hint" href="${APP_URL}/pricing" target="_blank">🔒 A saját szavak mentése Pro csomaggal érhető el →</a>`;
+    const flashcardUpgradeHint = `<a class="upgrade-hint" href="${APP_URL}/pricing" target="_blank">🔒 A flashcard-készítés Pro csomaggal érhető el →</a>`;
 
-    const statusSection = canWrite
-        ? `<div class="detail-statuses">${statusBtnsHtml(data.status)}</div>`
-        : upgradeHint;
-    const importanceSection = canWrite
-        ? `<div class="meta-label">Fontosság</div><div class="importance-row" id="detail-importance">${starsHtml(data.importance)}</div>`
-        : '';
+    const statusSection = `<div class="detail-statuses">${statusBtnsHtml(data.status)}</div>`;
+    const importanceSection = `<div class="meta-label">Fontosság</div><div class="importance-row" id="detail-importance">${starsHtml(data.importance)}</div>`;
 
     // Ha nincs a DB-ben (nem found), mutass teljes "Hozzáadás" formot
     if (data._notFound) {
         const googleUrl = `https://www.google.com/search?q=${encodeURIComponent(data.word + ' angol szó: jelentése magyarul, szinonimák, példamondat angolul és magyarul, szófaj, igeragozás ha ige')}&udm=50`;
 
-        // Ingyenes csomag: saját szó felvitele Standard+ funkció. A form helyett
-        // csak a szó + külső Google-keresés + előfizetés-hint jelenik meg.
+        // Ingyenes csomag: saját szó felvitele Pro+napi-keretes funkció. A form
+        // helyett csak a szó + külső Google-keresés + előfizetés-hint jelenik meg.
         if (!canWrite) {
             detail.innerHTML = `
                 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
@@ -319,7 +319,7 @@ function showSearchDetail(data) {
                         Google AI
                     </a>
                 </div>
-                <div style="margin-top:8px">${upgradeHint}</div>
+                <div style="margin-top:8px">${addWordUpgradeHint}</div>
             `;
             detail.classList.add('visible');
             detail.classList.remove('form-mode');
@@ -723,6 +723,7 @@ function showSearchDetail(data) {
             <button class="detail-tts-btn" title="Kiejtés angolul">🔊</button>
             ${canWrite ? `<button class="fc-btn" title="Flashcard készítése" style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;border:1px solid #e2e8f0;background:none;cursor:pointer;font-size:12px;flex-shrink:0;margin-left:6px">📇</button>` : ''}
         </div>
+        ${canWrite ? '' : `<div style="margin-top:8px">${flashcardUpgradeHint}</div>`}
     `;
     detail.classList.add('visible');
     detail.classList.remove('form-mode');

@@ -403,10 +403,10 @@ function renderBody(data) {
     `;
     header.querySelector('.close').addEventListener('click', hidePopup);
 
-    // Az írás (státusz, fontosság, flashcard) Standard+ csomaghoz kötött; az
-    // olvasás mindenkinek megy. Ingyenes felhasználónál a szerver a
-    // has_active_access:false-t adja, ilyenkor az írás-vezérlők helyett
-    // előfizetésre buzdító hint jelenik meg.
+    // A státusz/fontosság a weboldalon is mindenkinek elérhető, ezért itt sincs
+    // csomaghoz kötve. Csak a flashcard-készítés bővítményből Pro+napi-keretes
+    // (canWriteFromExtension), azt jelzi a has_active_access:false — ilyenkor a
+    // flashcard-gomb helyén előfizetésre buzdító hint jelenik meg.
     const canWrite = data.has_active_access !== false;
 
     const statusBtns = Object.entries(STATUS_LABELS)
@@ -421,15 +421,11 @@ function renderBody(data) {
         })
         .join('');
 
-    const upgradeHint = `<a class="upgrade-hint" href="${APP_URL}/pricing" target="_blank">🔒 A szavak mentése Standard csomaggal érhető el →</a>`;
+    const statusSection = `<div class="statuses">${statusBtns}</div>`;
 
-    const statusSection = canWrite
-        ? `<div class="statuses">${statusBtns}</div>`
-        : upgradeHint;
+    const importanceSection = `<div class="meta-label">Fontosság</div><div class="importance-row" id="hover-importance">${starsHtml(data.importance)}</div>`;
 
-    const importanceSection = canWrite
-        ? `<div class="meta-label">Fontosság</div><div class="importance-row" id="hover-importance">${starsHtml(data.importance)}</div>`
-        : '';
+    const upgradeHint = `<a class="upgrade-hint" href="${APP_URL}/pricing" target="_blank">🔒 A flashcard-készítés Pro csomaggal érhető el →</a>`;
 
     body.innerHTML = `
         <span class="meaning">${esc(meaning_hu)}</span>
@@ -443,6 +439,7 @@ function renderBody(data) {
             <button class="tts-btn" title="Kiejtés angolul">🔊</button>
             ${canWrite ? `<button class="fc-btn" title="Flashcard készítése" style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;border:1px solid #e2e8f0;background:none;cursor:pointer;font-size:12px;flex-shrink:0;margin-left:6px">📇</button>` : ''}
         </div>
+        ${canWrite ? '' : upgradeHint}
     `;
 
     body.querySelectorAll('.status-btn').forEach((btn) => {

@@ -305,7 +305,7 @@ function wireFlashcardForm(root, data, csrf, onBack) {
                 saveBtn.textContent = 'Mentés';
                 showFcFeedback(
                     feedback,
-                    'A mentés Standard csomaggal érhető el.',
+                    'A mentés Pro csomaggal érhető el.',
                     '#f97316',
                 );
             } else {
