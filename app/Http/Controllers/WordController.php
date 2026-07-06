@@ -138,7 +138,7 @@ class WordController extends Controller
             },
             'customWords' => fn () => $this->filteredCustomWords($user, $search, $letter, $statusFilter, $importanceFilter, $folderId),
             'customStats' => function () use ($user) {
-                $counts = $user->customWords()->toBase()->selectRaw('status, COUNT(*) as cnt')->groupBy('status')->pluck('cnt', 'status');
+                $counts = $user->customWords()->toBase()->reorder()->selectRaw('status, COUNT(*) as cnt')->groupBy('status')->pluck('cnt', 'status');
 
                 return [
                     'total' => (int) $counts->sum(),
