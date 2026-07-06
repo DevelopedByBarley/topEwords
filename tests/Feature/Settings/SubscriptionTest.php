@@ -108,7 +108,7 @@ test('a user cannot download another users invoice', function () {
 
     $this->actingAs($other)
         ->get(route('subscription.invoice.download', $invoice))
-        ->assertForbidden();
+        ->assertNotFound();
 });
 
 test('an unissued invoice cannot be downloaded', function () {

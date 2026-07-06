@@ -63,12 +63,12 @@ class SubscriptionController extends Controller
 
     /**
      * Letölti a felhasználó egy kiállított NAV-számlájának PDF-jét a Billingóról.
-     * A route-model-binding csak a saját (user_id egyező) számlát adja vissza — így
-     * más felhasználó számlája azonosító-tippeléssel sem érhető el.
+     * Idegen számlánál is 404-et adunk (nem 403-at), hogy a válaszkód ne áruljon el
+     * infót arról, hogy az adott ID létezik-e — így ID-tippeléssel nem enumerálható.
      */
     public function downloadInvoice(Request $request, BillingoInvoice $invoice, BillingoClient $client): StreamedResponse
     {
-        abort_unless($invoice->user_id === $request->user()->id, 403);
+        abort_unless($invoice->user_id === $request->user()->id, 404);
         abort_unless($invoice->isIssued(), 404);
 
         // A Billingo-hívás hibája (hálózat, törölt dokumentum) ne 500-azzon nyers
