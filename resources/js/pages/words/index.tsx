@@ -511,6 +511,11 @@ export default function WordsIndex({
             {
                 preserveScroll: true,
                 preserveState: true,
+                // Gyors, egymás utáni kattintásoknál minden hívás fusson
+                // párhuzamosan, ne szakítsa meg (és görgesse vissza) az
+                // előzőt — az Inertia a párhuzamos optimista frissítéseket
+                // propról propra követi.
+                async: true,
                 // A jelölés a lapozó/betű-annotációkat is érinti, ezért azokat
                 // is újratöltjük, különben a pöttyök és a zöld oldalak elavulnak.
                 only: [
@@ -718,6 +723,7 @@ export default function WordsIndex({
                 { status: newStatus },
                 {
                     preserveScroll: true,
+                    async: true,
                     only: ['customWords', 'customStats', 'stats', 'flash'],
                 },
             );
@@ -756,6 +762,7 @@ export default function WordsIndex({
             {
                 preserveScroll: true,
                 preserveState: true,
+                async: true,
                 // Jelöletlen szónál a backend "known" pivotot hoz létre, ezért
                 // a fejléc-statisztika és a lapozó/betű-annotációk is változhatnak.
                 only: [
@@ -775,6 +782,7 @@ export default function WordsIndex({
             { importance: value },
             {
                 preserveScroll: true,
+                async: true,
                 only: ['customWords'],
             },
         );
