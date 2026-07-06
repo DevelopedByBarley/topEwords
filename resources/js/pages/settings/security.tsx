@@ -52,15 +52,15 @@ export default function Security({
 
     return (
         <>
-            <Head title="Security settings" />
+            <Head title="Biztonsági beállítások" />
 
-            <h1 className="sr-only">Security settings</h1>
+            <h1 className="sr-only">Biztonsági beállítások</h1>
 
             <div className="space-y-6">
                 <Heading
                     variant="small"
-                    title="Update password"
-                    description="Ensure your account is using a long, random password to stay secure"
+                    title="Jelszó módosítása"
+                    description="Használj hosszú, véletlenszerű jelszót, hogy a fiókod biztonságban maradjon"
                 />
 
                 <Form
@@ -90,7 +90,7 @@ export default function Security({
                         <>
                             <div className="grid gap-2">
                                 <Label htmlFor="current_password">
-                                    Current password
+                                    Jelenlegi jelszó
                                 </Label>
 
                                 <PasswordInput
@@ -99,14 +99,14 @@ export default function Security({
                                     name="current_password"
                                     className="mt-1 block w-full"
                                     autoComplete="current-password"
-                                    placeholder="Current password"
+                                    placeholder="Jelenlegi jelszó"
                                 />
 
                                 <InputError message={errors.current_password} />
                             </div>
 
                             <div className="grid gap-2">
-                                <Label htmlFor="password">New password</Label>
+                                <Label htmlFor="password">Új jelszó</Label>
 
                                 <PasswordInput
                                     id="password"
@@ -114,7 +114,7 @@ export default function Security({
                                     name="password"
                                     className="mt-1 block w-full"
                                     autoComplete="new-password"
-                                    placeholder="New password"
+                                    placeholder="Új jelszó"
                                 />
 
                                 <InputError message={errors.password} />
@@ -122,7 +122,7 @@ export default function Security({
 
                             <div className="grid gap-2">
                                 <Label htmlFor="password_confirmation">
-                                    Confirm password
+                                    Jelszó megerősítése
                                 </Label>
 
                                 <PasswordInput
@@ -130,7 +130,7 @@ export default function Security({
                                     name="password_confirmation"
                                     className="mt-1 block w-full"
                                     autoComplete="new-password"
-                                    placeholder="Confirm password"
+                                    placeholder="Jelszó megerősítése"
                                 />
 
                                 <InputError
@@ -143,7 +143,7 @@ export default function Security({
                                     disabled={processing}
                                     data-test="update-password-button"
                                 >
-                                    Save password
+                                    Jelszó mentése
                                 </Button>
 
                                 <Transition
@@ -154,7 +154,7 @@ export default function Security({
                                     leaveTo="opacity-0"
                                 >
                                     <p className="text-sm text-neutral-600">
-                                        Saved
+                                        Mentve
                                     </p>
                                 </Transition>
                             </div>
@@ -167,15 +167,15 @@ export default function Security({
                 <div className="space-y-6">
                     <Heading
                         variant="small"
-                        title="Two-factor authentication"
-                        description="Manage your two-factor authentication settings"
+                        title="Kétlépéses azonosítás"
+                        description="Kezeld a kétlépéses azonosítás beállításait"
                     />
                     {twoFactorEnabled ? (
                         <div className="flex flex-col items-start justify-start space-y-4">
                             <p className="text-sm text-muted-foreground">
-                                You will be prompted for a secure, random pin
-                                during login, which you can retrieve from the
-                                TOTP-supported application on your phone.
+                                Bejelentkezéskor egy biztonsági kódot kell
+                                megadnod, amelyet a telefonodon lévő hitelesítő
+                                alkalmazásból olvashatsz le.
                             </p>
 
                             <div className="relative inline">
@@ -186,7 +186,7 @@ export default function Security({
                                             type="submit"
                                             disabled={processing}
                                         >
-                                            Disable 2FA
+                                            2FA kikapcsolása
                                         </Button>
                                     )}
                                 </Form>
@@ -201,10 +201,10 @@ export default function Security({
                     ) : (
                         <div className="flex flex-col items-start justify-start space-y-4">
                             <p className="text-sm text-muted-foreground">
-                                When you enable two-factor authentication, you
-                                will be prompted for a secure pin during login.
-                                This pin can be retrieved from a TOTP-supported
-                                application on your phone.
+                                Ha bekapcsolod a kétlépéses azonosítást,
+                                bejelentkezéskor egy biztonsági kódot kell
+                                megadnod. Ezt a kódot a telefonodon lévő
+                                hitelesítő alkalmazásból olvashatod le.
                             </p>
 
                             <div>
@@ -213,7 +213,7 @@ export default function Security({
                                         onClick={() => setShowSetupModal(true)}
                                     >
                                         <ShieldCheck />
-                                        Continue setup
+                                        Beállítás folytatása
                                     </Button>
                                 ) : (
                                     <Form
@@ -228,7 +228,7 @@ export default function Security({
                                                 type="submit"
                                                 disabled={processing}
                                             >
-                                                Enable 2FA
+                                                2FA bekapcsolása
                                             </Button>
                                         )}
                                     </Form>
@@ -257,7 +257,7 @@ export default function Security({
 Security.layout = {
     breadcrumbs: [
         {
-            title: 'Security settings',
+            title: 'Biztonsági beállítások',
             href: edit(),
         },
     ],

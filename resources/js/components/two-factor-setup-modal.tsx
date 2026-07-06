@@ -104,7 +104,7 @@ function TwoFactorSetupStep({
                     <div className="relative flex w-full items-center justify-center">
                         <div className="absolute inset-0 top-1/2 h-px w-full bg-border" />
                         <span className="relative bg-card px-2 py-1">
-                            or, enter the code manually
+                            vagy add meg a kódot kézzel
                         </span>
                     </div>
 
@@ -210,7 +210,7 @@ function TwoFactorVerificationStep({
                                 onClick={onBack}
                                 disabled={processing}
                             >
-                                Back
+                                Vissza
                             </Button>
                             <Button
                                 type="submit"
@@ -219,7 +219,7 @@ function TwoFactorVerificationStep({
                                     processing || code.length < OTP_MAX_LENGTH
                                 }
                             >
-                                Confirm
+                                Megerősítés
                             </Button>
                         </div>
                     </div>
@@ -262,27 +262,27 @@ export default function TwoFactorSetupModal({
     }>(() => {
         if (twoFactorEnabled) {
             return {
-                title: 'Two-factor authentication enabled',
+                title: 'Kétlépéses azonosítás bekapcsolva',
                 description:
-                    'Two-factor authentication is now enabled. Scan the QR code or enter the setup key in your authenticator app.',
-                buttonText: 'Close',
+                    'A kétlépéses azonosítás mostantól aktív. Olvasd be a QR-kódot, vagy add meg a beállítókulcsot a hitelesítő alkalmazásodban.',
+                buttonText: 'Bezárás',
             };
         }
 
         if (showVerificationStep) {
             return {
-                title: 'Verify authentication code',
+                title: 'Hitelesítési kód ellenőrzése',
                 description:
-                    'Enter the 6-digit code from your authenticator app',
-                buttonText: 'Continue',
+                    'Add meg a hitelesítő alkalmazásodban látható 6 számjegyű kódot',
+                buttonText: 'Folytatás',
             };
         }
 
         return {
-            title: 'Enable two-factor authentication',
+            title: 'Kétlépéses azonosítás bekapcsolása',
             description:
-                'To finish enabling two-factor authentication, scan the QR code or enter the setup key in your authenticator app',
-            buttonText: 'Continue',
+                'A bekapcsolás befejezéséhez olvasd be a QR-kódot, vagy add meg a beállítókulcsot a hitelesítő alkalmazásodban',
+            buttonText: 'Folytatás',
         };
     }, [twoFactorEnabled, showVerificationStep]);
 
