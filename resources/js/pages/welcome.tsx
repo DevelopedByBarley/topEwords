@@ -1658,7 +1658,7 @@ export default function Welcome({
                         </div>
                         <p className="mt-6 text-center text-xs text-neutral-400 dark:text-neutral-500">
                             Az ingyenes csomagban is kipróbálható; a teljes
-                            AI-eszköztár Próval korlátlan.
+                            AI-eszköztár Pro-val korlátlan.
                         </p>
                     </div>
                 </section>

@@ -249,6 +249,44 @@ test('reads stay free for everyone: a free user can still look up words', functi
         ->assertJson(['found' => true, 'word' => 'apple', 'has_active_access' => false]);
 });
 
+test('lookup reports can_write:true for a free user with quota remaining', function () {
+    // A Free user az UI-ban is kap írás-lehetőséget, amíg van a napi keretből —
+    // a szerver can_write jele (canWriteFromExtension) tükrözi a valós kvótát,
+    // nem a csomag prémium voltát.
+    $this->actingAs(User::factory()->create())
+        ->getJson(route('extension.lookup', ['word' => 'apple']))
+        ->assertSuccessful()
+        ->assertJson(['found' => true, 'has_active_access' => false, 'can_write' => true]);
+});
+
+test('lookup reports can_write:false once a free user exhausts the daily write quota', function () {
+    $free = User::factory()->create();
+    $limit = $free->planLimit('extension_writes_per_day');
+    Cache::put("extension_writes_daily_{$free->id}_".today()->format('Y-m-d'), $limit, now()->endOfDay());
+
+    $this->actingAs($free)
+        ->getJson(route('extension.lookup', ['word' => 'apple']))
+        ->assertSuccessful()
+        ->assertJson(['found' => true, 'can_write' => false]);
+});
+
+test('search reports can_write reflecting the free user daily quota', function () {
+    $free = User::factory()->create();
+
+    $this->actingAs($free)
+        ->getJson(route('extension.search', ['q' => 'app']))
+        ->assertSuccessful()
+        ->assertJson(['can_write' => true]);
+
+    $limit = $free->planLimit('extension_writes_per_day');
+    Cache::put("extension_writes_daily_{$free->id}_".today()->format('Y-m-d'), $limit, now()->endOfDay());
+
+    $this->actingAs($free)
+        ->getJson(route('extension.search', ['q' => 'app']))
+        ->assertSuccessful()
+        ->assertJson(['can_write' => false]);
+});
+
 test('decks returns the user own decks and ai access', function () {
     $this->user->flashcardDecks()->create(['name' => 'Angol szavak']);
     $this->user->flashcardDecks()->create(['name' => 'Kifejezések']);

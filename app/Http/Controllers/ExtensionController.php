@@ -33,6 +33,7 @@ class ExtensionController extends Controller
         }
 
         $hasActiveAccess = $request->user()->hasActiveAccess();
+        $canWrite = $request->user()->canWriteFromExtension();
 
         $word = $this->normalizePhraseWhitespace($request->string('word')->value());
 
@@ -72,6 +73,7 @@ class ExtensionController extends Controller
                 'importance' => $pivot?->importance,
                 'csrf' => csrf_token(),
                 'has_active_access' => $hasActiveAccess,
+                'can_write' => $canWrite,
             ]);
         }
 
@@ -109,10 +111,11 @@ class ExtensionController extends Controller
                 'importance' => $custom->importance,
                 'csrf' => csrf_token(),
                 'has_active_access' => $hasActiveAccess,
+                'can_write' => $canWrite,
             ]);
         }
 
-        return response()->json(['found' => false, 'word' => $word, 'csrf' => csrf_token(), 'has_active_access' => $hasActiveAccess]);
+        return response()->json(['found' => false, 'word' => $word, 'csrf' => csrf_token(), 'has_active_access' => $hasActiveAccess, 'can_write' => $canWrite]);
     }
 
     public function addWord(Request $request): JsonResponse
@@ -412,6 +415,7 @@ class ExtensionController extends Controller
         return response()->json([
             'results' => $results->concat($customResults)->values(),
             'has_active_access' => $hasActiveAccess,
+            'can_write' => $request->user()->canWriteFromExtension(),
             'has_ai_access' => $request->user()->hasAiAccess(),
             'is_admin' => Gate::check('admin'),
             'csrf' => csrf_token(),

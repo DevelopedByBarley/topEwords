@@ -8,11 +8,12 @@ let searchDebounce = null;
 let searchCsrf = null;
 let searchIsAdmin = false;
 let searchHasAi = false;
-// Saját szó felvitele / flashcard-készítés csak Pro csomaggal (+ napi keret
-// Free-nél); a szerver has_active_access:false-t ad ingyenes felhasználónak,
-// ilyenkor ezek helyett előfizetésre buzdító hint jelenik meg. A státusz/
-// fontosság mindenkinek elérhető, ahogy a weboldalon is.
-let searchHasActiveAccess = false;
+// Saját szó felvitele / flashcard-készítés a bővítményből a közös napi keretbe
+// számít (Free napi limit, Pro korlátlan). A szerver can_write mezője a valós
+// pillanatnyi kvótát tükrözi (canWriteFromExtension): false, ha a Free user
+// aznapra betöltötte a keretet — ilyenkor ezek helyett keret-hint jelenik meg.
+// A státusz/fontosság mindenkinek elérhető, ahogy a weboldalon is.
+let searchCanWrite = false;
 let searchResultsData = [];
 let searchSelIdx = -1;
 
@@ -86,7 +87,7 @@ function showSearch() {
                 searchCsrf = resp?.csrf ?? null;
                 searchIsAdmin = resp?.is_admin ?? false;
                 searchHasAi = resp?.has_ai_access ?? false;
-                searchHasActiveAccess = resp?.has_active_access ?? false;
+                searchCanWrite = resp?.can_write ?? false;
                 renderSearchResults(resp?.results ?? [], resp?.error);
             });
         }, 250);
@@ -179,7 +180,7 @@ function openAddWordForm(word) {
         searchCsrf = resp?.csrf ?? null;
         searchIsAdmin = resp?.is_admin ?? false;
         searchHasAi = resp?.has_ai_access ?? false;
-        searchHasActiveAccess = resp?.has_active_access ?? false;
+        searchCanWrite = resp?.can_write ?? false;
 
         const results = resp?.results ?? [];
         const exact = results.find(
@@ -295,11 +296,12 @@ function showSearchDetail(data) {
     const detail = searchShadow.getElementById('detail');
 
     // A státusz/fontosság a weboldalon is mindenkinek elérhető, ezért itt sincs
-    // csomaghoz kötve. Ami ténylegesen Pro+napi-keretes (canWriteFromExtension):
-    // saját szó felvitele és flashcard-készítés a bővítményből.
-    const canWrite = searchHasActiveAccess;
-    const addWordUpgradeHint = `<a class="upgrade-hint" href="${APP_URL}/pricing" target="_blank">🔒 A saját szavak mentése Pro csomaggal érhető el →</a>`;
-    const flashcardUpgradeHint = `<a class="upgrade-hint" href="${APP_URL}/pricing" target="_blank">🔒 A flashcard-készítés Pro csomaggal érhető el →</a>`;
+    // keretbe kötve. Ami a közös napi keretbe számít (canWriteFromExtension):
+    // saját szó felvitele és flashcard-készítés a bővítményből. A can_write a
+    // valós pillanatnyi kvótát tükrözi — Free-nél false, ha aznap betelt a keret.
+    const canWrite = searchCanWrite;
+    const addWordUpgradeHint = `<a class="upgrade-hint" href="${APP_URL}/pricing" target="_blank">🔒 Elérted a bővítmény napi ingyenes keretét — holnap folytathatod, vagy válts Prora a korlátlan mentésért →</a>`;
+    const flashcardUpgradeHint = `<a class="upgrade-hint" href="${APP_URL}/pricing" target="_blank">🔒 Elérted a bővítmény napi ingyenes keretét — holnap folytathatod, vagy válts Prora a korlátlan mentésért →</a>`;
 
     const statusSection = `<div class="detail-statuses">${statusBtnsHtml(data.status)}</div>`;
     const importanceSection = `<div class="meta-label">Fontosság</div><div class="importance-row" id="detail-importance">${starsHtml(data.importance)}</div>`;
@@ -308,8 +310,8 @@ function showSearchDetail(data) {
     if (data._notFound) {
         const googleUrl = `https://www.google.com/search?q=${encodeURIComponent(data.word + ' angol szó: jelentése magyarul, szinonimák, példamondat angolul és magyarul, szófaj, igeragozás ha ige')}&udm=50`;
 
-        // Ingyenes csomag: saját szó felvitele Pro+napi-keretes funkció. A form
-        // helyett csak a szó + külső Google-keresés + előfizetés-hint jelenik meg.
+        // Betelt napi keret: saját szó felvitele ilyenkor nem megy. A form helyett
+        // csak a szó + külső Google-keresés + keret-hint jelenik meg.
         if (!canWrite) {
             detail.innerHTML = `
                 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
@@ -326,6 +328,7 @@ function showSearchDetail(data) {
 
             return;
         }
+
         detail.innerHTML = `
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
                 <span style="font-size:14px;font-weight:700;color:#0f172a">${esc(data.word)}</span>

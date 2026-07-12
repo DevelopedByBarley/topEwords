@@ -404,10 +404,11 @@ function renderBody(data) {
     header.querySelector('.close').addEventListener('click', hidePopup);
 
     // A státusz/fontosság a weboldalon is mindenkinek elérhető, ezért itt sincs
-    // csomaghoz kötve. Csak a flashcard-készítés bővítményből Pro+napi-keretes
-    // (canWriteFromExtension), azt jelzi a has_active_access:false — ilyenkor a
-    // flashcard-gomb helyén előfizetésre buzdító hint jelenik meg.
-    const canWrite = data.has_active_access !== false;
+    // keretbe kötve. Csak a flashcard-készítés számít a közös napi keretbe
+    // (canWriteFromExtension); a szerver can_write mezője a valós pillanatnyi
+    // kvótát tükrözi — false, ha a Free user aznapra betöltötte a keretet,
+    // ilyenkor a flashcard-gomb helyén keret-hint jelenik meg.
+    const canWrite = data.can_write !== false;
 
     const statusBtns = Object.entries(STATUS_LABELS)
         .map(([key, label]) => {
@@ -425,7 +426,7 @@ function renderBody(data) {
 
     const importanceSection = `<div class="meta-label">Fontosság</div><div class="importance-row" id="hover-importance">${starsHtml(data.importance)}</div>`;
 
-    const upgradeHint = `<a class="upgrade-hint" href="${APP_URL}/pricing" target="_blank">🔒 A flashcard-készítés Pro csomaggal érhető el →</a>`;
+    const upgradeHint = `<a class="upgrade-hint" href="${APP_URL}/pricing" target="_blank">🔒 Elérted a bővítmény napi ingyenes keretét — holnap folytathatod, vagy válts Prora a korlátlan mentésért →</a>`;
 
     body.innerHTML = `
         <span class="meaning">${esc(meaning_hu)}</span>
