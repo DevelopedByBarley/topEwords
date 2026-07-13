@@ -448,7 +448,7 @@ test('lapsed card stays relearning after again and hard ratings during relearnin
     expect($review->state)->toBe('relearning');
 
     $hard = new ReflectionMethod($srs, 'learningHard');
-    $hard->invoke($srs, $review, $settings->learning_steps);
+    $hard->invoke($srs, $review, $settings->learning_steps, $settings);
     expect($review->state)->toBe('relearning');
 });
 
@@ -552,6 +552,128 @@ test('hard and good never collapse to the same interval when the last learning s
     expect($preview['hard'])->toBe('2 nap');
     expect($preview['good'])->toBe('3 nap');
     expect($preview['hard'])->not->toBe($preview['good']);
+});
+
+/**
+ * Default SRS settings for scheduling tests, with per-test overrides.
+ */
+function makeSrsSettings(array $overrides = []): FlashcardSetting
+{
+    return new FlashcardSetting([
+        'new_cards_per_day' => 20,
+        'max_reviews_per_day' => 200,
+        'learning_steps' => [1, 10],
+        'graduating_interval' => 1,
+        'easy_interval' => 4,
+        'starting_ease' => 250,
+        'easy_bonus' => 130,
+        'hard_interval_modifier' => 120,
+        'interval_modifier' => 100,
+        'max_interval' => 365,
+        'lapse_new_interval' => 0,
+        'leech_threshold' => 8,
+        ...$overrides,
+    ]);
+}
+
+test('review buttons stay strictly ordered for a lapsed card at the ease floor', function (int $interval) {
+    // Ease at the 130 floor vs Hard's 120 modifier: rounding used to make
+    // Hard and Good tie at short intervals (e.g. round(3.6) = round(3.9) = 4).
+    $settings = makeSrsSettings();
+    $srs = new FlashcardSrsService;
+
+    $makeReview = fn () => new FlashcardReview([
+        'state' => 'review',
+        'interval' => $interval,
+        'ease_factor' => 130,
+        'repetitions' => 3,
+        'lapses' => 2,
+    ]);
+
+    $hardReview = $makeReview();
+    (new ReflectionMethod($srs, 'reviewHard'))->invoke($srs, $hardReview, $settings);
+
+    $goodReview = $makeReview();
+    (new ReflectionMethod($srs, 'reviewGood'))->invoke($srs, $goodReview, $settings);
+
+    $easyReview = $makeReview();
+    (new ReflectionMethod($srs, 'reviewEasy'))->invoke($srs, $easyReview, $settings);
+
+    expect($goodReview->interval)->toBeGreaterThan($hardReview->interval);
+    expect($easyReview->interval)->toBeGreaterThan($goodReview->interval);
+
+    // The button previews must promise exactly what answering schedules.
+    $preview = $srs->getButtonPreviews($makeReview(), $settings);
+    expect($preview['hard'])->toBe($hardReview->interval.' nap');
+    expect($preview['good'])->toBe($goodReview->interval.' nap');
+    expect($preview['easy'])->toBe($easyReview->interval.' nap');
+})->with([1, 2, 3, 4, 10]);
+
+test('good stays above hard even when a low interval modifier pushes its raw value below', function () {
+    // interval_modifier 80 + ease 130: raw Good = round(10 × 1.3 × 0.8) = 10,
+    // raw Hard = round(10 × 1.2) = 12 — without ordering, Hard would beat Good.
+    $settings = makeSrsSettings(['interval_modifier' => 80]);
+    $srs = new FlashcardSrsService;
+
+    $review = new FlashcardReview([
+        'state' => 'review',
+        'interval' => 10,
+        'ease_factor' => 130,
+        'repetitions' => 3,
+        'lapses' => 2,
+    ]);
+
+    $preview = $srs->getButtonPreviews($review, $settings);
+
+    (new ReflectionMethod($srs, 'reviewGood'))->invoke($srs, $review, $settings);
+
+    expect($preview['hard'])->toBe('12 nap');
+    expect($preview['good'])->toBe('13 nap');
+    expect($review->interval)->toBe(13);
+});
+
+test('learning hard never overtakes the good delay with tightly spaced steps', function () {
+    // 1.5 × 10 = 15 minutes would overtake the next step's 12 minutes.
+    $settings = makeSrsSettings(['learning_steps' => [10, 12]]);
+
+    $review = new FlashcardReview([
+        'state' => 'learning',
+        'learning_step' => 0,
+        'interval' => 0,
+        'ease_factor' => 250,
+        'repetitions' => 0,
+        'lapses' => 0,
+    ]);
+
+    $preview = (new FlashcardSrsService)->getButtonPreviews($review, $settings);
+
+    expect($preview['hard'])->toBe('11 perc');
+    expect($preview['good'])->toBe('12 perc');
+});
+
+test('relearning easy graduates one day beyond good', function () {
+    $settings = makeSrsSettings(['lapse_new_interval' => 50]);
+    $srs = new FlashcardSrsService;
+
+    $makeReview = fn () => new FlashcardReview([
+        'state' => 'relearning',
+        'interval' => 50,
+        'ease_factor' => 210,
+        'repetitions' => 5,
+        'lapses' => 1,
+        'learning_step' => 1, // last step of [1, 10]
+    ]);
+
+    $preview = $srs->getButtonPreviews($makeReview(), $settings);
+    expect($preview['good'])->toBe('50 nap');
+    expect($preview['easy'])->toBe('51 nap');
+
+    $review = $makeReview();
+    (new ReflectionMethod($srs, 'learningEasy'))->invoke($srs, $review, $settings, $settings->learning_steps);
+
+    expect($review->state)->toBe('review');
+    expect($review->interval)->toBe(51);
+    expect($review->ease_factor)->toBe(210);
 });
 
 test('both-direction card shows its second side the day it was introduced even at the new limit', function () {

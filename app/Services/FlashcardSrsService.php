@@ -56,7 +56,7 @@ class FlashcardSrsService
             $isRelearning = $review->state === 'relearning';
 
             $again = $this->formatMinutes($steps[0]);
-            $hard = $this->formatMinutes(max($steps[0] + 1, (int) round($steps[$step] * 1.5)));
+            $hard = $this->formatMinutes($this->learningHardMinutes($review, $steps, $settings));
 
             if ($nextStep < count($steps)) {
                 $good = $this->formatMinutes($steps[$nextStep]);
@@ -67,30 +67,15 @@ class FlashcardSrsService
             }
 
             $easy = $isRelearning
-                ? $this->formatDays(max(1, $review->interval))
+                ? $this->formatDays($this->relearningEasyInterval($review, $settings))
                 : $this->formatDays($this->easyInterval($settings, $steps, $step));
         } else {
-            $interval = $review->interval;
-            $ease = $review->ease_factor;
-
-            $againInterval = max(1, (int) round($interval * $settings->lapse_new_interval / 100));
-            $hardInterval = min(
-                max($interval + 1, (int) round($interval * $settings->hard_interval_modifier / 100)),
-                $settings->max_interval
-            );
-            $goodInterval = min(
-                max($interval + 1, (int) round($interval * $ease / 100 * $settings->interval_modifier / 100)),
-                $settings->max_interval
-            );
-            $easyInterval = min(
-                max($goodInterval + 1, (int) round($interval * $ease / 100 * $settings->easy_bonus / 100 * $settings->interval_modifier / 100)),
-                $settings->max_interval
-            );
+            $againInterval = max(1, (int) round($review->interval * $settings->lapse_new_interval / 100));
 
             $again = $this->formatMinutes($steps[0]).' (→ '.$this->formatDays($againInterval).')';
-            $hard = $this->formatDays($hardInterval);
-            $good = $this->formatDays($goodInterval);
-            $easy = $this->formatDays($easyInterval);
+            $hard = $this->formatDays($this->hardIntervalFor($review, $settings));
+            $good = $this->formatDays($this->goodIntervalFor($review, $settings));
+            $easy = $this->formatDays($this->easyIntervalFor($review, $settings));
         }
 
         return compact('again', 'hard', 'good', 'easy');
@@ -440,7 +425,7 @@ class FlashcardSrsService
 
         match ($rating) {
             self::AGAIN => $this->learningAgain($review, $steps),
-            self::HARD => $this->learningHard($review, $steps),
+            self::HARD => $this->learningHard($review, $steps, $settings),
             self::GOOD => $this->learningGood($review, $steps, $settings),
             self::EASY => $this->learningEasy($review, $settings, $steps),
         };
@@ -453,12 +438,44 @@ class FlashcardSrsService
         $review->due_at = Carbon::now()->addMinutes($steps[0]);
     }
 
-    private function learningHard(FlashcardReview $review, array $steps): void
+    private function learningHard(FlashcardReview $review, array $steps, FlashcardSetting|FlashcardDeckSetting $settings): void
     {
-        $safeStep = min($review->learning_step, count($steps) - 1);
         $review->state = $this->learningStateFor($review);
-        $minutes = max($steps[0] + 1, (int) round($steps[$safeStep] * 1.5));
-        $review->due_at = Carbon::now()->addMinutes($minutes);
+        $review->due_at = Carbon::now()->addMinutes($this->learningHardMinutes($review, $steps, $settings));
+    }
+
+    /**
+     * Hard delay during learning: 1.5× the current step, at least a minute above
+     * Again, but kept below the Good delay (next step, or graduation) so the
+     * buttons keep their Again < Hard < Good order even with tightly spaced
+     * learning steps (e.g. [10, 12], where 1.5 × 10 would overtake Good's 12).
+     * The Again guard wins on degenerate descending-step configs.
+     */
+    private function learningHardMinutes(FlashcardReview $review, array $steps, FlashcardSetting|FlashcardDeckSetting $settings): int
+    {
+        $step = min($review->learning_step ?? 0, count($steps) - 1);
+        $minutes = min((int) round($steps[$step] * 1.5), $this->learningGoodMinutes($review, $steps, $settings) - 1);
+
+        return max($steps[0] + 1, $minutes);
+    }
+
+    /**
+     * The delay (in minutes) Good would schedule from the current learning step.
+     */
+    private function learningGoodMinutes(FlashcardReview $review, array $steps, FlashcardSetting|FlashcardDeckSetting $settings): int
+    {
+        $step = min($review->learning_step ?? 0, count($steps) - 1);
+        $nextStep = $step + 1;
+
+        if ($nextStep < count($steps)) {
+            return $steps[$nextStep];
+        }
+
+        $days = $review->state === 'relearning'
+            ? max(1, $review->interval)
+            : $this->graduatingInterval($settings, $steps, $step);
+
+        return $days * 1440;
     }
 
     /**
@@ -513,8 +530,9 @@ class FlashcardSrsService
         $review->repetitions = max(1, $review->repetitions);
 
         if ($isRelearning) {
-            // Relearning card: schedule with current interval (set by reviewAgain), ease stays.
-            $review->due_at = Carbon::now()->addDays(max(1, $review->interval));
+            // Relearning card: the preserved interval plus an extra day, ease stays.
+            $review->interval = $this->relearningEasyInterval($review, $settings);
+            $review->due_at = Carbon::now()->addDays($review->interval);
         } else {
             // New card graduating easy — must be at least 1 more day than graduating via Good.
             $interval = $this->easyInterval($settings, $steps, $currentStep);
@@ -551,6 +569,15 @@ class FlashcardSrsService
         return max($settings->easy_interval, $this->graduatingInterval($settings, $steps, $currentStep) + 1);
     }
 
+    /**
+     * Easy on a relearning card: one day beyond the preserved (Good) interval,
+     * so Easy always beats Good, capped at max_interval.
+     */
+    private function relearningEasyInterval(FlashcardReview $review, FlashcardSetting|FlashcardDeckSetting $settings): int
+    {
+        return min(max(1, $review->interval) + 1, $settings->max_interval);
+    }
+
     private function processReview_(FlashcardReview $review, int $rating, FlashcardSetting|FlashcardDeckSetting $settings): void
     {
         match ($rating) {
@@ -576,39 +603,66 @@ class FlashcardSrsService
 
     private function reviewHard(FlashcardReview $review, FlashcardSetting|FlashcardDeckSetting $settings): void
     {
-        $newInterval = max(
-            $review->interval + 1,
-            (int) round($review->interval * $settings->hard_interval_modifier / 100)
-        );
-        $review->interval = min($newInterval, $settings->max_interval);
+        $review->interval = $this->hardIntervalFor($review, $settings);
         $review->ease_factor = max(130, $review->ease_factor - 15);
         $review->due_at = Carbon::now()->addDays($review->interval);
     }
 
     private function reviewGood(FlashcardReview $review, FlashcardSetting|FlashcardDeckSetting $settings): void
     {
-        $newInterval = (int) round(
-            $review->interval * $review->ease_factor / 100 * $settings->interval_modifier / 100
-        );
-        $review->interval = min(max($review->interval + 1, $newInterval), $settings->max_interval);
+        $review->interval = $this->goodIntervalFor($review, $settings);
         $review->repetitions++;
         $review->due_at = Carbon::now()->addDays($review->interval);
     }
 
     private function reviewEasy(FlashcardReview $review, FlashcardSetting|FlashcardDeckSetting $settings): void
     {
-        $goodInterval = min(
-            max($review->interval + 1, (int) round($review->interval * $review->ease_factor / 100 * $settings->interval_modifier / 100)),
+        $review->interval = $this->easyIntervalFor($review, $settings);
+        $review->ease_factor = min(999, $review->ease_factor + 15);
+        $review->repetitions++;
+        $review->due_at = Carbon::now()->addDays($review->interval);
+    }
+
+    private function hardIntervalFor(FlashcardReview $review, FlashcardSetting|FlashcardDeckSetting $settings): int
+    {
+        return min(
+            max($review->interval + 1, (int) round($review->interval * $settings->hard_interval_modifier / 100)),
             $settings->max_interval
         );
-        $easyInterval = (int) round(
+    }
+
+    /**
+     * Good interval — kept strictly above Hard, otherwise the two buttons collapse.
+     *
+     * A lapsed card's ease can drop to the 130 floor while Hard's default modifier
+     * is 120; at short intervals rounding makes the raw values tie (e.g. 3 days:
+     * round(3.6) = round(3.9) = 4), and a low interval_modifier can even push the
+     * raw Good below Hard. Both intervals can still meet at max_interval.
+     */
+    private function goodIntervalFor(FlashcardReview $review, FlashcardSetting|FlashcardDeckSetting $settings): int
+    {
+        $byEase = (int) round($review->interval * $review->ease_factor / 100 * $settings->interval_modifier / 100);
+
+        return min(
+            max($this->hardIntervalFor($review, $settings) + 1, $byEase),
+            $settings->max_interval
+        );
+    }
+
+    /**
+     * Easy interval — kept strictly above Good the same way Good is kept above Hard.
+     */
+    private function easyIntervalFor(FlashcardReview $review, FlashcardSetting|FlashcardDeckSetting $settings): int
+    {
+        $byEase = (int) round(
             $review->interval * $review->ease_factor / 100
             * $settings->easy_bonus / 100
             * $settings->interval_modifier / 100
         );
-        $review->interval = min(max($goodInterval + 1, $easyInterval), $settings->max_interval);
-        $review->ease_factor = min(999, $review->ease_factor + 15);
-        $review->repetitions++;
-        $review->due_at = Carbon::now()->addDays($review->interval);
+
+        return min(
+            max($this->goodIntervalFor($review, $settings) + 1, $byEase),
+            $settings->max_interval
+        );
     }
 }
