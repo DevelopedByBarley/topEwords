@@ -21,3 +21,13 @@ Artisan::command('inspire', function () {
 */
 Schedule::command('queue:alert-failed')->everyTenMinutes();
 Schedule::command('queue:monitor', [config('queue.default').':default', '--max=25'])->everyTenMinutes();
+
+/*
+|--------------------------------------------------------------------------
+| Sanctum token-takarítás
+|--------------------------------------------------------------------------
+|
+| A desktop lejátszó (topwords Player) tokenjei 1 éves lejáratot kapnak;
+| a lejárt token-sorokat naponta töröljük, hogy a tábla ne hízzon.
+*/
+Schedule::command('sanctum:prune-expired --hours=24')->daily();

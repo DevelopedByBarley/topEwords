@@ -19,6 +19,7 @@ use Illuminate\Support\Facades\Cache;
 use Laravel\Cashier\Billable;
 use Laravel\Cashier\Subscription;
 use Laravel\Fortify\TwoFactorAuthenticatable;
+use Laravel\Sanctum\HasApiTokens;
 
 // Entitlement/billing columns (lifetime_access, ai_access, plan_override, trial_ends_at,
 // invite_id, stripe_*, ai_credit*, terms_accepted_at, billingo_partner_id) are intentionally NOT fillable — they are
@@ -29,7 +30,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
 class User extends Authenticatable implements MustVerifyEmail
 {
     /** @use HasFactory<UserFactory> */
-    use Billable, HasFactory, Notifiable, TwoFactorAuthenticatable;
+    use Billable, HasApiTokens, HasFactory, Notifiable, TwoFactorAuthenticatable;
 
     public function folders(): HasMany
     {

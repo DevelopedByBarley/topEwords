@@ -26,6 +26,17 @@ class ExtensionController extends Controller
         return trim((string) preg_replace('/\s+/u', ' ', str_replace("\u{00A0}", ' ', $word)));
     }
 
+    /**
+     * CSRF-token a válaszban a session-alapú kliensnek (Chrome extension).
+     * A desktop lejátszó Bearer-tokennel, session nélkül hívja ugyanezeket a
+     * végpontokat — ott nincs (és nem is kell) CSRF, a csrf_token() pedig
+     * session híján kivételt dobna.
+     */
+    private function csrfTokenIfSession(Request $request): ?string
+    {
+        return $request->hasSession() ? csrf_token() : null;
+    }
+
     public function lookup(Request $request): JsonResponse
     {
         if (! $request->user()) {
@@ -71,7 +82,7 @@ class ExtensionController extends Controller
                 'example_hu' => $match->example_hu,
                 'status' => $pivot?->status,
                 'importance' => $pivot?->importance,
-                'csrf' => csrf_token(),
+                'csrf' => $this->csrfTokenIfSession($request),
                 'has_active_access' => $hasActiveAccess,
                 'can_write' => $canWrite,
             ]);
@@ -109,13 +120,13 @@ class ExtensionController extends Controller
                 'example_hu' => $custom->example_hu,
                 'status' => $custom->status,
                 'importance' => $custom->importance,
-                'csrf' => csrf_token(),
+                'csrf' => $this->csrfTokenIfSession($request),
                 'has_active_access' => $hasActiveAccess,
                 'can_write' => $canWrite,
             ]);
         }
 
-        return response()->json(['found' => false, 'word' => $word, 'csrf' => csrf_token(), 'has_active_access' => $hasActiveAccess, 'can_write' => $canWrite]);
+        return response()->json(['found' => false, 'word' => $word, 'csrf' => $this->csrfTokenIfSession($request), 'has_active_access' => $hasActiveAccess, 'can_write' => $canWrite]);
     }
 
     public function addWord(Request $request): JsonResponse
@@ -177,7 +188,7 @@ class ExtensionController extends Controller
             'id' => $custom->id,
             'word' => $custom->word,
             'meaning_hu' => $custom->meaning_hu,
-            'csrf' => csrf_token(),
+            'csrf' => $this->csrfTokenIfSession($request),
         ]);
     }
 
@@ -198,7 +209,7 @@ class ExtensionController extends Controller
         return response()->json([
             'decks' => $decks,
             'has_ai_access' => $request->user()->hasAiAccess(),
-            'csrf' => csrf_token(),
+            'csrf' => $this->csrfTokenIfSession($request),
         ]);
     }
 
@@ -265,7 +276,7 @@ class ExtensionController extends Controller
             'ok' => true,
             'id' => $flashcard->id,
             'deck' => $deck->name,
-            'csrf' => csrf_token(),
+            'csrf' => $this->csrfTokenIfSession($request),
         ]);
     }
 
@@ -353,7 +364,7 @@ class ExtensionController extends Controller
         $q = $request->string('q')->trim()->value();
 
         if (strlen($q) < 1) {
-            return response()->json(['results' => [], 'csrf' => csrf_token()]);
+            return response()->json(['results' => [], 'csrf' => $this->csrfTokenIfSession($request)]);
         }
 
         $hasActiveAccess = $request->user()->hasActiveAccess();
@@ -418,7 +429,7 @@ class ExtensionController extends Controller
             'can_write' => $request->user()->canWriteFromExtension(),
             'has_ai_access' => $request->user()->hasAiAccess(),
             'is_admin' => Gate::check('admin'),
-            'csrf' => csrf_token(),
+            'csrf' => $this->csrfTokenIfSession($request),
         ]);
     }
 }
