@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\ExtensionController;
 use App\Http\Controllers\PlayerPairingController;
+use App\Http\Controllers\TextAnalysisController;
 use Illuminate\Support\Facades\Route;
 
 // A desktop lejátszó (topwords Player) végpontjai. Stateless csoport: nincs
@@ -34,6 +35,15 @@ Route::middleware(['auth:sanctum', 'abilities:player'])->group(function () {
     Route::middleware('throttle:60,1,player-status')->group(function () {
         Route::post('player/update-status', [ExtensionController::class, 'updateStatus'])->name('player.update-status');
         Route::post('player/update-importance', [ExtensionController::class, 'updateImportance'])->name('player.update-importance');
+    });
+
+    // AI-műveletek a lejátszó szó-buborékjából — ugyanazok a végpontok, mint a
+    // webes szövegelemzőben és az extensionben (AI-kitöltés, AI-flashcard). A
+    // hozzáférést és a havi AI-keretet a controller kapuzza; a throttle a webes
+    // ta-ai vödörrel azonos méretű, de saját prefixű.
+    Route::middleware('throttle:30,1,player-ai')->group(function () {
+        Route::get('player/gemini-lookup', [TextAnalysisController::class, 'geminiWordLookup'])->name('player.gemini-lookup');
+        Route::get('player/gemini-flashcard', [TextAnalysisController::class, 'geminiFlashcard'])->name('player.gemini-flashcard');
     });
 
     Route::post('player/add-word', [ExtensionController::class, 'addWord'])
