@@ -56,7 +56,7 @@ class PlayerPairingController extends Controller
         return response()->json([
             'user_code' => $userCode,
             'poll_secret' => $pollSecret,
-            'verification_url' => route('player.connect', ['code' => $userCode]),
+            'verification_url' => route('player.connect'),
             'expires_in' => PlayerPairing::LIFETIME_MINUTES * 60,
             'poll_interval' => 3,
         ]);
@@ -64,16 +64,14 @@ class PlayerPairingController extends Controller
 
     /**
      * A jóváhagyó oldal a böngészőben (auth + verified). A kódot a felhasználó
-     * a lejátszóban látottal veti össze — ez a phishing elleni fő védelem, ezért
-     * az oldal a jóváhagyás előtt semmit nem árul el a párosításról.
+     * KÉZZEL írja be a lejátszóból — szándékosan nincs URL-paraméter és
+     * előkitöltés, hogy egy phishing-link ne tehesse egy-kattintásossá egy
+     * idegen párosítás jóváhagyását. Az oldal a jóváhagyás előtt semmit nem
+     * árul el a párosításról.
      */
-    public function connect(Request $request): Response
+    public function connect(): Response
     {
-        $prefill = $this->normalizeUserCode($request->string('code')->value());
-
-        return Inertia::render('player/connect', [
-            'prefillCode' => $prefill,
-        ]);
+        return Inertia::render('player/connect');
     }
 
     /**

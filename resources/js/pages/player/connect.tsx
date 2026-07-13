@@ -8,17 +8,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { connect } from '@/routes/player';
 
-interface Props {
-    prefillCode: string;
-}
-
 /**
  * A topwords Player (desktop lejátszó) fiók-összekötésének jóváhagyó oldala.
  * A lejátszó a rendszer-böngészőt nyitja ide; a felhasználó a lejátszóban
- * megjelenő kódot veti össze az itt láthatóval, és a saját bejelentkezett
- * session-jével hagyja jóvá — az appba így soha nem kerül jelszó.
+ * megjelenő kódot KÉZZEL írja be — szándékosan nincs előkitöltés, hogy egy
+ * kapott linkkel ne lehessen egy kattintással idegen párosítást jóváhagyatni.
+ * A jóváhagyás a saját bejelentkezett session-nel történik, az appba így soha
+ * nem kerül jelszó.
  */
-export default function PlayerConnect({ prefillCode }: Props) {
+export default function PlayerConnect() {
     return (
         <>
             <Head title="Lejátszó összekötése" />
@@ -32,10 +30,9 @@ export default function PlayerConnect({ prefillCode }: Props) {
                 <div className="flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
                     <ShieldAlert className="mt-0.5 size-5 shrink-0" />
                     <p>
-                        Csak akkor hagyd jóvá, ha az alábbi kód{' '}
-                        <strong>pontosan megegyezik</strong> a lejátszóban
-                        megjelenő kóddal, és az összekötést te indítottad. Ha
-                        nem te kezdeményezted, zárd be ezt az oldalt.
+                        Csak a <strong>saját lejátszódban megjelenő</strong>{' '}
+                        kódot írd be. Ha valaki mástól kaptad ezt a kódot vagy
+                        ezt az oldalt, ne hagyd jóvá — zárd be az oldalt.
                     </p>
                 </div>
 
@@ -54,8 +51,8 @@ export default function PlayerConnect({ prefillCode }: Props) {
                                 <Input
                                     id="code"
                                     name="code"
-                                    defaultValue={prefillCode}
                                     required
+                                    autoFocus
                                     autoComplete="off"
                                     spellCheck={false}
                                     maxLength={20}

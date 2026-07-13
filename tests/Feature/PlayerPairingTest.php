@@ -27,7 +27,10 @@ test('pair returns a user code and poll secret without authentication', function
 
     expect($pair['user_code'])->toMatch('/^[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$/')
         ->and($pair['poll_secret'])->toHaveLength(64)
-        ->and($pair['verification_url'])->toContain('/player/connect');
+        ->and($pair['verification_url'])->toContain('/player/connect')
+        // A kód szándékosan NINCS az URL-ben: a felhasználó kézzel írja be,
+        // így egy kapott link nem tehet egy-kattintásossá idegen jóváhagyást.
+        ->and($pair['verification_url'])->not->toContain($pair['user_code']);
 });
 
 test('pair stores only the hash of the poll secret', function () {
@@ -68,13 +71,15 @@ test('connect page requires authentication', function () {
     $this->get(route('player.connect'))->assertRedirect(route('login'));
 });
 
-test('connect page renders with the prefilled code', function () {
+test('connect page ignores a code passed in the url', function () {
+    // Phishing-védelem: hiába érkezik kód az URL-ben, az oldal nem tölti elő —
+    // a felhasználónak a lejátszóban látott kódot kézzel kell beírnia.
     $this->actingAs($this->user)
         ->get(route('player.connect', ['code' => 'abcd efgh']))
         ->assertSuccessful()
         ->assertInertia(fn ($page) => $page
             ->component('player/connect')
-            ->where('prefillCode', 'ABCD-EFGH'));
+            ->missing('prefillCode'));
 });
 
 test('approve marks the pairing as approved for the logged in user', function () {
