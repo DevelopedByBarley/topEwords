@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Concerns\TogglesWordStatus;
 use App\Models\UserCustomWord;
 use App\Models\Word;
+use App\Services\AchievementService;
 use App\Services\WordFormVariants;
 use App\Services\WordStatusFormExpander;
 use App\Services\YouTubeCaptionService;
@@ -15,6 +17,8 @@ use Illuminate\Validation\Rule;
 
 class ExtensionController extends Controller
 {
+    use TogglesWordStatus;
+
     /**
      * Collapse any whitespace run to a single space and trim. Captions separate
      * phrase words with NBSP, newlines or double spaces, so the raw token sent on
@@ -278,6 +282,136 @@ class ExtensionController extends Controller
             'deck' => $deck->name,
             'csrf' => $this->csrfTokenIfSession($request),
         ]);
+    }
+
+    /**
+     * Szó-státusz állítása a token-alapú kliensből (desktop lejátszó). A webes
+     * WordController/UserCustomWordController toggle-szemantikáját követi:
+     * null vagy az aktív státusz újraküldése = levétel. A státusz-FELVÉTEL a
+     * közös napi extension-írás keretbe számít (a levétel nem, hogy a betelt
+     * keret ne akadályozza a visszavonást) — ugyanaz az üzleti szabály, mint a
+     * bővítmény-origines webes írásoknál.
+     */
+    public function updateStatus(Request $request): JsonResponse
+    {
+        if (! $request->user()) {
+            return response()->json(['error' => 'unauthenticated'], 401);
+        }
+
+        $data = $request->validate([
+            'id' => ['required', 'integer', 'min:1'],
+            'is_custom' => ['required', 'boolean'],
+        ]);
+
+        $status = $this->validatedToggleStatus($request);
+
+        if ($data['is_custom']) {
+            // Csak a saját szavai közt keresünk — a tulajdon így garantált.
+            $customWord = $request->user()->customWords()->find($data['id']);
+
+            if (! $customWord) {
+                return response()->json(['error' => 'not_found'], 404);
+            }
+
+            if ($status === null || $customWord->status === $status) {
+                $customWord->update(['status' => null]);
+
+                return response()->json(['ok' => true, 'status' => null, 'forms' => $this->statusFormsFor($customWord)]);
+            }
+
+            if (! $request->user()->reserveExtensionWrite()) {
+                return response()->json(['error' => 'plan'], 403);
+            }
+
+            $customWord->update(['status' => $status]);
+            $this->recordStatusActivity($request);
+
+            return response()->json(['ok' => true, 'status' => $status, 'forms' => $this->statusFormsFor($customWord)]);
+        }
+
+        $word = Word::find($data['id']);
+
+        if (! $word) {
+            return response()->json(['error' => 'not_found'], 404);
+        }
+
+        $existing = $request->user()->knownWords()->wherePivot('word_id', $word->id)->first();
+
+        if ($status === null || ($existing && $existing->pivot->status === $status)) {
+            $request->user()->knownWords()->detach($word->id);
+
+            return response()->json(['ok' => true, 'status' => null, 'forms' => $this->statusFormsFor($word)]);
+        }
+
+        if (! $request->user()->reserveExtensionWrite()) {
+            return response()->json(['error' => 'plan'], 403);
+        }
+
+        $request->user()->knownWords()->syncWithoutDetaching([$word->id => ['status' => $status]]);
+        $this->recordStatusActivity($request);
+
+        return response()->json(['ok' => true, 'status' => $status, 'forms' => $this->statusFormsFor($word)]);
+    }
+
+    /**
+     * Szó-fontosság állítása a token-alapú kliensből. A webes megfelelővel
+     * azonos szabályok (1–5 vagy null; pivot nélküli szónál a beállítás
+     * 'known' státusszal veszi fel a szót, a levétel nem csinál semmit).
+     * A webes viselkedéssel egyezően nem számít az írás-keretbe.
+     */
+    public function updateImportance(Request $request): JsonResponse
+    {
+        if (! $request->user()) {
+            return response()->json(['error' => 'unauthenticated'], 401);
+        }
+
+        $data = $request->validate([
+            'id' => ['required', 'integer', 'min:1'],
+            'is_custom' => ['required', 'boolean'],
+            'importance' => ['nullable', 'integer', 'min:1', 'max:5'],
+        ]);
+
+        $importance = $data['importance'] ?? null;
+
+        if ($data['is_custom']) {
+            $customWord = $request->user()->customWords()->find($data['id']);
+
+            if (! $customWord) {
+                return response()->json(['error' => 'not_found'], 404);
+            }
+
+            $customWord->update(['importance' => $importance]);
+
+            return response()->json(['ok' => true, 'importance' => $importance]);
+        }
+
+        $word = Word::find($data['id']);
+
+        if (! $word) {
+            return response()->json(['error' => 'not_found'], 404);
+        }
+
+        $existing = $request->user()->knownWords()->wherePivot('word_id', $word->id)->first();
+
+        if ($existing) {
+            $request->user()->knownWords()->updateExistingPivot($word->id, ['importance' => $importance]);
+        } elseif ($importance !== null) {
+            $request->user()->knownWords()->syncWithoutDetaching([$word->id => ['status' => 'known', 'importance' => $importance]]);
+        }
+
+        return response()->json(['ok' => true, 'importance' => $importance]);
+    }
+
+    /**
+     * Státusz-felvétel utáni streak- és achievement-könyvelés. A webes
+     * megfelelők session-flash-sel jeleznek a UI-nak; a token-alapú kliensnek
+     * nincs session-je, ezért itt csak az adat-oldali hatások futnak le.
+     */
+    private function recordStatusActivity(Request $request): void
+    {
+        $request->user()->updateStreak();
+
+        app(AchievementService::class)->checkAndAward($request->user(), ['streak', 'vocab', 'known', 'custom']);
     }
 
     public function statuses(Request $request, WordStatusFormExpander $formExpander): JsonResponse

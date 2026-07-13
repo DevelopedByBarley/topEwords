@@ -28,6 +28,14 @@ Route::middleware(['auth:sanctum', 'abilities:player'])->group(function () {
         Route::get('player/decks', [ExtensionController::class, 'decks'])->name('player.decks');
     });
 
+    // A státusz/fontosság gyakori, könnyű írás (szavankénti kattintás nézés
+    // közben), ezért a webes word-writes vödörrel azonos méretű, de saját
+    // keretet kap — nem meríti az add-word/flashcard írás-keretét.
+    Route::middleware('throttle:60,1,player-status')->group(function () {
+        Route::post('player/update-status', [ExtensionController::class, 'updateStatus'])->name('player.update-status');
+        Route::post('player/update-importance', [ExtensionController::class, 'updateImportance'])->name('player.update-importance');
+    });
+
     Route::post('player/add-word', [ExtensionController::class, 'addWord'])
         ->name('player.add-word')
         ->middleware('throttle:20,1,player-write');
