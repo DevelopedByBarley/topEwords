@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\Flashcard;
+use App\Models\FlashcardDeck;
 use App\Models\User;
 use App\Models\Word;
 use Illuminate\Support\Carbon;
@@ -88,12 +90,72 @@ test('streak_triggered is not flashed when already active today', function () {
     expect(session('streak_triggered'))->toBeNull();
 });
 
-test('dashboard includes streak', function () {
-    $this->user->update(['streak' => 7]);
+test('flashcard review updates the streak', function () {
+    $deck = FlashcardDeck::create(['user_id' => $this->user->id, 'name' => 'Deck']);
+    $card = Flashcard::create(['deck_id' => $deck->id, 'front' => 'A', 'back' => 'B', 'direction' => 'front_to_back']);
+    $this->user->update(['streak' => 4, 'last_activity_date' => Carbon::yesterday()]);
+
+    $this->postJson(route('flashcards.study.submit', $deck), [
+        'flashcard_id' => $card->id,
+        'direction' => 'front_to_back',
+        'rating' => 3,
+    ])->assertOk();
+
+    $this->user->refresh();
+    expect($this->user->streak)->toBe(5);
+    expect($this->user->last_activity_date->isToday())->toBeTrue();
+});
+
+test('quiz completion updates the streak', function () {
+    $this->user->update(['streak' => 4, 'last_activity_date' => Carbon::yesterday()]);
+
+    $this->postJson(route('words.quiz.complete'), ['perfect' => false])->assertOk();
+
+    $this->user->refresh();
+    expect($this->user->streak)->toBe(5);
+    expect($this->user->last_activity_date->isToday())->toBeTrue();
+});
+
+test('text analysis updates the streak', function () {
+    $this->user->update(['streak' => 4, 'last_activity_date' => Carbon::yesterday()]);
+
+    $this->postJson(route('text-analysis.analyze'), ['text' => 'the quick dog'])->assertOk();
+
+    $this->user->refresh();
+    expect($this->user->streak)->toBe(5);
+    expect($this->user->last_activity_date->isToday())->toBeTrue();
+});
+
+test('dashboard shows live streak when activity is today', function () {
+    $this->user->update(['streak' => 7, 'last_activity_date' => Carbon::today()]);
 
     $this->get(route('dashboard'))
         ->assertInertia(fn ($page) => $page
             ->component('dashboard')
             ->where('streak', 7)
         );
+});
+
+test('dashboard shows live streak when activity was yesterday', function () {
+    $this->user->update(['streak' => 7, 'last_activity_date' => Carbon::yesterday()]);
+
+    $this->get(route('dashboard'))
+        ->assertInertia(fn ($page) => $page
+            ->component('dashboard')
+            ->where('streak', 7)
+        );
+});
+
+test('dashboard shows zero for a broken streak before next activity', function () {
+    $this->user->update(['streak' => 7, 'last_activity_date' => Carbon::today()->subDays(3)]);
+
+    $this->get(route('dashboard'))
+        ->assertInertia(fn ($page) => $page
+            ->component('dashboard')
+            ->where('streak', 0)
+        );
+
+    // A nyers oszlopot nem írja felül olvasáskor (nincs mellékhatás GET-en).
+    $this->user->refresh();
+    expect($this->user->streak)->toBe(7);
 });

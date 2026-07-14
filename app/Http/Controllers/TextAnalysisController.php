@@ -304,8 +304,15 @@ class TextAnalysisController extends Controller
         try {
             $analysis = $this->buildAnalysis($text, $user);
 
-            $newAchievements = app(AchievementService::class)
-                ->checkAndAwardAnalysis($user, $analysis['comprehension']);
+            if ($user->updateStreak()) {
+                session()->flash('streak_triggered', $user->streak);
+            }
+
+            $achievements = app(AchievementService::class);
+            $newAchievements = [
+                ...$achievements->checkAndAwardAnalysis($user, $analysis['comprehension']),
+                ...$achievements->checkAndAward($user, ['streak']),
+            ];
         } catch (\Throwable $e) {
             // Sikertelen elemzés nem fogyaszthatja a napi keretet.
             if ($dailyLimit !== null) {

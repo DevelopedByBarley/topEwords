@@ -79,7 +79,7 @@ class DashboardController extends Controller
             'totalKnown' => $totalKnown,
             'totalWords' => $totalWords,
             'totalPercent' => $totalWords > 0 ? round(($totalKnown / $totalWords) * 100) : 0,
-            'streak' => $request->user()->streak,
+            'streak' => $request->user()->currentStreak(),
             'customStats' => $customStats,
         ]);
     }

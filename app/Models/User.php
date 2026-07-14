@@ -337,6 +337,22 @@ class User extends Authenticatable implements MustVerifyEmail
     }
 
     /**
+     * A megjelenítéshez érvényes sorozat: 0, ha a legutóbbi aktivitás óta
+     * kimaradt legalább egy nap (a nyers `streak` oszlopot csak a következő
+     * aktivitás nullázza, ezért olvasáskor itt kell frissre számolni).
+     */
+    public function currentStreak(): int
+    {
+        $lastActivity = $this->last_activity_date;
+
+        if ($lastActivity?->isToday() || $lastActivity?->isYesterday()) {
+            return $this->streak;
+        }
+
+        return 0;
+    }
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>

@@ -92,7 +92,11 @@ class FlashcardStudyController extends Controller
 
         $this->srs->processReview($review, $request->integer('rating'), $settings);
 
-        $newAchievements = app(AchievementService::class)->checkAndAward($request->user(), ['flashcard']);
+        if ($request->user()->updateStreak()) {
+            session()->flash('streak_triggered', $request->user()->streak);
+        }
+
+        $newAchievements = app(AchievementService::class)->checkAndAward($request->user(), ['flashcard', 'streak']);
 
         return response()->json(['ok' => true, 'achievements' => $newAchievements]);
     }

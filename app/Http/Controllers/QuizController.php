@@ -12,7 +12,12 @@ class QuizController extends Controller
     {
         $request->validate(['perfect' => ['boolean']]);
 
+        if ($request->user()->updateStreak()) {
+            session()->flash('streak_triggered', $request->user()->streak);
+        }
+
         $newAchievements = $service->checkAndAwardQuiz($request->user(), $request->boolean('perfect'));
+        $newAchievements = [...$newAchievements, ...$service->checkAndAward($request->user(), ['streak'])];
 
         return response()->json(['achievements' => $newAchievements]);
     }
