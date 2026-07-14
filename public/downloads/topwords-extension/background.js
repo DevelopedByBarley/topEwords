@@ -1,23 +1,60 @@
 const APP_URL = 'https://topwords.eu';
 
-// ── Badge ─────────────────────────────────────────────────────────────────────
-
-function refreshBadge() {
-    fetch(`${APP_URL}/extension/badge`, {
+// ── Közös fetch-wrapper ───────────────────────────────────────────────────────
+// Minden szerverhívás ezen megy át. A HTTP státuszkódot tipizált hibakóddá
+// alakítja, hogy a kliens ne félrevezető ágba fusson (pl. throttle 429 → „nincs
+// az adatbázisban”). A válasz-törzsbeli error mező (ai_limit, plan, duplicate…)
+// előnyben marad, mert az a legpontosabb — a státusz-alapú kód csak akkor jön,
+// ha a szerver nem adott gépi hibakódot. Sosem dob: hiba esetén { error } objektum.
+function fetchJson(url, options = {}) {
+    return fetch(url, {
         credentials: 'include',
+        ...options,
         headers: {
             'X-Requested-With': 'XMLHttpRequest',
             Accept: 'application/json',
+            ...(options.headers ?? {}),
         },
     })
-        .then((r) => r.json())
-        .then(({ count }) => {
-            chrome.action.setBadgeText({
-                text: count > 0 ? String(count) : '',
-            });
-            chrome.action.setBadgeBackgroundColor({ color: '#3b82f6' });
+        .then(async (r) => {
+            const data = await r.json().catch(() => null);
+
+            if (r.ok) {
+                return data ?? { error: 'server' };
+            }
+
+            if (data && data.error) {
+                return data;
+            }
+
+            if (r.status === 401) {
+                return { error: 'unauthenticated' };
+            }
+
+            if (r.status === 419) {
+                return { error: 'csrf' };
+            }
+
+            if (r.status === 429) {
+                return { error: 'rate_limit' };
+            }
+
+            return { error: 'server' };
         })
-        .catch(() => chrome.action.setBadgeText({ text: '' }));
+        .catch(() => ({ error: 'network' }));
+}
+
+// ── Badge ─────────────────────────────────────────────────────────────────────
+
+function refreshBadge() {
+    fetchJson(`${APP_URL}/extension/badge`).then((data) => {
+        const count = data?.count ?? 0;
+
+        chrome.action.setBadgeText({
+            text: count > 0 ? String(count) : '',
+        });
+        chrome.action.setBadgeBackgroundColor({ color: '#3b82f6' });
+    });
 }
 
 // ── Státusz-cache ─────────────────────────────────────────────────────────────
@@ -168,32 +205,19 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
 
     if (msg.type === 'LOOKUP_WORD') {
-        fetch(
+        fetchJson(
             `${APP_URL}/extension/lookup?word=${encodeURIComponent(msg.word)}`,
-            {
-                credentials: 'include',
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest',
-                    Accept: 'application/json',
-                },
-            },
-        )
-            .then((r) => r.json())
-            .then((data) => sendResponse(data))
-            .catch(() => sendResponse({ error: 'network' }));
+        ).then((data) => sendResponse(data));
 
         return true; // keep channel open for async response
     }
 
     if (msg.type === 'ADD_WORD') {
-        fetch(`${APP_URL}/extension/add-word`, {
+        fetchJson(`${APP_URL}/extension/add-word`, {
             method: 'POST',
-            credentials: 'include',
             headers: {
                 'Content-Type': 'application/json',
                 'X-CSRF-TOKEN': msg.csrf,
-                'X-Requested-With': 'XMLHttpRequest',
-                Accept: 'application/json',
             },
             body: JSON.stringify({
                 word: msg.word,
@@ -215,54 +239,35 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                 status: msg.status,
                 importance: msg.importance,
             }),
-        })
-            .then((r) => r.json())
-            .then((data) => {
-                // Új szó bekerült a szótárba — a térkép elavult, dobjuk a cache-t.
-                if (data && data.ok) {
-                    invalidateStatusCache();
-                }
+        }).then((data) => {
+            // Új szó bekerült a szótárba — a térkép elavult, dobjuk a cache-t.
+            if (data && data.ok) {
+                invalidateStatusCache();
+            }
 
-                sendResponse(data);
-            })
-            .catch(() => sendResponse({ error: 'network' }));
+            sendResponse(data);
+        });
 
         return true;
     }
 
     if (msg.type === 'SEARCH_WORD') {
-        fetch(`${APP_URL}/extension/search?q=${encodeURIComponent(msg.q)}`, {
-            credentials: 'include',
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest',
-                Accept: 'application/json',
-            },
-        })
-            .then((r) => r.json())
-            .then((data) => sendResponse(data))
-            .catch(() => sendResponse({ error: 'network' }));
+        fetchJson(
+            `${APP_URL}/extension/search?q=${encodeURIComponent(msg.q)}`,
+        ).then((data) => sendResponse(data));
 
         return true;
     }
 
     if (msg.type === 'GET_STATUSES') {
         const fetchFresh = () => {
-            fetch(`${APP_URL}/extension/statuses`, {
-                credentials: 'include',
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest',
-                    Accept: 'application/json',
-                },
-            })
-                .then((r) => r.json())
-                .then((data) => {
-                    if (data && data.statuses) {
-                        writeStatusCache(data.statuses);
-                    }
+            fetchJson(`${APP_URL}/extension/statuses`).then((data) => {
+                if (data && data.statuses) {
+                    writeStatusCache(data.statuses);
+                }
 
-                    sendResponse(data);
-                })
-                .catch(() => sendResponse({ error: 'network' }));
+                sendResponse(data);
+            });
         };
 
         // forceFresh: a fülre visszatéréskor (visibilitychange) megkerüljük a cache-t,
@@ -287,19 +292,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
 
     if (msg.type === 'GET_YT_TRANSCRIPT') {
-        fetch(
+        fetchJson(
             `${APP_URL}/extension/youtube-transcript?v=${encodeURIComponent(msg.videoId)}`,
-            {
-                credentials: 'include',
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest',
-                    Accept: 'application/json',
-                },
-            },
-        )
-            .then((r) => r.json())
-            .then((data) => sendResponse(data))
-            .catch(() => sendResponse({ error: 'network' }));
+        ).then((data) => sendResponse(data));
 
         return true;
     }
@@ -313,35 +308,29 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             ? JSON.stringify({ status: msg.status })
             : JSON.stringify({ status: '' });
 
-        fetch(url, {
+        fetchJson(url, {
             method: 'POST',
-            credentials: 'include',
             headers: {
                 'Content-Type': 'application/json',
                 'X-CSRF-TOKEN': msg.csrf,
-                'X-Requested-With': 'XMLHttpRequest',
-                Accept: 'application/json',
             },
             body,
-        })
-            .then(async (r) => {
-                if (!r.ok) {
-                    sendResponse({ ok: false });
+        }).then(async (data) => {
+            if (!data || data.error) {
+                sendResponse({ ok: false, error: data?.error });
 
-                    return;
-                }
+                return;
+            }
 
-                // A válasz tartalmazza a megváltozott szó összes felszíni alakját;
-                // ezekkel helyben foltozzuk a cache-t (await: a content script
-                // rákövetkező GET_STATUSES-e már a friss térképet lássa), így a
-                // teljes újraletöltés elmarad.
-                const data = await r.json().catch(() => ({}));
-                await patchStatusCache(data.forms, data.status ?? null);
-                refreshBadge();
+            // A válasz tartalmazza a megváltozott szó összes felszíni alakját;
+            // ezekkel helyben foltozzuk a cache-t (await: a content script
+            // rákövetkező GET_STATUSES-e már a friss térképet lássa), így a
+            // teljes újraletöltés elmarad.
+            await patchStatusCache(data.forms, data.status ?? null);
+            refreshBadge();
 
-                sendResponse({ ok: true, status: data.status ?? null });
-            })
-            .catch(() => sendResponse({ error: 'network' }));
+            sendResponse({ ok: true, status: data.status ?? null });
+        });
 
         return true;
     }
@@ -351,89 +340,53 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             ? `${APP_URL}/custom-words/${msg.id}/importance`
             : `${APP_URL}/words/${msg.id}/importance`;
 
-        fetch(url, {
+        fetchJson(url, {
             method: 'POST',
-            credentials: 'include',
             headers: {
                 'Content-Type': 'application/json',
                 'X-CSRF-TOKEN': msg.csrf,
-                'X-Requested-With': 'XMLHttpRequest',
-                Accept: 'application/json',
             },
             body: JSON.stringify({ importance: msg.importance ?? null }),
-        })
-            .then((r) => sendResponse({ ok: r.ok }))
-            .catch(() => sendResponse({ error: 'network' }));
+        }).then((data) =>
+            sendResponse({ ok: Boolean(data && !data.error), error: data?.error }),
+        );
 
         return true;
     }
 
     if (msg.type === 'GET_DECKS') {
-        fetch(`${APP_URL}/extension/decks`, {
-            credentials: 'include',
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest',
-                Accept: 'application/json',
-            },
-        })
-            .then((r) => r.json())
-            .then((data) => sendResponse(data))
-            .catch(() => sendResponse({ error: 'network' }));
+        fetchJson(`${APP_URL}/extension/decks`).then((data) =>
+            sendResponse(data),
+        );
 
         return true;
     }
 
     if (msg.type === 'CREATE_FLASHCARD') {
-        fetch(`${APP_URL}/extension/create-flashcard`, {
+        fetchJson(`${APP_URL}/extension/create-flashcard`, {
             method: 'POST',
-            credentials: 'include',
             headers: {
                 'Content-Type': 'application/json',
                 'X-CSRF-TOKEN': msg.csrf,
-                'X-Requested-With': 'XMLHttpRequest',
-                Accept: 'application/json',
             },
             body: JSON.stringify(msg.card),
-        })
-            .then((r) => r.json())
-            .then((data) => sendResponse(data))
-            .catch(() => sendResponse({ error: 'network' }));
+        }).then((data) => sendResponse(data));
 
         return true;
     }
 
     if (msg.type === 'GEMINI_FLASHCARD') {
-        fetch(
+        fetchJson(
             `${APP_URL}/text-analysis/gemini-flashcard?word=${encodeURIComponent(msg.word)}`,
-            {
-                credentials: 'include',
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest',
-                    Accept: 'application/json',
-                },
-            },
-        )
-            .then((r) => r.json())
-            .then((data) => sendResponse(data))
-            .catch(() => sendResponse({ error: 'network' }));
+        ).then((data) => sendResponse(data));
 
         return true;
     }
 
     if (msg.type === 'GEMINI_LOOKUP') {
-        fetch(
+        fetchJson(
             `${APP_URL}/text-analysis/gemini-lookup?word=${encodeURIComponent(msg.word)}`,
-            {
-                credentials: 'include',
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest',
-                    Accept: 'application/json',
-                },
-            },
-        )
-            .then((r) => r.json())
-            .then((data) => sendResponse(data))
-            .catch(() => sendResponse({ error: 'network' }));
+        ).then((data) => sendResponse(data));
 
         return true;
     }

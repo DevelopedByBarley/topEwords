@@ -100,16 +100,37 @@ function ensureNfxBar() {
         <div id="bar"></div>
     `;
 
-    shadow.getElementById('bar').addEventListener('click', (e) => {
-        handleNfxWordClick(e.target.closest('.tw-word'));
+    const bar = shadow.getElementById('bar');
+    // Shift+kattintásnál ne induljon natív szövegkijelölés.
+    bar.addEventListener('mousedown', (e) => {
+        if (e.shiftKey) {
+            e.preventDefault();
+        }
+    });
+    bar.addEventListener('click', (e) => {
+        handleNfxWordClick(e.target.closest('.tw-word'), e.shiftKey);
     });
 
     player.appendChild(nfxBarHost);
 }
 
 /** Felirat-szóra kattintás: videó megáll, kiejtés, jelentés-popup. */
-function handleNfxWordClick(span) {
+function handleNfxWordClick(span, shiftKey = false) {
     if (!span) {
+        return;
+    }
+
+    const video = nfxVideo();
+
+    // Shift: csak a kijelölést építjük; a videót megállítjuk, hogy a felirat ne
+    // váltson kijelölés közben. A popup a Shift elengedésekor nyílik meg.
+    if (shiftKey) {
+        if (video && !video.paused) {
+            video.pause();
+        }
+
+        twSelHandleShiftClick(span);
+
         return;
     }
 
@@ -118,8 +139,6 @@ function handleNfxWordClick(span) {
     if (!word) {
         return;
     }
-
-    const video = nfxVideo();
 
     if (video && !video.paused) {
         video.pause();
@@ -137,6 +156,7 @@ function renderNfxBar(text) {
     }
 
     if (!text.trim()) {
+        nfxLastCaptionText = '';
         bar.innerHTML = '';
         bar.style.display = 'none';
 
@@ -328,9 +348,12 @@ function reconcileNfxLyrics() {
             }
 
             showNfxBarNotice(
-                error === 'network'
-                    ? 'Nincs kapcsolat a TopWords-szel.'
-                    : 'Jelentkezz be a TopWords-be a szókiemeléshez.',
+                error === 'unauthenticated'
+                    ? 'Jelentkezz be a TopWords-be a szókiemeléshez.'
+                    : extErrorMessage(
+                          error,
+                          'Nem sikerült betölteni a szavaidat — próbáld újra később.',
+                      ),
             );
 
             return;
@@ -496,3 +519,13 @@ if (location.hostname === 'www.netflix.com') {
         }
     }
 }
+
+// A közös szókincs-frissítés (shared.js: refreshVocabHighlights) hookja: friss
+// státusztérkép érkezésekor újrarajzolja a Netflix felirat-sávot.
+registerVocabRefreshHook({
+    isActive: () => nfxEnabled && !!nfxLastCaptionText,
+    apply(map) {
+        ytStatusMap = map;
+        renderNfxBar(nfxLastCaptionText);
+    },
+});

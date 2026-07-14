@@ -18,46 +18,103 @@ function showFcFeedback(el, text, color) {
 }
 
 // Az AI-flashcard HTML-jét a backend már escape-eli, de defense-in-depth jelleggel
-// kliens oldalon is megtisztítjuk, mielőtt DOM-ba kerül: eltávolítjuk a veszélyes
-// elemeket, az on* eseménykezelőket és a javascript:/data: URL-eket. DocumentFragmentet
+// kliens oldalon is megtisztítjuk, mielőtt DOM-ba kerül. Allowlist-alapú (a webes
+// lib/sanitize-html.ts mintájára): csak az engedélyezett tagek maradnak, minden
+// attribútum törlődik a szűrt style kivételével — így img/a (távoli kérés,
+// tracking) és pozicionáló CSS (overlay) be sem kerülhet. DocumentFragmentet
 // ad vissza, amit replaceChildren-nel rakunk be (sosem nyers innerHTML-lel).
+// A backend jelenleg csak p/em/strong/span(+style) elemeket generál.
+
+const AI_HTML_ALLOWED_TAGS = new Set([
+    'p',
+    'br',
+    'div',
+    'span',
+    'strong',
+    'b',
+    'em',
+    'i',
+    'u',
+    's',
+    'del',
+    'ul',
+    'ol',
+    'li',
+    'code',
+    'mark',
+    'sub',
+    'sup',
+    'small',
+]);
+
+// Ezeknek a teljes részfája törlődik (sosem csomagoljuk ki szöveggé).
+const AI_HTML_DROP_TAGS = new Set([
+    'script',
+    'style',
+    'iframe',
+    'object',
+    'embed',
+    'svg',
+    'math',
+    'form',
+    'link',
+    'meta',
+    'base',
+    'noscript',
+    'template',
+]);
+
+// Csak tipográfiai CSS-tulajdonságok maradhatnak (a böngésző a shorthandeket
+// longhandekre bontja, ezért padding-top stb. is szerepel).
+const AI_HTML_ALLOWED_STYLE_PROP =
+    /^(color|background-color|padding(-(top|right|bottom|left))?|border-([a-z]+-)*radius|font-(weight|style)|text-decoration(-[a-z]+)?)$/;
+
 function sanitizeAiHtml(html) {
     const tpl = document.createElement('template');
     tpl.innerHTML = String(html ?? '');
 
-    tpl.content
-        .querySelectorAll(
-            'script, style, iframe, object, embed, link, meta, base, form, svg, math',
-        )
-        .forEach((el) => el.remove());
+    // Snapshot a mutálás előtt; a törölt/kicsomagolt elemek gyerekei is benne
+    // vannak, azok a saját körükben dolgozódnak fel.
+    [...tpl.content.querySelectorAll('*')].forEach((el) => {
+        const tag = el.tagName.toLowerCase();
 
-    tpl.content.querySelectorAll('*').forEach((el) => {
+        if (AI_HTML_DROP_TAGS.has(tag)) {
+            el.remove();
+
+            return;
+        }
+
+        if (!AI_HTML_ALLOWED_TAGS.has(tag)) {
+            // Ismeretlen, de nem veszélyes tag: a tartalma megmarad.
+            el.replaceWith(...el.childNodes);
+
+            return;
+        }
+
         [...el.attributes].forEach((attr) => {
-            const name = attr.name.toLowerCase();
-
-            if (name.startsWith('on')) {
-                el.removeAttribute(attr.name);
-            } else if (
-                [
-                    'href',
-                    'src',
-                    'srcset',
-                    'xlink:href',
-                    'formaction',
-                    'action',
-                    'background',
-                    'poster',
-                ].includes(name) &&
-                /^\s*(javascript|data|vbscript):/i.test(attr.value)
-            ) {
-                el.removeAttribute(attr.name);
-            } else if (
-                name === 'style' &&
-                /expression\s*\(|javascript:/i.test(attr.value)
-            ) {
+            if (attr.name.toLowerCase() !== 'style') {
                 el.removeAttribute(attr.name);
             }
         });
+
+        if (el.hasAttribute('style')) {
+            const safeCss = Array.from({ length: el.style.length }, (_, i) =>
+                el.style.item(i),
+            )
+                .filter(
+                    (prop) =>
+                        AI_HTML_ALLOWED_STYLE_PROP.test(prop) &&
+                        !/url\s*\(/i.test(el.style.getPropertyValue(prop)),
+                )
+                .map((prop) => `${prop}: ${el.style.getPropertyValue(prop)}`)
+                .join('; ');
+
+            if (safeCss) {
+                el.setAttribute('style', safeCss);
+            } else {
+                el.removeAttribute('style');
+            }
+        }
     });
 
     return tpl.content;
@@ -189,7 +246,10 @@ function wireFlashcardForm(root, data, csrf, onBack) {
                 if (!resp || resp.error || (!resp.front && !resp.back)) {
                     showFcFeedback(
                         feedback,
-                        'Az AI nem tudott kártyát készíteni.',
+                        extErrorMessage(
+                            resp?.error,
+                            'Az AI nem tudott kártyát készíteni.',
+                        ),
                         '#ef4444',
                     );
 
@@ -260,7 +320,7 @@ function wireFlashcardForm(root, data, csrf, onBack) {
                 saveBtn.textContent = 'Mentés';
                 showFcFeedback(
                     feedback,
-                    'Ingyenes limit: paklinként max 20 kártya.',
+                    'Ingyenes limit: max 50 kártya.',
                     '#f97316',
                 );
             } else if (resp?.error === 'deck_not_found') {
@@ -268,12 +328,23 @@ function wireFlashcardForm(root, data, csrf, onBack) {
                 saveBtn.disabled = false;
                 saveBtn.textContent = 'Mentés';
                 showFcFeedback(feedback, 'A pakli nem található.', '#ef4444');
+            } else if (resp?.error === 'plan') {
+                saveBtn.disabled = false;
+                saveBtn.textContent = 'Mentés';
+                showFcFeedback(
+                    feedback,
+                    'Elérted a bővítmény napi ingyenes keretét — holnap folytathatod.',
+                    '#f97316',
+                );
             } else {
                 saveBtn.disabled = false;
                 saveBtn.textContent = 'Mentés';
                 showFcFeedback(
                     feedback,
-                    'Nem sikerült menteni — próbáld újra.',
+                    extErrorMessage(
+                        resp?.error,
+                        'Nem sikerült menteni — próbáld újra.',
+                    ),
                     '#ef4444',
                 );
             }
@@ -357,8 +428,12 @@ function openFlashcardModal(data, csrf) {
         }
 
         if (!resp || resp.error) {
-            body.innerHTML =
-                '<div class="fc-empty">Nem sikerült betölteni a paklikat.</div>';
+            body.innerHTML = `<div class="fc-empty">${esc(
+                extErrorMessage(
+                    resp?.error,
+                    'Nem sikerült betölteni a paklikat.',
+                ),
+            )}</div>`;
 
             return;
         }

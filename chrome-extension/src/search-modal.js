@@ -427,12 +427,18 @@ function showSearchDetail(data) {
 
         posSelect.addEventListener('change', updateFormSections);
 
-        const toggleOtherChevron = detail.querySelector('#toggle-other-chevron');
-        detail.querySelector('#toggle-other-forms').addEventListener('click', () => {
-            showOtherForms = !showOtherForms;
-            toggleOtherChevron.style.transform = showOtherForms ? '' : 'rotate(-90deg)';
-            updateFormSections();
-        });
+        const toggleOtherChevron = detail.querySelector(
+            '#toggle-other-chevron',
+        );
+        detail
+            .querySelector('#toggle-other-forms')
+            .addEventListener('click', () => {
+                showOtherForms = !showOtherForms;
+                toggleOtherChevron.style.transform = showOtherForms
+                    ? ''
+                    : 'rotate(-90deg)';
+                updateFormSections();
+            });
 
         // Felvitelkor választható státusz (alapból „Tudom") és fontosság.
         let addStatus = 'known';
@@ -582,11 +588,15 @@ function showSearchDetail(data) {
                         };
                         setFormVal('#add-verb-past', resp.verb_past);
                         setFormVal('#add-verb-pp', resp.verb_past_participle);
-                        setFormVal('#add-verb-prog', resp.verb_present_participle);
+                        setFormVal(
+                            '#add-verb-prog',
+                            resp.verb_present_participle,
+                        );
                         setFormVal('#add-verb-3rd', resp.verb_third_person);
 
                         if (resp.is_irregular) {
-                            detail.querySelector('#add-irregular').checked = true;
+                            detail.querySelector('#add-irregular').checked =
+                                true;
                         }
 
                         setFormVal('#add-noun-plural', resp.noun_plural);
@@ -665,7 +675,8 @@ function showSearchDetail(data) {
                 detail.querySelector('#add-verb-prog').value.trim() || null;
             payload.verb_third_person =
                 detail.querySelector('#add-verb-3rd').value.trim() || null;
-            payload.is_irregular = detail.querySelector('#add-irregular').checked;
+            payload.is_irregular =
+                detail.querySelector('#add-irregular').checked;
             payload.noun_plural =
                 detail.querySelector('#add-noun-plural').value.trim() || null;
             payload.adj_comparative =
@@ -688,10 +699,11 @@ function showSearchDetail(data) {
                     fb.textContent = 'Már szerepel a saját szavaid között.';
                     fb.style.color = '#f97316';
                     fb.style.display = 'block';
-                } else if (resp?.error === 'limit') {
+                } else if (resp?.error === 'plan') {
                     btn.disabled = false;
                     btn.textContent = 'Hozzáadás';
-                    fb.textContent = 'Elérted az ingyenes limitet (10 szó).';
+                    fb.textContent =
+                        'Elérted a bővítmény napi ingyenes keretét — holnap folytathatod.';
                     fb.style.color = '#f97316';
                     fb.style.display = 'block';
                 } else {

@@ -6,9 +6,14 @@ let searchHost = null;
 let searchShadow = null;
 let searchDebounce = null;
 let searchCsrf = null;
-let searchHasAccess = false;
 let searchIsAdmin = false;
 let searchHasAi = false;
+// Saját szó felvitele / flashcard-készítés a bővítményből a közös napi keretbe
+// számít (Free napi limit, Pro korlátlan). A szerver can_write mezője a valós
+// pillanatnyi kvótát tükrözi (canWriteFromExtension): false, ha a Free user
+// aznapra betöltötte a keretet — ilyenkor ezek helyett keret-hint jelenik meg.
+// A státusz/fontosság mindenkinek elérhető, ahogy a weboldalon is.
+let searchCanWrite = false;
 let searchResultsData = [];
 let searchSelIdx = -1;
 
@@ -80,9 +85,9 @@ function showSearch() {
                 }
 
                 searchCsrf = resp?.csrf ?? null;
-                searchHasAccess = resp?.has_active_access ?? false;
                 searchIsAdmin = resp?.is_admin ?? false;
                 searchHasAi = resp?.has_ai_access ?? false;
+                searchCanWrite = resp?.can_write ?? false;
                 renderSearchResults(resp?.results ?? [], resp?.error);
             });
         }, 250);
@@ -173,9 +178,9 @@ function openAddWordForm(word) {
         }
 
         searchCsrf = resp?.csrf ?? null;
-        searchHasAccess = resp?.has_active_access ?? false;
         searchIsAdmin = resp?.is_admin ?? false;
         searchHasAi = resp?.has_ai_access ?? false;
+        searchCanWrite = resp?.can_write ?? false;
 
         const results = resp?.results ?? [];
         const exact = results.find(
@@ -216,8 +221,12 @@ function renderSearchResults(results, error) {
     detail.classList.remove('visible');
     detail.innerHTML = '';
 
-    if (error === 'unauthenticated' || error === 'network') {
-        container.innerHTML = `<div id="empty">${error === 'network' ? 'Nincs kapcsolat a TopWords-szel.' : 'Jelentkezz be a TopWords-be a kereséshez.'}</div>`;
+    if (error) {
+        const msg =
+            error === 'unauthenticated'
+                ? 'Jelentkezz be a TopWords-be a kereséshez.'
+                : extErrorMessage(error, 'Hiba történt — próbáld újra.');
+        container.innerHTML = `<div id="empty">${msg}</div>`;
 
         return;
     }
@@ -286,17 +295,40 @@ function showSearchDetail(data) {
 
     const detail = searchShadow.getElementById('detail');
 
-    let statusSection = '';
-    let importanceSection = '';
+    // A státusz/fontosság a weboldalon is mindenkinek elérhető, ezért itt sincs
+    // keretbe kötve. Ami a közös napi keretbe számít (canWriteFromExtension):
+    // saját szó felvitele és flashcard-készítés a bővítményből. A can_write a
+    // valós pillanatnyi kvótát tükrözi — Free-nél false, ha aznap betelt a keret.
+    const canWrite = searchCanWrite;
+    const addWordUpgradeHint = `<a class="upgrade-hint" href="${APP_URL}/pricing" target="_blank">🔒 Elérted a bővítmény napi ingyenes keretét — holnap folytathatod, vagy válts Prora a korlátlan mentésért →</a>`;
+    const flashcardUpgradeHint = `<a class="upgrade-hint" href="${APP_URL}/pricing" target="_blank">🔒 Elérted a bővítmény napi ingyenes keretét — holnap folytathatod, vagy válts Prora a korlátlan mentésért →</a>`;
 
-    if (searchHasAccess) {
-        statusSection = `<div class="detail-statuses">${statusBtnsHtml(data.status)}</div>`;
-        importanceSection = `<div class="meta-label">Fontosság</div><div class="importance-row" id="detail-importance">${starsHtml(data.importance)}</div>`;
-    }
+    const statusSection = `<div class="detail-statuses">${statusBtnsHtml(data.status)}</div>`;
+    const importanceSection = `<div class="meta-label">Fontosság</div><div class="importance-row" id="detail-importance">${starsHtml(data.importance)}</div>`;
 
     // Ha nincs a DB-ben (nem found), mutass teljes "Hozzáadás" formot
     if (data._notFound) {
         const googleUrl = `https://www.google.com/search?q=${encodeURIComponent(data.word + ' angol szó: jelentése magyarul, szinonimák, példamondat angolul és magyarul, szófaj, igeragozás ha ige')}&udm=50`;
+
+        // Betelt napi keret: saját szó felvitele ilyenkor nem megy. A form helyett
+        // csak a szó + külső Google-keresés + keret-hint jelenik meg.
+        if (!canWrite) {
+            detail.innerHTML = `
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+                    <span style="font-size:14px;font-weight:700;color:#0f172a">${esc(data.word)}</span>
+                    <a class="google-ai-link" href="${googleUrl}" target="_blank">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                        Google AI
+                    </a>
+                </div>
+                <div style="margin-top:8px">${addWordUpgradeHint}</div>
+            `;
+            detail.classList.add('visible');
+            detail.classList.remove('form-mode');
+
+            return;
+        }
+
         detail.innerHTML = `
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
                 <span style="font-size:14px;font-weight:700;color:#0f172a">${esc(data.word)}</span>
@@ -395,12 +427,18 @@ function showSearchDetail(data) {
 
         posSelect.addEventListener('change', updateFormSections);
 
-        const toggleOtherChevron = detail.querySelector('#toggle-other-chevron');
-        detail.querySelector('#toggle-other-forms').addEventListener('click', () => {
-            showOtherForms = !showOtherForms;
-            toggleOtherChevron.style.transform = showOtherForms ? '' : 'rotate(-90deg)';
-            updateFormSections();
-        });
+        const toggleOtherChevron = detail.querySelector(
+            '#toggle-other-chevron',
+        );
+        detail
+            .querySelector('#toggle-other-forms')
+            .addEventListener('click', () => {
+                showOtherForms = !showOtherForms;
+                toggleOtherChevron.style.transform = showOtherForms
+                    ? ''
+                    : 'rotate(-90deg)';
+                updateFormSections();
+            });
 
         // Felvitelkor választható státusz (alapból „Tudom") és fontosság.
         let addStatus = 'known';
@@ -477,6 +515,23 @@ function showSearchDetail(data) {
                             return;
                         }
 
+                        // Korábban némán elnyelődött (pl. 429 throttle) — a gomb
+                        // visszaállt, de a user semmilyen visszajelzést nem kapott.
+                        if (!resp || resp.error) {
+                            const fb = detail.querySelector('#add-feedback');
+
+                            if (fb) {
+                                fb.textContent = extErrorMessage(
+                                    resp?.error,
+                                    'Az AI-kitöltés nem sikerült — próbáld újra.',
+                                );
+                                fb.style.color = '#f97316';
+                                fb.style.display = 'block';
+                            }
+
+                            return;
+                        }
+
                         // Az AI nem létező szónak ítélte (gibberish / elgépelés): jelezzük.
                         if (resp.is_real_word === false) {
                             const fb = detail.querySelector('#add-feedback');
@@ -489,10 +544,6 @@ function showSearchDetail(data) {
                                 fb.style.display = 'block';
                             }
 
-                            return;
-                        }
-
-                        if (!resp || resp.error) {
                             return;
                         }
 
@@ -537,11 +588,15 @@ function showSearchDetail(data) {
                         };
                         setFormVal('#add-verb-past', resp.verb_past);
                         setFormVal('#add-verb-pp', resp.verb_past_participle);
-                        setFormVal('#add-verb-prog', resp.verb_present_participle);
+                        setFormVal(
+                            '#add-verb-prog',
+                            resp.verb_present_participle,
+                        );
                         setFormVal('#add-verb-3rd', resp.verb_third_person);
 
                         if (resp.is_irregular) {
-                            detail.querySelector('#add-irregular').checked = true;
+                            detail.querySelector('#add-irregular').checked =
+                                true;
                         }
 
                         setFormVal('#add-noun-plural', resp.noun_plural);
@@ -620,7 +675,8 @@ function showSearchDetail(data) {
                 detail.querySelector('#add-verb-prog').value.trim() || null;
             payload.verb_third_person =
                 detail.querySelector('#add-verb-3rd').value.trim() || null;
-            payload.is_irregular = detail.querySelector('#add-irregular').checked;
+            payload.is_irregular =
+                detail.querySelector('#add-irregular').checked;
             payload.noun_plural =
                 detail.querySelector('#add-noun-plural').value.trim() || null;
             payload.adj_comparative =
@@ -643,16 +699,20 @@ function showSearchDetail(data) {
                     fb.textContent = 'Már szerepel a saját szavaid között.';
                     fb.style.color = '#f97316';
                     fb.style.display = 'block';
-                } else if (resp?.error === 'limit') {
+                } else if (resp?.error === 'plan') {
                     btn.disabled = false;
                     btn.textContent = 'Hozzáadás';
-                    fb.textContent = 'Elérted az ingyenes limitet (10 szó).';
+                    fb.textContent =
+                        'Elérted a bővítmény napi ingyenes keretét — holnap folytathatod.';
                     fb.style.color = '#f97316';
                     fb.style.display = 'block';
                 } else {
                     btn.disabled = false;
                     btn.textContent = 'Hozzáadás';
-                    fb.textContent = 'Nem sikerült menteni — próbáld újra.';
+                    fb.textContent = extErrorMessage(
+                        resp?.error,
+                        'Nem sikerült menteni — próbáld újra.',
+                    );
                     fb.style.color = '#ef4444';
                     fb.style.display = 'block';
                 }
@@ -676,8 +736,9 @@ function showSearchDetail(data) {
         <div style="display:flex;align-items:center;gap:4px">
             <a class="detail-link" href="${APP_URL}/words?search=${encodeURIComponent(data.word)}" target="_blank">Megnyitás a TopWords-ben →</a>
             <button class="detail-tts-btn" title="Kiejtés angolul">🔊</button>
-            <button class="fc-btn" title="Flashcard készítése" style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;border:1px solid #e2e8f0;background:none;cursor:pointer;font-size:12px;flex-shrink:0;margin-left:6px">📇</button>
+            ${canWrite ? `<button class="fc-btn" title="Flashcard készítése" style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;border:1px solid #e2e8f0;background:none;cursor:pointer;font-size:12px;flex-shrink:0;margin-left:6px">📇</button>` : ''}
         </div>
+        ${canWrite ? '' : `<div style="margin-top:8px">${flashcardUpgradeHint}</div>`}
     `;
     detail.classList.add('visible');
     detail.classList.remove('form-mode');
@@ -690,85 +751,83 @@ function showSearchDetail(data) {
         openFlashcardModal(data, searchCsrf);
     });
 
-    if (searchHasAccess) {
-        detail.querySelectorAll('.status-btn').forEach((btn) => {
-            btn.addEventListener('click', () => {
-                const newStatus = btn.dataset.status;
-                const isSame = btn.classList.contains('active');
-                const prev = data;
+    detail.querySelectorAll('.status-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const newStatus = btn.dataset.status;
+            const isSame = btn.classList.contains('active');
+            const prev = data;
 
-                detail.querySelectorAll('.status-btn').forEach((b) => {
-                    b.classList.remove('active');
-                    b.style.background = '';
-                    b.style.borderColor = '';
-                    b.style.color = '';
-                });
-
-                if (!isSame) {
-                    btn.classList.add('active');
-                    const color = STATUS_COLORS[newStatus];
-                    btn.style.background = color;
-                    btn.style.borderColor = color;
-                    btn.style.color = '#fff';
-                }
-
-                data = { ...data, status: isSame ? null : newStatus };
-
-                sendMsg(
-                    {
-                        type: 'UPDATE_STATUS',
-                        id: data.id,
-                        is_custom: data.is_custom,
-                        status: isSame ? null : newStatus,
-                        csrf: searchCsrf,
-                    },
-                    (resp) => {
-                        if (resp?.ok) {
-                            refreshVocabHighlights();
-
-                            return;
-                        }
-
-                        if (!searchShadow) {
-                            return;
-                        }
-
-                        // Sikertelen mentés → előző állapot visszaállítása
-                        data = prev;
-                        showSearchDetail(prev);
-                    },
-                );
+            detail.querySelectorAll('.status-btn').forEach((b) => {
+                b.classList.remove('active');
+                b.style.background = '';
+                b.style.borderColor = '';
+                b.style.color = '';
             });
+
+            if (!isSame) {
+                btn.classList.add('active');
+                const color = STATUS_COLORS[newStatus];
+                btn.style.background = color;
+                btn.style.borderColor = color;
+                btn.style.color = '#fff';
+            }
+
+            data = { ...data, status: isSame ? null : newStatus };
+
+            sendMsg(
+                {
+                    type: 'UPDATE_STATUS',
+                    id: data.id,
+                    is_custom: data.is_custom,
+                    status: isSame ? null : newStatus,
+                    csrf: searchCsrf,
+                },
+                (resp) => {
+                    if (resp?.ok) {
+                        refreshVocabHighlights();
+
+                        return;
+                    }
+
+                    if (!searchShadow) {
+                        return;
+                    }
+
+                    // Sikertelen mentés → előző állapot visszaállítása
+                    data = prev;
+                    showSearchDetail(prev);
+                },
+            );
         });
+    });
 
-        const impRow = detail.querySelector('#detail-importance');
+    const impRow = detail.querySelector('#detail-importance');
 
-        impRow?.querySelectorAll('.imp-star').forEach((star) => {
-            star.addEventListener('click', () => {
-                const n = parseInt(star.dataset.star);
-                const prevImportance = data.importance ?? null;
-                const next = prevImportance === n ? null : n;
+    impRow?.querySelectorAll('.imp-star').forEach((star) => {
+        star.addEventListener('click', () => {
+            const n = parseInt(star.dataset.star);
+            const prevImportance = data.importance ?? null;
+            const next = prevImportance === n ? null : n;
 
-                paintStars(impRow, next);
-                data = { ...data, importance: next };
+            paintStars(impRow, next);
+            data = { ...data, importance: next };
 
-                sendMsg(
-                    {
-                        type: 'UPDATE_IMPORTANCE',
-                        id: data.id,
-                        is_custom: data.is_custom,
-                        importance: next,
-                        csrf: searchCsrf,
-                    },
-                    (resp) => {
-                        if (!resp?.ok) {
-                            // Sikertelen mentés → előző érték visszaállítása
-                            data = { ...data, importance: prevImportance };
-                            paintStars(impRow, prevImportance);
-                        }
-                    },
-                );
-            });
+            sendMsg(
+                {
+                    type: 'UPDATE_IMPORTANCE',
+                    id: data.id,
+                    is_custom: data.is_custom,
+                    importance: next,
+                    csrf: searchCsrf,
+                },
+                (resp) => {
+                    if (!resp?.ok) {
+                        // Sikertelen mentés → előző érték visszaállítása
+                        data = { ...data, importance: prevImportance };
+                        paintStars(impRow, prevImportance);
+                    }
+                },
+            );
         });
-    }
+    });
 }

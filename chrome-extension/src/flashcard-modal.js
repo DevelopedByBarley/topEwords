@@ -26,14 +26,42 @@ function showFcFeedback(el, text, color) {
 // A backend jelenleg csak p/em/strong/span(+style) elemeket generál.
 
 const AI_HTML_ALLOWED_TAGS = new Set([
-    'p', 'br', 'div', 'span', 'strong', 'b', 'em', 'i', 'u', 's', 'del',
-    'ul', 'ol', 'li', 'code', 'mark', 'sub', 'sup', 'small',
+    'p',
+    'br',
+    'div',
+    'span',
+    'strong',
+    'b',
+    'em',
+    'i',
+    'u',
+    's',
+    'del',
+    'ul',
+    'ol',
+    'li',
+    'code',
+    'mark',
+    'sub',
+    'sup',
+    'small',
 ]);
 
 // Ezeknek a teljes részfája törlődik (sosem csomagoljuk ki szöveggé).
 const AI_HTML_DROP_TAGS = new Set([
-    'script', 'style', 'iframe', 'object', 'embed', 'svg', 'math', 'form',
-    'link', 'meta', 'base', 'noscript', 'template',
+    'script',
+    'style',
+    'iframe',
+    'object',
+    'embed',
+    'svg',
+    'math',
+    'form',
+    'link',
+    'meta',
+    'base',
+    'noscript',
+    'template',
 ]);
 
 // Csak tipográfiai CSS-tulajdonságok maradhatnak (a böngésző a shorthandeket
@@ -305,7 +333,7 @@ function wireFlashcardForm(root, data, csrf, onBack) {
                 saveBtn.textContent = 'Mentés';
                 showFcFeedback(
                     feedback,
-                    'A mentés Pro csomaggal érhető el.',
+                    'Elérted a bővítmény napi ingyenes keretét — holnap folytathatod.',
                     '#f97316',
                 );
             } else {

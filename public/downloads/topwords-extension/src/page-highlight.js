@@ -285,6 +285,17 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
 initHighlight();
 
+// A közös szókincs-frissítés (shared.js: refreshVocabHighlights) hookja: friss
+// státusztérkép érkezésekor újrarajzolja az oldal-kiemeléseket.
+registerVocabRefreshHook({
+    isActive: () => !!hlWordMap,
+    apply(map) {
+        hlWordMap = map;
+        removeHighlights();
+        applyHighlights();
+    },
+});
+
 function getPageStats(wordMap) {
     const seen = new Set();
     const walker = document.createTreeWalker(

@@ -276,6 +276,17 @@ body {
     line-height: 1.5;
 }
 
+.hint-sep {
+    margin-top: 4px;
+    padding-top: 8px;
+    border-top: 1px solid #f1f5f9;
+}
+
+.hint-sep strong {
+    color: #475569;
+    font-weight: 600;
+}
+
 kbd {
     display: inline-block;
     padding: 1px 5px;

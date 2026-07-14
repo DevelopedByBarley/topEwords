@@ -86,12 +86,7 @@ document.addEventListener(
         }
 
         // 1–4 státusz billentyűk nyitott popup-nál — gépelés közben nem
-        if (
-            shadow &&
-            currentData?.found &&
-            currentData?.has_active_access &&
-            !isTypingTarget()
-        ) {
+        if (shadow && currentData?.found && !isTypingTarget()) {
             const statusByKey = {
                 1: 'learning',
                 2: 'saved',
@@ -119,7 +114,7 @@ document.addEventListener(
 // Ha a felhasználó máshol (appban / másik fülön) módosította a szavait, a fülre
 // visszatérve frissítjük a kiemeléseket, hogy ne maradjon elavult a szín.
 document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && (hlWordMap || ytStatusMap)) {
+    if (document.visibilityState === 'visible' && anyVocabUiActive()) {
         refreshVocabHighlights(true);
     }
 });
@@ -227,6 +222,9 @@ function hidePopup() {
         currentData = null;
         document.removeEventListener('mousedown', onOutsideClick);
     }
+
+    // Bezáráskor (vagy elkattintáskor) a felirat-kijelölés is megszűnik.
+    twSelClear();
 }
 
 function onOutsideClick(e) {
@@ -234,6 +232,110 @@ function onOutsideClick(e) {
         hidePopup();
     }
 }
+
+// ── Felirat: többszavas kijelölés Shifttel ──────────────────────────────────
+// A felirat-sáv és az átirat-panel szavai `.tw-word` span-ek. Shift+kattintással
+// NEM nyílik meg a popup, csak a horgony és a kattintott szó közötti tartomány
+// jelölődik ki ugyanabban a felirat-sorban. A Shift elengedésekor nyílik meg a
+// popup az összefűzött kifejezéssel; a popup bezárásakor a kijelölés törlődik.
+
+let twSelAnchor = null;
+let twSelRange = [];
+let twShiftUsed = false;
+
+function twSelUnpaint() {
+    twSelRange.forEach((span) => {
+        span.style.outline = '';
+        span.style.outlineOffset = '';
+        span.style.borderRadius = '';
+    });
+}
+
+function twSelPaint() {
+    twSelRange.forEach((span) => {
+        span.style.outline = '2px solid #ffffff';
+        span.style.outlineOffset = '1px';
+        span.style.borderRadius = '3px';
+    });
+}
+
+function twSelClear() {
+    twSelUnpaint();
+    twSelRange = [];
+    twSelAnchor = null;
+    twShiftUsed = false;
+}
+
+/**
+ * Shift+kattintás kezelése egy felirat-szón. A kattintott span konténerén belül
+ * kijelöli a horgony és a kattintott szó közötti összes `.tw-word` elemet.
+ */
+function twSelHandleShiftClick(span) {
+    if (!span) {
+        return;
+    }
+
+    const words = Array.from(span.parentElement.querySelectorAll('.tw-word'));
+
+    // Másik felirat-sorba kattintva újrakezdjük a kijelölést.
+    if (twSelAnchor && !words.includes(twSelAnchor)) {
+        twSelUnpaint();
+        twSelRange = [];
+        twSelAnchor = null;
+    }
+
+    if (!twSelAnchor) {
+        twSelAnchor = span;
+    }
+
+    const a = words.indexOf(twSelAnchor);
+    const b = words.indexOf(span);
+    const lo = Math.min(a, b);
+    const hi = Math.max(a, b);
+
+    twSelUnpaint();
+    twSelRange = words.slice(lo, hi + 1);
+    twSelPaint();
+    twShiftUsed = true;
+}
+
+/** Shift elengedése → az összefűzött kifejezésre megnyitjuk a popupot. */
+function twSelCommit() {
+    const range = twSelRange.slice();
+    twShiftUsed = false;
+
+    if (!range.length) {
+        twSelClear();
+
+        return;
+    }
+
+    const phrase = range
+        .map((span) => (span.dataset.ytWord ?? '').replace(/^'|'$/g, ''))
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    if (!phrase) {
+        twSelClear();
+
+        return;
+    }
+
+    const rect = range[range.length - 1].getBoundingClientRect();
+    speakWord(phrase);
+    // showPopup → hidePopup → twSelClear törli a kiemelést, ezért utána
+    // visszaállítjuk, hogy a popup nyitva tartja a kijelölést a bezárásig.
+    showPopup(phrase, rect, true);
+    twSelRange = range;
+    twSelPaint();
+}
+
+document.addEventListener('keyup', (e) => {
+    if (e.key === 'Shift' && twShiftUsed) {
+        twSelCommit();
+    }
+});
 
 // ── Render ────────────────────────────────────────────────────────────────────
 
@@ -244,8 +346,15 @@ function renderBody(data) {
 
     const body = shadow.querySelector('.body');
 
-    if (!data || data.error === 'unauthenticated' || data.error === 'network') {
-        body.innerHTML = `<span class="msg">${data?.error === 'network' ? 'Nincs kapcsolat a TopWords-szel.' : 'Jelentkezz be a TopWords-be a szókereséshez.'}</span>`;
+    // Bármilyen hiba (429 throttle, lejárt session, szerverhiba…) itt áll meg —
+    // korábban a not-found ágba esett, és „«undefined» nincs az adatbázisban"
+    // jelent meg, felkínálva a duplikált saját-szó felvételét.
+    if (!data || data.error) {
+        const msg =
+            data?.error === 'unauthenticated'
+                ? 'Jelentkezz be a TopWords-be a szókereséshez.'
+                : extErrorMessage(data?.error, 'Hiba történt — próbáld újra.');
+        body.innerHTML = `<span class="msg">${msg}</span>`;
 
         return;
     }
@@ -294,28 +403,30 @@ function renderBody(data) {
     `;
     header.querySelector('.close').addEventListener('click', hidePopup);
 
-    let statusSection;
+    // A státusz/fontosság a weboldalon is mindenkinek elérhető, ezért itt sincs
+    // keretbe kötve. Csak a flashcard-készítés számít a közös napi keretbe
+    // (canWriteFromExtension); a szerver can_write mezője a valós pillanatnyi
+    // kvótát tükrözi — false, ha a Free user aznapra betöltötte a keretet,
+    // ilyenkor a flashcard-gomb helyén keret-hint jelenik meg.
+    const canWrite = data.can_write !== false;
 
-    if (data.has_active_access) {
-        const statusBtns = Object.entries(STATUS_LABELS)
-            .map(([key, label]) => {
-                const isActive = status === key;
-                const color = STATUS_COLORS[key];
-                const activeStyle = isActive
-                    ? `background:${color};border-color:${color};color:#fff`
-                    : '';
+    const statusBtns = Object.entries(STATUS_LABELS)
+        .map(([key, label]) => {
+            const isActive = status === key;
+            const color = STATUS_COLORS[key];
+            const activeStyle = isActive
+                ? `background:${color};border-color:${color};color:#fff`
+                : '';
 
-                return `<button class="status-btn${isActive ? ' active' : ''}" data-status="${key}" style="${activeStyle}">${label}</button>`;
-            })
-            .join('');
-        statusSection = `<div class="statuses">${statusBtns}</div>`;
-    } else {
-        statusSection = `<a class="link" href="${APP_URL}/pricing" target="_blank" style="display:block;margin-bottom:10px;">⭐ Prémiumra váltva státuszokat is menthetsz</a>`;
-    }
+            return `<button class="status-btn${isActive ? ' active' : ''}" data-status="${key}" style="${activeStyle}">${label}</button>`;
+        })
+        .join('');
 
-    const importanceSection = data.has_active_access
-        ? `<div class="meta-label">Fontosság</div><div class="importance-row" id="hover-importance">${starsHtml(data.importance)}</div>`
-        : '';
+    const statusSection = `<div class="statuses">${statusBtns}</div>`;
+
+    const importanceSection = `<div class="meta-label">Fontosság</div><div class="importance-row" id="hover-importance">${starsHtml(data.importance)}</div>`;
+
+    const upgradeHint = `<a class="upgrade-hint" href="${APP_URL}/pricing" target="_blank">🔒 Elérted a bővítmény napi ingyenes keretét — holnap folytathatod, vagy válts Prora a korlátlan mentésért →</a>`;
 
     body.innerHTML = `
         <span class="meaning">${esc(meaning_hu)}</span>
@@ -327,27 +438,22 @@ function renderBody(data) {
         <div class="footer">
             <a class="link" href="${APP_URL}/words?search=${encodeURIComponent(word)}" target="_blank">Megnyitás →</a>
             <button class="tts-btn" title="Kiejtés angolul">🔊</button>
-            <button class="fc-btn" title="Flashcard készítése" style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;border:1px solid #e2e8f0;background:none;cursor:pointer;font-size:12px;flex-shrink:0;margin-left:6px">📇</button>
+            ${canWrite ? `<button class="fc-btn" title="Flashcard készítése" style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;border:1px solid #e2e8f0;background:none;cursor:pointer;font-size:12px;flex-shrink:0;margin-left:6px">📇</button>` : ''}
         </div>
+        ${canWrite ? '' : upgradeHint}
     `;
 
-    if (data.has_active_access) {
-        body.querySelectorAll('.status-btn').forEach((btn) => {
-            btn.addEventListener('click', () => handleStatusClick(btn, data));
-        });
+    body.querySelectorAll('.status-btn').forEach((btn) => {
+        btn.addEventListener('click', () => handleStatusClick(btn, data));
+    });
 
-        const impRow = body.querySelector('#hover-importance');
+    const impRow = body.querySelector('#hover-importance');
 
-        impRow?.querySelectorAll('.imp-star').forEach((star) => {
-            star.addEventListener('click', () =>
-                handleImportanceClick(
-                    parseInt(star.dataset.star),
-                    data,
-                    impRow,
-                ),
-            );
-        });
-    }
+    impRow?.querySelectorAll('.imp-star').forEach((star) => {
+        star.addEventListener('click', () =>
+            handleImportanceClick(parseInt(star.dataset.star), data, impRow),
+        );
+    });
 
     body.querySelector('.tts-btn')?.addEventListener('click', () =>
         speakWord(word),
@@ -459,7 +565,13 @@ function handleStatusClick(btn, data) {
             if (body) {
                 const err = document.createElement('span');
                 err.className = 'error-feedback';
-                err.textContent = 'Nem sikerült menteni — próbáld újra.';
+                err.textContent =
+                    resp?.error === 'plan'
+                        ? 'Elérted a bővítmény napi ingyenes keretét — holnap folytathatod.'
+                        : extErrorMessage(
+                              resp?.error,
+                              'Nem sikerült menteni — próbáld újra.',
+                          );
                 body.prepend(err);
             }
         },
