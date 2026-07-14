@@ -46,6 +46,35 @@ class StripeWebhookController extends WebhookController
      * (a csomagváltás helyben swap-el), ezért bármely további aktív előfizetés
      * duplikátum: a legrégebbit megtartjuk, a többit azonnal lemondjuk.
      */
+    /**
+     * A Stripe-customer törlésekor a Cashier alapból nullázza a users.trial_ends_at
+     * mezőt is — ez viszont NEM Stripe-eredetű: az app előfizetéseinek próbaideje
+     * magán az előfizetésen van (lásd User::isOnAnyTrial), a users.trial_ends_at
+     * kizárólag az admin által kézzel adott „ajándék-hónap" tárolója
+     * (AdminController::grantFreeMonth). Ezt a customer törlése nem érintheti, ezért
+     * a Cashier-lépés után visszaállítjuk, ha még a jövőben jár le.
+     *
+     * (A lifetime_access és plan_override mezőket a Cashier eleve nem bántja, azok
+     * magától túlélik a customer törlését.)
+     */
+    protected function handleCustomerDeleted(array $payload)
+    {
+        $user = $this->getUserByStripeId($payload['data']['object']['id'] ?? null);
+        $giftTrialEndsAt = $user instanceof User ? $user->trial_ends_at : null;
+
+        $response = parent::handleCustomerDeleted($payload);
+
+        // A Cashier a saját, külön betöltött modellpéldányán nullázta a DB-t; a mi
+        // $user példányunk még a régi értéket tartja, ezért egy célzott UPDATE-tel
+        // írjuk vissza az ajándék-hónapot (a forceFill+save nem lenne „dirty").
+        if ($user instanceof User && $giftTrialEndsAt !== null && $giftTrialEndsAt->isFuture()) {
+            $user->newQuery()->whereKey($user->getKey())->update(['trial_ends_at' => $giftTrialEndsAt]);
+            $user->trial_ends_at = $giftTrialEndsAt;
+        }
+
+        return $response;
+    }
+
     protected function handleCustomerSubscriptionCreated(array $payload)
     {
         $response = parent::handleCustomerSubscriptionCreated($payload);
