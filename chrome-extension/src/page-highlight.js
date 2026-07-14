@@ -249,7 +249,14 @@ function toggleHighlight() {
     return highlightEnabled;
 }
 
-chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    // Csak a saját bővítményünk üzeneteit dolgozzuk fel (popup / más content
+    // script). A weboldal-eredetű üzeneteknek nincs sender.id-je, ezeket
+    // eldobjuk — paritás a background üzenetkezelőjével (defense-in-depth).
+    if (sender.id !== chrome.runtime.id) {
+        return;
+    }
+
     if (msg.type === 'TOGGLE_HIGHLIGHT') {
         sendResponse({ enabled: toggleHighlight() });
     }

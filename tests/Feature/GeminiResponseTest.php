@@ -238,16 +238,10 @@ test('a practiceCheck strukturált sémát küld és üres grammar_issues-t szű
     Http::assertSent(fn ($request) => ($request['generationConfig']['responseSchema']['properties']['grammar_issues']['type'] ?? null) === 'ARRAY');
 });
 
-test('AI-hozzáférésű (nem admin) felhasználó használhatja a practiceCheck-et', function () {
-    Http::fake(['generativelanguage.googleapis.com/*' => Http::response([
-        'candidates' => [['content' => ['parts' => [['text' => json_encode([
-            'words' => [['word' => 'run', 'used' => true, 'correct' => true, 'feedback_hu' => 'Jól használtad!']],
-            'grammar_issues' => [],
-            'overall_hu' => 'Ügyes vagy!',
-            'corrected_text' => null,
-        ])]]]]],
-        'usageMetadata' => ['promptTokenCount' => 150, 'candidatesTokenCount' => 80],
-    ])]);
+test('nem-admin felhasználó nem érheti el a practiceCheck-et (admin-only WIP)', function () {
+    // A "Szabad írás" egyelőre admin-only; a POST végpontnak a GET oldallal
+    // azonos gate-et kell kényszerítenie, hogy API-n se szivárogjon ki.
+    Http::fake();
 
     $user = User::factory()->create(['ai_access' => true]);
 
@@ -256,25 +250,18 @@ test('AI-hozzáférésű (nem admin) felhasználó használhatja a practiceCheck
             'words' => [['word' => 'run', 'meaning_hu' => 'fut']],
             'text' => 'I run every morning before work.',
         ])
-        ->assertSuccessful()
-        ->assertJson(['overall_hu' => 'Ügyes vagy!']);
+        ->assertForbidden();
+
+    Http::assertNothingSent();
 });
 
-test('a havi keret kimerülése után a practiceCheck 429-cel zár', function () {
-    // Az AI mindenkinek elérhető; a practiceCheck-et a havi keret kimerülése
-    // állítja meg (429), nem a hozzáférés hiánya.
+test('a nem hitelesített kérés a practiceCheck-en 401-et kap', function () {
     Http::fake();
-    $user = User::factory()->create();
-    $limit = (int) config('plans.limits.free.ai_budget_micros');
-    $user->forceFill(['ai_credits_used' => $limit, 'ai_credits_reset_at' => now()->addMonth()])->save();
 
-    $this->actingAs($user)
-        ->postJson(route('words.practice.check'), [
-            'words' => [['word' => 'run', 'meaning_hu' => 'fut']],
-            'text' => 'I run every morning before work.',
-        ])
-        ->assertStatus(429)
-        ->assertJson(['error' => 'ai_limit']);
+    $this->postJson(route('words.practice.check'), [
+        'words' => [['word' => 'run', 'meaning_hu' => 'fut']],
+        'text' => 'I run every morning before work.',
+    ])->assertUnauthorized();
 
     Http::assertNothingSent();
 });

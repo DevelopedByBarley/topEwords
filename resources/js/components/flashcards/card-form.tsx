@@ -146,15 +146,25 @@ export default function CardForm({
         }
     };
 
+    // A szótár-API (dictionaryapi.dev) válasza külső, nem megbízható adat, ami
+    // közvetlenül HTML-be kerül a szerkesztőbe — escape-elni kell, nehogy egy
+    // kompromittált vagy hibás API-válasz HTML-t injektáljon a kártyába.
+    const escapeHtml = (value: string) =>
+        value
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+
     const insertDefinition = (
         partOfSpeech: string,
         definition: string,
         example?: string,
     ) => {
-        let html = `<p><em>${partOfSpeech}</em> — ${definition}</p>`;
+        let html = `<p><em>${escapeHtml(partOfSpeech)}</em> — ${escapeHtml(definition)}</p>`;
 
         if (example) {
-            html += `<p><em>"${example}"</em></p>`;
+            html += `<p><em>"${escapeHtml(example)}"</em></p>`;
         }
 
         backEditorRef.current?.setContent(html);

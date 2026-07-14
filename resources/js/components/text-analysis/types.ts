@@ -115,35 +115,52 @@ export const MODE_ICONS: Record<InputMode, React.ElementType> = {
 
 export const EXAMPLE_TEXT = `The quick brown fox jumps over the lazy dog. Learning new words every day is one of the best investments you can make in your language skills. Reading books, articles, and other written materials helps you encounter words in context, which makes them much easier to remember.`;
 
-const HISTORY_KEY = 'text_analysis_history';
 const MAX_HISTORY = 10;
-export const SESSION_KEY = 'text_analysis_session';
 
-export function loadHistory(): HistoryEntry[] {
+// A tárolt előzmények, session-pillanatkép és könyvjelzők személyes tanulási
+// adatok, ezért a tároló-kulcsokat a bejelentkezett user id-jével szkópoljuk:
+// közös gépen a következő fiók nem látja az előző user szövegeit/pozícióit.
+// A userId nélküli hívás (defenzív fallback) a régi közös kulcsra esik vissza.
+function historyKey(userId?: number): string {
+    return userId ? `text_analysis_history_u${userId}` : 'text_analysis_history';
+}
+
+export function sessionKey(userId?: number): string {
+    return userId ? `text_analysis_session_u${userId}` : 'text_analysis_session';
+}
+
+export function loadHistory(userId?: number): HistoryEntry[] {
     try {
-        return JSON.parse(localStorage.getItem(HISTORY_KEY) ?? '[]');
+        return JSON.parse(localStorage.getItem(historyKey(userId)) ?? '[]');
     } catch {
         return [];
     }
 }
 
-export function saveHistory(entries: HistoryEntry[]) {
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(entries));
+export function saveHistory(entries: HistoryEntry[], userId?: number) {
+    localStorage.setItem(historyKey(userId), JSON.stringify(entries));
 }
 
-export function addHistoryEntry(entry: Omit<HistoryEntry, 'id' | 'date'>) {
-    const entries = loadHistory();
+export function addHistoryEntry(entry: Omit<HistoryEntry, 'id' | 'date'>, userId?: number) {
+    const entries = loadHistory(userId);
     const newEntry: HistoryEntry = { ...entry, id: Date.now(), date: new Date().toLocaleDateString('hu-HU') };
     const filtered = entries.filter((e) => e.label !== entry.label || e.mode !== entry.mode);
-    saveHistory([newEntry, ...filtered].slice(0, MAX_HISTORY));
+    saveHistory([newEntry, ...filtered].slice(0, MAX_HISTORY), userId);
 }
 
-export function loadSession(): Partial<{ mode: InputMode; text: string; urlInput: string; fetchedSource: string | null; result: AnalysisResult | null }> {
+export function loadSession(userId?: number): Partial<{ mode: InputMode; text: string; urlInput: string; fetchedSource: string | null; result: AnalysisResult | null }> {
     try {
-        if (typeof window === 'undefined') return {};
+        if (typeof window === 'undefined') {
+            return {};
+        }
+
         const params = new URLSearchParams(window.location.search);
-        if (params.get('url')) return {};
-        return JSON.parse(sessionStorage.getItem(SESSION_KEY) ?? '{}');
+
+        if (params.get('url')) {
+            return {};
+        }
+
+        return JSON.parse(sessionStorage.getItem(sessionKey(userId)) ?? '{}');
     } catch {
         return {};
     }
@@ -153,9 +170,11 @@ export { postJson } from '@/lib/http';
 
 export function computeTokenFrequencies(text: string): Record<string, number> {
     const frequencies: Record<string, number> = {};
+
     for (const match of text.match(/[a-zA-Z]+/g) ?? []) {
         const token = match.toLowerCase();
         frequencies[token] = (frequencies[token] ?? 0) + 1;
     }
+
     return frequencies;
 }

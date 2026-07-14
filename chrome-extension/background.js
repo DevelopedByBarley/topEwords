@@ -28,6 +28,10 @@ function fetchJson(url, options = {}) {
             }
 
             if (r.status === 401) {
+                // A munkamenet megszűnt (kijelentkezés): a helyben tárolt
+                // személyes szótérképet töröljük, ne maradjon a gépen.
+                purgeStatusCache();
+
                 return { error: 'unauthenticated' };
             }
 
@@ -110,6 +114,17 @@ function writeStatusCache(statuses) {
 function invalidateStatusCache() {
     statusCacheMem = { statuses: null, fetchedAt: 0 };
     chrome.storage.local.set({ [STATUS_CACHE_KEY]: statusCacheMem });
+}
+
+// Teljes purge kijelentkezéskor: a szó→státusz térkép személyes tanulási adat,
+// ezért ha a szerver 401-et ad (a munkamenet megszűnt / kijelentkezés), a tárolt
+// másolatot ténylegesen töröljük a gépről, nem csak tombstone-ozzuk. Így közös
+// gépen a következő fiók nem látja az előző user szótérképét.
+function purgeStatusCache() {
+    if (statusCacheMem === null || statusCacheMem.statuses !== null) {
+        statusCacheMem = { statuses: null, fetchedAt: 0 };
+        chrome.storage.local.remove(STATUS_CACHE_KEY);
+    }
 }
 
 // Foltozás íráskor: a megváltozott szó felszíni alakjait helyben frissítjük a

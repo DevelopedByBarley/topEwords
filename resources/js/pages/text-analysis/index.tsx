@@ -11,9 +11,9 @@ import {
     EXAMPLE_TEXT,
     loadHistory,
     loadSession,
+    sessionKey,
     postJson,
     saveHistory,
-    SESSION_KEY,
 } from '@/components/text-analysis/types';
 import type { AnalysisResult, HistoryEntry, InputMode, LyricSegment, TokenStatus, UserBook, VideoOverview, YoutubeTranscript } from '@/components/text-analysis/types';
 import WordLookupDialog from '@/components/text-analysis/word-lookup-dialog';
@@ -36,7 +36,14 @@ const MODE_TABS: { id: InputMode; label: string; Icon: React.ElementType }[] = [
 ];
 
 export default function TextAnalysis() {
-    const [sessionData] = useState(() => loadSession());
+    const { auth } = usePage<{ auth: { user?: { id?: number }; isAdmin?: boolean; subscription?: { hasAiAccess: boolean } | null } }>().props;
+    const isAdmin = auth?.isAdmin ?? false;
+    const hasAiAccess = isAdmin || (auth?.subscription?.hasAiAccess ?? false);
+    // A tárolt előzmények/session/könyvjelzők a bejelentkezett userhez kötöttek,
+    // hogy közös gépen ne szivárogjanak át a következő fióknak (FL4).
+    const userId = auth?.user?.id;
+
+    const [sessionData] = useState(() => loadSession(userId));
     const [mode, setMode] = useState<InputMode>(sessionData.mode ?? 'text');
     const [text, setText] = useState(sessionData.text ?? '');
     const [urlInput, setUrlInput] = useState(sessionData.urlInput ?? '');
@@ -46,7 +53,7 @@ export default function TextAnalysis() {
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [upgradeUrl, setUpgradeUrl] = useState<string | null>(null);
-    const [history, setHistory] = useState<HistoryEntry[]>(() => loadHistory());
+    const [history, setHistory] = useState<HistoryEntry[]>(() => loadHistory(userId));
     const [showHistory, setShowHistory] = useState(false);
 
     const [books, setBooks] = useState<UserBook[]>([]);
@@ -70,10 +77,6 @@ export default function TextAnalysis() {
 
     const [lookupWord, setLookupWord] = useState<string | null>(null);
     const [lookupContext, setLookupContext] = useState<string | null>(null);
-
-    const { auth } = usePage<{ auth: { isAdmin?: boolean; subscription?: { hasAiAccess: boolean } | null } }>().props;
-    const isAdmin = auth?.isAdmin ?? false;
-    const hasAiAccess = isAdmin || (auth?.subscription?.hasAiAccess ?? false);
 
     const didAutoFetch = useRef(false);
     useEffect(() => {
@@ -120,15 +123,15 @@ return;
 
     useEffect(() => {
         try {
-            sessionStorage.setItem(SESSION_KEY, JSON.stringify({ mode, text, urlInput, fetchedSource, result }));
+            sessionStorage.setItem(sessionKey(userId), JSON.stringify({ mode, text, urlInput, fetchedSource, result }));
         } catch {
             try {
-                sessionStorage.setItem(SESSION_KEY, JSON.stringify({ mode, text, urlInput, fetchedSource, result: null }));
+                sessionStorage.setItem(sessionKey(userId), JSON.stringify({ mode, text, urlInput, fetchedSource, result: null }));
             } catch {
                 // ignore quota errors
             }
         }
-    }, [mode, text, urlInput, fetchedSource, result]);
+    }, [mode, text, urlInput, fetchedSource, result, userId]);
 
     useEffect(() => {
         if (mode === 'youtube' && !youtubeLoaded) {
@@ -137,7 +140,8 @@ return;
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [mode]);
 
-    const getBookmarkKey = (bookId: number) => `book_bookmark_${bookId}`;
+    const userScope = userId ? `_u${userId}` : '';
+    const getBookmarkKey = (bookId: number) => `book_bookmark_${bookId}${userScope}`;
     const saveBookmark = (bookId: number, page: number) =>
         localStorage.setItem(getBookmarkKey(bookId), String(page));
     const loadBookmark = (bookId: number): number =>
@@ -252,7 +256,7 @@ return;
 
     // ── YouTube-feliratok (külön rendszer) ──────────────────────────────────────
 
-    const getYtBookmarkKey = (id: number) => `yt_bookmark_${id}`;
+    const getYtBookmarkKey = (id: number) => `yt_bookmark_${id}${userScope}`;
     const saveYtBookmark = (id: number, page: number) =>
         localStorage.setItem(getYtBookmarkKey(id), String(page));
     const loadYtBookmark = (id: number): number =>
@@ -496,7 +500,7 @@ return;
 
     const deleteHistoryEntry = (id: number) => {
         const updated = history.filter((e) => e.id !== id);
-        saveHistory(updated);
+        saveHistory(updated, userId);
         setHistory(updated);
     };
 
@@ -562,8 +566,8 @@ return;
                 const label = mode === 'text'
                     ? input.slice(0, 80).trim() + (input.length > 80 ? '…' : '')
                     : urlInput;
-                addHistoryEntry({ mode, label, text: input, url: mode !== 'text' ? urlInput : undefined });
-                setHistory(loadHistory());
+                addHistoryEntry({ mode, label, text: input, url: mode !== 'text' ? urlInput : undefined }, userId);
+                setHistory(loadHistory(userId));
             }
         } catch {
             setError('Hálózati hiba. Próbáld újra.');
@@ -698,7 +702,7 @@ learningDelta += freq;
                         onLoad={loadFromHistory}
                         onDelete={deleteHistoryEntry}
                         onClearAll={() => {
- saveHistory([]); setHistory([]); setShowHistory(false); 
+ saveHistory([], userId); setHistory([]); setShowHistory(false);
 }}
                     />
                 )}
