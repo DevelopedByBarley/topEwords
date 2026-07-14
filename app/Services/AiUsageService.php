@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\User;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class AiUsageService
 {
@@ -87,7 +88,17 @@ class AiUsageService
         if ($deltaMicros > 0) {
             User::whereKey($user->getKey())->increment('ai_credits_used', $deltaMicros);
         } elseif ($deltaMicros < 0) {
-            User::whereKey($user->getKey())->decrement('ai_credits_used', -$deltaMicros);
+            // The column is UNSIGNED, so decrementing below zero would throw an
+            // out-of-range error in MySQL strict mode. This happens when a
+            // concurrent reset() zeroes the counter between a call's reserve()
+            // and its refund()/settle(). Only subtract what is actually present
+            // so the counter can never go negative — atomically, in one UPDATE.
+            User::whereKey($user->getKey())->update([
+                'ai_credits_used' => DB::raw(
+                    'CASE WHEN ai_credits_used > '.(-$deltaMicros).
+                    ' THEN ai_credits_used - '.(-$deltaMicros).' ELSE 0 END'
+                ),
+            ]);
         }
 
         $user->ai_credits_used = max(0, (int) $user->ai_credits_used + $deltaMicros);

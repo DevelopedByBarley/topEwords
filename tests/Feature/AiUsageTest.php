@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\User;
+use App\Services\AiUsageService;
 use Illuminate\Support\Facades\Http;
 
 // inTok=300 + outTok=250 a gemini-2.5-flash-lite áraival:
@@ -90,6 +91,30 @@ test('usage resets after the period elapses', function () {
 
     // Lejárt időszak → nullázódott, majd ez a hívás 130 mikro-dollárral növelte.
     expect($user->fresh()->ai_credits_used)->toBe(130);
+});
+
+test('a refund cannot push the unsigned usage counter below zero', function () {
+    // Race: a reset() zeroed the counter between reserve() and refund(). The
+    // refund would decrement an already-zero UNSIGNED column, which throws an
+    // out-of-range 500 in MySQL strict mode. It must clamp at zero instead.
+    $user = User::factory()->create(['ai_access' => true]);
+    $user->forceFill(['ai_credits_used' => 0, 'ai_credits_reset_at' => now()->addMonth()])->save();
+
+    app(AiUsageService::class)->refund($user, 5000);
+
+    expect($user->fresh()->ai_credits_used)->toBe(0);
+    expect($user->ai_credits_used)->toBe(0); // in-memory model stays clamped too
+});
+
+test('a settle to a smaller actual cost clamps the counter at zero, never negative', function () {
+    // Same race but via settle(): reservation was 5000, reset() zeroed it, then
+    // the real cost (130) reconciles with a negative delta that would underflow.
+    $user = User::factory()->create(['ai_access' => true]);
+    $user->forceFill(['ai_credits_used' => 0, 'ai_credits_reset_at' => now()->addMonth()])->save();
+
+    app(AiUsageService::class)->settle($user, estimatedMicros: 5000, actualMicros: 130);
+
+    expect($user->fresh()->ai_credits_used)->toBe(0);
 });
 
 test('subscription settings page exposes the ai budget percentage', function () {
