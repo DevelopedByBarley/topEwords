@@ -1,8 +1,10 @@
 <?php
 
 use App\Models\User;
+use App\Models\UserCustomWord;
 use App\Models\Word;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 
 beforeEach(function () {
@@ -193,6 +195,45 @@ test('add-word rejects duplicates', function () {
         ->postJson(route('extension.add-word'), ['word' => 'serendipity', 'meaning_hu' => 'véletlen szerencse'])
         ->assertSuccessful()
         ->assertJson(['error' => 'duplicate']);
+});
+
+test('add-word survives a concurrent duplicate insert without 500 and refunds the reserved quota', function () {
+    // A $exists előszűrés és az insert között egy párhuzamos kérés ugyanazt a szót
+    // beszúrja; a (user_id, word) unique index elkapja a mienket. A kontrollernek
+    // duplikátumot kell jeleznie 500 helyett, és vissza kell adnia a lefoglalt
+    // napi keretet (#L1). A versenyt egy creating-eseménnyel modellezzük: épp az
+    // insert előtt visszük be a konfliktáló sort.
+    $free = User::factory()->create();
+    $start = 2;
+    Cache::put("extension_writes_daily_{$free->id}_".today()->format('Y-m-d'), $start, now()->endOfDay());
+
+    UserCustomWord::creating(function (UserCustomWord $word) use ($free) {
+        // Csak egyszer, és csak a mi felhasználónk soránál — a beszúrást közvetlen DB-vel
+        // végezzük, hogy ne triggereljük újra ezt az eseményt.
+        static $done = false;
+        if (! $done && $word->user_id === $free->id) {
+            $done = true;
+            DB::table('user_custom_words')->insert([
+                'user_id' => $free->id,
+                'word' => $word->word,
+                'meaning_hu' => 'másik jelentés',
+                'status' => 'known',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+    });
+
+    $this->actingAs($free)
+        ->postJson(route('extension.add-word'), ['word' => 'serendipity', 'meaning_hu' => 'véletlen szerencse'])
+        ->assertSuccessful()
+        ->assertJson(['error' => 'duplicate']);
+
+    // A lefoglalt keret visszakerült: nem maradt elveszett napi slot.
+    expect($free->extensionWritesToday())->toBe($start)
+        ->and($free->customWords()->count())->toBe(1);
+
+    UserCustomWord::flushEventListeners();
 });
 
 test('add-word is blocked once a free user exhausts the daily write quota', function () {

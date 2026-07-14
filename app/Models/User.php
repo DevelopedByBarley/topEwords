@@ -315,6 +315,24 @@ class User extends Authenticatable implements MustVerifyEmail
         return true;
     }
 
+    /**
+     * Egy korábban lefoglalt bővítmény-írás visszaadása a napi keretbe, ha az
+     * insert végül nem valósult meg (pl. párhuzamos kérés miatti unique-ütközés).
+     * Korlátlan csomagnál nincs számláló, így nincs mit visszaadni.
+     */
+    public function refundExtensionWrite(): void
+    {
+        if ($this->planLimit('extension_writes_per_day') === null) {
+            return;
+        }
+
+        $key = $this->extensionWriteCacheKey();
+
+        if (Cache::get($key, 0) > 0) {
+            Cache::decrement($key);
+        }
+    }
+
     private function extensionWriteCacheKey(): string
     {
         return "extension_writes_daily_{$this->id}_".today()->format('Y-m-d');

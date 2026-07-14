@@ -85,20 +85,31 @@ class StripeWebhookController extends WebhookController
     }
 
     /**
-     * The user's redundant active subscriptions — every active subscription except
-     * the earliest-created one, which is the keeper.
+     * The user's redundant active subscriptions — every non-canceled subscription
+     * except the keeper.
+     *
+     * A keeper NEM feltétlenül a legrégebbi: először egy egészséges (valid: active /
+     * trialing / grace-period) előfizetést tartunk meg, mert egy pusztán created_at
+     * szerinti választás megtarthatna egy incomplete/past_due/unpaid sort, és épp az
+     * élő, fizető előfizetést mondaná le (#L3). Az egészséges (majd az összes) halmazon
+     * belül a legrégebbi a keeper, hogy a választás stabil és determinisztikus maradjon.
      *
      * @return Collection<int, Subscription>
      */
     public function duplicateSubscriptionsFor(User $user): Collection
     {
-        return $user->subscriptions()
+        $candidates = $user->subscriptions()
             ->where('stripe_status', '!=', StripeSubscription::STATUS_CANCELED)
             ->whereNull('ends_at')
             ->orderBy('created_at')
             ->orderBy('id')
-            ->get()
-            ->skip(1)
+            ->get();
+
+        $keeper = $candidates->firstWhere(fn (Subscription $subscription): bool => $subscription->valid())
+            ?? $candidates->first();
+
+        return $candidates
+            ->reject(fn (Subscription $subscription): bool => $subscription->is($keeper))
             ->values();
     }
 }

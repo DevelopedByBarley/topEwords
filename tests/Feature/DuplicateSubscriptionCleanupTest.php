@@ -3,13 +3,19 @@
 use App\Http\Controllers\StripeWebhookController;
 use App\Models\User;
 use Illuminate\Support\Facades\Log;
+use Laravel\Cashier\Subscription;
 
 function makeActiveSubscription(User $user, string $price): void
 {
-    $user->subscriptions()->create([
+    makeSubscription($user, $price, 'active');
+}
+
+function makeSubscription(User $user, string $price, string $status): Subscription
+{
+    return $user->subscriptions()->create([
         'type' => 'default',
         'stripe_id' => 'sub_'.uniqid(),
-        'stripe_status' => 'active',
+        'stripe_status' => $status,
         'stripe_price' => $price,
         'quantity' => 1,
     ]);
@@ -63,6 +69,33 @@ test('the earliest active subscription is kept and later ones are duplicates', f
     expect($duplicates)->toHaveCount(1)
         ->and($duplicates->first()->id)->not->toBe($kept->id)
         ->and($duplicates->first()->id)->toBe($user->subscriptions()->orderBy('id', 'desc')->first()->id);
+});
+
+test('a healthy subscription is kept even when an unhealthy one was created earlier', function () {
+    // Az első Checkout incomplete/past_due állapotban ragadt, a másodikból lett élő,
+    // fizető előfizetés. A keeper-választás státusz-vak volt: a régebbi, rossz sort
+    // tartotta meg és épp az élőt mondta volna le (#L3).
+    $user = User::factory()->create();
+    $broken = makeSubscription($user, 'price_basic', 'past_due');
+    $healthy = makeSubscription($user, 'price_premium', 'active');
+
+    $duplicates = (new StripeWebhookController)->duplicateSubscriptionsFor($user);
+
+    expect($duplicates)->toHaveCount(1)
+        ->and($duplicates->first()->id)->toBe($broken->id)
+        ->and($duplicates->pluck('id'))->not->toContain($healthy->id);
+});
+
+test('with no healthy subscription the earliest is still the keeper', function () {
+    // Ha egyik sem valid, a determinisztikus fallback a legrégebbi keeper marad.
+    $user = User::factory()->create();
+    $first = makeSubscription($user, 'price_basic', 'past_due');
+    $second = makeSubscription($user, 'price_premium', 'incomplete');
+
+    $duplicates = (new StripeWebhookController)->duplicateSubscriptionsFor($user);
+
+    expect($duplicates)->toHaveCount(1)
+        ->and($duplicates->first()->id)->toBe($second->id);
 });
 
 test('already-canceled subscriptions are not counted as duplicates', function () {

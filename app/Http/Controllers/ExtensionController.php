@@ -9,6 +9,7 @@ use App\Services\AchievementService;
 use App\Services\WordFormVariants;
 use App\Services\WordStatusFormExpander;
 use App\Services\YouTubeCaptionService;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -185,7 +186,17 @@ class ExtensionController extends Controller
             return response()->json(['error' => 'plan'], 403);
         }
 
-        $custom = $request->user()->customWords()->create($data);
+        // A fenti $exists előszűrés és az insert között két párhuzamos, azonos szóra
+        // futó kérés is átjuthat; a (user_id, word) unique index elkapja a másodikat.
+        // Ilyenkor ne 500-azzunk, és adjuk vissza a lefoglalt keretet — duplikátumot
+        // jelzünk, épp úgy, mint az előszűrésnél (#L1).
+        try {
+            $custom = $request->user()->customWords()->create($data);
+        } catch (UniqueConstraintViolationException) {
+            $request->user()->refundExtensionWrite();
+
+            return response()->json(['error' => 'duplicate']);
+        }
 
         return response()->json([
             'ok' => true,
