@@ -87,11 +87,15 @@ class FlashcardSrsService
             return $minutes.' perc';
         }
 
-        if ($minutes >= 1440) {
+        $hours = round($minutes / 60, 1);
+
+        // Round to days once the displayed hour count reaches a full day, so a
+        // near-day delay (e.g. 1439 min → 23.98 h → "24 óra") never renders the
+        // same as Good's "1 nap". Comparing the rounded hours, not the raw
+        // minutes, closes the 1436–1439 min gap the >= 1440 check left open.
+        if ($hours >= 24) {
             return $this->formatDays((int) round($minutes / 1440));
         }
-
-        $hours = round($minutes / 60, 1);
 
         return $hours.' óra';
     }
@@ -445,18 +449,38 @@ class FlashcardSrsService
     }
 
     /**
-     * Hard delay during learning: 1.5× the current step, at least a minute above
-     * Again, but kept below the Good delay (next step, or graduation) so the
-     * buttons keep their Again < Hard < Good order even with tightly spaced
-     * learning steps (e.g. [10, 12], where 1.5 × 10 would overtake Good's 12).
-     * The Again guard wins on degenerate descending-step configs.
+     * Hard delay during learning: 1.5× the current step, clamped into the
+     * [Again, Good) window so the buttons always keep Again <= Hard < Good,
+     * even with tightly spaced or non-increasing learning steps (e.g. [10, 10]
+     * or [10, 11], where 1.5 × 10 would tie or overtake Good).
+     *
+     * Ordering is the hard invariant, in priority Hard < Good, then Hard >= Again:
+     *   - The natural 1.5× value is first floored to Again, then capped just
+     *     below Good, so Hard never meets or exceeds Good.
+     *   - When Good leaves no whole-minute room above Again (a degenerate
+     *     non-increasing config such as [10, 10]), Hard falls back to Again
+     *     rather than dipping below it — Hard = Again is acceptable, Hard < Again
+     *     is not. Such configs are rejected on save; this only guards decks that
+     *     stored them before that validation existed.
+     *
+     * When Good graduates to whole days, Hard stays a full hour below the day
+     * boundary instead of a single minute, so "Nehéz" never rounds up to the
+     * same label Good's "1 nap" shows (1439 min would display as "24 óra").
      */
     private function learningHardMinutes(FlashcardReview $review, array $steps, FlashcardSetting|FlashcardDeckSetting $settings): int
     {
         $step = min($review->learning_step ?? 0, count($steps) - 1);
-        $minutes = min((int) round($steps[$step] * 1.5), $this->learningGoodMinutes($review, $steps, $settings) - 1);
+        $again = $steps[0];
+        $goodMinutes = $this->learningGoodMinutes($review, $steps, $settings);
+        $hardCeiling = $goodMinutes >= 1440
+            ? max(60, $goodMinutes - 60)
+            : $goodMinutes - 1;
 
-        return max($steps[0] + 1, $minutes);
+        $natural = max($again + 1, (int) round($steps[$step] * 1.5));
+
+        // Cap below Good first; if that pushed Hard under Again, restore Again
+        // (still strictly below Good whenever Good > Again).
+        return max($again, min($natural, $hardCeiling));
     }
 
     /**

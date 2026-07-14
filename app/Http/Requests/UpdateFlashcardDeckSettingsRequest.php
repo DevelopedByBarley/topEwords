@@ -2,13 +2,22 @@
 
 namespace App\Http\Requests;
 
+use App\Concerns\ValidatesFlashcardSettings;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Validator;
 
 class UpdateFlashcardDeckSettingsRequest extends FormRequest
 {
+    use ValidatesFlashcardSettings;
+
     public function authorize(): bool
     {
         return true;
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $this->validateLearningStepsIncrease($validator);
     }
 
     /**

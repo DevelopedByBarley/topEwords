@@ -115,6 +115,86 @@ test('a learning step above 1440 minutes is rejected on the indexed error key', 
     expect($deck->fresh()->deckSettings)->toBeNull();
 });
 
+test('non-increasing learning steps are rejected so hard cannot meet or exceed good', function () {
+    $user = User::factory()->create();
+    $deck = FlashcardDeck::create(['user_id' => $user->id, 'name' => 'Deck']);
+
+    $base = [
+        'new_cards_per_day' => 20,
+        'max_reviews_per_day' => 200,
+        'graduating_interval' => 1,
+        'easy_interval' => 4,
+        'starting_ease' => 250,
+        'easy_bonus' => 130,
+        'hard_interval_modifier' => 120,
+        'interval_modifier' => 100,
+        'max_interval' => 365,
+        'lapse_new_interval' => 0,
+        'leech_threshold' => 8,
+    ];
+
+    // Equal consecutive steps: the second step must be strictly greater.
+    $this->actingAs($user)
+        ->from(route('flashcards.show', $deck))
+        ->put(route('flashcards.settings.update', $deck), [...$base, 'learning_steps' => [10, 10]])
+        ->assertSessionHasErrors(['learning_steps.1']);
+
+    // Descending steps: rejected on the offending index.
+    $this->actingAs($user)
+        ->from(route('flashcards.show', $deck))
+        ->put(route('flashcards.settings.update', $deck), [...$base, 'learning_steps' => [10, 5]])
+        ->assertSessionHasErrors(['learning_steps.1']);
+
+    expect($deck->fresh()->deckSettings)->toBeNull();
+
+    // A strictly increasing config still saves.
+    $this->actingAs($user)
+        ->put(route('flashcards.settings.update', $deck), [...$base, 'learning_steps' => [1, 10]])
+        ->assertSessionHasNoErrors();
+
+    expect($deck->fresh()->deckSettings->learning_steps)->toBe([1, 10]);
+});
+
+test('hard never exceeds good even for a legacy non-increasing learning-step config', function () {
+    // Decks saved before the increasing-steps validation existed may still hold
+    // [10, 10]; the scheduler must never schedule Hard past Good for them.
+    $settings = new FlashcardSetting([
+        'new_cards_per_day' => 20,
+        'max_reviews_per_day' => 200,
+        'learning_steps' => [10, 10],
+        'graduating_interval' => 1,
+        'easy_interval' => 2,
+        'starting_ease' => 250,
+        'easy_bonus' => 130,
+        'hard_interval_modifier' => 120,
+        'interval_modifier' => 100,
+        'max_interval' => 365,
+        'lapse_new_interval' => 0,
+        'leech_threshold' => 8,
+    ]);
+
+    $srs = new FlashcardSrsService;
+    $hardM = new ReflectionMethod($srs, 'learningHardMinutes');
+    $goodM = new ReflectionMethod($srs, 'learningGoodMinutes');
+
+    foreach ([0, 1] as $step) {
+        $review = new FlashcardReview([
+            'state' => 'learning',
+            'learning_step' => $step,
+            'interval' => 0,
+            'ease_factor' => 250,
+            'repetitions' => 0,
+            'lapses' => 0,
+        ]);
+
+        $hard = $hardM->invoke($srs, $review, $settings->learning_steps, $settings);
+        $good = $goodM->invoke($srs, $review, $settings->learning_steps, $settings);
+
+        expect($hard)->toBeLessThanOrEqual($good);
+        expect($hard)->toBeGreaterThanOrEqual($settings->learning_steps[0]); // never below Again
+    }
+});
+
 test('deck shuffle_cards can be turned off (unchecked checkbox)', function () {
     $user = User::factory()->create();
     $deck = FlashcardDeck::create(['user_id' => $user->id, 'name' => 'Deck']);
@@ -552,6 +632,53 @@ test('hard and good never collapse to the same interval when the last learning s
     expect($preview['hard'])->toBe('2 nap');
     expect($preview['good'])->toBe('3 nap');
     expect($preview['hard'])->not->toBe($preview['good']);
+});
+
+test('hard does not render as "24 óra" when good graduates to a single day', function () {
+    // A ~16 h final step (958 min) whose Hard (958 × 1.5 = 1437 min) was
+    // previously clamped to just under a day and rounded to "24 óra" —
+    // visually identical to Good's "1 nap". The fix keeps Hard a full hour
+    // below the day boundary and rolls the label to days once it hits 24 h.
+    $settings = new FlashcardSetting([
+        'new_cards_per_day' => 20,
+        'max_reviews_per_day' => 200,
+        'learning_steps' => [10, 958],
+        'graduating_interval' => 1, // Good graduates to exactly 1 day
+        'easy_interval' => 2,
+        'starting_ease' => 250,
+        'easy_bonus' => 130,
+        'hard_interval_modifier' => 120,
+        'interval_modifier' => 100,
+        'max_interval' => 365,
+        'lapse_new_interval' => 0,
+        'leech_threshold' => 8,
+    ]);
+
+    $review = new FlashcardReview([
+        'state' => 'learning',
+        'learning_step' => 1, // last step of [10, 958]
+        'interval' => 0,
+        'ease_factor' => 250,
+        'repetitions' => 0,
+        'lapses' => 0,
+    ]);
+
+    $preview = (new FlashcardSrsService)->getButtonPreviews($review, $settings);
+
+    expect($preview['good'])->toBe('1 nap');
+    expect($preview['hard'])->toBe('23 óra');
+    expect($preview['hard'])->not->toBe('24 óra');
+    expect($preview['hard'])->not->toBe($preview['good']);
+});
+
+test('formatMinutes rolls near-day minute values up to days instead of "24 óra"', function () {
+    $format = new ReflectionMethod(FlashcardSrsService::class, 'formatMinutes');
+    $srs = new FlashcardSrsService;
+
+    // 1436–1439 min all round to 24.0 h; they must render as "1 nap", not "24 óra".
+    expect($format->invoke($srs, 1439))->toBe('1 nap');
+    expect($format->invoke($srs, 1436))->toBe('23.9 óra');
+    expect($format->invoke($srs, 1380))->toBe('23 óra');
 });
 
 /**
