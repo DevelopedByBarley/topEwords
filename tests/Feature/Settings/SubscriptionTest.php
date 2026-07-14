@@ -2,6 +2,7 @@
 
 use App\Models\BillingoInvoice;
 use App\Models\User;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Inertia\Testing\AssertableInertia as Assert;
 
@@ -93,6 +94,28 @@ test('a user can download their own issued invoice pdf', function () {
     $response->assertOk();
     expect($response->headers->get('content-type'))->toContain('application/pdf');
     expect($response->streamedContent())->toBe('%PDF-1.4 fake');
+});
+
+test('a network timeout during invoice download yields a 404, not a 500', function () {
+    // A Billingo-hívás hálózati timeoutja ConnectionException-t dob (nem RequestException-t).
+    // A közös HttpClientException ősre való catch nélkül ez nyers 500-at adna.
+    Http::fake(function () {
+        throw new ConnectionException('cURL error 28: timed out');
+    });
+
+    config(['services.billingo.api_key' => 'test-key']);
+
+    $user = User::factory()->create();
+    $invoice = BillingoInvoice::create([
+        'user_id' => $user->id,
+        'stripe_invoice_id' => 'in_timeout',
+        'billingo_document_id' => 5001,
+        'invoice_number' => '2026/A/99',
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('subscription.invoice.download', $invoice))
+        ->assertNotFound();
 });
 
 test('a user cannot download another users invoice', function () {

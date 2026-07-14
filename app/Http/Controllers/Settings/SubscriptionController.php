@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\BillingoInvoice;
 use App\Services\AiUsageService;
 use App\Services\Billingo\BillingoClient;
-use Illuminate\Http\Client\RequestException;
+use Illuminate\Http\Client\HttpClientException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -71,11 +71,13 @@ class SubscriptionController extends Controller
         abort_unless($invoice->user_id === $request->user()->id, 404);
         abort_unless($invoice->isIssued(), 404);
 
-        // A Billingo-hívás hibája (hálózat, törölt dokumentum) ne 500-azzon nyers
-        // stack trace-szel — érthető üzenettel dobjunk 404-et.
+        // A Billingo-hívás hibája (hálózati timeout/DNS vagy hibás HTTP-válasz, pl. törölt
+        // dokumentum) ne 500-azzon nyers stack trace-szel — érthető üzenettel dobjunk 404-et.
+        // A HttpClientException a RequestException (HTTP-hibaválasz) és a ConnectionException
+        // (hálózati timeout) közös őse, így mindkettőt elkapjuk.
         try {
             $pdf = $client->downloadDocument((int) $invoice->billingo_document_id);
-        } catch (RequestException $e) {
+        } catch (HttpClientException $e) {
             report($e);
 
             abort(404, 'A számla most nem tölthető le. Kérlek próbáld újra kicsit később.');
