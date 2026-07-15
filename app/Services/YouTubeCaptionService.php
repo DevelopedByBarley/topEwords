@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
@@ -18,6 +19,13 @@ class YouTubeCaptionService
      * fetchTranscript ne töltse le még egyszer ugyanazt az oldalt a címért.
      */
     private ?string $watchPageTitle = null;
+
+    /**
+     * Volt-e a jelenlegi fetchCaptions-futásban átmeneti (nem OK válasz vagy
+     * megszakadt kapcsolat) hiba. Ha igen, az üres eredmény lehet, hogy csak a
+     * YouTube átmeneti akadása miatt üres — ilyenkor nem negatív-cache-elünk (C2).
+     */
+    private bool $sawTransientError = false;
 
     /**
      * Extract the 11-character video id from any common YouTube URL form.
@@ -67,6 +75,10 @@ class YouTubeCaptionService
 
         try {
             $segments = $this->fetchCaptions($videoId);
+        } catch (TransientCaptionException $e) {
+            // Átmeneti YouTube-akadás: nem tudjuk, van-e felirat, ezért NEM
+            // cache-elünk negatívan — a következő próbálkozás újra scrape-elhet (C2).
+            throw $e;
         } catch (\RuntimeException $e) {
             Cache::put("youtube:transcript-miss:{$videoId}", true, now()->addMinutes(self::MISS_CACHE_TTL_MINUTES));
 
@@ -92,6 +104,8 @@ class YouTubeCaptionService
      */
     public function fetchCaptions(string $videoId): array
     {
+        $this->sawTransientError = false;
+
         // Strategy 1: InnerTube API with multiple clients
         $segments = $this->fetchViaInnertube($videoId);
         if (! empty($segments)) {
@@ -108,6 +122,13 @@ class YouTubeCaptionService
         $segments = $this->fetchViaPageScraping($videoId);
         if (! empty($segments)) {
             return $segments;
+        }
+
+        // Ha valamelyik stratégia átmeneti hibába futott (nem OK válasz vagy
+        // megszakadt kapcsolat), az üres eredmény lehet, hogy csak emiatt üres —
+        // ezt újrapróbálhatóként jelezzük, hogy ne kerüljön negatív cache-be (C2).
+        if ($this->sawTransientError) {
+            throw new TransientCaptionException('A YouTube átmenetileg nem elérhető. Próbáld újra később.');
         }
 
         throw new \RuntimeException('Ehhez a videóhoz nem érhetők el angol feliratok, vagy a felirat nem feldolgozható.');
@@ -171,65 +192,77 @@ class YouTubeCaptionService
     {
         $androidUa = 'com.google.android.youtube/20.10.38 (Linux; U; Android 11) gzip';
 
-        // Must extract the API key from the watch page — hardcoded keys return UNPLAYABLE
-        $pageResponse = Http::timeout(20)
-            ->withHeaders(['User-Agent' => $androidUa, 'Accept-Language' => 'en-US,en;q=0.9'])
-            ->get('https://www.youtube.com/watch?v='.$videoId);
+        try {
+            // Must extract the API key from the watch page — hardcoded keys return UNPLAYABLE
+            $pageResponse = Http::timeout(20)
+                ->withHeaders(['User-Agent' => $androidUa, 'Accept-Language' => 'en-US,en;q=0.9'])
+                ->get('https://www.youtube.com/watch?v='.$videoId);
 
-        if (! $pageResponse->ok()) {
-            return [];
-        }
+            if (! $pageResponse->ok()) {
+                $this->sawTransientError = true;
 
-        $this->watchPageTitle ??= $this->parseWatchPageTitle($pageResponse->body());
-
-        if (! preg_match('/"INNERTUBE_API_KEY"\s*:\s*"([a-zA-Z0-9_-]+)"/', $pageResponse->body(), $keyMatch)) {
-            return [];
-        }
-
-        $apiKey = $keyMatch[1];
-
-        $playerResponse = Http::timeout(15)
-            ->withHeaders([
-                'Content-Type' => 'application/json',
-                'Accept-Language' => 'en-US',
-                'User-Agent' => $androidUa,
-            ])
-            ->post('https://www.youtube.com/youtubei/v1/player?key='.$apiKey, [
-                'context' => ['client' => ['clientName' => 'ANDROID', 'clientVersion' => '20.10.38']],
-                'videoId' => $videoId,
-            ]);
-
-        if (! $playerResponse->ok()) {
-            return [];
-        }
-
-        $tracks = $playerResponse->json('captions.playerCaptionsTracklistRenderer.captionTracks') ?? [];
-
-        if (empty($tracks)) {
-            return [];
-        }
-
-        $track = collect($tracks)->first(fn ($t) => str_starts_with($t['languageCode'] ?? '', 'en'))
-            ?? $tracks[0];
-
-        $captionUrl = $track['baseUrl'] ?? null;
-
-        if (! $captionUrl) {
-            return [];
-        }
-
-        // Try XML (default, no fmt) first — ANDROID returns timedtext XML with <p> tags
-        foreach ([$captionUrl, $captionUrl.'&fmt=json3'] as $url) {
-            $captionResponse = Http::timeout(15)->get($url);
-
-            if (! $captionResponse->ok() || mb_strlen($captionResponse->body()) < 20) {
-                continue;
+                return [];
             }
 
-            $segments = $this->parseCaptionBody($captionResponse->body());
-            if (! empty($segments)) {
-                return $segments;
+            $this->watchPageTitle ??= $this->parseWatchPageTitle($pageResponse->body());
+
+            if (! preg_match('/"INNERTUBE_API_KEY"\s*:\s*"([a-zA-Z0-9_-]+)"/', $pageResponse->body(), $keyMatch)) {
+                return [];
             }
+
+            $apiKey = $keyMatch[1];
+
+            $playerResponse = Http::timeout(15)
+                ->withHeaders([
+                    'Content-Type' => 'application/json',
+                    'Accept-Language' => 'en-US',
+                    'User-Agent' => $androidUa,
+                ])
+                ->post('https://www.youtube.com/youtubei/v1/player?key='.$apiKey, [
+                    'context' => ['client' => ['clientName' => 'ANDROID', 'clientVersion' => '20.10.38']],
+                    'videoId' => $videoId,
+                ]);
+
+            if (! $playerResponse->ok()) {
+                $this->sawTransientError = true;
+
+                return [];
+            }
+
+            $tracks = $playerResponse->json('captions.playerCaptionsTracklistRenderer.captionTracks') ?? [];
+
+            if (empty($tracks)) {
+                return [];
+            }
+
+            $track = collect($tracks)->first(fn ($t) => str_starts_with($t['languageCode'] ?? '', 'en'))
+                ?? $tracks[0];
+
+            $captionUrl = $track['baseUrl'] ?? null;
+
+            if (! $captionUrl) {
+                return [];
+            }
+
+            // Try XML (default, no fmt) first — ANDROID returns timedtext XML with <p> tags
+            foreach ([$captionUrl, $captionUrl.'&fmt=json3'] as $url) {
+                $captionResponse = Http::timeout(15)->get($url);
+
+                if (! $captionResponse->ok() || mb_strlen($captionResponse->body()) < 20) {
+                    if (! $captionResponse->ok()) {
+                        $this->sawTransientError = true;
+                    }
+
+                    continue;
+                }
+
+                $segments = $this->parseCaptionBody($captionResponse->body());
+                if (! empty($segments)) {
+                    return $segments;
+                }
+            }
+        } catch (ConnectionException) {
+            $this->sawTransientError = true;
         }
 
         return [];
@@ -243,11 +276,21 @@ class YouTubeCaptionService
         $base = 'https://www.youtube.com/api/timedtext?v='.urlencode($videoId).'&lang=en';
 
         foreach (['&fmt=json3', '&fmt=vtt', ''] as $fmtParam) {
-            $response = Http::timeout(10)
-                ->withHeaders(['User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'])
-                ->get($base.$fmtParam);
+            try {
+                $response = Http::timeout(10)
+                    ->withHeaders(['User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'])
+                    ->get($base.$fmtParam);
+            } catch (ConnectionException) {
+                $this->sawTransientError = true;
+
+                continue;
+            }
 
             if (! $response->ok() || mb_strlen($response->body()) < 20) {
+                if (! $response->ok()) {
+                    $this->sawTransientError = true;
+                }
+
                 continue;
             }
 
@@ -265,39 +308,49 @@ class YouTubeCaptionService
      */
     private function fetchViaPageScraping(string $videoId): array
     {
-        $pageResponse = Http::timeout(20)
-            ->withHeaders([
-                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-                'Accept-Language' => 'en-US,en;q=0.9',
-            ])
-            ->get('https://www.youtube.com/watch?v='.$videoId);
+        try {
+            $pageResponse = Http::timeout(20)
+                ->withHeaders([
+                    'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                    'Accept-Language' => 'en-US,en;q=0.9',
+                ])
+                ->get('https://www.youtube.com/watch?v='.$videoId);
 
-        if (! $pageResponse->ok()) {
-            return [];
-        }
+            if (! $pageResponse->ok()) {
+                $this->sawTransientError = true;
 
-        $this->watchPageTitle ??= $this->parseWatchPageTitle($pageResponse->body());
-
-        $captionUrl = $this->extractCaptionUrl($pageResponse->body());
-        if ($captionUrl === null) {
-            return [];
-        }
-
-        $json3Url = preg_replace('/([?&])fmt=[^&]*/', '$1fmt=json3', $captionUrl);
-        if (! str_contains($json3Url ?? '', 'fmt=')) {
-            $json3Url = $captionUrl.(str_contains($captionUrl, '?') ? '&' : '?').'fmt=json3';
-        }
-
-        foreach ([$json3Url, $captionUrl] as $url) {
-            $response = Http::timeout(15)->get($url);
-            if (! $response->ok() || mb_strlen($response->body()) < 20) {
-                continue;
+                return [];
             }
 
-            $segments = $this->parseCaptionBody($response->body());
-            if (! empty($segments)) {
-                return $segments;
+            $this->watchPageTitle ??= $this->parseWatchPageTitle($pageResponse->body());
+
+            $captionUrl = $this->extractCaptionUrl($pageResponse->body());
+            if ($captionUrl === null) {
+                return [];
             }
+
+            $json3Url = preg_replace('/([?&])fmt=[^&]*/', '$1fmt=json3', $captionUrl);
+            if (! str_contains($json3Url ?? '', 'fmt=')) {
+                $json3Url = $captionUrl.(str_contains($captionUrl, '?') ? '&' : '?').'fmt=json3';
+            }
+
+            foreach ([$json3Url, $captionUrl] as $url) {
+                $response = Http::timeout(15)->get($url);
+                if (! $response->ok() || mb_strlen($response->body()) < 20) {
+                    if (! $response->ok()) {
+                        $this->sawTransientError = true;
+                    }
+
+                    continue;
+                }
+
+                $segments = $this->parseCaptionBody($response->body());
+                if (! empty($segments)) {
+                    return $segments;
+                }
+            }
+        } catch (ConnectionException) {
+            $this->sawTransientError = true;
         }
 
         return [];

@@ -6,7 +6,6 @@ use App\Models\FlashcardDeck;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class FlashcardCsvController extends Controller
@@ -87,21 +86,14 @@ class FlashcardCsvController extends Controller
 
         // A kártyakeret-kapu és az insert egy user-szintű zár alatt fut, hogy
         // párhuzamos importok ne mehessenek át ugyanazon az elavult kártyaszámon
-        // (SEC_AUDIT #R10).
-        $withinLimit = Cache::lock("plan-limit:flashcards:{$request->user()->id}", 15)
-            ->block(10, function () use ($request, $rows, $deck): bool {
-                if (! $request->user()->canAddFlashcards(count($rows))) {
-                    return false;
+        // (SEC_AUDIT #R10 / #R1).
+        $withinLimit = $request->user()->reserveFlashcardSlots(count($rows), function () use ($rows, $deck) {
+            DB::transaction(function () use ($rows, $deck) {
+                foreach (array_chunk($rows, 500) as $chunk) {
+                    $deck->flashcards()->insert($chunk);
                 }
-
-                DB::transaction(function () use ($rows, $deck) {
-                    foreach (array_chunk($rows, 500) as $chunk) {
-                        $deck->flashcards()->insert($chunk);
-                    }
-                });
-
-                return true;
             });
+        });
 
         if (! $withinLimit) {
             $limit = $request->user()->planLimit('flashcards');
@@ -171,7 +163,12 @@ class FlashcardCsvController extends Controller
             return '';
         }
 
-        return trim(html_entity_decode(strip_tags($html), ENT_QUOTES, 'UTF-8'));
+        // A textToHtml() soronként <p>…</p>-t (és <br>-t) generál; ezeket a
+        // blokk-határokat sortöréssé alakítjuk, hogy az export→import round-trip
+        // megőrizze a többsoros tördelést (#R10).
+        $withBreaks = preg_replace('#</p>\s*<p>|<br\s*/?>#i', "\n", $html) ?? $html;
+
+        return trim(html_entity_decode(strip_tags($withBreaks), ENT_QUOTES, 'UTF-8'));
     }
 
     private function csvRow(array $fields): string

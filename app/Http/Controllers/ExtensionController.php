@@ -265,27 +265,43 @@ class ExtensionController extends Controller
             return response()->json(['error' => 'deck_not_found'], 404);
         }
 
-        if (! $request->user()->canAddFlashcards()) {
-            return response()->json(['error' => 'limit']);
-        }
-
-        // Atomi foglalás közvetlenül az insert előtt — a fenti canWriteFromExtension()
-        // csak gyors előszűrés, párhuzamos kérések ellen ez a tényleges kapu (#R6).
+        // Atomi napi-keret foglalás közvetlenül az insert előtt — a fenti
+        // canWriteFromExtension() csak gyors előszűrés, párhuzamos kérések ellen ez
+        // a tényleges kapu (#R6).
         if (! $request->user()->reserveExtensionWrite()) {
             return response()->json(['error' => 'plan'], 403);
         }
 
-        $flashcard = $deck->flashcards()->create([
-            'word_id' => $data['word_id'] ?? null,
-            'front' => $data['front'],
-            'back' => $data['back'],
-            'direction' => $data['direction'],
-            'front_notes' => $data['front_notes'] ?? null,
-            'front_speak' => $data['front_speak'] ?? null,
-            'back_notes' => $data['back_notes'] ?? null,
-            'back_speak' => $data['back_speak'] ?? null,
-            'color' => $data['color'] ?? null,
-        ]);
+        // A kártyakeret-kaput és az insertet egy user-szintű zár alá vonjuk, hogy
+        // párhuzamos kérések ne csússzanak át ugyanazon az elavult kártyaszámon (#R1).
+        // Ha bármelyik ág elbukik, a fent lefoglalt napi keretet visszaadjuk (#R2).
+        $flashcard = null;
+
+        try {
+            $reserved = $request->user()->reserveFlashcardSlots(1, function () use ($deck, $data, &$flashcard) {
+                $flashcard = $deck->flashcards()->create([
+                    'word_id' => $data['word_id'] ?? null,
+                    'front' => $data['front'],
+                    'back' => $data['back'],
+                    'direction' => $data['direction'],
+                    'front_notes' => $data['front_notes'] ?? null,
+                    'front_speak' => $data['front_speak'] ?? null,
+                    'back_notes' => $data['back_notes'] ?? null,
+                    'back_speak' => $data['back_speak'] ?? null,
+                    'color' => $data['color'] ?? null,
+                ]);
+            });
+        } catch (\Throwable $e) {
+            $request->user()->refundExtensionWrite();
+
+            throw $e;
+        }
+
+        if (! $reserved) {
+            $request->user()->refundExtensionWrite();
+
+            return response()->json(['error' => 'limit'], 403);
+        }
 
         return response()->json([
             'ok' => true,
@@ -334,7 +350,17 @@ class ExtensionController extends Controller
                 return response()->json(['error' => 'plan'], 403);
             }
 
-            $customWord->update(['status' => $status]);
+            // Ha az update elbukik, a fent lefoglalt napi keretet visszaadjuk,
+            // hogy egy DB-hiba miatt ne vesszen el egy slot (az addWord/
+            // createFlashcard-dal azonos refund-szemantika, S1).
+            try {
+                $customWord->update(['status' => $status]);
+            } catch (\Throwable $e) {
+                $request->user()->refundExtensionWrite();
+
+                throw $e;
+            }
+
             $this->recordStatusActivity($request);
 
             return response()->json(['ok' => true, 'status' => $status, 'forms' => $this->statusFormsFor($customWord)]);
@@ -358,7 +384,15 @@ class ExtensionController extends Controller
             return response()->json(['error' => 'plan'], 403);
         }
 
-        $request->user()->knownWords()->syncWithoutDetaching([$word->id => ['status' => $status]]);
+        // Refund a lefoglalt keret, ha a pivot-írás elbukik (S1).
+        try {
+            $request->user()->knownWords()->syncWithoutDetaching([$word->id => ['status' => $status]]);
+        } catch (\Throwable $e) {
+            $request->user()->refundExtensionWrite();
+
+            throw $e;
+        }
+
         $this->recordStatusActivity($request);
 
         return response()->json(['ok' => true, 'status' => $status, 'forms' => $this->statusFormsFor($word)]);

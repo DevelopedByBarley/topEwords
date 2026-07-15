@@ -357,6 +357,96 @@ test('import from word without any word id fails validation instead of erroring'
     expect($deck->flashcards()->count())->toBe(0);
 });
 
+test('bulk reverse marks the reversed copies as imported so they enter calibration first', function () {
+    $user = User::factory()->create();
+    $deck = FlashcardDeck::create(['user_id' => $user->id, 'name' => 'Deck']);
+    $card = Flashcard::create(['deck_id' => $deck->id, 'front' => 'apple', 'back' => 'alma', 'direction' => 'front_to_back', 'is_imported' => false]);
+
+    $this->actingAs($user)
+        ->post(route('flashcards.cards.bulk-reverse', $deck), ['ids' => [$card->id]])
+        ->assertRedirect(route('flashcards.show', $deck));
+
+    $reversed = $deck->flashcards()->where('front', 'alma')->first();
+    expect($reversed)->not->toBeNull()
+        ->and((bool) $reversed->is_imported)->toBeTrue();
+});
+
+test('bulk direction change to one-way deletes the now-orphaned opposite review', function () {
+    $user = User::factory()->create();
+    $deck = FlashcardDeck::create(['user_id' => $user->id, 'name' => 'Deck']);
+    $card = Flashcard::create(['deck_id' => $deck->id, 'front' => 'apple', 'back' => 'alma', 'direction' => 'both']);
+    FlashcardReview::create(['flashcard_id' => $card->id, 'direction' => 'front_to_back', 'state' => 'review']);
+    FlashcardReview::create(['flashcard_id' => $card->id, 'direction' => 'back_to_front', 'state' => 'review']);
+
+    $this->actingAs($user)
+        ->post(route('flashcards.cards.bulk-direction', $deck), ['ids' => [$card->id], 'direction' => 'front_to_back'])
+        ->assertRedirect(route('flashcards.show', $deck));
+
+    expect($card->reviews()->pluck('direction')->all())->toBe(['front_to_back']);
+});
+
+test('bulk direction change to both keeps every review', function () {
+    $user = User::factory()->create();
+    $deck = FlashcardDeck::create(['user_id' => $user->id, 'name' => 'Deck']);
+    $card = Flashcard::create(['deck_id' => $deck->id, 'front' => 'apple', 'back' => 'alma', 'direction' => 'front_to_back']);
+    FlashcardReview::create(['flashcard_id' => $card->id, 'direction' => 'front_to_back', 'state' => 'review']);
+
+    $this->actingAs($user)
+        ->post(route('flashcards.cards.bulk-direction', $deck), ['ids' => [$card->id], 'direction' => 'both'])
+        ->assertRedirect(route('flashcards.show', $deck));
+
+    expect($card->reviews()->count())->toBe(1);
+});
+
+test('resetting an imported card keeps it in the calibration queue', function () {
+    $user = User::factory()->create();
+    $deck = FlashcardDeck::create(['user_id' => $user->id, 'name' => 'Deck']);
+    $card = Flashcard::create(['deck_id' => $deck->id, 'front' => 'apple', 'back' => 'alma', 'direction' => 'both', 'is_imported' => true]);
+    FlashcardReview::create(['flashcard_id' => $card->id, 'direction' => 'front_to_back', 'state' => 'review']);
+
+    $this->actingAs($user)
+        ->post(route('flashcards.cards.reset', [$deck, $card]))
+        ->assertRedirect(route('flashcards.show', $deck));
+
+    // Importált kártya: reviewk törölve → visszaesik a kalibrációs sorba (is_imported marad true).
+    expect((bool) $card->fresh()->is_imported)->toBeTrue()
+        ->and($card->reviews()->count())->toBe(0);
+});
+
+test('resetting a manually created card does not force it into calibration', function () {
+    $user = User::factory()->create();
+    $deck = FlashcardDeck::create(['user_id' => $user->id, 'name' => 'Deck']);
+    $card = Flashcard::create(['deck_id' => $deck->id, 'front' => 'apple', 'back' => 'alma', 'direction' => 'both', 'is_imported' => false]);
+    FlashcardReview::create(['flashcard_id' => $card->id, 'direction' => 'front_to_back', 'state' => 'review']);
+
+    $this->actingAs($user)
+        ->post(route('flashcards.cards.reset', [$deck, $card]))
+        ->assertRedirect(route('flashcards.show', $deck));
+
+    // Kézzel létrehozott kártya sosem volt importált — reset után sem követelhet kalibrációt (#F1).
+    expect((bool) $card->fresh()->is_imported)->toBeFalse()
+        ->and($card->reviews()->count())->toBe(0);
+});
+
+test('bulk reset preserves each card imported flag', function () {
+    $user = User::factory()->create();
+    $deck = FlashcardDeck::create(['user_id' => $user->id, 'name' => 'Deck']);
+    $imported = Flashcard::create(['deck_id' => $deck->id, 'front' => 'apple', 'back' => 'alma', 'direction' => 'both', 'is_imported' => true]);
+    $manual = Flashcard::create(['deck_id' => $deck->id, 'front' => 'pear', 'back' => 'körte', 'direction' => 'both', 'is_imported' => false]);
+    FlashcardReview::create(['flashcard_id' => $imported->id, 'direction' => 'front_to_back', 'state' => 'review']);
+    FlashcardReview::create(['flashcard_id' => $manual->id, 'direction' => 'front_to_back', 'state' => 'review']);
+
+    $this->actingAs($user)
+        ->post(route('flashcards.cards.bulk-reset', $deck), ['ids' => [$imported->id, $manual->id]])
+        ->assertRedirect(route('flashcards.show', $deck));
+
+    // A bulk reset a review-kat törli, de az is_imported flaget kártyánként megőrzi (#F1).
+    expect((bool) $imported->fresh()->is_imported)->toBeTrue()
+        ->and((bool) $manual->fresh()->is_imported)->toBeFalse()
+        ->and($imported->reviews()->count())->toBe(0)
+        ->and($manual->reviews()->count())->toBe(0);
+});
+
 // --- SRS Algorithm ---
 
 test('new card graduates to review after good on last learning step', function () {

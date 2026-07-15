@@ -28,11 +28,13 @@ class FlashcardCardController extends Controller
     {
         abort_unless($deck->user_id === $request->user()->id, 403);
 
-        if (! $request->user()->canAddFlashcards()) {
+        $reserved = $request->user()->reserveFlashcardSlots(1, function () use ($deck, $request) {
+            $deck->flashcards()->create($request->validated());
+        });
+
+        if (! $reserved) {
             return back()->with('error', $this->limitMessage($request));
         }
-
-        $deck->flashcards()->create($request->validated());
 
         return to_route('flashcards.show', $deck);
     }
@@ -40,10 +42,6 @@ class FlashcardCardController extends Controller
     public function importFromWord(Request $request, FlashcardDeck $deck): RedirectResponse
     {
         abort_unless($deck->user_id === $request->user()->id, 403);
-
-        if (! $request->user()->canAddFlashcards()) {
-            return back()->with('error', $this->limitMessage($request));
-        }
 
         $data = $request->validate([
             'word_id' => ['required_without:custom_word_id', 'nullable', 'integer', 'exists:words,id'],
@@ -55,25 +53,31 @@ class FlashcardCardController extends Controller
                 ->where('user_id', $request->user()->id)
                 ->firstOrFail();
 
-            $flashcard = $deck->flashcards()->create([
+            $attributes = [
                 'front' => $customWord->word,
                 'back' => $customWord->meaning_hu ?? '',
                 'direction' => 'both',
-            ]);
+            ];
+        } else {
+            $word = Word::findOrFail($data['word_id']);
 
-            session()->flash('imported_card_id', $flashcard->id);
-
-            return to_route('flashcards.show', $deck);
+            $attributes = [
+                'word_id' => $word->id,
+                'front' => $word->word,
+                'back' => $word->meaning_hu ?? '',
+                'direction' => 'both',
+            ];
         }
 
-        $word = Word::findOrFail($data['word_id']);
+        /** @var Flashcard|null $flashcard */
+        $flashcard = null;
+        $reserved = $request->user()->reserveFlashcardSlots(1, function () use ($deck, $attributes, &$flashcard) {
+            $flashcard = $deck->flashcards()->create($attributes);
+        });
 
-        $flashcard = $deck->flashcards()->create([
-            'word_id' => $word->id,
-            'front' => $word->word,
-            'back' => $word->meaning_hu ?? '',
-            'direction' => 'both',
-        ]);
+        if (! $reserved || $flashcard === null) {
+            return back()->with('error', $this->limitMessage($request));
+        }
 
         session()->flash('imported_card_id', $flashcard->id);
 
@@ -95,6 +99,11 @@ class FlashcardCardController extends Controller
         abort_unless($deck->user_id === $request->user()->id, 403);
         abort_unless($flashcard->deck_id === $deck->id, 403);
 
+        // A review-k törlése önmagában visszaviszi a kártyát a megfelelő sorba: egy
+        // importált kártya (is_imported=true) review nélkül újra a kalibrációs sorba
+        // esik, egy kézzel létrehozott (is_imported=false) a normál új-kártya sorba.
+        // Az is_imported-ot NEM piszkáljuk — különben egy sosem-importált kártya
+        // reset után váratlanul kalibrációt követelne (#F1, korrigálja az #R8-at).
         $flashcard->reviews()->delete();
 
         return to_route('flashcards.show', $deck);
@@ -127,21 +136,23 @@ class FlashcardCardController extends Controller
         abort_unless($deck->user_id === $request->user()->id, 403);
         abort_unless($flashcard->deck_id === $deck->id, 403);
 
-        if (! $request->user()->canAddFlashcards()) {
+        $reserved = $request->user()->reserveFlashcardSlots(1, function () use ($deck, $flashcard) {
+            $deck->flashcards()->create([
+                'word_id' => $flashcard->word_id,
+                'front' => $flashcard->front,
+                'front_notes' => $flashcard->front_notes,
+                'front_speak' => $flashcard->front_speak,
+                'back' => $flashcard->back,
+                'back_notes' => $flashcard->back_notes,
+                'back_speak' => $flashcard->back_speak,
+                'direction' => $flashcard->direction,
+                'color' => $flashcard->color,
+            ]);
+        });
+
+        if (! $reserved) {
             return back()->with('error', $this->limitMessage($request));
         }
-
-        $deck->flashcards()->create([
-            'word_id' => $flashcard->word_id,
-            'front' => $flashcard->front,
-            'front_notes' => $flashcard->front_notes,
-            'front_speak' => $flashcard->front_speak,
-            'back' => $flashcard->back,
-            'back_notes' => $flashcard->back_notes,
-            'back_speak' => $flashcard->back_speak,
-            'direction' => $flashcard->direction,
-            'color' => $flashcard->color,
-        ]);
 
         return to_route('flashcards.show', $deck);
     }
@@ -180,6 +191,8 @@ class FlashcardCardController extends Controller
         ])['ids'];
 
         $ownedIds = $deck->flashcards()->whereIn('id', $ids)->pluck('id');
+        // Csak a review-kat töröljük; az is_imported-ot nem írjuk felül, hogy a
+        // sosem-importált kártyák reset után ne kerüljenek kalibrációs sorba (#F1).
         FlashcardReview::whereIn('flashcard_id', $ownedIds)->delete();
 
         return to_route('flashcards.show', $deck)->with('success', $ownedIds->count().' kártya haladása visszaállítva.');
@@ -196,24 +209,29 @@ class FlashcardCardController extends Controller
 
         $cards = $deck->flashcards()->whereIn('id', $ids)->get();
 
-        if (! $request->user()->canAddFlashcards($cards->count())) {
+        $now = now();
+        $reserved = $request->user()->reserveFlashcardSlots($cards->count(), function () use ($deck, $cards, $now) {
+            $deck->flashcards()->insert($cards->map(fn (Flashcard $card) => [
+                'deck_id' => $deck->id,
+                'front' => $card->back,
+                'front_notes' => $card->back_notes,
+                'front_speak' => $card->back_speak,
+                'back' => $card->front,
+                'back_notes' => $card->front_notes,
+                'back_speak' => $card->front_speak,
+                'direction' => $card->direction,
+                'color' => $card->color,
+                // A fordított másolat is importált kártyaként indul, hogy a többi
+                // tömeges import-úthoz hasonlóan előbb a kalibrációs sorba menjen (#R5).
+                'is_imported' => true,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ])->all());
+        });
+
+        if (! $reserved) {
             return back()->with('error', $this->limitMessage($request));
         }
-
-        $now = now();
-        $deck->flashcards()->insert($cards->map(fn (Flashcard $card) => [
-            'deck_id' => $deck->id,
-            'front' => $card->back,
-            'front_notes' => $card->back_notes,
-            'front_speak' => $card->back_speak,
-            'back' => $card->front,
-            'back_notes' => $card->front_notes,
-            'back_speak' => $card->front_speak,
-            'direction' => $card->direction,
-            'color' => $card->color,
-            'created_at' => $now,
-            'updated_at' => $now,
-        ])->all());
 
         return to_route('flashcards.show', $deck)->with('success', $cards->count().' fordított másolat létrehozva.');
     }
@@ -228,7 +246,17 @@ class FlashcardCardController extends Controller
             'direction' => ['required', 'in:front_to_back,back_to_front,both'],
         ]);
 
-        $updated = $deck->flashcards()->whereIn('id', $validated['ids'])->update(['direction' => $validated['direction']]);
+        $ownedIds = $deck->flashcards()->whereIn('id', $validated['ids'])->pluck('id');
+        $updated = $deck->flashcards()->whereIn('id', $ownedIds)->update(['direction' => $validated['direction']]);
+
+        // Egyirányúra váltásnál a másik irány review-sora árván maradna (a study-sorból
+        // kiesik, de a statisztikát és a due-számlálót torzítaná). A 'both' minden irányt
+        // megtart, így ott nincs mit takarítani (#R6).
+        if ($validated['direction'] !== 'both' && $ownedIds->isNotEmpty()) {
+            FlashcardReview::whereIn('flashcard_id', $ownedIds)
+                ->where('direction', '!=', $validated['direction'])
+                ->delete();
+        }
 
         return to_route('flashcards.show', $deck)->with('success', $updated.' kártya iránya frissítve.');
     }

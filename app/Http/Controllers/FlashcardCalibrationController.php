@@ -100,10 +100,13 @@ class FlashcardCalibrationController extends Controller
 
         $settings = FlashcardSetting::firstOrCreate(['user_id' => $request->user()->id]);
 
+        // A kliens minden értékelésbe beteszi a spread-értékeket, de csak akkor
+        // írunk, ha ténylegesen változott — így elkerüljük a fölösleges DB-írást
+        // minden egyes kattintásnál (#R7).
         $intervalKeys = ['somewhat_min', 'somewhat_max', 'know_min', 'know_max', 'well_min', 'well_max'];
         $updates = [];
         foreach ($intervalKeys as $key) {
-            if (isset($data[$key])) {
+            if (isset($data[$key]) && $settings->{"calib_{$key}"} !== $data[$key]) {
                 $updates["calib_{$key}"] = $data[$key];
             }
         }

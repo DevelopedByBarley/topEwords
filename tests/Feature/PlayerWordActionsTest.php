@@ -1,8 +1,10 @@
 <?php
 
 use App\Models\User;
+use App\Models\UserCustomWord;
 use App\Models\Word;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Schema;
 use Laravel\Sanctum\Sanctum;
 
 beforeEach(function () {
@@ -160,6 +162,46 @@ test('status removal is allowed even with an exhausted quota', function () {
     $this->postJson(route('player.update-status'), ['id' => $this->apple->id, 'is_custom' => false, 'status' => ''])
         ->assertSuccessful()
         ->assertJson(['ok' => true, 'status' => null]);
+});
+
+test('a failed custom-word status write refunds the reserved daily quota', function () {
+    // Ha a foglalás utáni DB-írás elbukik, a lefoglalt napi slot nem veszhet el
+    // (az add-word/create-flashcard-dal azonos refund-szemantika, S1).
+    $free = User::factory()->create();
+    $custom = $free->customWords()->create(['word' => 'serendipity', 'meaning_hu' => 'véletlen szerencse']);
+    $start = 2;
+    Cache::put("extension_writes_daily_{$free->id}_".today()->format('Y-m-d'), $start, now()->endOfDay());
+    Sanctum::actingAs($free, ['player']);
+
+    UserCustomWord::updating(function () {
+        throw new RuntimeException('DB write failed');
+    });
+
+    $this->postJson(route('player.update-status'), ['id' => $custom->id, 'is_custom' => true, 'status' => 'saved'])
+        ->assertStatus(500);
+
+    // A lefoglalt keret visszakerült: nem maradt elveszett napi slot.
+    expect($free->extensionWritesToday())->toBe($start)
+        ->and($custom->refresh()->status)->toBeNull();
+
+    UserCustomWord::flushEventListeners();
+});
+
+test('a failed dictionary-word status write refunds the reserved daily quota', function () {
+    // Ugyanaz a refund-garancia a szótári (pivot) ágon is (S1). A pivot-írást a
+    // köztes tábla eltüntetésével buktatjuk el, hogy a syncWithoutDetaching dobjon;
+    // a RefreshDatabase a teszt végén amúgy is visszaállítja a sémát.
+    $free = User::factory()->create();
+    $start = 2;
+    Cache::put("extension_writes_daily_{$free->id}_".today()->format('Y-m-d'), $start, now()->endOfDay());
+    Sanctum::actingAs($free, ['player']);
+
+    Schema::drop('user_word');
+
+    $this->postJson(route('player.update-status'), ['id' => $this->apple->id, 'is_custom' => false, 'status' => 'known'])
+        ->assertStatus(500);
+
+    expect($free->extensionWritesToday())->toBe($start);
 });
 
 // ── Fontosság ────────────────────────────────────────────────────────────────

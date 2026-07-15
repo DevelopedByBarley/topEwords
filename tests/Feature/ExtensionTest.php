@@ -268,6 +268,31 @@ test('create-flashcard is blocked once a free user exhausts the daily write quot
     expect($deck->flashcards()->count())->toBe(0);
 });
 
+test('create-flashcard returns a 403 limit error and refunds the daily quota when the card cap is full', function () {
+    $free = User::factory()->create();
+    $deck = $free->flashcardDecks()->create(['name' => 'Angol szavak']);
+
+    // Kártyakeret betöltve, de napi írás-keret bőven van.
+    $cardLimit = $free->planLimit('flashcards');
+    $deck->flashcards()->createMany(collect(range(1, $cardLimit))->map(fn ($i) => [
+        'front' => "F{$i}", 'back' => "B{$i}", 'direction' => 'front_to_back',
+    ])->all());
+
+    $this->actingAs($free)
+        ->postJson(route('extension.create-flashcard'), [
+            'deck_id' => $deck->id,
+            'front' => 'apple',
+            'back' => 'alma',
+            'direction' => 'both',
+        ])
+        ->assertForbidden()
+        ->assertJson(['error' => 'limit']);
+
+    // Nem jött létre új kártya, és a napi keret sem fogyott el (a foglalás visszakerült).
+    expect($deck->flashcards()->count())->toBe($cardLimit)
+        ->and($free->extensionWritesToday())->toBe(0);
+});
+
 test('a free user can write from the extension until the daily quota runs out', function () {
     $free = User::factory()->create();
     $limit = $free->planLimit('extension_writes_per_day');
