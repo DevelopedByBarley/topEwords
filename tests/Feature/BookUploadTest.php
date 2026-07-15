@@ -217,3 +217,18 @@ test('an EPUB entry larger than the per-entry cap is skipped (zip-bomb guard)', 
 
     @unlink($path);
 });
+
+test('getPage returns empty string for a corrupt compressed blob instead of erroring', function () {
+    $user = User::factory()->create();
+
+    $book = UserBook::create([
+        'user_id' => $user->id,
+        'title' => 'Corrupt',
+        'file_type' => 'txt',
+        'compressed_text' => 'not-actually-gzip',
+        'total_pages' => 1,
+        'text_size' => 0,
+    ]);
+
+    expect($book->getPage(1))->toBe('');
+});

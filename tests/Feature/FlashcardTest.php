@@ -344,6 +344,19 @@ test('user can delete a card', function () {
     expect(Flashcard::find($card->id))->toBeNull();
 });
 
+test('import from word without any word id fails validation instead of erroring', function () {
+    $user = User::factory()->create();
+    $deck = FlashcardDeck::create(['user_id' => $user->id, 'name' => 'Deck']);
+
+    $this->actingAs($user)
+        ->from(route('flashcards.show', $deck))
+        ->post(route('flashcards.cards.import', $deck), [])
+        ->assertRedirect(route('flashcards.show', $deck))
+        ->assertSessionHasErrors('word_id');
+
+    expect($deck->flashcards()->count())->toBe(0);
+});
+
 // --- SRS Algorithm ---
 
 test('new card graduates to review after good on last learning step', function () {

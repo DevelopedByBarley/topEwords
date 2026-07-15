@@ -36,17 +36,22 @@ function normalize(value: string): string {
 }
 
 function isCorrectAnswer(input: string, correct: string): boolean {
-    const normalizedInput = normalize(input);
-    const normalizedCorrect = normalize(correct);
+    const splitForms = (value: string): string[] =>
+        normalize(value)
+            .split('/')
+            .map((s) => s.trim())
+            .filter((s) => s.length > 0);
 
-    if (normalizedInput === normalizedCorrect) {
+    const inputForms = splitForms(input);
+    const correctForms = splitForms(correct);
+
+    // Exact match after normalizing whitespace around the "/" separator.
+    if (inputForms.join('/') === correctForms.join('/')) {
         return true;
     }
 
-    return normalizedCorrect
-        .split('/')
-        .map((s) => s.trim())
-        .includes(normalizedInput);
+    // Any single accepted form is also correct.
+    return inputForms.length === 1 && correctForms.includes(inputForms[0]);
 }
 
 // ── Setup screen ──────────────────────────────────────────────────────────────

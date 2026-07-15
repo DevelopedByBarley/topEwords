@@ -46,8 +46,8 @@ class FlashcardCardController extends Controller
         }
 
         $data = $request->validate([
-            'word_id' => ['nullable', 'integer', 'exists:words,id'],
-            'custom_word_id' => ['nullable', 'integer', 'exists:user_custom_words,id'],
+            'word_id' => ['required_without:custom_word_id', 'nullable', 'integer', 'exists:words,id'],
+            'custom_word_id' => ['required_without:word_id', 'nullable', 'integer', 'exists:user_custom_words,id'],
         ]);
 
         if (! empty($data['custom_word_id'])) {

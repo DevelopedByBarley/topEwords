@@ -19,7 +19,7 @@ class UserBook extends Model
     /** Return a specific PAGE_SIZE-character page (1-indexed). */
     public function getPage(int $page): string
     {
-        $text = gzdecode($this->compressed_text);
+        $text = @gzdecode($this->compressed_text) ?: '';
         $offset = ($page - 1) * self::PAGE_SIZE;
 
         return mb_substr($text, $offset, self::PAGE_SIZE);

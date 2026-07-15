@@ -504,3 +504,15 @@ test('folder filter hides custom words because they cannot be foldered', functio
             ->where('customStats.total', 1)
         );
 });
+
+test('upserted words get their level computed from rank without needing a fix pass', function () {
+    // Mirrors ImportWords::handle, which bypasses the saving event via upsert()
+    // and must therefore write the level explicitly to avoid drift.
+    Word::upsert([
+        ['word' => 'common', 'rank' => 500, 'level' => Word::levelForRank(500), 'created_at' => now(), 'updated_at' => now()],
+        ['word' => 'rare', 'rank' => 9000, 'level' => Word::levelForRank(9000), 'created_at' => now(), 'updated_at' => now()],
+    ], ['word'], ['rank', 'level', 'updated_at']);
+
+    expect(Word::where('word', 'common')->value('level'))->toBe(1);
+    expect(Word::where('word', 'rare')->value('level'))->toBe(6);
+});

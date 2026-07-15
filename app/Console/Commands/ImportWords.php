@@ -37,14 +37,19 @@ class ImportWords extends Command
 
         $this->withProgressBar($chunks, function (array $chunk) use (&$chunkIndex) {
             $offset = $chunkIndex * 500;
-            $data = array_map(fn (string $word, int $i) => [
-                'word' => $word,
-                'rank' => $offset + $i + 1,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ], $chunk, array_keys($chunk));
+            $data = array_map(function (string $word, int $i) use ($offset) {
+                $rank = $offset + $i + 1;
 
-            Word::upsert($data, ['word'], ['rank', 'updated_at']);
+                return [
+                    'word' => $word,
+                    'rank' => $rank,
+                    'level' => Word::levelForRank($rank),
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
+            }, $chunk, array_keys($chunk));
+
+            Word::upsert($data, ['word'], ['rank', 'level', 'updated_at']);
             $chunkIndex++;
         });
 
