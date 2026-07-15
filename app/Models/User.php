@@ -258,11 +258,63 @@ class User extends Authenticatable implements MustVerifyEmail
     }
 
     /**
+     * Atomically reserve $count card slots under the plan limit and run $insert
+     * while the slots are held. The limit check and the insert share a per-user
+     * lock so parallel create requests cannot both pass on the same stale count
+     * (TOCTOU). Returns false without running $insert when the plan cap would be
+     * exceeded; unlimited (Pro) plans skip the count entirely.
+     */
+    public function reserveFlashcardSlots(int $count, \Closure $insert): bool
+    {
+        if ($this->planLimit('flashcards') === null) {
+            $insert();
+
+            return true;
+        }
+
+        return (bool) Cache::lock("plan-limit:flashcards:{$this->id}", 15)
+            ->block(10, function () use ($count, $insert): bool {
+                if (! $this->canAddFlashcards($count)) {
+                    return false;
+                }
+
+                $insert();
+
+                return true;
+            });
+    }
+
+    /**
      * Whether the user may create another flashcard deck under their plan.
      */
     public function canAddFlashcardDeck(): bool
     {
         return $this->isWithinPlanLimit('decks', $this->flashcardDecks()->count());
+    }
+
+    /**
+     * Atomically reserve one deck slot under the plan limit and run $create while
+     * the slot is held, mirroring reserveFlashcardSlots. The limit check and the
+     * insert share a per-user lock so parallel POSTs cannot both pass on the same
+     * stale deck count (TOCTOU). Returns the created deck, or null when the plan
+     * cap would be exceeded; unlimited (Pro) plans skip the count entirely.
+     *
+     * @param  \Closure(): FlashcardDeck  $create
+     */
+    public function reserveFlashcardDeckSlot(\Closure $create): ?FlashcardDeck
+    {
+        if ($this->planLimit('decks') === null) {
+            return $create();
+        }
+
+        return Cache::lock("plan-limit:decks:{$this->id}", 15)
+            ->block(10, function () use ($create): ?FlashcardDeck {
+                if (! $this->canAddFlashcardDeck()) {
+                    return null;
+                }
+
+                return $create();
+            });
     }
 
     /**

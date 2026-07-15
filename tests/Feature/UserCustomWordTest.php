@@ -341,6 +341,42 @@ test('user cannot delete another users custom word', function () {
     $this->delete(route('custom-words.destroy', $word))->assertForbidden();
 });
 
+test('extension-origin custom word creation consumes the daily extension quota and blocks over it', function () {
+    // M4: az /extension/add-word megkerülhető lenne a webes custom-words.store-ra
+    // váltva; extension-originből ez az út is a közös napi keretbe számít.
+    $this->postJson(route('custom-words.store'), [
+        'word' => 'ephemeral',
+        'meaning_hu' => 'illékony',
+    ], ['Origin' => 'chrome-extension://abcdefghijklmnop'])->assertRedirect();
+
+    expect($this->user->extensionWritesToday())->toBe(1);
+
+    $limit = $this->user->planLimit('extension_writes_per_day');
+    Cache::put("extension_writes_daily_{$this->user->id}_".today()->format('Y-m-d'), $limit, now()->endOfDay());
+
+    $this->postJson(route('custom-words.store'), [
+        'word' => 'serendipity',
+        'meaning_hu' => 'szerencsés véletlen',
+    ], ['Origin' => 'chrome-extension://abcdefghijklmnop'])
+        ->assertForbidden()
+        ->assertJson(['error' => 'plan']);
+
+    $this->assertDatabaseMissing('user_custom_words', [
+        'user_id' => $this->user->id,
+        'word' => 'serendipity',
+    ]);
+});
+
+test('web-origin custom word creation does not consume the extension quota', function () {
+    // A weboldalról (nem extension-origin) indított felvétel nem fogyaszt keretet.
+    $this->post(route('custom-words.store'), [
+        'word' => 'ephemeral',
+        'meaning_hu' => 'illékony',
+    ])->assertRedirect();
+
+    expect($this->user->extensionWritesToday())->toBe(0);
+});
+
 test('guests cannot access custom words routes', function () {
     auth()->logout();
 

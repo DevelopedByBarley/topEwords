@@ -4,6 +4,7 @@ use App\Models\User;
 use App\Models\UserBook;
 use App\Models\Word;
 use App\Models\YoutubeTranscript;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
 beforeEach(function () {
@@ -576,4 +577,67 @@ test('book of another user cannot be deleted', function () {
         ->assertForbidden();
 
     expect(UserBook::find($book->id))->not->toBeNull();
+});
+
+test('book overview consumes the daily analysis quota and blocks over the free limit', function () {
+    // M1: a teljes-könyv megértés ugyanúgy elemzési esemény, ezért a napi
+    // text_analyses_per_day keretbe számít — különben a beillesztett-szöveg
+    // "napi 2" korlát megkerülhető lenne könyv-úton.
+    $makeBook = fn (string $title) => UserBook::create([
+        'user_id' => $this->user->id,
+        'title' => $title,
+        'file_type' => 'pdf',
+        'compressed_text' => gzencode('the quick dog', 6),
+        'total_pages' => 1,
+        'text_size' => 13,
+    ]);
+
+    $limit = $this->user->planLimit('text_analyses_per_day'); // free = 2
+    expect($limit)->toBe(2);
+
+    for ($i = 1; $i <= $limit; $i++) {
+        $this->getJson(route('text-analysis.books.overview', ['book' => $makeBook("Könyv $i")->id]))
+            ->assertOk();
+    }
+
+    $key = "text_analysis_daily_{$this->user->id}_".today()->format('Y-m-d');
+    expect((int) Cache::get($key))->toBe($limit);
+
+    // A keret fölött egy friss (nem cache-elt) könyv-overview 403-at ad.
+    $this->getJson(route('text-analysis.books.overview', ['book' => $makeBook('Túllépő')->id]))
+        ->assertForbidden()
+        ->assertJsonPath('error', 'limit_reached');
+});
+
+test('cached book overview does not re-consume the daily analysis quota', function () {
+    // Cache-találatnál nincs új elemzés, így a keret sem fogy tovább.
+    $book = UserBook::create([
+        'user_id' => $this->user->id,
+        'title' => 'Teszt könyv',
+        'file_type' => 'pdf',
+        'compressed_text' => gzencode('the quick dog', 6),
+        'total_pages' => 1,
+        'text_size' => 13,
+    ]);
+
+    $this->getJson(route('text-analysis.books.overview', ['book' => $book->id]))->assertOk();
+    $this->getJson(route('text-analysis.books.overview', ['book' => $book->id]))->assertOk();
+
+    $key = "text_analysis_daily_{$this->user->id}_".today()->format('Y-m-d');
+    expect((int) Cache::get($key))->toBe(1);
+});
+
+test('youtube overview consumes the daily analysis quota', function () {
+    fakeYoutubeCaptions(10);
+    $this->postJson(route('text-analysis.youtube.store'), [
+        'url' => 'https://www.youtube.com/watch?v=abcdefghijk',
+    ])->assertOk();
+
+    $transcript = YoutubeTranscript::where('user_id', $this->user->id)->first();
+
+    $this->getJson(route('text-analysis.youtube.overview', ['transcript' => $transcript->id]))
+        ->assertOk();
+
+    $key = "text_analysis_daily_{$this->user->id}_".today()->format('Y-m-d');
+    expect((int) Cache::get($key))->toBe(1);
 });

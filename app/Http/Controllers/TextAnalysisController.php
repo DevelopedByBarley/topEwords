@@ -275,30 +275,8 @@ class TextAnalysisController extends Controller
 
         $user = $request->user();
 
-        // Napi szövegelemzés-keret a csomag szerint (2 / 20 / 50). A null korlátlant
-        // jelentene, de jelenleg minden csomag ad napi sapkát (a Premium is 50-nél).
-        $dailyLimit = $user->planLimit('text_analyses_per_day');
-
-        if ($dailyLimit !== null) {
-            $cacheKey = "text_analysis_daily_{$user->id}_".today()->format('Y-m-d');
-
-            // Atomi add+increment, hogy párhuzamos kérések ne mehessenek át
-            // ugyanazon az elavult számláló-értéken (SEC_AUDIT #R6).
-            Cache::add($cacheKey, 0, now()->endOfDay());
-
-            if (Cache::increment($cacheKey) > $dailyLimit) {
-                Cache::decrement($cacheKey);
-
-                $message = $user->currentPlan() === 'premium'
-                    ? "Elérted a mai {$dailyLimit} szövegelemzési kereted. Holnap újra elérhető."
-                    : "Napi {$dailyLimit} szövegelemzést használhatsz a csomagoddal. Válts magasabb csomagra a több elemzésért.";
-
-                return response()->json([
-                    'error' => 'limit_reached',
-                    'message' => $message,
-                    'upgrade_url' => route('pricing'),
-                ], 403);
-            }
+        if ($limitResponse = $this->reserveDailyAnalysis($user)) {
+            return $limitResponse;
         }
 
         try {
@@ -315,14 +293,74 @@ class TextAnalysisController extends Controller
             ];
         } catch (\Throwable $e) {
             // Sikertelen elemzés nem fogyaszthatja a napi keretet.
-            if ($dailyLimit !== null) {
-                Cache::decrement($cacheKey);
-            }
+            $this->refundDailyAnalysis($user);
 
             throw $e;
         }
 
         return response()->json([...$analysis, 'achievements' => $newAchievements]);
+    }
+
+    /**
+     * A napi szövegelemzés-keret cache-kulcsa (naptári napra jár, éjfélkor lejár).
+     */
+    private function dailyAnalysisCacheKey(User $user): string
+    {
+        return "text_analysis_daily_{$user->id}_".today()->format('Y-m-d');
+    }
+
+    /**
+     * Egy szövegelemzés atomi lefoglalása a napi keretből (csomag szerint 2 / 20 / 50;
+     * a null korlátlan). Betelt keretnél a hibaformát adó JsonResponse-t ad vissza,
+     * egyébként null. Minden elemzési útnak (beillesztett szöveg + teljes könyv/videó
+     * megértés) ezen kell átmennie, hogy a keret ne legyen forrásonként megkerülhető.
+     */
+    private function reserveDailyAnalysis(User $user): ?JsonResponse
+    {
+        $dailyLimit = $user->planLimit('text_analyses_per_day');
+
+        if ($dailyLimit === null) {
+            return null;
+        }
+
+        $cacheKey = $this->dailyAnalysisCacheKey($user);
+
+        // Atomi add+increment, hogy párhuzamos kérések ne mehessenek át
+        // ugyanazon az elavult számláló-értéken (SEC_AUDIT #R6).
+        Cache::add($cacheKey, 0, now()->endOfDay());
+
+        if (Cache::increment($cacheKey) > $dailyLimit) {
+            Cache::decrement($cacheKey);
+
+            $message = $user->currentPlan() === 'premium'
+                ? "Elérted a mai {$dailyLimit} szövegelemzési kereted. Holnap újra elérhető."
+                : "Napi {$dailyLimit} szövegelemzést használhatsz a csomagoddal. Válts magasabb csomagra a több elemzésért.";
+
+            return response()->json([
+                'error' => 'limit_reached',
+                'message' => $message,
+                'upgrade_url' => route('pricing'),
+            ], 403);
+        }
+
+        return null;
+    }
+
+    /**
+     * Egy korábban lefoglalt elemzés-keret visszaadása, ha az elemzés végül nem
+     * valósult meg (kivétel a buildAnalysis közben). Korlátlan csomagnál nincs számláló.
+     */
+    private function refundDailyAnalysis(User $user): void
+    {
+        if ($user->planLimit('text_analyses_per_day') === null) {
+            return;
+        }
+
+        $cacheKey = $this->dailyAnalysisCacheKey($user);
+
+        if (Cache::get($cacheKey, 0) > 0) {
+            Cache::decrement($cacheKey);
+        }
     }
 
     /**
@@ -1497,11 +1535,13 @@ PROMPT;
     {
         abort_unless($transcript->user_id === $request->user()->id, 403);
 
-        return response()->json($this->cachedOverview(
+        $overview = $this->cachedOverview(
             "ta-overview:yt:{$transcript->id}:u{$request->user()->id}",
             fn (): string => implode(' ', array_map(fn ($s) => $s['x'] ?? '', $transcript->segments())),
             $request->user()
-        ));
+        );
+
+        return $overview instanceof JsonResponse ? $overview : response()->json($overview);
     }
 
     public function deleteYoutube(Request $request, YoutubeTranscript $transcript): JsonResponse
@@ -1602,11 +1642,13 @@ PROMPT;
     {
         abort_unless($book->user_id === $request->user()->id, 403);
 
-        return response()->json($this->cachedOverview(
+        $overview = $this->cachedOverview(
             "ta-overview:book:{$book->id}:u{$request->user()->id}",
             fn (): string => gzdecode($book->compressed_text) ?: '',
             $request->user()
-        ));
+        );
+
+        return $overview instanceof JsonResponse ? $overview : response()->json($overview);
     }
 
     /**
@@ -1626,27 +1668,42 @@ PROMPT;
      * a user szó-státuszai változhatnak). A szövegkinyerés closure-ként jön, hogy
      * cache-találatnál a gzdecode/összefűzés se fusson le.
      *
+     * A teljes-szöveg megértése ugyanúgy elemzési esemény, mint a beillesztett
+     * szöveg, ezért a napi keretbe számít (M1) — de csak cache-miss esetén, mert
+     * a cache-találat nem futtat új buildAnalysis-t. Betelt keretnél a limit-hiba
+     * JsonResponse-t adunk vissza az elemzés futtatása nélkül.
+     *
      * @param  \Closure(): string  $resolveText
-     * @return array<string, mixed>
+     * @return array<string, mixed>|JsonResponse
      */
-    private function cachedOverview(string $cacheKey, \Closure $resolveText, User $user): array
+    private function cachedOverview(string $cacheKey, \Closure $resolveText, User $user): array|JsonResponse
     {
-        return Cache::remember(
-            $cacheKey,
-            now()->addMinutes(self::OVERVIEW_CACHE_TTL_MINUTES),
-            function () use ($resolveText, $user): array {
-                $analysis = $this->buildAnalysis(
-                    mb_substr($resolveText(), 0, self::MAX_OVERVIEW_CHARS),
-                    $user
-                );
+        if ($cached = Cache::get($cacheKey)) {
+            return $cached;
+        }
 
-                // Az összesítőbe csak a számok kellenek, a (nagy szövegnél óriási)
-                // token- és kifejezés-státusz térképek nem.
-                unset($analysis['tokenStatuses'], $analysis['phraseStatuses']);
+        if ($limitResponse = $this->reserveDailyAnalysis($user)) {
+            return $limitResponse;
+        }
 
-                return $analysis;
-            }
-        );
+        try {
+            $analysis = $this->buildAnalysis(
+                mb_substr($resolveText(), 0, self::MAX_OVERVIEW_CHARS),
+                $user
+            );
+        } catch (\Throwable $e) {
+            $this->refundDailyAnalysis($user);
+
+            throw $e;
+        }
+
+        // Az összesítőbe csak a számok kellenek, a (nagy szövegnél óriási)
+        // token- és kifejezés-státusz térképek nem.
+        unset($analysis['tokenStatuses'], $analysis['phraseStatuses']);
+
+        Cache::put($cacheKey, $analysis, now()->addMinutes(self::OVERVIEW_CACHE_TTL_MINUTES));
+
+        return $analysis;
     }
 
     public function deleteBook(Request $request, UserBook $book): JsonResponse

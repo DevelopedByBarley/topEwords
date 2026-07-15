@@ -28,10 +28,11 @@ trait TogglesWordStatus
     }
 
     /**
-     * A bővítményből indított státusz-FELVÉTEL a közös napi extension-írás
-     * keretbe számít (config: extension_writes_per_day), ugyanúgy, mint az
-     * ExtensionController::addWord/createFlashcard. A levétel (detach) nem
-     * fogyaszt keretet, hogy a betelt keret ne akadályozza a visszavonást.
+     * A bővítményből indított ÍRÁS (státusz-felvétel vagy szó-létrehozás) a közös
+     * napi extension-írás keretbe számít (config: extension_writes_per_day),
+     * ugyanúgy, mint az ExtensionController::addWord/createFlashcard. A státusz-
+     * levétel (detach) nem fogyaszt keretet, hogy a betelt keret ne akadályozza
+     * a visszavonást.
      * A bővítményt az Origin azonosítja: a háttér-script fetch-e extension-
      * origint küld, amit weboldal nem tud hamisítani; az Origint elhagyó
      * kézi (curl/szkript) hívásokat a végpont throttle-ja fogja meg.
@@ -39,17 +40,37 @@ trait TogglesWordStatus
      */
     private function reserveExtensionStatusWrite(Request $request): ?JsonResponse
     {
-        $origin = (string) $request->header('Origin');
-
-        $fromExtension = str_starts_with($origin, 'chrome-extension://')
-            || str_starts_with($origin, 'moz-extension://')
-            || str_starts_with($origin, 'safari-web-extension://');
-
-        if ($fromExtension && ! $request->user()->reserveExtensionWrite()) {
+        if ($this->isFromExtension($request) && ! $request->user()->reserveExtensionWrite()) {
             return response()->json(['error' => 'plan'], 403);
         }
 
         return null;
+    }
+
+    /**
+     * A reserveExtensionStatusWrite által lefoglalt keret visszaadása, ha a
+     * pivot-írás a foglalás UTÁN dobott — így a slot nem ragad benn, és a Free
+     * user nem kap hamis „elfogyott a napi kereted" hibát. Csak akkor refundol,
+     * ha a hívás extension-originből jött (szimmetrikus a foglalással).
+     */
+    private function refundExtensionStatusWrite(Request $request): void
+    {
+        if ($this->isFromExtension($request)) {
+            $request->user()->refundExtensionWrite();
+        }
+    }
+
+    /**
+     * A háttér-script fetch-e extension-origint küld, amit weboldal nem tud
+     * hamisítani; az Origint elhagyó kézi hívásokat a végpont throttle-ja fogja meg.
+     */
+    private function isFromExtension(Request $request): bool
+    {
+        $origin = (string) $request->header('Origin');
+
+        return str_starts_with($origin, 'chrome-extension://')
+            || str_starts_with($origin, 'moz-extension://')
+            || str_starts_with($origin, 'safari-web-extension://');
     }
 
     /**

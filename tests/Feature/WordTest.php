@@ -236,6 +236,32 @@ test('a premium user status-writes from the extension without quota', function (
         ->and($premium->extensionWritesToday())->toBe(0);
 });
 
+test('extension-origin status write refunds the quota when the pivot write throws', function () {
+    // M3: ha az írás a keret-foglalás UTÁN dob, a slot nem ragadhat benn — különben
+    // a Free user hamis „elfogyott a napi kereted" hibát kapna a következő íráskor.
+    $word = Word::where('word', 'the')->first();
+
+    // A bejelentkezett usert úgy mockoljuk, hogy a pivot-írás dobjon; a keret-
+    // számláló a valódi cache-en fut, így ellenőrizhető, hogy visszaáll.
+    $user = $this->user;
+    $mock = Mockery::mock($user)->makePartial();
+    $mock->shouldReceive('knownWords')->andThrow(new RuntimeException('DB down'));
+    $this->actingAs($mock);
+
+    expect($user->extensionWritesToday())->toBe(0);
+
+    $this->withoutExceptionHandling();
+
+    try {
+        $this->postJson(route('words.status', $word), ['status' => 'known'], ['Origin' => 'chrome-extension://abcdefghijklmnop']);
+    } catch (RuntimeException $e) {
+        // várt
+    }
+
+    // A foglalás lefutott (increment), majd a hiba után a refund visszaadta.
+    expect($user->extensionWritesToday())->toBe(0);
+});
+
 test('word write endpoints carry the shared per-user throttle limiter', function () {
     foreach (['words.status', 'words.importance', 'custom-words.store', 'custom-words.update', 'custom-words.status', 'custom-words.importance', 'custom-words.destroy'] as $name) {
         $route = Route::getRoutes()->getByName($name);

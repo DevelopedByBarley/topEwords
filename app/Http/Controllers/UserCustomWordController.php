@@ -23,9 +23,22 @@ class UserCustomWordController extends Controller
         'noun_plural', 'adj_comparative', 'adj_superlative',
     ];
 
-    public function store(StoreUserCustomWordRequest $request): RedirectResponse
+    public function store(StoreUserCustomWordRequest $request): RedirectResponse|JsonResponse
     {
-        $request->user()->customWords()->create($request->validated());
+        // Extension-originből érkező szó-felvétel a közös napi extension-írás
+        // keretbe számít (M4), mint az ExtensionController::addWord — különben az
+        // /extension/add-word megkerülhető lenne erre a webes route-ra váltva.
+        if ($limitResponse = $this->reserveExtensionStatusWrite($request)) {
+            return $limitResponse;
+        }
+
+        try {
+            $request->user()->customWords()->create($request->validated());
+        } catch (\Throwable $e) {
+            $this->refundExtensionStatusWrite($request);
+
+            throw $e;
+        }
 
         if ($request->user()->updateStreak()) {
             session()->flash('streak_triggered', $request->user()->streak);
@@ -66,7 +79,15 @@ class UserCustomWordController extends Controller
             return $limitResponse;
         }
 
-        $customWord->update(['status' => $status]);
+        // Refund a lefoglalt extension-keret, ha az írás elbukik, hogy a slot ne
+        // ragadjon benn (M3) — ugyanaz a minta, mint az ExtensionControllerben.
+        try {
+            $customWord->update(['status' => $status]);
+        } catch (\Throwable $e) {
+            $this->refundExtensionStatusWrite($request);
+
+            throw $e;
+        }
 
         if ($request->user()->updateStreak()) {
             session()->flash('streak_triggered', $request->user()->streak);

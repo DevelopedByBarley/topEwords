@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\FlashcardDeck;
 use App\Models\User;
 use App\Models\Word;
 use App\Services\AchievementService;
@@ -85,6 +86,83 @@ test('reserveExtensionWrite atomically consumes the daily quota and refunds at t
     // Betelt keretnél elutasít, és a számláló nem szalad túl (visszaadja a foglalást).
     expect($free->reserveExtensionWrite())->toBeFalse()
         ->and($free->extensionWritesToday())->toBe($freeLimit);
+});
+
+test('reserveFlashcardSlots runs the insert while under the limit and blocks it at the cap', function () {
+    $free = User::factory()->create();
+    $deck = $free->flashcardDecks()->create(['name' => 'D']);
+    $limit = $free->planLimit('flashcards');
+
+    // Egy hellyel a keret alatt: az insert lefut, a foglalás sikeres.
+    $deck->flashcards()->createMany(collect(range(1, $limit - 1))->map(fn ($i) => [
+        'front' => "F{$i}", 'back' => "B{$i}", 'direction' => 'front_to_back',
+    ])->all());
+
+    $ran = false;
+    $reserved = $free->reserveFlashcardSlots(1, function () use ($deck, &$ran) {
+        $ran = true;
+        $deck->flashcards()->create(['front' => 'last', 'back' => 'b', 'direction' => 'front_to_back']);
+    });
+
+    expect($reserved)->toBeTrue()
+        ->and($ran)->toBeTrue()
+        ->and($free->flashcards()->count())->toBe($limit);
+
+    // Betelt keretnél az insert closure NEM fut le, a szám nem lép a limit fölé.
+    $blockedRan = false;
+    $blocked = $free->reserveFlashcardSlots(1, function () use (&$blockedRan) {
+        $blockedRan = true;
+    });
+
+    expect($blocked)->toBeFalse()
+        ->and($blockedRan)->toBeFalse()
+        ->and($free->flashcards()->count())->toBe($limit);
+});
+
+test('reserveFlashcardSlots skips the count and always runs for unlimited plans', function () {
+    $pro = User::factory()->premium()->create();
+
+    $ran = false;
+    $reserved = $pro->reserveFlashcardSlots(5000, function () use (&$ran) {
+        $ran = true;
+    });
+
+    expect($reserved)->toBeTrue()->and($ran)->toBeTrue();
+});
+
+test('reserveFlashcardDeckSlot runs the create under the limit and blocks it at the cap', function () {
+    // M2: a pakli-létrehozás keret-ellenőrzése + insert közös zár alatt fut, hogy
+    // párhuzamos POST-ok ne csússzanak át ugyanazon az elavult pakli-számon.
+    $free = User::factory()->create();
+    $limit = $free->planLimit('decks'); // free = 5
+    $free->flashcardDecks()->createMany(collect(range(1, $limit - 1))->map(fn ($i) => ['name' => "D{$i}"])->all());
+
+    $deck = $free->reserveFlashcardDeckSlot(fn () => $free->flashcardDecks()->create(['name' => 'utolsó']));
+
+    expect($deck)->not->toBeNull()
+        ->and($free->flashcardDecks()->count())->toBe($limit);
+
+    // Betelt keretnél a create closure NEM fut le, a szám nem lép a limit fölé.
+    $blockedRan = false;
+    $blocked = $free->reserveFlashcardDeckSlot(function () use (&$blockedRan) {
+        $blockedRan = true;
+
+        return new FlashcardDeck;
+    });
+
+    expect($blocked)->toBeNull()
+        ->and($blockedRan)->toBeFalse()
+        ->and($free->flashcardDecks()->count())->toBe($limit);
+});
+
+test('reserveFlashcardDeckSlot skips the count and always runs for unlimited plans', function () {
+    $pro = User::factory()->premium()->create();
+    $pro->flashcardDecks()->createMany(collect(range(1, 20))->map(fn ($i) => ['name' => "D{$i}"])->all());
+
+    $deck = $pro->reserveFlashcardDeckSlot(fn () => $pro->flashcardDecks()->create(['name' => 'huszonegyedik']));
+
+    expect($deck)->not->toBeNull()
+        ->and($pro->flashcardDecks()->count())->toBe(21);
 });
 
 test('quiz round size is capped by the plan', function () {

@@ -559,7 +559,15 @@ class WordController extends Controller
             return $limitResponse;
         }
 
-        $request->user()->knownWords()->syncWithoutDetaching([$word->id => ['status' => $status]]);
+        // Refund a lefoglalt extension-keret, ha a pivot-írás elbukik, hogy a
+        // slot ne ragadjon benn (M3) — ugyanaz a minta, mint az ExtensionControllerben.
+        try {
+            $request->user()->knownWords()->syncWithoutDetaching([$word->id => ['status' => $status]]);
+        } catch (\Throwable $e) {
+            $this->refundExtensionStatusWrite($request);
+
+            throw $e;
+        }
 
         if ($request->user()->updateStreak()) {
             session()->flash('streak_triggered', $request->user()->streak);

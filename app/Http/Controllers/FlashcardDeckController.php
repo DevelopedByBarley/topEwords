@@ -69,18 +69,23 @@ class FlashcardDeckController extends Controller
 
     public function store(StoreFlashcardDeckRequest $request): RedirectResponse
     {
-        if (! $request->user()->canAddFlashcardDeck()) {
+        $validated = $request->validated();
+        $folderId = $validated['folder_id'] ?? null;
+
+        // A keret-ellenőrzés és az insert közös per-user zár alatt fut, hogy
+        // párhuzamos POST-ok ne csússzanak át ugyanazon az elavult pakli-számon
+        // (TOCTOU) — ugyanaz a minta, mint a kártya-úton (reserveFlashcardSlots).
+        $deck = $request->user()->reserveFlashcardDeckSlot(
+            fn () => $request->user()->flashcardDecks()->create(
+                collect($validated)->except('folder_id')->all()
+            )
+        );
+
+        if ($deck === null) {
             $limit = $request->user()->planLimit('decks');
 
             return back()->with('error', "Elérted a csomagod pakli-keretét ({$limit} pakli). Válts magasabb csomagra a folytatáshoz.");
         }
-
-        $validated = $request->validated();
-        $folderId = $validated['folder_id'] ?? null;
-
-        $deck = $request->user()->flashcardDecks()->create(
-            collect($validated)->except('folder_id')->all()
-        );
 
         if ($folderId) {
             $folder = $request->user()->flashcardFolders()->find($folderId);
