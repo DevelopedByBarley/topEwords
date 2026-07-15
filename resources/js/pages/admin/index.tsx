@@ -132,10 +132,19 @@ export default function AdminIndex({
         }
     }
 
-    function copyInvite(invite: Invite) {
-        navigator.clipboard?.writeText(invite.url);
-        setCopiedId(invite.id);
-        setTimeout(() => setCopiedId(null), 1500);
+    async function copyInvite(invite: Invite) {
+        try {
+            if (!navigator.clipboard) {
+                throw new Error('clipboard unavailable');
+            }
+            await navigator.clipboard.writeText(invite.url);
+            setCopiedId(invite.id);
+            setTimeout(() => setCopiedId(null), 1500);
+        } catch {
+            // Nem-secure kontextus vagy elutasított írás: ne hazudjunk sikert,
+            // hanem adjuk oda a linket, hogy az admin kézzel másolhassa.
+            window.prompt('Másold ki a linket:', invite.url);
+        }
     }
     const maxDayCount = Math.max(...registrationsByDay.map((d) => d.count), 1);
 
@@ -730,7 +739,10 @@ export default function AdminIndex({
                                                 >
                                                     {inv.usable
                                                         ? 'aktív'
-                                                        : 'lejárt'}
+                                                        : inv.uses >=
+                                                            inv.max_uses
+                                                          ? 'elfogyott'
+                                                          : 'lejárt'}
                                                 </span>
                                                 <span className="text-xs text-zinc-500 tabular-nums">
                                                     {inv.uses}/{inv.max_uses}

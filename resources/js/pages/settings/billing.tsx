@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { edit } from '@/routes/billing';
+import { edit, update } from '@/routes/billing';
 
 type BillingType = 'individual' | 'company';
 
@@ -55,8 +55,7 @@ export default function Billing({ billingData }: Props) {
                 </ToggleGroup>
 
                 <Form
-                    action="/settings/billing"
-                    method="put"
+                    {...update.form.put()}
                     options={{ preserveScroll: true }}
                     className="space-y-6"
                 >

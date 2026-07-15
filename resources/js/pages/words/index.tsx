@@ -187,6 +187,7 @@ export default function WordsIndex({
     const [selectedDeckId, setSelectedDeckId] = useState<string>('');
     const [importingFlashcard, setImportingFlashcard] = useState(false);
     const [customImportSuccess, setCustomImportSuccess] = useState(false);
+    const [wordImportSuccess, setWordImportSuccess] = useState(false);
     const [customFilter, setCustomFilter] = useState<'all' | 'custom'>('all');
     const [practiceModalWord, setPracticeModalWord] =
         useState<PracticeWord | null>(null);
@@ -421,11 +422,18 @@ export default function WordsIndex({
         }
 
         setImportingFlashcard(true);
+        setWordImportSuccess(false);
         router.post(
             importFromWord(Number(selectedDeckId)).url,
             { word_id: wordId },
             {
                 preserveScroll: true,
+                preserveState: true,
+                only: ['flashcardDecks'],
+                onSuccess: () => {
+                    setWordImportSuccess(true);
+                    setTimeout(() => setWordImportSuccess(false), 2500);
+                },
                 onFinish: () => setImportingFlashcard(false),
             },
         );
@@ -2316,7 +2324,11 @@ export default function WordsIndex({
                                             </Select>
                                             <Button
                                                 size="sm"
-                                                variant="outline"
+                                                variant={
+                                                    wordImportSuccess
+                                                        ? 'default'
+                                                        : 'outline'
+                                                }
                                                 disabled={
                                                     !selectedDeckId ||
                                                     importingFlashcard
@@ -2328,7 +2340,9 @@ export default function WordsIndex({
                                                 }
                                             >
                                                 <Layers className="mr-1.5 size-4" />
-                                                Hozzáadás
+                                                {wordImportSuccess
+                                                    ? 'Hozzáadva!'
+                                                    : 'Hozzáadás'}
                                             </Button>
                                         </div>
                                     </div>

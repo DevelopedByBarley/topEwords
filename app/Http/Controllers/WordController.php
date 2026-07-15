@@ -54,9 +54,12 @@ class WordController extends Controller
                 ->all() ?? []
             : null;
 
-        // Base query without letter filter — used for markedLetters so all letter buttons can be annotated
+        // Base query without letter filter — used for markedLetters so all letter buttons can be annotated.
+        // Substring-egyezés (mint a saját szavaknál és a keresőmező-végponton) — ugyanarra a beírásra
+        // ugyanaz a találati logika mindkét listán. A collation case-insensitive, ezért nincs szükség
+        // uppercase-normalizálásra (a $search már lowercase, sor 30).
         $baseWithoutLetter = Word::query()
-            ->when($search !== '', fn ($q) => $q->whereRaw('word LIKE ? ESCAPE ?', [$this->likeEscape(strtoupper($search)).'%', '\\']))
+            ->when($search !== '', fn ($q) => $q->whereRaw('word LIKE ? ESCAPE ?', ['%'.$this->likeEscape($search).'%', '\\']))
             ->when($level !== null, fn ($q) => $q->where('level', $level))
             ->when($statusFilter !== '', fn ($q) => $q->whereIn('id', $pivot()->where('status', $statusFilter)->select('word_id')))
             ->when($importanceFilter !== null, fn ($q) => $q->whereIn('id', $pivot()->where('importance', $importanceFilter)->select('word_id')))
@@ -64,7 +67,7 @@ class WordController extends Controller
 
         // Full query including the active letter filter — used for pagination and word list
         $baseQuery = (clone $baseWithoutLetter)
-            ->when($search === '' && $letter !== '' && $letter !== 'ALL', fn ($q) => $q->where('word', 'like', $letter.'%'));
+            ->when($search === '' && $letter !== '' && $letter !== 'ALL', fn ($q) => $q->whereRaw('word LIKE ? ESCAPE ?', [$this->likeEscape($letter).'%', '\\']));
 
         /**
          * Az alábbi propok closure-ök: az Inertia csak akkor értékeli ki őket, ha a

@@ -5,8 +5,10 @@
  * created via the extension API with a raw `<img onerror=…>`) cannot execute when
  * rendered via `dangerouslySetInnerHTML`.
  *
- * Uses the DOM when available; falls back to a conservative regex strip during
- * SSR (no `document`).
+ * Uses the DOM when available. During SSR (no `document`) it fails **safe** —
+ * returning an empty string rather than applying a weaker regex sanitizer that
+ * could let markup slip through. Rich text is always re-rendered on the client
+ * after hydration, where the full DOM-based sanitizer runs, so nothing is lost.
  */
 
 const ALLOWED_TAGS = new Set([
@@ -77,21 +79,15 @@ function sanitizeWithDom(dirty: string): string {
     return tpl.innerHTML;
 }
 
-function sanitizeWithRegex(dirty: string): string {
-    return dirty
-        .replace(/<\s*(script|style|iframe|object|embed|svg|math|form|link|meta|base|noscript|template)\b[\s\S]*?<\s*\/\s*\1\s*>/gi, '')
-        .replace(/<\s*(script|style|iframe|object|embed|svg|math|form|link|meta|base|noscript|template)\b[^>]*\/?\s*>/gi, '')
-        .replace(/\son[a-z-]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
-        .replace(/(href|src)\s*=\s*("\s*javascript:[^"]*"|'\s*javascript:[^']*'|javascript:[^\s>]+)/gi, '');
-}
-
 export function sanitizeHtml(dirty: string | null | undefined): string {
     if (!dirty) {
         return '';
     }
 
+    // SSR (nincs DOM): fail-safe — üres string, nem gyengébb regex-szűrő. A kliens
+    // hidratáláskor a teljes DOM-alapú sanitizerrel újrarendereli a tartalmat.
     if (typeof document === 'undefined') {
-        return sanitizeWithRegex(dirty);
+        return '';
     }
 
     return sanitizeWithDom(dirty);

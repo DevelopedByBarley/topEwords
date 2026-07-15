@@ -1,4 +1,4 @@
-import { Head, Link, router, usePage } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import { CreditCard, Crown, Download, ExternalLink, FileText, Sparkles, Zap } from 'lucide-react';
 import { useState } from 'react';
 import Heading from '@/components/heading';
@@ -46,8 +46,6 @@ export default function Subscription({
     paymentMethod,
     subscription,
 }: Props) {
-    const { flash } = usePage<{ flash: { success?: string } }>().props;
-
     const [now] = useState(() => Date.now());
 
     const trialDaysLeft = trialEndsAt
@@ -85,12 +83,6 @@ export default function Subscription({
                     title="Előfizetés"
                     description="Kezeld az előfizetésed és számlázási adataidat"
                 />
-
-                {flash?.success && (
-                    <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-300">
-                        {flash.success}
-                    </div>
-                )}
 
                 {/* Trial */}
                 {isOnTrial && (
@@ -175,71 +167,6 @@ export default function Subscription({
                                 <ExternalLink className="mr-1.5 size-3.5" />
                                 Számlák & kártyaadatok
                             </Button>
-                            {subscription?.cancel_at_period_end ? (
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={handleResume}
-                                >
-                                    Lemondás visszavonása
-                                </Button>
-                            ) : (
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="text-destructive hover:text-destructive"
-                                    onClick={handleCancel}
-                                >
-                                    Előfizetés lemondása
-                                </Button>
-                            )}
-                        </div>
-                    </div>
-                )}
-
-                {/* Basic subscription */}
-                {!isPremium && isSubscribed && (
-                    <div className="space-y-4 rounded-xl border p-5">
-                        <div>
-                            <p className="font-semibold">Alap előfizetés</p>
-                            {subscription?.cancel_at_period_end ? (
-                                <p className="mt-1 text-sm text-muted-foreground">
-                                    Lemondva — a hozzáférésed{' '}
-                                    <strong>
-                                        {new Date(
-                                            subscription.ends_at!,
-                                        ).toLocaleDateString('hu-HU')}
-                                    </strong>
-                                    -ig megmarad. Utána a fiókod automatikusan
-                                    az ingyenes csomagra vált, és nem terheljük
-                                    meg többé a kártyádat.
-                                </p>
-                            ) : (
-                                <p className="mt-1 text-sm text-muted-foreground">
-                                    Aktív alap előfizetés — korlátlan szavak,
-                                    szólisták, flashcardok, kvíz- és cloze-körök,
-                                    AI-funkciók nélkül. Havonta automatikusan
-                                    megújul. Válts prémiumra az AI-funkciókért,
-                                    vagy mondd le bármikor — a hónap végéig
-                                    akkor is megmarad a hozzáférésed.
-                                </p>
-                            )}
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={handlePortal}
-                            >
-                                <ExternalLink className="mr-1.5 size-3.5" />
-                                Számlák & kártyaadatok
-                            </Button>
-                            <Link href={pricing()}>
-                                <Button size="sm" variant="outline">
-                                    <Sparkles className="mr-1.5 size-3.5" />
-                                    Váltás Prémiumra
-                                </Button>
-                            </Link>
                             {subscription?.cancel_at_period_end ? (
                                 <Button
                                     variant="outline"

@@ -11,6 +11,7 @@ import {
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Spinner } from '@/components/ui/spinner';
 import { csrfHeaders } from '@/lib/csrf';
 import { pricing } from '@/routes';
 import { quiz as quizRoute, index as wordsIndex } from '@/routes/words';
@@ -113,6 +114,10 @@ export default function Quiz({
     const [score, setScore] = useState(0);
     const [wrongAnswers, setWrongAnswers] = useState<QuizWord[]>([]);
     const [finished, setFinished] = useState(false);
+    // Amíg az „Újra" utáni új kör propjai megérkeznek, ezt tartjuk true-n, hogy a
+    // régi words[0] kérdés ne villanjon fel (és ne legyen megválaszolható) a
+    // szerver-kör előtt. A words-változásra futó effect nullázza.
+    const [restarting, setRestarting] = useState(false);
 
     // Új kvíz (új words prop) érkezésekor visszaállítjuk az állapotot — különben
     // az Inertia újrahasználja a komponenst, és a régi current/answerState/finished
@@ -124,6 +129,7 @@ export default function Quiz({
         setScore(0);
         setWrongAnswers([]);
         setFinished(false);
+        setRestarting(false);
     }, [words]);
 
     const isSetup =
@@ -222,12 +228,10 @@ export default function Quiz({
     }
 
     function restart() {
-        setCurrent(0);
-        setSelected(null);
-        setAnswerState('unanswered');
-        setScore(0);
-        setWrongAnswers([]);
-        setFinished(false);
+        // Nem nullázzuk a current/finished-et itt: a régi words még a propban van,
+        // a szinkron reset felvillantaná az előző kör 1. kérdését. A restarting
+        // flaggel loading-állapotot mutatunk, a words-effect állítja helyre.
+        setRestarting(true);
 
         if (filters.ids !== '') {
             startQuizWithIds(filters.ids);
@@ -281,6 +285,20 @@ export default function Quiz({
                 onStart={startQuiz}
                 onStartWithIds={startQuizWithIds}
             />
+        );
+    }
+
+    // ── Új kör töltése („Újra") ──────────────────────────────────────────────
+    // A régi words még a propban van; amíg az új kör meg nem érkezik, spinnert
+    // mutatunk a felvillanó régi 1. kérdés helyett.
+    if (restarting) {
+        return (
+            <>
+                <Head title="Kvíz" />
+                <div className="flex min-h-[80vh] items-center justify-center">
+                    <Spinner className="size-8 text-muted-foreground" />
+                </div>
+            </>
         );
     }
 

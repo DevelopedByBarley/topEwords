@@ -35,6 +35,16 @@ function normalize(value: string): string {
     return value.trim().toLowerCase();
 }
 
+/** Egyenletes (Fisher–Yates) keverés — új tömböt ad, az eredetit nem módosítja. */
+function shuffle<T>(items: readonly T[]): T[] {
+    const result = [...items];
+    for (let i = result.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [result[i], result[j]] = [result[j], result[i]];
+    }
+    return result;
+}
+
 function isCorrectAnswer(input: string, correct: string): boolean {
     const splitForms = (value: string): string[] =>
         normalize(value)
@@ -115,17 +125,11 @@ function SetupScreen({
     }
 
     function startRandom(count: number) {
-        const shuffled = [...verbs]
-            .sort(() => Math.random() - 0.5)
-            .slice(0, count);
-        onStart(shuffled);
+        onStart(shuffle(verbs).slice(0, count));
     }
 
     function startSelected() {
-        const selected = verbs
-            .filter((v) => selectedIds.has(v.id))
-            .sort(() => Math.random() - 0.5);
-        onStart(selected);
+        onStart(shuffle(verbs.filter((v) => selectedIds.has(v.id))));
     }
 
     const allFilteredSelected =
@@ -617,11 +621,15 @@ export default function IrregularVerbsIndex({ verbs }: Props) {
                     {/* Inputs */}
                     <div className="flex flex-col gap-4 rounded-3xl bg-card p-5 shadow-sm md:p-6">
                         <div className="flex flex-col gap-1.5">
-                            <label className="text-sm font-semibold text-muted-foreground">
+                            <label
+                                htmlFor="irr-past-simple"
+                                className="text-sm font-semibold text-muted-foreground"
+                            >
                                 Past Simple
                             </label>
                             <div className="relative">
                                 <Input
+                                    id="irr-past-simple"
                                     ref={pastRef}
                                     value={pastInput}
                                     onChange={(e) =>
@@ -653,11 +661,15 @@ export default function IrregularVerbsIndex({ verbs }: Props) {
                         </div>
 
                         <div className="flex flex-col gap-1.5">
-                            <label className="text-sm font-semibold text-muted-foreground">
+                            <label
+                                htmlFor="irr-past-participle"
+                                className="text-sm font-semibold text-muted-foreground"
+                            >
                                 Past Participle
                             </label>
                             <div className="relative">
                                 <Input
+                                    id="irr-past-participle"
                                     ref={participleRef}
                                     value={participleInput}
                                     onChange={(e) =>

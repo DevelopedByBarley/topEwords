@@ -533,7 +533,7 @@ function showSearchDetail(data) {
                         }
 
                         // Az AI nem létező szónak ítélte (gibberish / elgépelés): jelezzük.
-                        if (resp.is_real_word === false) {
+                        if (resp?.is_real_word === false) {
                             const fb = detail.querySelector('#add-feedback');
 
                             if (fb) {

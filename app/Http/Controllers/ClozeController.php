@@ -231,7 +231,12 @@ class ClozeController extends Controller
             $pattern = '/\b'.preg_quote($form, '/').'\b/iu';
 
             if (preg_match($pattern, $example, $matches)) {
-                $answer = mb_strtolower($matches[0]);
+                // A mondatban ténylegesen szereplő alakot tartjuk meg, az eredeti
+                // kis/nagybetűvel — mondatkezdő szónál a „Honesty" olvashatóbb, mint
+                // a „honesty". A helyesség-ellenőrzés a kliensen amúgy is
+                // kis/nagybetű-független (normalize()), így a megjelenített casing
+                // szabadon követheti a mondatot.
+                $answer = $matches[0];
                 $sentence = preg_replace($pattern, '_____', $example, 1);
 
                 return ['sentence' => $sentence, 'answer' => $answer];

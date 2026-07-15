@@ -1,5 +1,5 @@
 import { ChevronDown } from 'lucide-react';
-import { useState  } from 'react';
+import { useEffect, useState  } from 'react';
 import type {ReactNode} from 'react';
 import { Input } from '@/components/ui/input';
 import {
@@ -42,6 +42,15 @@ export default function WordFormFields({ form, onChange, errors = {}, autoFocus 
     const hasOtherForms = otherPos.some((p) => FORM_POS_FIELDS[p].some((field) => String(form[field] ?? '').trim() !== ''));
 
     const [showOther, setShowOther] = useState(hasOtherForms);
+
+    // Ha utólag (pl. AI-autofill) más szófaj alakjai töltődnek be, nyissuk ki a
+    // lenyílót — különben a beküldött adat láthatatlan maradna. Csak nyitunk:
+    // a felhasználó által kézzel kinyitott szekciót nem csukjuk vissza.
+    useEffect(() => {
+        if (hasOtherForms) {
+            setShowOther(true);
+        }
+    }, [hasOtherForms]);
 
     const renderBlock = (pos: FormPos): ReactNode => {
         if (pos === 'verb') {

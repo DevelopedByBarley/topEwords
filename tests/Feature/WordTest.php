@@ -65,6 +65,15 @@ test('words can be searched', function () {
         );
 });
 
+test('main word list search matches substrings, not just prefixes', function () {
+    // "rat" a "modeRATe" és "elaboRATe" belsejében van — prefix-kereséssel egyik
+    // sem jönne, substring-kereséssel mindkettő (mint a saját szavaknál).
+    $this->get(route('words.index', ['search' => 'rat']))
+        ->assertInertia(fn ($page) => $page
+            ->where('words.total', 2)
+        );
+});
+
 test('setting word status to known marks it', function () {
     $word = Word::where('word', 'the')->first();
 

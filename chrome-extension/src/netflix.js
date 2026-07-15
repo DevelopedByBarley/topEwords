@@ -453,13 +453,56 @@ function initNfxSubtitles(attempt = 0) {
     });
 }
 
-// A Netflix SPA: nincs dedikált navigációs esemény, ezért az URL-t figyeljük.
+// A Netflix SPA-nak nincs dedikált navigációs eseménye. A History API-t
+// (pushState/replaceState/popstate) hookoljuk az azonnali észleléshez; a lassú
+// (2 mp-es) poll csak biztonsági háló olyan navigációkra, amiket a History-hook
+// esetleg kihagyna. Így másodpercenkénti pörgés helyett a poll idle-ben alig dolgozik.
+let nfxLastPath = location.pathname + location.search;
+
+function handleNfxNavChange() {
+    const path = location.pathname + location.search;
+
+    if (path === nfxLastPath) {
+        return;
+    }
+
+    nfxLastPath = path;
+    // Érvénytelenítjük a folyamatban lévő init-meneteket, majd takarítunk.
+    nfxNavToken++;
+    destroyNfxSubtitles();
+
+    if (isNetflixWatchPage()) {
+        // Az init maga várja ki a lejátszót (poll), nem kell fix késleltetés.
+        initNfxSubtitles();
+    }
+}
+
 function startNfxNavWatch() {
     if (nfxNavInterval) {
         return;
     }
 
-    let lastPath = location.pathname + location.search;
+    // Azonnali észlelés: a History API metódusait becsomagoljuk, és a popstate-re
+    // is figyelünk. A patch idempotens (a __nfxPatched flag védi az ismételt
+    // csomagolástól, ha a script kétszer futna le).
+    if (!history.__nfxPatched) {
+        const wrap = (name) => {
+            const original = history[name];
+            history[name] = function (...args) {
+                const result = original.apply(this, args);
+                handleNfxNavChange();
+
+                return result;
+            };
+        };
+        wrap('pushState');
+        wrap('replaceState');
+        window.addEventListener('popstate', handleNfxNavChange);
+        history.__nfxPatched = true;
+    }
+
+    // Biztonsági háló: ritka (2 mp) poll a History-hook által esetleg elszalasztott
+    // navigációkra. Kikapcs esetén magától leáll.
     nfxNavInterval = setInterval(() => {
         if (!extAlive()) {
             clearInterval(nfxNavInterval);
@@ -468,22 +511,8 @@ function startNfxNavWatch() {
             return;
         }
 
-        const path = location.pathname + location.search;
-
-        if (path === lastPath) {
-            return;
-        }
-
-        lastPath = path;
-        // Érvénytelenítjük a folyamatban lévő init-meneteket, majd takarítunk.
-        nfxNavToken++;
-        destroyNfxSubtitles();
-
-        if (isNetflixWatchPage()) {
-            // Az init maga várja ki a lejátszót (poll), nem kell fix késleltetés.
-            initNfxSubtitles();
-        }
-    }, 1000);
+        handleNfxNavChange();
+    }, 2000);
 }
 
 if (location.hostname === 'www.netflix.com') {
