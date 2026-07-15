@@ -123,6 +123,20 @@ test('empty status removes the word (extension un-toggle)', function () {
     expect($this->user->knownWords()->where('word_id', $word->id)->exists())->toBeFalse();
 });
 
+test('empty status removes a word regardless of its current status (no practice re-toggle)', function () {
+    // A gyakorlás-oldal "eltávolítás" gombja explicit üres státuszt küld, nem a 'practice'
+    // toggle-t. Így ha a szó időközben máshol (másik fül) más státuszra váltott, az
+    // eltávolítás akkor is levesz — sosem állítja vissza tévedésből practice-re.
+    $word = Word::where('word', 'the')->first();
+    $this->user->knownWords()->attach($word->id, ['status' => 'known']);
+
+    $this->postJson(route('words.status', $word), ['status' => null])
+        ->assertOk()
+        ->assertExactJson(['ok' => true, 'status' => null, 'forms' => ['the']]);
+
+    expect($this->user->knownWords()->where('word_id', $word->id)->exists())->toBeFalse();
+});
+
 test('extension status response returns all inflected forms for cache patching', function () {
     // A bővítmény ezekkel az alakokkal foltozza helyben a státusz-cache-t, így a
     // teljes térkép újraletöltése elmarad. Minden ragozott alaknak szerepelnie kell.

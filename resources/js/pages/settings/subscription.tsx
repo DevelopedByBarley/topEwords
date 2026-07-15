@@ -120,6 +120,29 @@ export default function Subscription({
                                 Prémium előfizetés
                             </p>
                         </div>
+                        {subscription?.stripe_status === 'past_due' && (
+                            <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+                                <p className="font-semibold">
+                                    Sikertelen terhelés
+                                </p>
+                                <p className="mt-1">
+                                    A legutóbbi terhelés nem sikerült — kérlek
+                                    frissítsd a kártyaadataidat, hogy a prémium
+                                    hozzáférésed ne szűnjön meg. Ha nem
+                                    intézkedsz, a Stripe néhány próbálkozás után
+                                    lemondja az előfizetést.
+                                </p>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="mt-2.5 border-amber-400 text-amber-800 hover:bg-amber-100 dark:border-amber-600 dark:text-amber-200 dark:hover:bg-amber-900/40"
+                                    onClick={handlePortal}
+                                >
+                                    <ExternalLink className="mr-1.5 size-3.5" />
+                                    Kártya frissítése
+                                </Button>
+                            </div>
+                        )}
                         {subscription?.cancel_at_period_end ? (
                             <p className="mb-4 text-sm text-violet-600 dark:text-violet-400">
                                 Lemondva — a prémium hozzáférésed{' '}

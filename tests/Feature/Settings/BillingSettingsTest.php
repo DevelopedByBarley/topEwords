@@ -89,6 +89,29 @@ test('individual billing does not require a tax number', function () {
         ->assertSessionHasNoErrors();
 });
 
+test('switching from company to individual clears the stored tax number', function () {
+    $user = User::factory()->create([
+        'billing_type' => 'company',
+        'billing_tax_number' => '12345678-1-01',
+    ]);
+
+    // Egyénire váltva a company-only adószámmező a UI-ban unmountol, így be sem
+    // érkezik — a régi adószámnak mégsem szabad a fiókon ragadnia.
+    $this->actingAs($user)
+        ->put(route('billing.update'), [
+            'billing_name' => 'Kiss János',
+            'billing_country' => 'HU',
+            'billing_zip' => '1234',
+            'billing_city' => 'Budapest',
+            'billing_address' => 'Kossuth Lajos utca 1.',
+            'billing_type' => 'individual',
+        ])
+        ->assertSessionHasNoErrors();
+
+    expect($user->refresh()->billing_tax_number)->toBeNull()
+        ->and($user->billing_type)->toBe('individual');
+});
+
 test('an unsupported country code is rejected', function () {
     $user = User::factory()->create();
 

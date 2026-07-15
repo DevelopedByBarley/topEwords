@@ -23,7 +23,16 @@ class BillingController extends Controller
 
     public function update(BillingUpdateRequest $request): RedirectResponse
     {
-        $request->user()->fill($request->validated())->save();
+        $data = $request->validated();
+
+        // Magánszemélynél nincs adószám — cégről egyénire váltva a company módban
+        // unmountolt mező nem érkezik be, így a fill() a korábbi adószámot bennhagyná
+        // a DB-ben. Explicit nullázzuk, hogy régi cégadat ne ragadjon a fiókon.
+        if (($data['billing_type'] ?? null) === 'individual') {
+            $data['billing_tax_number'] = null;
+        }
+
+        $request->user()->fill($data)->save();
 
         return to_route('billing.edit')->with('success', 'Számlázási adatok mentve.');
     }

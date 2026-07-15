@@ -126,8 +126,12 @@ export default function WordsPractice({
             : wordStatus(pw.id).url;
 
         try {
+            // A "gyakorlásból eltávolítás" (newStatus === null) explicit üres státuszt küld,
+            // NEM a 'practice' toggle-t: így a backend mindig levesz. Ha a 'practice'-t
+            // küldenénk toggle-ként, és a szó státusza időközben máshol (másik fül) megváltozott,
+            // ez a hívás visszaállítaná practice-re, miközben a UI eltávolítottnak mutatja.
             const res = await postJson(url, {
-                status: newStatus ?? 'practice',
+                status: newStatus,
             });
 
             if (!res.ok) {
@@ -162,6 +166,7 @@ export default function WordsPractice({
     const [result, setResult] = useState<CheckResult | null>(null);
     const [error, setError] = useState<string | null>(null);
     const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const searchSeq = useRef(0);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -190,6 +195,11 @@ export default function WordsPractice({
             return;
         }
 
+        // Válasz-sorrend guard: minden kérés kap egy monoton növekvő szekvencia-számot,
+        // és csak a LEGUTOLSÓ kérés eredményét fogadjuk el. Enélkül egy lassú korábbi
+        // válasz felülírhatná egy gyorsabb újabb keresés találatait (stale eredmény).
+        const seq = ++searchSeq.current;
+
         searchTimeout.current = setTimeout(async () => {
             setSearching(true);
 
@@ -198,12 +208,23 @@ export default function WordsPractice({
                     headers: { 'X-Requested-With': 'XMLHttpRequest' },
                 });
                 const data = await res.json();
+
+                if (seq !== searchSeq.current) {
+                    return;
+                }
+
                 setSearchResults(Array.isArray(data) ? data : []);
                 setShowDropdown(true);
             } catch {
+                if (seq !== searchSeq.current) {
+                    return;
+                }
+
                 setSearchResults([]);
             } finally {
-                setSearching(false);
+                if (seq === searchSeq.current) {
+                    setSearching(false);
+                }
             }
         }, 250);
     }, []);

@@ -100,12 +100,20 @@ export default function AdminIndex({
     const [copiedId, setCopiedId] = useState<number | null>(null);
 
     function createInvite() {
+        // A datetime-local érték ("2026-07-10T12:00") időzóna nélküli, a szerver app-időzónája
+        // viszont UTC — nyersen küldve a lejárat órákkal csúszna. A helyi időpontot abszolút
+        // ISO-8601-re (UTC offszettel) konvertáljuk, hogy a szerver pontosan azt kapja, amire
+        // az admin a saját idejében gondolt.
+        const expiresAtIso = inviteExpires
+            ? new Date(inviteExpires).toISOString()
+            : null;
+
         router.post(
             '/admin/invites',
             {
                 label: inviteLabel || null,
                 max_uses: Number(inviteMaxUses) || 1,
-                expires_at: inviteExpires || null,
+                expires_at: expiresAtIso,
             },
             {
                 preserveScroll: true,
