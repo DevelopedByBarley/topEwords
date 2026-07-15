@@ -153,3 +153,73 @@ test('correct password must be provided to update password', function () {
         ->assertSessionHasErrors('current_password')
         ->assertRedirect(route('security.edit'));
 });
+
+test('security page lists only the users own player devices', function () {
+    $user = User::factory()->create();
+    $other = User::factory()->create();
+
+    $user->createToken('topwords Player – Laptop', ['player']);
+    $other->createToken('topwords Player – Idegen gép', ['player']);
+
+    $this->actingAs($user)
+        ->withSession(['auth.password_confirmed_at' => time()])
+        ->get(route('security.edit'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('settings/security')
+            ->has('playerDevices', 1)
+            ->where('playerDevices.0.name', 'topwords Player – Laptop'),
+        );
+});
+
+test('a player device can be revoked', function () {
+    $user = User::factory()->create();
+    $token = $user->createToken('topwords Player – Laptop', ['player'])->accessToken;
+
+    $this->actingAs($user)
+        ->from(route('security.edit'))
+        ->delete(route('security.player-devices.destroy', ['tokenId' => $token->id]))
+        ->assertRedirect(route('security.edit'));
+
+    expect($user->tokens()->count())->toBe(0);
+});
+
+test('a user cannot revoke another users player device', function () {
+    $user = User::factory()->create();
+    $other = User::factory()->create();
+    $token = $other->createToken('topwords Player – Idegen gép', ['player'])->accessToken;
+
+    $this->actingAs($user)
+        ->delete(route('security.player-devices.destroy', ['tokenId' => $token->id]));
+
+    // Idegen tokent nem érhet el (user-scoped lekérdezés) — megmarad.
+    expect($other->tokens()->count())->toBe(1);
+});
+
+test('revoking all player devices leaves non-player tokens intact', function () {
+    $user = User::factory()->create();
+    $user->createToken('topwords Player – Laptop', ['player']);
+    $user->createToken('topwords Player – Telefon', ['player']);
+    $user->createToken('Egyéb integráció', ['*']);
+
+    $this->actingAs($user)
+        ->from(route('security.edit'))
+        ->delete(route('security.player-devices.destroy-all'))
+        ->assertRedirect(route('security.edit'));
+
+    // Csak a két player-token törlődött; a szélesebb jogkörű token megmaradt.
+    $remaining = $user->tokens()->get();
+    expect($remaining)->toHaveCount(1)
+        ->and($remaining->first()->name)->toBe('Egyéb integráció');
+});
+
+test('the revoke endpoint refuses to delete a non-player token', function () {
+    $user = User::factory()->create();
+    $token = $user->createToken('Egyéb integráció', ['*'])->accessToken;
+
+    $this->actingAs($user)
+        ->delete(route('security.player-devices.destroy', ['tokenId' => $token->id]));
+
+    // A `*`-token nem player-eszköz → nem törölhető ezen a végponton.
+    expect($user->tokens()->count())->toBe(1);
+});

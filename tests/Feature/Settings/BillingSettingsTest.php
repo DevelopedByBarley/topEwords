@@ -112,6 +112,69 @@ test('switching from company to individual clears the stored tax number', functi
         ->and($user->billing_type)->toBe('individual');
 });
 
+test('a malformed tax number is rejected', function () {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->put(route('billing.update'), [
+            'billing_name' => 'Példa Kft.',
+            'billing_tax_number' => '12345678', // hiányzik a -c-kk rész
+            'billing_country' => 'HU',
+            'billing_zip' => '1234',
+            'billing_city' => 'Budapest',
+            'billing_address' => 'Kossuth Lajos utca 1.',
+            'billing_type' => 'company',
+        ])
+        ->assertSessionHasErrors('billing_tax_number');
+});
+
+test('an individual may not submit a tax number', function () {
+    $user = User::factory()->create();
+
+    // Direkt POST (a UI unmountolja a mezőt, de a DB-konzisztenciát a szabály védi).
+    $this->actingAs($user)
+        ->put(route('billing.update'), [
+            'billing_name' => 'Kiss János',
+            'billing_tax_number' => '12345678-1-01',
+            'billing_country' => 'HU',
+            'billing_zip' => '1234',
+            'billing_city' => 'Budapest',
+            'billing_address' => 'Kossuth Lajos utca 1.',
+            'billing_type' => 'individual',
+        ])
+        ->assertSessionHasErrors('billing_tax_number');
+});
+
+test('a non-numeric zip is rejected', function () {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->put(route('billing.update'), [
+            'billing_name' => 'Kiss János',
+            'billing_country' => 'HU',
+            'billing_zip' => '12A4',
+            'billing_city' => 'Budapest',
+            'billing_address' => 'Kossuth Lajos utca 1.',
+            'billing_type' => 'individual',
+        ])
+        ->assertSessionHasErrors('billing_zip');
+});
+
+test('control characters in billing name are rejected', function () {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->put(route('billing.update'), [
+            'billing_name' => "Kiss János\nHamis sor",
+            'billing_country' => 'HU',
+            'billing_zip' => '1234',
+            'billing_city' => 'Budapest',
+            'billing_address' => 'Kossuth Lajos utca 1.',
+            'billing_type' => 'individual',
+        ])
+        ->assertSessionHasErrors('billing_name');
+});
+
 test('an unsupported country code is rejected', function () {
     $user = User::factory()->create();
 

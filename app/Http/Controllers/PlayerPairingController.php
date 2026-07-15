@@ -142,7 +142,7 @@ class PlayerPairingController extends Controller
         $token = $user->createToken(
             'topwords Player – '.$pairing->device_name,
             ['player'],
-            now()->addYear(),
+            now()->addDays(PlayerPairing::TOKEN_LIFETIME_DAYS),
         );
 
         $pairing->delete();

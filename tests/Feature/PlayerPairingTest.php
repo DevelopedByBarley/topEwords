@@ -179,6 +179,23 @@ test('exchange returns a working token after approval and is single use', functi
         ->assertJson(['email' => $this->user->email]);
 });
 
+test('exchanged token carries only the player ability and a 90-day expiry', function () {
+    $pair = startPairing();
+
+    $this->actingAs($this->user)->post(route('player.approve'), ['code' => $pair['user_code']]);
+
+    $this->postJson(route('player.pair.exchange'), [
+        'user_code' => $pair['user_code'],
+        'poll_secret' => $pair['poll_secret'],
+    ])->assertSuccessful();
+
+    $token = $this->user->tokens()->latest('id')->first();
+
+    expect($token->abilities)->toBe(['player'])
+        ->and($token->expires_at->toDateString())
+        ->toBe(now()->addDays(PlayerPairing::TOKEN_LIFETIME_DAYS)->toDateString());
+});
+
 test('exchange rejects a wrong poll secret', function () {
     $pair = startPairing();
 

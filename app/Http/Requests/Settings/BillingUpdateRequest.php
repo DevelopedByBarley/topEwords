@@ -35,4 +35,12 @@ class BillingUpdateRequest extends FormRequest
     {
         return $this->billingRules(required: true);
     }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return $this->billingMessages();
+    }
 }

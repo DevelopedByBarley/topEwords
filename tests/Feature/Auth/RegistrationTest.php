@@ -40,6 +40,50 @@ test('new users can register but are not logged in until they verify their email
     Notification::assertSentTo($user, VerifyEmail::class);
 });
 
+test('registration rejects an individual who submits a tax number', function () {
+    // A regisztrációs úton is tilos az ellentmondó individual+adószám állapot,
+    // hogy ne ragadhasson a fiókon rossz adat a settings-út megkerülésével (L1).
+    $response = $this->post(route('register.store'), [
+        'name' => 'Test User',
+        'email' => 'indiv@example.com',
+        'password' => 'password',
+        'password_confirmation' => 'password',
+        'billing_type' => 'individual',
+        'billing_tax_number' => '12345678-1-01',
+        'billing_country' => 'HU',
+        'billing_zip' => '1234',
+        'billing_city' => 'Budapest',
+        'billing_address' => 'Fő utca 1.',
+    ]);
+
+    $response->assertSessionHasErrors('billing_tax_number');
+    expect(User::where('email', 'indiv@example.com')->exists())->toBeFalse();
+});
+
+test('registration accepts a company with a valid tax number', function () {
+    Notification::fake();
+
+    $response = $this->post(route('register.store'), [
+        'name' => 'Példa Kft.',
+        'email' => 'company@example.com',
+        'password' => 'password',
+        'password_confirmation' => 'password',
+        'billing_type' => 'company',
+        'billing_tax_number' => '12345678-1-01',
+        'billing_country' => 'HU',
+        'billing_zip' => '1234',
+        'billing_city' => 'Budapest',
+        'billing_address' => 'Fő utca 1.',
+    ]);
+
+    $response->assertSessionHasNoErrors();
+
+    $user = User::where('email', 'company@example.com')->first();
+    expect($user)->not->toBeNull()
+        ->and($user->billing_tax_number)->toBe('12345678-1-01')
+        ->and($user->billing_type)->toBe('company');
+});
+
 test('unverified users are redirected away from protected routes', function () {
     $user = User::factory()->unverified()->create();
 

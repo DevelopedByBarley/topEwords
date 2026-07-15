@@ -358,7 +358,13 @@ class User extends Authenticatable implements MustVerifyEmail
         $key = $this->extensionWriteCacheKey();
         Cache::add($key, 0, now()->endOfDay());
 
-        if (Cache::increment($key) > $limit) {
+        $count = Cache::increment($key);
+
+        // A database cache store false-t ad, ha a sor épp hiányzik (éjféli prune /
+        // cache:clear és az increment közti ablakban). Ilyenkor nem tudjuk biztosan
+        // megszámolni a foglalást, ezért fail-closed: elutasítjuk. Enélkül a
+        // (false > $limit) === false miatt az írás számlálatlanul átmenne (SEC_AUDIT L2).
+        if ($count === false || $count > $limit) {
             Cache::decrement($key);
 
             return false;

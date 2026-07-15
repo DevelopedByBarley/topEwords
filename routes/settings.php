@@ -26,6 +26,15 @@ Route::middleware(['auth'])->group(function () {
         ->middleware('throttle:6,1,password-update')
         ->name('user-password.update');
 
+    Route::delete('settings/security/player-devices', [SecurityController::class, 'revokeAllPlayerDevices'])
+        ->middleware('throttle:10,1,player-device-revoke')
+        ->name('security.player-devices.destroy-all');
+
+    Route::delete('settings/security/player-devices/{tokenId}', [SecurityController::class, 'revokePlayerDevice'])
+        ->whereNumber('tokenId')
+        ->middleware('throttle:10,1,player-device-revoke')
+        ->name('security.player-devices.destroy');
+
     Route::inertia('settings/appearance', 'settings/appearance')->name('appearance.edit');
 
     Route::get('settings/flashcards', [FlashcardController::class, 'edit'])->name('flashcard-settings.edit');

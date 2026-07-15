@@ -43,7 +43,7 @@ class CreateNewUser implements CreatesNewUsers
             }];
         }
 
-        Validator::make($input, $rules)->validate();
+        Validator::make($input, $rules, $this->billingMessages())->validate();
 
         return DB::transaction(function () use ($input, $inviteOnly): User {
             $invite = null;

@@ -329,7 +329,12 @@ class TextAnalysisController extends Controller
         // ugyanazon az elavult számláló-értéken (SEC_AUDIT #R6).
         Cache::add($cacheKey, 0, now()->endOfDay());
 
-        if (Cache::increment($cacheKey) > $dailyLimit) {
+        $count = Cache::increment($cacheKey);
+
+        // Fail-closed: az increment false-t ad, ha a sor épp hiányzik (éjféli prune /
+        // cache:clear ablak). Ilyenkor nem számolható a keret, ezért elutasítjuk —
+        // a (false > $dailyLimit) === false miatt egyébként számlálatlanul átmenne (L2).
+        if ($count === false || $count > $dailyLimit) {
             Cache::decrement($cacheKey);
 
             $message = $user->currentPlan() === 'premium'

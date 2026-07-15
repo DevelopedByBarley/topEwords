@@ -17,6 +17,13 @@ class PlayerPairing extends Model
     /** A párosítási kérelem érvényessége percben. */
     public const LIFETIME_MINUTES = 10;
 
+    /**
+     * A kiadott player-token élettartama napban. Rövidebb, mint a korábbi 1 év:
+     * egy lopott/kiszivárgott token így magától lejár, és a felhasználó a
+     * Beállítások → Összekötött eszközök alatt is bármikor visszavonhatja.
+     */
+    public const TOKEN_LIFETIME_DAYS = 90;
+
     protected function casts(): array
     {
         return [

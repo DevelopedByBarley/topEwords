@@ -1,6 +1,6 @@
 import { Transition } from '@headlessui/react';
-import { Form, Head } from '@inertiajs/react';
-import { ShieldCheck } from 'lucide-react';
+import { Form, Head, router } from '@inertiajs/react';
+import { Monitor, ShieldCheck } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import SecurityController from '@/actions/App/Http/Controllers/Settings/SecurityController';
 import Heading from '@/components/heading';
@@ -12,18 +12,47 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { useTwoFactorAuth } from '@/hooks/use-two-factor-auth';
 import { edit } from '@/routes/security';
+import {
+    destroy as revokePlayerDevice,
+    destroyAll as revokeAllPlayerDevices,
+} from '@/routes/security/player-devices';
 import { disable, enable } from '@/routes/two-factor';
+
+type PlayerDevice = {
+    id: number;
+    name: string;
+    last_used_at: string | null;
+    created_at: string | null;
+    expires_at: string | null;
+};
 
 type Props = {
     canManageTwoFactor?: boolean;
     requiresConfirmation?: boolean;
     twoFactorEnabled?: boolean;
+    playerDevices?: PlayerDevice[];
 };
+
+/** Egy ISO-időpontot rövid magyar dátum-idő alakra formáz (vagy „—", ha nincs). */
+function formatDateTime(iso: string | null): string {
+    if (!iso) {
+        return '—';
+    }
+
+    return new Date(iso).toLocaleDateString('hu-HU', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+    });
+}
 
 export default function Security({
     canManageTwoFactor = false,
     requiresConfirmation = false,
     twoFactorEnabled = false,
+    playerDevices = [],
 }: Props) {
     const passwordInput = useRef<HTMLInputElement>(null);
     const currentPasswordInput = useRef<HTMLInputElement>(null);
@@ -161,6 +190,89 @@ export default function Security({
                         </>
                     )}
                 </Form>
+            </div>
+
+            <div className="space-y-6">
+                <Heading
+                    variant="small"
+                    title="Összekötött eszközök"
+                    description="A topwords Player alkalmazással összekötött eszközök. Ha egy eszközt elvesztettél vagy már nem használod, vond vissza a hozzáférését."
+                />
+
+                {playerDevices.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                        Jelenleg nincs összekötött lejátszó-eszköz.
+                    </p>
+                ) : (
+                    <div className="space-y-3">
+                        {playerDevices.map((device) => (
+                            <div
+                                key={device.id}
+                                className="flex items-start justify-between gap-4 rounded-lg border border-border p-4"
+                            >
+                                <div className="flex items-start gap-3">
+                                    <Monitor className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
+                                    <div className="space-y-0.5">
+                                        <p className="text-sm font-medium">
+                                            {device.name}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground">
+                                            Utolsó használat:{' '}
+                                            {formatDateTime(
+                                                device.last_used_at,
+                                            )}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground">
+                                            Lejár:{' '}
+                                            {formatDateTime(device.expires_at)}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                        if (
+                                            confirm(
+                                                `Biztosan visszavonod a(z) „${device.name}” eszköz hozzáférését? Az eszközön újra össze kell majd kötni a fiókot.`,
+                                            )
+                                        ) {
+                                            router.delete(
+                                                revokePlayerDevice(device.id)
+                                                    .url,
+                                                { preserveScroll: true },
+                                            );
+                                        }
+                                    }}
+                                >
+                                    Visszavonás
+                                </Button>
+                            </div>
+                        ))}
+
+                        {playerDevices.length > 1 && (
+                            <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => {
+                                    if (
+                                        confirm(
+                                            'Biztosan visszavonod az összes összekötött eszköz hozzáférését? Mindegyik eszközön újra össze kell majd kötni a fiókot.',
+                                        )
+                                    ) {
+                                        router.delete(
+                                            revokeAllPlayerDevices().url,
+                                            { preserveScroll: true },
+                                        );
+                                    }
+                                }}
+                            >
+                                Összes visszavonása
+                            </Button>
+                        )}
+                    </div>
+                )}
             </div>
 
             {canManageTwoFactor && (

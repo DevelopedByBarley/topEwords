@@ -88,6 +88,32 @@ test('reserveExtensionWrite atomically consumes the daily quota and refunds at t
         ->and($free->extensionWritesToday())->toBe($freeLimit);
 });
 
+test('reserveExtensionWrite fails closed when the counter row is missing (increment returns false)', function () {
+    // Race-ablak: az éjféli prune / cache:clear a Cache::add és Cache::increment
+    // között törli a sort, így az increment false-t ad. A (false > $limit) === false
+    // miatt az írás számlálatlanul átmenne — a fail-closed ágnak el kell utasítania (L2).
+    $free = User::factory()->create();
+
+    Cache::shouldReceive('add')->once()->andReturn(true);
+    Cache::shouldReceive('increment')->once()->andReturn(false);
+    Cache::shouldReceive('decrement')->once()->andReturn(0);
+
+    expect($free->reserveExtensionWrite())->toBeFalse();
+});
+
+test('daily text analysis fails closed when the counter row is missing (increment returns false)', function () {
+    $user = User::factory()->create();
+
+    Cache::shouldReceive('add')->once()->andReturn(true);
+    Cache::shouldReceive('increment')->once()->andReturn(false);
+    Cache::shouldReceive('decrement')->once()->andReturn(0);
+
+    $this->actingAs($user)
+        ->postJson(route('text-analysis.analyze'), ['text' => 'the quick dog'])
+        ->assertForbidden()
+        ->assertJson(['error' => 'limit_reached']);
+});
+
 test('reserveFlashcardSlots runs the insert while under the limit and blocks it at the cap', function () {
     $free = User::factory()->create();
     $deck = $free->flashcardDecks()->create(['name' => 'D']);
