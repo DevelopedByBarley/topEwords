@@ -54,8 +54,20 @@ class PricingController extends Controller
             return redirect()->route('login');
         }
 
-        if (! $user->hasBillingDetails()) {
-            return redirect()->route('billing.edit')->with('info', 'Kérlek add meg a számlázási adataidat a fizetés előtt.');
+        $subscription = $user->activeSubscription();
+
+        // A NEM-fizetős ágakat a billing-kapu ELÉ vesszük: ezekben nincs Stripe-fizetés,
+        // ezért fölösleges (és félrevezető) előbb a számlázási adatokat kérni. Enélkül a
+        // lifetime/plan_override user a billing.edit-re kerülne ahelyett, hogy megtudná: már
+        // van hozzáférése; a past_due user pedig a billing.edit-re a subscription.edit helyett.
+
+        // Grace period alatt (lemondva, de a periódus végéig aktív) az újra-előfizetés valódi
+        // szándéka a lemondás visszavonása, nem új terhelés/swap. A subscription.edit oldalra
+        // tereljük, ahol a "Lemondás visszavonása" gomb egyetlen kattintással visszaállít —
+        // enélkül a lenti swap-ág az azonos árra "Már ez az aktív csomagod"-ot adna, ami a
+        // lemondott felhasználónak félrevezető.
+        if ($subscription !== null && $subscription->onGracePeriod()) {
+            return redirect()->route('subscription.edit')->with('info', 'Az előfizetésed le van mondva, de a periódus végéig még aktív. A folytatáshoz vond vissza a lemondást — nem indul új terhelés.');
         }
 
         // Akinek admin-adta (plan_override) vagy élethosszig tartó (lifetime_access) hozzáférése
@@ -63,7 +75,7 @@ class PricingController extends Controller
         // indítana fizetős előfizetést azért, amit már ingyen megkap. Szerveroldalon elzárjuk.
         // A generikus próbaidő (admin-adta ingyen hónap) viszont NEM zár el: alatta is lehet
         // előfizetni, a megmaradt idő a checkout próbaidejeként megy tovább (lásd lejjebb).
-        if ($user->activeSubscription() === null && ($user->plan_override === 'premium' || $user->lifetime_access)) {
+        if ($subscription === null && ($user->plan_override === 'premium' || $user->lifetime_access)) {
             return redirect()->route('pricing')->with('info', 'Már aktív hozzáférésed van, nincs szükség fizetésre.');
         }
 
@@ -72,8 +84,13 @@ class PricingController extends Controller
         // mellé (a duplikátum-takarító lekezelné, de fölösleges terhelés+zaj). A helyes út
         // nem az új checkout, hanem a kártya frissítése — a Stripe utána magától újrapróbálja
         // a meglévő előfizetés terhelését.
-        if ($user->activeSubscription() === null && $user->hasPastDueSubscription()) {
+        if ($subscription === null && $user->hasPastDueSubscription()) {
             return redirect()->route('subscription.edit')->with('info', 'A meglévő előfizetésed sikertelen terhelés miatt szünetel. Új előfizetés helyett frissítsd a kártyaadataidat — sikeres terhelés után a hozzáférésed magától visszaáll.');
+        }
+
+        // Innentől valódi fizetős út: itt már kötelező a számlázási adat (a NAV-számlához is).
+        if (! $user->hasBillingDetails()) {
+            return redirect()->route('billing.edit')->with('info', 'Kérlek add meg a számlázási adataidat a fizetés előtt.');
         }
 
         // A 14 napos elállási jogról való lemondás kifejezett hozzájárulása kötelező, és
@@ -87,8 +104,7 @@ class PricingController extends Controller
 
         // Meglévő előfizetésnél nem új előfizetést indítunk (dupla számlázás!),
         // hanem a meglévőt átváltjuk a Pro árra (pl. régi Standard-árú előfizetés).
-        $subscription = $user->activeSubscription();
-
+        // ($subscription a fenti kapuknál már lekérve; grace period alatt idáig nem jut.)
         if ($subscription !== null) {
             if ($subscription->stripe_price === $priceId) {
                 return redirect()->route('pricing')->with('info', 'Már ez az aktív csomagod.');

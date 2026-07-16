@@ -186,6 +186,65 @@ test('a lemondott (ends_at kitöltött) past_due előfizetés nem zárja el a ch
     expect($user->hasPastDueSubscription())->toBeFalse();
 });
 
+test('a nem-fizetős kapuk a billing-kapu ELŐTT futnak: plan_override user billing-adat nélkül is a helyes üzenetet kapja', function () {
+    // S-L5: a plan_override/lifetime user nem fizet, ezért fölösleges (és félrevezető)
+    // előbb a számlázási adatokat kérni. Billing nélkül is a "már van hozzáférésed"
+    // üzenetet kell kapnia, nem a billing.edit-et.
+    $user = User::factory()->create(['plan_override' => 'premium']);
+
+    expect($user->hasBillingDetails())->toBeFalse();
+
+    $this->actingAs($user)
+        ->post(route('pricing.checkout', 'premium'), ['accept_terms' => true])
+        ->assertRedirect(route('pricing'))
+        ->assertSessionHas('info');
+
+    expect($user->fresh()->subscriptions()->count())->toBe(0);
+});
+
+test('a nem-fizetős kapuk a billing-kapu ELŐTT futnak: past_due user billing-adat nélkül is a kártya-frissítés felé megy', function () {
+    // S-L5: past_due-nál a helyes út a kártya frissítése (subscription.edit), nem az új
+    // fizetés — ezért a past_due kapunak a billing-kapu ELÉ kell futnia, különben a
+    // billing nélkül maradt fiók tévesen a billing.edit-re kerülne.
+    $user = User::factory()->create(['stripe_id' => 'cus_'.uniqid()]);
+    $user->subscriptions()->create([
+        'type' => 'premium',
+        'stripe_id' => 'sub_'.uniqid(),
+        'stripe_status' => 'past_due',
+        'stripe_price' => 'price_pro',
+        'quantity' => 1,
+    ]);
+
+    expect($user->hasBillingDetails())->toBeFalse();
+
+    $this->actingAs($user)
+        ->post(route('pricing.checkout', 'premium'), ['accept_terms' => true])
+        ->assertRedirect(route('subscription.edit'))
+        ->assertSessionHas('info');
+});
+
+test('grace period alatt (lemondva, de aktív) a checkout a lemondás-visszavonás felé terel, nem swap-ol', function () {
+    // S-L6: grace period alatt az activeSubscription() nem null → a swap-ág fogná meg, és
+    // az azonos árra "Már ez az aktív csomagod"-ot adna, ami a lemondott felhasználónak
+    // félrevezető. A subscription.edit-re tereljük, ahol a "Lemondás visszavonása" gomb van.
+    $user = User::factory()->withBilling()->create(['stripe_id' => 'cus_'.uniqid()]);
+    $user->subscriptions()->create([
+        'type' => 'premium',
+        'stripe_id' => 'sub_'.uniqid(),
+        'stripe_status' => 'active',
+        'stripe_price' => 'price_pro',
+        'quantity' => 1,
+        'ends_at' => now()->addDays(10),
+    ]);
+
+    expect($user->activeSubscription()?->onGracePeriod())->toBeTrue();
+
+    $this->actingAs($user)
+        ->post(route('pricing.checkout', 'premium'), ['accept_terms' => true])
+        ->assertRedirect(route('subscription.edit'))
+        ->assertSessionHas('info');
+});
+
 test('a generikus próbaidő (ajándék hónap) alatt is lehet előfizetni, a megmaradt idő a checkout próbaidejeként megy tovább', function () {
     // M2: a hasActiveAccess() gate eddig a generikus trialt is elzárta a checkouttól,
     // így az ajándék hónap alatt nem lehetett konvertálni. Az átengedés önmagában
@@ -258,6 +317,8 @@ test('a Stripe oldali hiba a csomagváltáskor nem dől 500-ba, hanem érthető 
     $subscription->shouldReceive('getAttribute')->with('stripe_price')->andReturn('price_old');
     // Az Inertia share (isOnAnyTrial) a válasz összeállításakor lekérdezi.
     $subscription->shouldReceive('onTrial')->andReturnFalse();
+    // A grace-kapu (S-L6) a swap előtt ellenőrzi — itt nincs grace, hogy a swap fusson.
+    $subscription->shouldReceive('onGracePeriod')->andReturnFalse();
     $subscription->shouldReceive('swap')->once()->andThrow(new ApiConnectionException('boom'));
 
     $user = Mockery::mock(User::class)->makePartial();
