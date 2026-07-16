@@ -21,7 +21,14 @@ Jelölésmagyarázat: `[ ]` = nyitott · `[x]` = kész · `[~]` = folyamatban
 
 ## 🟠 MEDIUM
 
-### [ ] W-M1 — Sorrenden kívüli `customer.subscription.updated` feltámaszthat egy halott előfizetést
+### [x] W-M1 — Sorrenden kívüli `customer.subscription.updated` feltámaszthat egy halott előfizetést
+
+> **JAVÍTVA (2026-07-16):** felülírt `handleCustomerSubscriptionUpdated` a
+> `StripeWebhookController`-ben — a helyben már `canceled` előfizetésre érkező nem-canceled
+> státuszú update biztosan elavult (a Stripe törölt előfizetést soha nem támaszt fel), ezért
+> `Log::warning`-gal eldobjuk, a Cashier alap-útja nem fut le. Konzisztens (canceled→canceled)
+> update és ismeretlen előfizetés létrehozása változatlanul átmegy. Out-of-order szimuláció:
+> új `SubscriptionResurrectionGuardTest` (4 teszt).
 
 - **Hely:** örökölt `vendor/laravel/cashier/.../WebhookController.php:132-208` (az app `StripeWebhookController`-e nem írja felül a `handleCustomerSubscriptionUpdated`-et — kézzel ellenőrizve)
 - **Forgatókönyv:** a Stripe nem garantál esemény-sorrendet. Ha a `customer.subscription.deleted`

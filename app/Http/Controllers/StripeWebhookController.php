@@ -98,6 +98,45 @@ class StripeWebhookController extends WebhookController
         return $response;
     }
 
+    /**
+     * Sorrenden kívüli `customer.subscription.updated` nem támaszthat fel egy már
+     * törölt előfizetést. A Stripe nem garantál esemény-sorrendet: a
+     * `customer.subscription.deleted` feldolgozása UTÁN is befuthat egy korábbi
+     * (késleltetett vagy újraküldött) `updated` esemény `status=active`
+     * pillanatképpel, amit a Cashier ellenőrzés nélkül írna rá a helyi sorra
+     * (`stripe_status=active`, `ends_at=null`) → tartós ingyen prémium, mert a
+     * Stripe-oldalon az előfizetés halott, több korrekciós esemény nem jön.
+     *
+     * Egy ténylegesen törölt Stripe-előfizetés soha nem éled újra, ezért a helyben
+     * `canceled` sorra érkező nem-canceled update biztosan elavult: naplózva eldobjuk.
+     */
+    protected function handleCustomerSubscriptionUpdated(array $payload)
+    {
+        $data = $payload['data']['object'] ?? [];
+        $incomingStatus = $data['status'] ?? null;
+
+        if ($incomingStatus !== null && $incomingStatus !== StripeSubscription::STATUS_CANCELED) {
+            $user = $this->getUserByStripeId($data['customer'] ?? null);
+
+            $isLocallyCanceled = $user instanceof User && $user->subscriptions()
+                ->where('stripe_id', $data['id'] ?? null)
+                ->where('stripe_status', StripeSubscription::STATUS_CANCELED)
+                ->exists();
+
+            if ($isLocallyCanceled) {
+                Log::warning('Sorrenden kívüli subscription.updated egy már törölt előfizetésre — eldobva, hogy ne támadjon fel.', [
+                    'stripe_subscription_id' => $data['id'] ?? null,
+                    'stripe_customer' => $data['customer'] ?? null,
+                    'incoming_status' => $incomingStatus,
+                ]);
+
+                return $this->successMethod();
+            }
+        }
+
+        return parent::handleCustomerSubscriptionUpdated($payload);
+    }
+
     protected function handleCustomerSubscriptionCreated(array $payload)
     {
         $response = parent::handleCustomerSubscriptionCreated($payload);
