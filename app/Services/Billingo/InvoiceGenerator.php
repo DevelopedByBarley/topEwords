@@ -79,9 +79,7 @@ class InvoiceGenerator
             // attempt) nem hozzuk létre újra — de az e-mailes kézbesítés alább így is lefut,
             // ha az korábban nem sikerült.
             if (! $record->isIssued()) {
-                $document = $this->client->createDocument(
-                    $this->documentPayload($this->ensurePartner($user), $stripeInvoice),
-                );
+                $document = $this->issueDocument($record, $user, $stripeInvoice, $stripeInvoiceId);
 
                 $record->update([
                     'billingo_document_id' => $document['id'] ?? null,
@@ -102,6 +100,76 @@ class InvoiceGenerator
         } finally {
             $lock->release();
         }
+    }
+
+    /**
+     * Kiállítja a Billingo dokumentumot crash-védelemmel. A Billingo v3-nak nincs
+     * idempotency-key headere, és a NAV-számla a createDocument sikeres válaszakor MÁR ki
+     * van adva — ha a worker a válasz és a helyi billingo_document_id mentése közti ablakban
+     * meghal (OOM, deploy-restart), a retry isIssued()===false-t látna, és MÁSODIK számlát
+     * állítana ki új sorszámmal (kézi sztornó). Ezért:
+     *
+     *   1. a createDocument ELŐTT perzisztáljuk az issuing_started_at jelzőt;
+     *   2. ha a retry azt találja, hogy a jelző már be van állítva (egy korábbi attempt épp
+     *      ebben az ablakban halhatott meg), előbb Billingo-oldalon visszakeressük a Stripe
+     *      invoice-id-ra kiadott dokumentumot — ha megvan, azt vesszük át, új kiállítás nélkül.
+     *
+     * Az ablak így nem tűnik el teljesen (idempotency-key híján nem is lehet), csak a lehető
+     * legszűkebbre szorul: kettős kiállítás csak akkor keletkezhet, ha a crash pont a
+     * Billingo-válasz kézhezvétele ELŐTT történik ÉS a dokumentum mégis kiadódott — ilyenkor a
+     * visszakeresés úgyis megtalálja.
+     *
+     * @param  array<string, mixed>  $stripeInvoice
+     * @return array<string, mixed>
+     */
+    private function issueDocument(BillingoInvoice $record, User $user, array $stripeInvoice, string $stripeInvoiceId): array
+    {
+        // Egy korábbi, félbeszakadt attempt már megkezdte a kiállítást — előbb nézzük meg,
+        // hogy a NAV-számla valójában kiadódott-e a Billingóban, mielőtt újat állítanánk ki.
+        if ($record->issuing_started_at !== null) {
+            $existing = $this->findIssuedDocument($stripeInvoiceId);
+
+            if ($existing !== null) {
+                return $existing;
+            }
+        }
+
+        // A createDocument ELŐTT jelöljük, hogy a kiállítás megkezdődött. Így egy pont ezután
+        // bekövetkező crash utáni retry a fenti visszakeresési ágra fut, nem állít ki vakon másodikat.
+        $record->update(['issuing_started_at' => Date::now()]);
+
+        return $this->client->createDocument(
+            $this->documentPayload($this->ensurePartner($user), $stripeInvoice, $stripeInvoiceId),
+        );
+    }
+
+    /**
+     * Visszakeresi a Stripe invoice-id-hoz már kiadott Billingo dokumentumot, ha van. A
+     * dokumentum comment mezőjébe a kiálláskor beírjuk a Stripe invoice-id-t, így az egyedi
+     * horgony, amire a Billingo szabadszavas keresése ráilleszthető. Több találatnál (elvben
+     * nem fordulhat elő) a comment pontos egyezését is ellenőrizzük, hogy részleges egyezés
+     * ne adjon vissza idegen számlát.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function findIssuedDocument(string $stripeInvoiceId): ?array
+    {
+        foreach ($this->client->listDocuments($stripeInvoiceId) as $document) {
+            if (($document['comment'] ?? null) === $this->comment($stripeInvoiceId)) {
+                return $document;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * A dokumentum comment mezőjébe írt, a Stripe fizetéshez rendelt egyedi horgony, amire a
+     * crash-utáni visszakeresés (findIssuedDocument) illeszt.
+     */
+    private function comment(string $stripeInvoiceId): string
+    {
+        return 'stripe_invoice_id:'.$stripeInvoiceId;
     }
 
     /**
@@ -174,7 +242,7 @@ class InvoiceGenerator
      * @param  array<string, mixed>  $stripeInvoice
      * @return array<string, mixed>
      */
-    private function documentPayload(int $partnerId, array $stripeInvoice): array
+    private function documentPayload(int $partnerId, array $stripeInvoice, string $stripeInvoiceId): array
     {
         // A ténylegesen kifizetett bruttó összeg a hiteles forrás (kisebb egységben,
         // pl. centben), nem az appbeli ár — így kedvezmény/arányosítás is pontos.
@@ -195,6 +263,9 @@ class InvoiceGenerator
             'currency' => $currency,
             'electronic' => true,
             'paid' => true,
+            // A Stripe invoice-id horgonyként a comment mezőben — a crash-utáni helyreállítás
+            // (findIssuedDocument) erre keres rá, hogy ne állítson ki második NAV-számlát.
+            'comment' => $this->comment($stripeInvoiceId),
             'items' => [[
                 'name' => $this->itemName($stripeInvoice),
                 'unit_price' => round($grossMinor / 100, 2),

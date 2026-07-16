@@ -30,9 +30,32 @@ class StripeWebhookController extends WebhookController
 
         if ($user instanceof User && config('services.billingo.enabled')) {
             GenerateBillingoInvoice::dispatch($user, $invoice);
+        } elseif (config('services.billingo.enabled') && $this->grossMinorPaid($invoice) > 0) {
+            // Pénz beszedve (pozitív terhelés), de nincs helyi user a customerhez — pl. egy
+            // out-of-order customer.deleted már kinullázta a stripe_id-t, vagy a customert a
+            // Stripe dashboardban kézzel hozták létre. NAV-számla így soha nem készülne, és a
+            // 200-as ACK némán elnyelné a kötelezettséget. A retry nem segít (a user attól nem
+            // lesz meg), ezért nem buktatjuk a webhookot — de hangosan riasztunk, hogy emberi
+            // beavatkozással pótolható legyen. Ez a fájl minden más pénz-ága is hangos.
+            Log::critical('Sikeres Stripe-terhelés ismeretlen customerhez — NAV-számla NEM készül, kézi kiállítás kell!', [
+                'stripe_customer' => $invoice['customer'] ?? null,
+                'stripe_invoice_id' => $invoice['id'] ?? null,
+                'amount_paid_minor' => $this->grossMinorPaid($invoice),
+            ]);
         }
 
         return $this->successMethod();
+    }
+
+    /**
+     * A ténylegesen kifizetett bruttó összeg a legkisebb pénznemegységben (pl. cent) —
+     * a riasztás csak valódi terhelésre szólal meg, a 0 összegű (trial-induló) számlára nem.
+     *
+     * @param  array<string, mixed>  $invoice
+     */
+    private function grossMinorPaid(array $invoice): int
+    {
+        return (int) ($invoice['amount_paid'] ?? $invoice['total'] ?? 0);
     }
 
     /**

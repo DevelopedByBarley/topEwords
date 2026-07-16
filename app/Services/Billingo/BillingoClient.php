@@ -59,6 +59,23 @@ class BillingoClient
     }
 
     /**
+     * Rákeres a már kiállított dokumentumokra egy szabadszavas kifejezéssel, és visszaadja
+     * a találatok `data` tömbjét. A crash-utáni helyreállításnál használjuk: ha egy attempt
+     * a createDocument sikeres válasza UTÁN, de a helyi dokumentum-id mentése ELŐTT hal meg,
+     * a retry innen kérdezi vissza, hogy a NAV-számla valójában kiadódott-e — így nem áll ki
+     * másodikat. A keresés a dokumentum comment mezőjében tárolt Stripe invoice-id-ra megy.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function listDocuments(string $query): array
+    {
+        return $this->request()
+            ->get('/documents', ['query' => $query])
+            ->throw()
+            ->json('data') ?? [];
+    }
+
+    /**
      * Elküldi a kiállított dokumentumot (számlát) a partnernek e-mailben. A Billingo a
      * /documents létrehozáskor NEM küld e-mailt — ez külön, explicit hívás. Üres törzzsel
      * a partneren tárolt e-mail címekre megy ki. Idempotens kézbesítést a hívó biztosít

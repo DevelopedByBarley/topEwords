@@ -18,6 +18,7 @@ interface Props {
     hasActiveAccess: boolean;
     isSubscribed: boolean;
     isPremium: boolean;
+    hasPastDueSubscription: boolean;
     hasAiAccess: boolean;
     isOnTrial: boolean;
     trialEndsAt: string | null;
@@ -40,6 +41,7 @@ export default function Subscription({
     hasActiveAccess,
     isSubscribed,
     isPremium,
+    hasPastDueSubscription,
     isOnTrial,
     trialEndsAt,
     aiUsage,
@@ -103,6 +105,39 @@ export default function Subscription({
                     </div>
                 )}
 
+                {/* Sikertelen terhelés (past_due) — a Cashier deactivatePastDue defaultja miatt
+                    ilyenkor isPremium=false ÉS subscription=null, ezért ez a sáv szándékosan az
+                    isPremium blokkon KÍVÜL, önálló propra épül, hogy a fizető user a lefokozás
+                    ellenére is lássa a helyreállítás lehetőségét (kártya-frissítés → billing portal). */}
+                {hasPastDueSubscription && (
+                    <div className="rounded-xl border border-amber-300 bg-amber-50 p-5 dark:border-amber-700 dark:bg-amber-950/40">
+                        <div className="mb-1 flex items-center gap-2">
+                            <CreditCard className="size-4 text-amber-600 dark:text-amber-400" />
+                            <p className="font-semibold text-amber-800 dark:text-amber-300">
+                                Sikertelen terhelés
+                            </p>
+                        </div>
+                        <p className="mb-4 text-sm text-amber-700 dark:text-amber-400">
+                            A legutóbbi terhelés nem sikerült, ezért a prémium
+                            hozzáférésed egyelőre szünetel. Kérlek frissítsd a
+                            kártyaadataidat — a Stripe automatikusan újrapróbálja
+                            a terhelést, és sikeres fizetés után a prémium
+                            hozzáférésed azonnal visszaáll. Ha nem intézkedsz, a
+                            Stripe néhány próbálkozás után véglegesen lemondja az
+                            előfizetést.
+                        </p>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="border-amber-400 text-amber-800 hover:bg-amber-100 dark:border-amber-600 dark:text-amber-200 dark:hover:bg-amber-900/40"
+                            onClick={handlePortal}
+                        >
+                            <ExternalLink className="mr-1.5 size-3.5" />
+                            Kártya frissítése
+                        </Button>
+                    </div>
+                )}
+
                 {/* Premium subscription */}
                 {isPremium && (
                     <div className="rounded-xl border border-violet-200 bg-violet-50 p-5 dark:border-violet-800 dark:bg-violet-950/30">
@@ -112,29 +147,6 @@ export default function Subscription({
                                 Prémium előfizetés
                             </p>
                         </div>
-                        {subscription?.stripe_status === 'past_due' && (
-                            <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
-                                <p className="font-semibold">
-                                    Sikertelen terhelés
-                                </p>
-                                <p className="mt-1">
-                                    A legutóbbi terhelés nem sikerült — kérlek
-                                    frissítsd a kártyaadataidat, hogy a prémium
-                                    hozzáférésed ne szűnjön meg. Ha nem
-                                    intézkedsz, a Stripe néhány próbálkozás után
-                                    lemondja az előfizetést.
-                                </p>
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="mt-2.5 border-amber-400 text-amber-800 hover:bg-amber-100 dark:border-amber-600 dark:text-amber-200 dark:hover:bg-amber-900/40"
-                                    onClick={handlePortal}
-                                >
-                                    <ExternalLink className="mr-1.5 size-3.5" />
-                                    Kártya frissítése
-                                </Button>
-                            </div>
-                        )}
                         {subscription?.cancel_at_period_end ? (
                             <p className="mb-4 text-sm text-violet-600 dark:text-violet-400">
                                 Lemondva — a prémium hozzáférésed{' '}

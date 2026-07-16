@@ -9,6 +9,7 @@ use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
 
 /**
@@ -417,6 +418,82 @@ test('a webhook a 0 összegű számlát kihagyja, a tényleges terhelést kiszá
     expect(BillingoInvoice::where('stripe_invoice_id', 'in_charge')->first()?->isIssued())->toBeTrue();
 });
 
+test('crash-utáni retry: ha a jelző beállt és a Billingóban már létezik a dokumentum, azt átveszi, nem állít ki másodikat', function () {
+    // A számla comment mezőjében a Stripe invoice-id horgony, amire a visszakeresés illeszt.
+    Http::fake([
+        'api.billingo.hu/v3/documents?query=*' => Http::response([
+            'data' => [[
+                'id' => 9001,
+                'invoice_number' => 'MENTETT-2026-7',
+                'comment' => 'stripe_invoice_id:in_crash',
+            ]],
+        ], 200),
+        'api.billingo.hu/v3/documents/*/send' => Http::response([], 200),
+        'api.billingo.hu/v3/documents' => Http::response(['id' => 5001, 'invoice_number' => 'UJ-2026-1'], 200),
+        'api.billingo.hu/v3/partners/*' => Http::response([], 200),
+        'api.billingo.hu/v3/partners' => Http::response(['id' => 777], 200),
+        'api.billingo.hu/v3/currencies*' => Http::response(['conversation_rate' => 390.5], 200),
+    ]);
+    $user = billableUser();
+
+    // Egy korábbi attempt megkezdte a kiállítást (jelző beállt), de a dokumentum-id mentése
+    // előtt meghalt — a sor kiállítatlan, de az issuing_started_at be van állítva.
+    $record = BillingoInvoice::create([
+        'user_id' => $user->id,
+        'stripe_invoice_id' => 'in_crash',
+        'issuing_started_at' => now()->subMinutes(2),
+    ]);
+
+    app(InvoiceGenerator::class)->generateForStripeInvoice($user, stripeInvoice(['id' => 'in_crash']));
+
+    // A Billingóban már kiadott számlát átvette (nem állított ki újat).
+    expect($record->refresh()->billingo_document_id)->toBe(9001)
+        ->and($record->invoice_number)->toBe('MENTETT-2026-7');
+    Http::assertNotSent(fn ($request) => $request->method() === 'POST'
+        && str_ends_with($request->url(), '/documents'));
+});
+
+test('crash-utáni retry: ha a jelző beállt de a Billingóban nincs nyom, egyszer kiállítja', function () {
+    Http::fake([
+        // A visszakeresés üres — a korábbi attempt a createDocument ELŐTT halt meg.
+        'api.billingo.hu/v3/documents?query=*' => Http::response(['data' => []], 200),
+        'api.billingo.hu/v3/documents/*/send' => Http::response([], 200),
+        'api.billingo.hu/v3/documents' => Http::response(['id' => 5001, 'invoice_number' => 'UJ-2026-1'], 200),
+        'api.billingo.hu/v3/partners/*' => Http::response([], 200),
+        'api.billingo.hu/v3/partners' => Http::response(['id' => 777], 200),
+        'api.billingo.hu/v3/currencies*' => Http::response(['conversation_rate' => 390.5], 200),
+    ]);
+    $user = billableUser();
+
+    $record = BillingoInvoice::create([
+        'user_id' => $user->id,
+        'stripe_invoice_id' => 'in_clean_retry',
+        'issuing_started_at' => now()->subMinutes(2),
+    ]);
+
+    app(InvoiceGenerator::class)->generateForStripeInvoice($user, stripeInvoice(['id' => 'in_clean_retry']));
+
+    // Nincs Billingo-találat → pontosan egyszer állít ki, a comment-horgonnyal.
+    expect($record->refresh()->billingo_document_id)->toBe(5001);
+    Http::assertSent(fn ($request) => $request->method() === 'POST'
+        && str_ends_with($request->url(), '/documents')
+        && $request->data()['comment'] === 'stripe_invoice_id:in_clean_retry');
+});
+
+test('tiszta első kiállításnál nem keres vissza a Billingóban, csak a jelzőt állítja be', function () {
+    fakeBillingo();
+    $user = billableUser();
+
+    app(InvoiceGenerator::class)->generateForStripeInvoice($user, stripeInvoice(['id' => 'in_first']));
+
+    // Jelzős sor: az issuing_started_at be van állítva a kiálláshoz.
+    $record = BillingoInvoice::where('stripe_invoice_id', 'in_first')->first();
+    expect($record->issuing_started_at)->not->toBeNull();
+
+    // Első kiállításnál nincs visszakeresés (nem volt korábbi jelző).
+    Http::assertNotSent(fn ($request) => str_contains($request->url(), '/documents?query='));
+});
+
 test('kikapcsolt Billingo esetén a webhook nem állít ki számlát', function () {
     config(['services.billingo.enabled' => false]);
     $user = billableUser();
@@ -427,4 +504,59 @@ test('kikapcsolt Billingo esetén a webhook nem állít ki számlát', function 
     ])->assertOk();
 
     expect(BillingoInvoice::count())->toBe(0);
+});
+
+test('ismeretlen customer pozitív terhelésénél critical riasztás megy, de a webhook 200-at ad', function () {
+    Queue::fake();
+    Log::spy();
+
+    // Nincs helyi user ehhez a customerhez (out-of-order customer.deleted vagy dashboardban
+    // kézzel létrehozott customer) — a job nem indulhat, a NAV-számla némán elveszne.
+    $this->postJson('/stripe/webhook', [
+        'type' => 'invoice.payment_succeeded',
+        'data' => ['object' => stripeInvoice([
+            'id' => 'in_orphan',
+            'customer' => 'cus_nincs_ilyen',
+            'amount_paid' => 299000,
+        ])],
+    ])->assertOk();
+
+    Queue::assertNotPushed(GenerateBillingoInvoice::class);
+
+    // A pénz-vesztés hangos: critical log a customerrel és az invoice-id-vel.
+    Log::shouldHaveReceived('critical')->once()->withArgs(function (string $message, array $context) {
+        return str_contains($message, 'ismeretlen customer')
+            && $context['stripe_customer'] === 'cus_nincs_ilyen'
+            && $context['stripe_invoice_id'] === 'in_orphan';
+    });
+});
+
+test('ismeretlen customer 0 összegű (trial-induló) számlájánál nincs riasztás', function () {
+    Queue::fake();
+    Log::spy();
+
+    // A trial-induló 0-s számla ismeretlen customerrel sem pénz-vesztés — nem riasztunk.
+    $this->postJson('/stripe/webhook', [
+        'type' => 'invoice.payment_succeeded',
+        'data' => ['object' => stripeInvoice([
+            'id' => 'in_orphan_zero',
+            'customer' => 'cus_nincs_ilyen',
+            'amount_paid' => 0,
+            'total' => 0,
+        ])],
+    ])->assertOk();
+
+    Log::shouldNotHaveReceived('critical');
+});
+
+test('kikapcsolt Billingónál ismeretlen customer sem riaszt', function () {
+    config(['services.billingo.enabled' => false]);
+    Log::spy();
+
+    $this->postJson('/stripe/webhook', [
+        'type' => 'invoice.payment_succeeded',
+        'data' => ['object' => stripeInvoice(['customer' => 'cus_nincs_ilyen', 'amount_paid' => 299000])],
+    ])->assertOk();
+
+    Log::shouldNotHaveReceived('critical');
 });
