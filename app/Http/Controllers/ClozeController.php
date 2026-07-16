@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\Folder;
 use App\Models\UserCustomWord;
 use App\Models\Word;
+use App\Services\AchievementService;
 use App\Services\WordFormVariants;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -24,11 +26,14 @@ class ClozeController extends Controller
         $maxCount = $roundLimit ?? 500;
         $count = min(max((int) $request->input('count', 0), 0), $maxCount);
 
-        // Parse comma-separated ids param for manual word selection
+        // Parse comma-separated ids param for manual word selection.
+        // A kézi kiválasztás is plafonos: Free-n a plan-limit, prémiumon az
+        // 500-as technikai plafon — kraftolt ?ids= URL-lel sem kérhető
+        // korlátlan whereIn + óriás payload.
         $idsParam = $request->string('ids')->trim()->value();
         $selectedIds = $idsParam !== '' ? array_filter(array_map('trim', explode(',', $idsParam))) : [];
-        if ($roundLimit !== null && count($selectedIds) > $roundLimit) {
-            $selectedIds = array_slice($selectedIds, 0, $roundLimit);
+        if (count($selectedIds) > $maxCount) {
+            $selectedIds = array_slice($selectedIds, 0, $maxCount);
         }
         $selectedRegularIds = array_values(array_map('intval', array_filter($selectedIds, fn ($id) => ! str_starts_with($id, 'custom_'))));
         $selectedCustomIds = array_values(array_map(fn ($id) => (int) substr($id, 7), array_filter($selectedIds, fn ($id) => str_starts_with($id, 'custom_'))));
@@ -115,6 +120,7 @@ class ClozeController extends Controller
         }
 
         $items = [];
+        $missingCount = 0;
         $useSelectedIds = count($selectedIds) > 0;
 
         if ($useSelectedIds || ($count > 0 && $available > 0)) {
@@ -132,17 +138,27 @@ class ClozeController extends Controller
                 $customShare = $available > 0 ? (int) round($count * ($customAvailable / $available)) : 0;
                 $regularShare = $count - $customShare;
 
+                // Túligényléses (2×) fetch: a makeCloze ejti azokat a szavakat,
+                // amelyeknek egyik alakja sem szerepel a saját példamondatukban —
+                // a többletből pótoljuk őket, hogy a kör a kért darabszámú
+                // maradjon, amíg a szűrt készletből telik.
                 $regularWords = (clone $query)
                     ->inRandomOrder()
-                    ->limit($regularShare)
+                    ->limit($regularShare * 2)
                     ->get(['id', 'word', 'form_base', 'verb_past', 'verb_past_participle', 'verb_present_participle', 'verb_third_person', 'noun_plural', 'adj_comparative', 'adj_superlative', 'meaning_hu', 'example_en', 'example_hu', 'rank', 'part_of_speech']);
 
                 $customWords = $customWordQuery
-                    ? (clone $customWordQuery)->inRandomOrder()->limit($customShare)->get(['id', 'word', 'meaning_hu', 'example_en', 'example_hu', 'status'])
+                    ? (clone $customWordQuery)->inRandomOrder()->limit($customShare * 2)->get(['id', 'word', 'meaning_hu', 'example_en', 'example_hu', 'status'])
                     : collect();
             }
 
+            $regularTarget = $useSelectedIds ? PHP_INT_MAX : $regularShare;
+
             foreach ($regularWords as $word) {
+                if (count($items) >= $regularTarget) {
+                    break;
+                }
+
                 // splitAll: a '/'-szeparált alternatívák ("got/gotten") külön
                 // alakként keresendők a példamondatban, együtt sosem szerepelnek.
                 $cloze = $this->makeCloze($word->example_en, WordFormVariants::splitAll([
@@ -176,6 +192,10 @@ class ClozeController extends Controller
             }
 
             foreach ($customWords as $cw) {
+                if (! $useSelectedIds && count($items) >= $count) {
+                    break;
+                }
+
                 $cloze = $this->makeCloze($cw->example_en, [$cw->word]);
 
                 if ($cloze === null) {
@@ -197,11 +217,19 @@ class ClozeController extends Controller
             }
 
             shuffle($items);
+
+            // Hány kért szóhoz nem készült feladat (egyik alakjuk sem szerepel
+            // a saját példamondatukban) — a frontend ebből jelzi, hogy a kör
+            // rövidebb a vártnál, néma csonkolás helyett.
+            $missingCount = $useSelectedIds
+                ? $regularWords->count() + $customWords->count() - count($items)
+                : max(0, min($count, $available) - count($items));
         }
 
         return Inertia::render('words/cloze', [
             'items' => $items,
             'available' => $available,
+            'missingCount' => $missingCount,
             'folders' => $folders,
             'selectableWords' => $selectableWords,
             'filters' => [
@@ -213,6 +241,21 @@ class ClozeController extends Controller
             ],
             'freeClozeLimit' => $roundLimit,
         ]);
+    }
+
+    /**
+     * A cloze-kör befejezése: streak-frissítés + streak-achievementek, a kvíz
+     * complete-mintájára — enélkül a csak cloze-zal gyakorló user streakje elhal.
+     */
+    public function complete(Request $request, AchievementService $service): JsonResponse
+    {
+        if ($request->user()->updateStreak()) {
+            session()->flash('streak_triggered', $request->user()->streak);
+        }
+
+        $newAchievements = $service->checkAndAward($request->user(), ['streak']);
+
+        return response()->json(['achievements' => $newAchievements]);
     }
 
     /**

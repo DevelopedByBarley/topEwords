@@ -12,8 +12,10 @@ import {
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { csrfHeaders } from '@/lib/csrf';
 import { pricing } from '@/routes';
 import { cloze as clozeRoute, index as wordsIndex } from '@/routes/words';
+import { complete as clozeComplete } from '@/routes/words/cloze';
 
 interface ClozeItem {
     id: number | string;
@@ -54,6 +56,7 @@ interface Filters {
 interface Props {
     items: ClozeItem[];
     available: number;
+    missingCount: number;
     folders: Folder[];
     filters: Filters;
     selectableWords: SelectableWord[];
@@ -511,6 +514,7 @@ function ClozeSetup({
 export default function Cloze({
     items,
     available,
+    missingCount,
     folders,
     filters,
     selectableWords,
@@ -612,8 +616,34 @@ export default function Cloze({
         }
     }
 
+    async function submitClozeComplete() {
+        const res = await fetch(clozeComplete().url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...csrfHeaders(),
+            },
+        }).catch(() => null);
+
+        if (res) {
+            const data = await res.json().catch(() => ({}));
+
+            if (
+                Array.isArray(data.achievements) &&
+                data.achievements.length > 0
+            ) {
+                window.dispatchEvent(
+                    new CustomEvent('achievements-unlocked', {
+                        detail: data.achievements,
+                    }),
+                );
+            }
+        }
+    }
+
     function handleNext() {
         if (current + 1 >= items.length) {
+            submitClozeComplete();
             setFinished(true);
         } else {
             setCurrent((c) => c + 1);
@@ -652,11 +682,14 @@ export default function Cloze({
                         <Search className="size-7 text-muted-foreground" />
                     </div>
                     <p className="text-lg font-semibold">
-                        Nincs elérhető szó ezzel a szűrővel.
+                        {missingCount > 0
+                            ? 'Ezekhez a szavakhoz nem készíthető feladat.'
+                            : 'Nincs elérhető szó ezzel a szűrővel.'}
                     </p>
                     <p className="text-sm text-muted-foreground">
-                        A mondatkiegészítéshez példamondattal rendelkező szavak
-                        kellenek.
+                        {missingCount > 0
+                            ? 'A kiválasztott szavak példamondatában nem szerepel maga a szó, így nincs mit kitakarni.'
+                            : 'A mondatkiegészítéshez példamondattal rendelkező szavak kellenek.'}
                     </p>
                     <div className="mt-2 flex gap-3">
                         <Button variant="outline" asChild>
@@ -827,6 +860,13 @@ export default function Cloze({
 
                 {/* Content area */}
                 <div className="mx-auto flex w-full max-w-xl flex-1 flex-col gap-4 px-4 py-6">
+                    {missingCount > 0 && (
+                        <p className="rounded-2xl bg-amber-50 px-4 py-2.5 text-center text-sm text-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
+                            {missingCount} szóhoz nincs használható
+                            példamondat, ezért rövidebb a kör.
+                        </p>
+                    )}
+
                     {/* Sentence card */}
                     <div className="rounded-3xl bg-card px-6 py-8 shadow-sm md:px-8">
                         <p className="text-center text-xl leading-relaxed font-medium">

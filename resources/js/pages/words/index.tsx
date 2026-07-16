@@ -383,7 +383,15 @@ export default function WordsIndex({
         );
     }
 
-    function handleDeleteFolder(folderId: number) {
+    function handleDeleteFolder(folderId: number, folderName: string) {
+        if (
+            !confirm(
+                `Törlöd a „${folderName}" mappát? A szavak megmaradnak, csak a mappa-besorolásuk vész el.`,
+            )
+        ) {
+            return;
+        }
+
         router.delete(destroy(folderId), {
             preserveScroll: true,
             preserveState: true,
@@ -1384,7 +1392,10 @@ export default function WordsIndex({
                                                 </button>
                                                 <button
                                                     onClick={() =>
-                                                        handleDeleteFolder(f.id)
+                                                        handleDeleteFolder(
+                                                            f.id,
+                                                            f.name,
+                                                        )
                                                     }
                                                     className="rounded p-1.5 text-muted-foreground hover:bg-accent hover:text-destructive"
                                                     title="Törlés"

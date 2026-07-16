@@ -158,3 +158,37 @@ test('quiz requires authentication', function () {
 
     $this->get(route('words.quiz'))->assertRedirect(route('login'));
 });
+
+test('quiz manual ids selection is capped at the plan limit for free users', function () {
+    Word::insert(collect(range(1, 12))->map(fn ($i) => [
+        'word' => "capword{$i}",
+        'meaning_hu' => "jelentés{$i}",
+        'rank' => 100 + $i,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ])->all());
+
+    $ids = Word::whereNotNull('meaning_hu')->pluck('id')->implode(',');
+    $props = quizProps($this, ['ids' => $ids]);
+
+    expect($props['words'])->toHaveCount(10)
+        ->and($props['freeQuizLimit'])->toBe(10);
+});
+
+test('quiz manual ids selection is capped at the 500 technical ceiling for premium', function () {
+    $this->actingAs(User::factory()->premium()->create());
+
+    Word::insert(collect(range(1, 505))->map(fn ($i) => [
+        'word' => "capword{$i}",
+        'meaning_hu' => "jelentés{$i}",
+        'rank' => 100 + $i,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ])->all());
+
+    $ids = Word::whereNotNull('meaning_hu')->pluck('id')->implode(',');
+    $props = quizProps($this, ['ids' => $ids]);
+
+    expect($props['words'])->toHaveCount(500)
+        ->and($props['freeQuizLimit'])->toBeNull();
+});

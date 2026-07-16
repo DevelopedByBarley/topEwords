@@ -300,11 +300,14 @@ class WordController extends Controller
         $maxCount = $roundLimit ?? 500;
         $count = min(max((int) $request->input('count', 0), 0), $maxCount);
 
-        // Parse comma-separated ids param for manual word selection
+        // Parse comma-separated ids param for manual word selection.
+        // A kézi kiválasztás is plafonos: Free-n a plan-limit, prémiumon az
+        // 500-as technikai plafon — kraftolt ?ids= URL-lel sem kérhető
+        // korlátlan whereIn + óriás payload.
         $idsParam = $request->string('ids')->trim()->value();
         $selectedIds = $idsParam !== '' ? array_filter(array_map('trim', explode(',', $idsParam))) : [];
-        if ($roundLimit !== null && count($selectedIds) > $roundLimit) {
-            $selectedIds = array_slice($selectedIds, 0, $roundLimit);
+        if (count($selectedIds) > $maxCount) {
+            $selectedIds = array_slice($selectedIds, 0, $maxCount);
         }
         $selectedRegularIds = array_values(array_map('intval', array_filter($selectedIds, fn ($id) => ! str_starts_with($id, 'custom_'))));
         $selectedCustomIds = array_values(array_map(fn ($id) => (int) substr($id, 7), array_filter($selectedIds, fn ($id) => str_starts_with($id, 'custom_'))));
