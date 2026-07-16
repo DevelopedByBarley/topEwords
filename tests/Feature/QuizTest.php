@@ -148,6 +148,19 @@ test('quiz complete awards achievements and increments the counter', function ()
         ->and($this->user->achievements()->where('achievement_key', 'quiz_perfect')->exists())->toBeTrue();
 });
 
+test('a repeated perfect quiz does not duplicate the achievement or throw', function () {
+    $first = $this->postJson(route('words.quiz.complete'), ['perfect' => true])
+        ->assertSuccessful()->json('achievements');
+    $second = $this->postJson(route('words.quiz.complete'), ['perfect' => true])
+        ->assertSuccessful()->json('achievements');
+
+    $keys = fn (array $a) => collect($a)->pluck('key')->all();
+
+    expect($keys($first))->toContain('quiz_perfect')
+        ->and($keys($second))->not->toContain('quiz_perfect')
+        ->and($this->user->achievements()->where('achievement_key', 'quiz_perfect')->count())->toBe(1);
+});
+
 test('quiz complete validates the perfect flag', function () {
     $this->postJson(route('words.quiz.complete'), ['perfect' => 'not-a-bool'])
         ->assertUnprocessable();

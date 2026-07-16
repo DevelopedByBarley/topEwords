@@ -89,13 +89,17 @@ class AchievementService
             }
 
             if ($this->passes($key, $user)) {
-                UserAchievement::create([
-                    'user_id' => $user->id,
-                    'achievement_key' => $key,
-                    'unlocked_at' => now(),
-                ]);
+                // firstOrCreate a unique(user_id, achievement_key) constraintre
+                // támaszkodva: párhuzamos/dupla POST nem dob 500-at, és csak a
+                // ténylegesen most létrejött achievement kerül a listába.
+                $award = UserAchievement::firstOrCreate(
+                    ['user_id' => $user->id, 'achievement_key' => $key],
+                    ['unlocked_at' => now()],
+                );
 
-                $newlyUnlocked[] = ['key' => $key, ...$achievement];
+                if ($award->wasRecentlyCreated) {
+                    $newlyUnlocked[] = ['key' => $key, ...$achievement];
+                }
             }
         }
 
@@ -192,13 +196,15 @@ class AchievementService
 
         $newlyUnlocked = $this->checkAndAward($user, ['quiz']);
 
-        if ($perfect && ! $user->achievements()->where('achievement_key', 'quiz_perfect')->exists()) {
-            UserAchievement::create([
-                'user_id' => $user->id,
-                'achievement_key' => 'quiz_perfect',
-                'unlocked_at' => now(),
-            ]);
-            $newlyUnlocked[] = ['key' => 'quiz_perfect', ...self::ACHIEVEMENTS['quiz_perfect']];
+        if ($perfect) {
+            $award = UserAchievement::firstOrCreate(
+                ['user_id' => $user->id, 'achievement_key' => 'quiz_perfect'],
+                ['unlocked_at' => now()],
+            );
+
+            if ($award->wasRecentlyCreated) {
+                $newlyUnlocked[] = ['key' => 'quiz_perfect', ...self::ACHIEVEMENTS['quiz_perfect']];
+            }
         }
 
         return $newlyUnlocked;
@@ -216,13 +222,15 @@ class AchievementService
 
         $newlyUnlocked = $this->checkAndAward($user, ['analysis']);
 
-        if ($comprehension >= 90 && ! $user->achievements()->where('achievement_key', 'analysis_comprehension_90')->exists()) {
-            UserAchievement::create([
-                'user_id' => $user->id,
-                'achievement_key' => 'analysis_comprehension_90',
-                'unlocked_at' => now(),
-            ]);
-            $newlyUnlocked[] = ['key' => 'analysis_comprehension_90', ...self::ACHIEVEMENTS['analysis_comprehension_90']];
+        if ($comprehension >= 90) {
+            $award = UserAchievement::firstOrCreate(
+                ['user_id' => $user->id, 'achievement_key' => 'analysis_comprehension_90'],
+                ['unlocked_at' => now()],
+            );
+
+            if ($award->wasRecentlyCreated) {
+                $newlyUnlocked[] = ['key' => 'analysis_comprehension_90', ...self::ACHIEVEMENTS['analysis_comprehension_90']];
+            }
         }
 
         return $newlyUnlocked;
