@@ -479,6 +479,39 @@ test('importance updates an already saved word', function () {
     expect($this->user->knownWords()->wherePivot('importance', 4)->where('word_id', $word->id)->exists())->toBeTrue();
 });
 
+test('importance returns JSON for extension/JSON callers instead of a redirect', function () {
+    // A bővítmény fetch-e Accept: application/json-t küld; korábban a végpont
+    // back()-et adott, a fetch a 302-t HTML-oldalra követte, r.json() elhasalt,
+    // és a kliens hibát látva visszaállította a csillagokat — noha a mentés ment.
+    $word = Word::where('word', 'the')->first();
+
+    $this->postJson(route('words.importance', $word), ['importance' => 3])
+        ->assertOk()
+        ->assertJson(['ok' => true, 'importance' => 3]);
+
+    expect($this->user->knownWords()->wherePivot('importance', 3)->where('word_id', $word->id)->exists())->toBeTrue();
+});
+
+test('clearing importance via JSON returns ok with null importance', function () {
+    $word = Word::where('word', 'the')->first();
+    $this->user->knownWords()->attach($word->id, ['status' => 'known', 'importance' => 5]);
+
+    $this->postJson(route('words.importance', $word), ['importance' => null])
+        ->assertOk()
+        ->assertJson(['ok' => true, 'importance' => null]);
+
+    expect($this->user->knownWords()->wherePivot('importance', null)->where('word_id', $word->id)->exists())->toBeTrue();
+});
+
+test('inertia importance request still receives a redirect, not JSON', function () {
+    $word = Word::where('word', 'the')->first();
+
+    $this->post(route('words.importance', $word), ['importance' => 2], ['X-Inertia' => 'true', 'X-Requested-With' => 'XMLHttpRequest'])
+        ->assertRedirect();
+
+    expect($this->user->knownWords()->wherePivot('importance', 2)->where('word_id', $word->id)->exists())->toBeTrue();
+});
+
 test('words can be filtered by importance', function () {
     $words = Word::whereIn('word', ['the', 'of'])->get()->keyBy('word');
     $this->user->knownWords()->attach($words['the']->id, ['status' => 'known', 'importance' => 5]);

@@ -273,6 +273,11 @@ const SEARCH_CSS = `
         position: fixed;
         inset: 0;
         z-index: 2147483647;
+    }
+
+    #backdrop {
+        position: absolute;
+        inset: 0;
         display: flex;
         align-items: flex-start;
         justify-content: center;

@@ -9,6 +9,12 @@ let holdTimer = null;
 // ── Selection detection ───────────────────────────────────────────────────────
 
 document.addEventListener('mousedown', (e) => {
+    // Csak valódi felhasználói egérnyomás indíthat popupot; a szintetikus
+    // (dispatchEvent) kattintással egy rosszindulatú oldal nem enumerálhat.
+    if (!e.isTrusted) {
+        return;
+    }
+
     if (host && host.contains(e.target)) {
         return;
     }
@@ -62,6 +68,12 @@ function isTypingTarget() {
 document.addEventListener(
     'keydown',
     (e) => {
+        // Csak valódi billentyűleütésre reagálunk; a szintetikus KeyboardEvent
+        // nem nyithatja meg a keresőt / nem triggerelhet státusz-írást.
+        if (!e.isTrusted) {
+            return;
+        }
+
         if (e.key === 'Escape') {
             if (searchHost || host) {
                 e.stopPropagation();
@@ -140,7 +152,7 @@ function showPopup(word, rect, preferAbove = false) {
     (fsEl ?? document.body).appendChild(host);
     positionHost(host, rect, !!fsEl, preferAbove);
 
-    shadow = host.attachShadow({ mode: 'open' });
+    shadow = host.attachShadow({ mode: 'closed' });
 
     const style = document.createElement('style');
     style.textContent = POPUP_CSS;

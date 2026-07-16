@@ -779,6 +779,7 @@ class TextAnalysisController extends Controller
             'type' => 'OBJECT',
             'properties' => [
                 'is_real_word' => ['type' => 'BOOLEAN'],
+                'base_form' => $string,
                 'meaning_hu' => $string,
                 'extra_meanings' => $string,
                 'synonyms' => $string,
@@ -795,8 +796,8 @@ class TextAnalysisController extends Controller
                 'adj_superlative' => $string,
                 'context_explanation' => $string,
             ],
-            'required' => ['is_real_word', 'meaning_hu', 'part_of_speech', 'example_en', 'example_hu'],
-            'propertyOrdering' => ['is_real_word', 'meaning_hu', 'extra_meanings', 'synonyms', 'part_of_speech', 'example_en', 'example_hu', 'verb_past', 'verb_past_participle', 'verb_present_participle', 'verb_third_person', 'is_irregular', 'noun_plural', 'adj_comparative', 'adj_superlative', 'context_explanation'],
+            'required' => ['is_real_word', 'base_form', 'meaning_hu', 'part_of_speech', 'example_en', 'example_hu'],
+            'propertyOrdering' => ['is_real_word', 'base_form', 'meaning_hu', 'extra_meanings', 'synonyms', 'part_of_speech', 'example_en', 'example_hu', 'verb_past', 'verb_past_participle', 'verb_present_participle', 'verb_third_person', 'is_irregular', 'noun_plural', 'adj_comparative', 'adj_superlative', 'context_explanation'],
         ];
     }
 
@@ -1333,6 +1334,7 @@ PROMPT;
         $prompt = <<<PROMPT
 You are a Hungarian-English dictionary assistant for the English word "{$word}". Fill the response fields, following these rules:
 - is_real_word: true if "{$word}" is genuine English a learner might want to save — a standard word, a fixed expression, OR any natural, meaningful multi-word English phrase (even if it is not a dictionary idiom and even if a slightly different word order would be more common). Set false only for gibberish, random letters, a clear misspelling, or text that is not English. Judge the input itself — rare, technical or proper-noun English words are still real (true). If false, leave the other fields as empty strings.
+- base_form: the dictionary base form (lemma) of "{$word}". If "{$word}" is itself already a base form, set base_form to "{$word}" unchanged. If "{$word}" is an inflected form — a verb tense ("helped" → "help", "running" → "run"), a plural noun ("boxes" → "box"), or a comparative/superlative adjective ("bigger" → "big") — set base_form to the lemma and treat that lemma as the word to describe. EVERY OTHER FIELD BELOW (meaning_hu, part_of_speech, all form fields, examples) must describe the base_form, NOT the inflected input. Example: input "helped" → base_form "help", part_of_speech "verb", verb_past "helped", verb_present_participle "helping", verb_third_person "helps". For a fixed expression or multi-word phrase, keep base_form equal to "{$word}".
 - meaning_hu: concise primary Hungarian translation (for a phrase, a short natural Hungarian equivalent).
 - extra_meanings: other Hungarian meanings, comma-separated, or empty string.
 - synonyms: 2-4 English synonyms, comma-separated, or empty string.
@@ -1383,8 +1385,20 @@ PROMPT;
             ]);
         }
 
+        // A modell a beírt ragozott alakot (pl. "helped") lemmatizálja ("help"),
+        // és minden mezőt a lemmára tölt ki. A base_form-ot ugyanúgy betűkre
+        // szűrjük, mint a bemenetet; ha üres/érvénytelen, a beírt szóra esünk vissza.
+        $baseForm = $this->sanitizeWordForPrompt(
+            mb_strtolower(trim((string) ($data['base_form'] ?? '')))
+        ) ?? $word;
+
+        // Csak akkor jelezzük „kiinduló alak" cserét, ha a lemma ténylegesen eltér.
+        $normalizedFromInput = $baseForm !== $word ? $baseForm : null;
+
         return response()->json([
             'is_real_word' => true,
+            'base_form' => $baseForm,
+            'normalized_from_input' => $normalizedFromInput,
             'meaning_hu' => $data['meaning_hu'] ?? null,
             'extra_meanings' => $data['extra_meanings'] ?? null,
             'synonyms' => $data['synonyms'] ?? null,

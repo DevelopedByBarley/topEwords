@@ -304,6 +304,47 @@ test('extension JSON request gets a JSON ack for custom word status', function (
     expect($word->fresh()->status)->toBe('known');
 });
 
+test('custom word importance returns JSON for extension/JSON callers', function () {
+    // Ugyanaz a hiba, mint a globális szónál: a fetch a redirectet HTML-oldalra
+    // követte volna. A JSON-ág kell, hogy a csillagozás ne mutasson hamis hibát.
+    $word = UserCustomWord::create([
+        'user_id' => $this->user->id,
+        'word' => 'ephemeral',
+        'status' => 'learning',
+    ]);
+
+    $this->postJson(route('custom-words.importance', $word), ['importance' => 4])
+        ->assertOk()
+        ->assertJson(['ok' => true, 'importance' => 4]);
+
+    expect($word->fresh()->importance)->toBe(4);
+});
+
+test('web (inertia) custom word importance still redirects', function () {
+    $word = UserCustomWord::create([
+        'user_id' => $this->user->id,
+        'word' => 'ephemeral',
+        'status' => 'learning',
+    ]);
+
+    $this->post(route('custom-words.importance', $word), ['importance' => 2], ['X-Inertia' => 'true', 'X-Requested-With' => 'XMLHttpRequest'])
+        ->assertRedirect();
+
+    expect($word->fresh()->importance)->toBe(2);
+});
+
+test('user cannot set importance on another users custom word', function () {
+    $other = User::factory()->create();
+    $word = UserCustomWord::create([
+        'user_id' => $other->id,
+        'word' => 'ephemeral',
+        'status' => 'learning',
+    ]);
+
+    $this->postJson(route('custom-words.importance', $word), ['importance' => 4])
+        ->assertForbidden();
+});
+
 test('empty status removes a custom word status (extension un-toggle)', function () {
     $word = UserCustomWord::create([
         'user_id' => $this->user->id,

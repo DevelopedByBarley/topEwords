@@ -153,6 +153,83 @@ test('többszavas kifejezés átmegy a lookup-on és valódinak fogadja el', fun
     Http::assertSent(fn ($request) => str_contains($request['contents'][0]['parts'][0]['text'] ?? '', 'multi-word English phrase'));
 });
 
+test('ragozott alak beírásakor az alapszóra lemmatizál és jelzi a cserét', function () {
+    Http::fake(['generativelanguage.googleapis.com/*' => Http::response([
+        'candidates' => [['content' => ['parts' => [['text' => json_encode([
+            'is_real_word' => true,
+            'base_form' => 'help',
+            'meaning_hu' => 'segít',
+            'part_of_speech' => 'verb',
+            'example_en' => 'She helped me.',
+            'example_hu' => 'Segített nekem.',
+            'verb_past' => 'helped',
+            'verb_present_participle' => 'helping',
+            'verb_third_person' => 'helps',
+        ])]]]]],
+        'usageMetadata' => ['promptTokenCount' => 300, 'candidatesTokenCount' => 200],
+    ])]);
+
+    $user = User::factory()->create(['ai_access' => true]);
+
+    $this->actingAs($user)
+        ->getJson(route('text-analysis.gemini-lookup', ['word' => 'helped']))
+        ->assertSuccessful()
+        ->assertJson([
+            'is_real_word' => true,
+            'base_form' => 'help',
+            'normalized_from_input' => 'help',
+            'verb_past' => 'helped',
+        ]);
+});
+
+test('alapszó beírásakor nincs csere-jelzés (normalized_from_input null)', function () {
+    Http::fake(['generativelanguage.googleapis.com/*' => Http::response([
+        'candidates' => [['content' => ['parts' => [['text' => json_encode([
+            'is_real_word' => true,
+            'base_form' => 'help',
+            'meaning_hu' => 'segít',
+            'part_of_speech' => 'verb',
+            'example_en' => 'She helps me.',
+            'example_hu' => 'Segít nekem.',
+        ])]]]]],
+        'usageMetadata' => ['promptTokenCount' => 300, 'candidatesTokenCount' => 200],
+    ])]);
+
+    $user = User::factory()->create(['ai_access' => true]);
+
+    $this->actingAs($user)
+        ->getJson(route('text-analysis.gemini-lookup', ['word' => 'help']))
+        ->assertSuccessful()
+        ->assertJson([
+            'base_form' => 'help',
+            'normalized_from_input' => null,
+        ]);
+});
+
+test('érvénytelen/üres base_form esetén a beírt szóra esik vissza', function () {
+    Http::fake(['generativelanguage.googleapis.com/*' => Http::response([
+        'candidates' => [['content' => ['parts' => [['text' => json_encode([
+            'is_real_word' => true,
+            'base_form' => '',
+            'meaning_hu' => 'kutya',
+            'part_of_speech' => 'noun',
+            'example_en' => 'The dog runs.',
+            'example_hu' => 'A kutya fut.',
+        ])]]]]],
+        'usageMetadata' => ['promptTokenCount' => 300, 'candidatesTokenCount' => 200],
+    ])]);
+
+    $user = User::factory()->create(['ai_access' => true]);
+
+    $this->actingAs($user)
+        ->getJson(route('text-analysis.gemini-lookup', ['word' => 'dog']))
+        ->assertSuccessful()
+        ->assertJson([
+            'base_form' => 'dog',
+            'normalized_from_input' => null,
+        ]);
+});
+
 test('biztonsági blokk (blockReason) azonnal hibát ad, újrapróba nélkül', function () {
     Http::fake(['generativelanguage.googleapis.com/*' => Http::response([
         'promptFeedback' => ['blockReason' => 'SAFETY'],

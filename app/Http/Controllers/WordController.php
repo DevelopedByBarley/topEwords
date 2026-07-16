@@ -584,7 +584,7 @@ class WordController extends Controller
         return $this->statusToggleResponse($request, $status, $forms);
     }
 
-    public function importance(Request $request, Word $word): RedirectResponse
+    public function importance(Request $request, Word $word): RedirectResponse|JsonResponse
     {
         $importance = $request->validate(['importance' => 'nullable|integer|min:1|max:5'])['importance'];
 
@@ -593,17 +593,17 @@ class WordController extends Controller
         if ($existing) {
             $request->user()->knownWords()->updateExistingPivot($word->id, ['importance' => $importance]);
 
-            return back();
+            return $this->importanceToggleResponse($request, $importance);
         }
 
         // Még nincs mentve a szó: importance levételekor nincs mit tenni (ne hozzunk létre üres pivotot).
         if ($importance === null) {
-            return back();
+            return $this->importanceToggleResponse($request, null);
         }
 
         $request->user()->knownWords()->syncWithoutDetaching([$word->id => ['status' => 'known', 'importance' => $importance]]);
 
-        return back();
+        return $this->importanceToggleResponse($request, $importance);
     }
 
     /**

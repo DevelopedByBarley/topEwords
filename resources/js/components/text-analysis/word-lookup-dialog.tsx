@@ -135,6 +135,11 @@ export default function WordLookupDialog({
     const [customAddError, setCustomAddError] = useState<string | null>(null);
     const [geminiLoading, setGeminiLoading] = useState(false);
     const [geminiNotice, setGeminiNotice] = useState<string | null>(null);
+    // Ha az AI a beírt ragozott alakot alapszóra lemmatizálta (helped → help),
+    // ez az alapszó lesz elmentve a beírt szó helyett.
+    const [baseFormOverride, setBaseFormOverride] = useState<string | null>(
+        null,
+    );
 
     // A státusz-POST rollbackje csak akkor nyúlhat a dialógus lokális state-jéhez,
     // ha közben nem váltott másik szóra a felhasználó.
@@ -161,6 +166,7 @@ export default function WordLookupDialog({
         setStatusError(null);
         setContextExplanation(null);
         setGeminiNotice(null);
+        setBaseFormOverride(null);
         setCustomWordForm(EMPTY_CUSTOM_WORD_FORM);
         setAddedCustom(false);
         setCustomAddError(null);
@@ -264,7 +270,9 @@ export default function WordLookupDialog({
         setCustomAddError(null);
 
         try {
-            const body: Record<string, unknown> = { word: lookupResult.word };
+            const body: Record<string, unknown> = {
+                word: baseFormOverride ?? lookupResult.word,
+            };
             (Object.keys(customWordForm) as (keyof CustomWordForm)[]).forEach(
                 (k) => {
                     const v = customWordForm[k];
@@ -338,6 +346,15 @@ export default function WordLookupDialog({
                 );
 
                 return;
+            }
+
+            // A beírt szó ragozott alak volt (helped): az AI a „help" alapszóra
+            // lemmatizált, és minden mezőt arra töltött ki — azt mentjük el, jelezzük.
+            if (data.normalized_from_input && data.base_form) {
+                setBaseFormOverride(data.base_form);
+                setGeminiNotice(
+                    `A(z) „${lookupResult.word}" a(z) „${data.base_form}" ragozott alakja — az alapszóból indultunk ki.`,
+                );
             }
 
             setCustomWordForm((prev) => ({
@@ -421,7 +438,7 @@ export default function WordLookupDialog({
                                         </div>
                                     )}
                                     <DialogTitle className="text-2xl font-bold tracking-tight">
-                                        {lookupResult.word}
+                                        {baseFormOverride ?? lookupResult.word}
                                     </DialogTitle>
                                 </div>
                                 {lookupResult.type !== 'not_found' && (
@@ -564,7 +581,13 @@ export default function WordLookupDialog({
                                                 </div>
 
                                                 {geminiNotice && (
-                                                    <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-700 dark:bg-amber-950/30 dark:text-amber-400">
+                                                    <p
+                                                        className={
+                                                            baseFormOverride
+                                                                ? 'rounded-md bg-blue-50 px-3 py-2 text-sm text-blue-700 dark:bg-blue-950/30 dark:text-blue-400'
+                                                                : 'rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-700 dark:bg-amber-950/30 dark:text-amber-400'
+                                                        }
+                                                    >
                                                         {geminiNotice}
                                                     </p>
                                                 )}

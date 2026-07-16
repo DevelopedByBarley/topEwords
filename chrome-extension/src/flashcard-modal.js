@@ -188,8 +188,6 @@ function flashcardFormHtml(data, info) {
 }
 
 function wireFlashcardForm(root, data, csrf, onBack) {
-    root.querySelector('[data-fc-back]')?.addEventListener('click', onBack);
-
     const saveBtn = root.querySelector('[data-fc-save]');
 
     if (!saveBtn) {
@@ -355,7 +353,7 @@ function wireFlashcardForm(root, data, csrf, onBack) {
 let fcModalHost = null;
 
 function fcModalEscHandler(e) {
-    if (e.key === 'Escape') {
+    if (e.isTrusted && e.key === 'Escape') {
         closeFlashcardModal();
     }
 }
@@ -374,7 +372,7 @@ function openFlashcardModal(data, csrf) {
     closeFlashcardModal();
 
     fcModalHost = document.createElement('div');
-    const shadow = fcModalHost.attachShadow({ mode: 'open' });
+    const shadow = fcModalHost.attachShadow({ mode: 'closed' });
 
     const style = document.createElement('style');
     style.textContent = FC_MODAL_CSS;

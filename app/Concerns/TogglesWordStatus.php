@@ -95,6 +95,22 @@ trait TogglesWordStatus
     }
 
     /**
+     * A fontosság (csillagozás) mentésének nyugtája. A bővítmény rövid JSON-t vár
+     * (különben a fetch a 302-t egy HTML-oldalra követi, `r.json()` elhasal, és a
+     * kliens hibát látva visszaállítja a csillagokat — noha a mentés sikerült);
+     * az Inertia-webfelület viszont redirectet igényel. Ugyanaz az elágazás, mint
+     * a statusToggleResponse-ban.
+     */
+    private function importanceToggleResponse(Request $request, ?int $importance): RedirectResponse|JsonResponse
+    {
+        if (! $request->hasHeader('X-Inertia') && $request->expectsJson()) {
+            return response()->json(['ok' => true, 'importance' => $importance]);
+        }
+
+        return back();
+    }
+
+    /**
      * A megváltozott szó/saját szó normalizált felszíni alakjai a kliens-oldali
      * cache foltozásához (ugyanaz a logika, mint az ExtensionController teljes
      * térképénél), egyetlen forrásból.

@@ -101,7 +101,7 @@ class UserCustomWordController extends Controller
         return $this->statusToggleResponse($request, $status, $forms);
     }
 
-    public function importance(Request $request, UserCustomWord $customWord): RedirectResponse
+    public function importance(Request $request, UserCustomWord $customWord): RedirectResponse|JsonResponse
     {
         Gate::authorize('update', $customWord);
 
@@ -109,7 +109,7 @@ class UserCustomWordController extends Controller
 
         $customWord->update(['importance' => $importance]);
 
-        return back();
+        return $this->importanceToggleResponse($request, $importance);
     }
 
     public function destroy(UserCustomWord $customWord): RedirectResponse

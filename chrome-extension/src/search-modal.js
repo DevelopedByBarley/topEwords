@@ -36,13 +36,14 @@ function showSearch() {
     // kereső-modalt is oda tesszük (position:fixed így a viewportra igazodik).
     (document.fullscreenElement ?? document.body).appendChild(searchHost);
 
-    searchShadow = searchHost.attachShadow({ mode: 'open' });
+    searchShadow = searchHost.attachShadow({ mode: 'closed' });
 
     const style = document.createElement('style');
     style.textContent = SEARCH_CSS;
     searchShadow.appendChild(style);
 
     searchShadow.innerHTML += `
+        <div id="backdrop">
         <div id="modal">
             <div id="search-wrap">
                 <svg id="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -54,6 +55,7 @@ function showSearch() {
             <div id="results"><div id="empty" style="display:none">Nincs találat.</div></div>
             <div id="detail"></div>
             <div id="footer-hint">↑↓ = választás &nbsp;·&nbsp; Enter = részletek &nbsp;·&nbsp; Esc = bezár</div>
+        </div>
         </div>
     `;
 
@@ -137,10 +139,11 @@ function showSearch() {
         }
     });
 
-    searchHost.addEventListener('mousedown', (e) => {
-        const modal = searchShadow.getElementById('modal');
-
-        if (!e.composedPath().includes(modal)) {
+    // A backdrop-ra (a modálon kívüli terület) kattintás zár. A listener a
+    // shadow-on belüli elemre kerül, mert closed shadow-nál a host-ról figyelve a
+    // retargeting miatt a belső kattintás sem lenne megkülönböztethető.
+    searchShadow.getElementById('backdrop').addEventListener('mousedown', (e) => {
+        if (e.target === e.currentTarget) {
             hideSearch();
         }
     });
@@ -331,7 +334,7 @@ function showSearchDetail(data) {
 
         detail.innerHTML = `
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-                <span style="font-size:14px;font-weight:700;color:#0f172a">${esc(data.word)}</span>
+                <span id="add-word-label" style="font-size:14px;font-weight:700;color:#0f172a">${esc(data.word)}</span>
                 <div style="display:flex;gap:6px;align-items:center">
                     ${searchIsAdmin || searchHasAi ? `<button id="gemini-fill-btn" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500;color:#7c3aed;border:1px solid #ede9fe;border-radius:20px;background:#faf5ff;padding:3px 10px;cursor:pointer;font-family:inherit;white-space:nowrap;transition:all 0.15s">✨ AI kitöltés</button>` : ''}
                     <a class="google-ai-link" href="${googleUrl}" target="_blank">
@@ -545,6 +548,29 @@ function showSearchDetail(data) {
                             }
 
                             return;
+                        }
+
+                        // A beírt szó ragozott alak volt (pl. „helped"): az AI a
+                        // „help" alapszóra lemmatizált, és minden mezőt arra töltött
+                        // ki. A felvett szót átállítjuk az alapszóra, és jelezzük.
+                        if (resp.normalized_from_input) {
+                            const original = data.word;
+                            data.word = resp.base_form;
+
+                            const label =
+                                detail.querySelector('#add-word-label');
+
+                            if (label) {
+                                label.textContent = resp.base_form;
+                            }
+
+                            const fb = detail.querySelector('#add-feedback');
+
+                            if (fb) {
+                                fb.textContent = `A(z) „${original}" a(z) „${resp.base_form}" ragozott alakja — az alapszóból indultunk ki.`;
+                                fb.style.color = '#3b82f6';
+                                fb.style.display = 'block';
+                            }
                         }
 
                         const pos = resp.part_of_speech ?? '';

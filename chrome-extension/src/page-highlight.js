@@ -219,6 +219,11 @@ function removeHighlights() {
 }
 
 function handleHlClick(e) {
+    // Csak valódi kattintásra nyílik popup — szintetikus eseménnyel ne.
+    if (!e.isTrusted) {
+        return;
+    }
+
     const span = e.target?.closest?.('[data-tw-hl]');
 
     if (!span) {

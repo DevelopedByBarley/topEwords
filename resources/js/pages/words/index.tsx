@@ -170,6 +170,11 @@ export default function WordsIndex({
         Record<string, string>
     >({});
     const [geminiLoading, setGeminiLoading] = useState(false);
+    // Ha az AI a beírt ragozott alakot alapszóra lemmatizálta (helped → help),
+    // ez a tájékoztató üzenet jelzi a cserét a kitöltés-gomb alatt.
+    const [geminiBaseFormNotice, setGeminiBaseFormNotice] = useState<
+        string | null
+    >(null);
     const [selectedCustomWordId, setSelectedCustomWordId] = useState<
         number | null
     >(null);
@@ -567,10 +572,16 @@ export default function WordsIndex({
 
     // Az AI által visszaadott mezőket beolvasztja a meglévő űrlapba. Ahol az AI
     // ad értéket, az felülírja a korábbit (admin szerkesztésnél így újratölt),
-    // ahol nem, ott a meglévő érték marad.
-    function mergeGeminiData(prev: WordFormData, data: any): WordFormData {
+    // ahol nem, ott a meglévő érték marad. A `wordOverride` (ha meg van adva) az
+    // alapszó, amire a `word` mezőt is átállítjuk — csak új szó felvitelekor.
+    function mergeGeminiData(
+        prev: WordFormData,
+        data: any,
+        wordOverride?: string,
+    ): WordFormData {
         return {
             ...prev,
+            word: wordOverride ?? prev.word,
             meaning_hu: data.meaning_hu || prev.meaning_hu,
             extra_meanings: data.extra_meanings || prev.extra_meanings,
             synonyms: data.synonyms || prev.synonyms,
@@ -599,6 +610,7 @@ export default function WordsIndex({
         rawWord: string,
         applyForm: (updater: (prev: WordFormData) => WordFormData) => void,
         setErrors: (errors: Record<string, string>) => void,
+        switchWord = false,
     ) {
         const word = rawWord.trim();
 
@@ -606,9 +618,10 @@ export default function WordsIndex({
             return;
         }
 
-        // Korábbi hiba (pl. "nem valódi szó") törlése, hogy egy sikeres
-        // újralekérés ne hagyja a régi üzenetet a képernyőn.
+        // Korábbi hiba (pl. "nem valódi szó") és lemma-jelzés törlése, hogy egy
+        // sikeres újralekérés ne hagyja a régi üzenetet a képernyőn.
         setErrors({});
+        setGeminiBaseFormNotice(null);
         setGeminiLoading(true);
 
         try {
@@ -657,7 +670,31 @@ export default function WordsIndex({
                 return;
             }
 
-            applyForm((prev) => mergeGeminiData(prev, data));
+            // A beírt szó ragozott alak volt (helped): az AI a „help" alapszóra
+            // lemmatizált. Új szó felvitelekor (switchWord) az alapszóra állítjuk
+            // a `word` mezőt is, és jelezzük; admin-szerkesztésnél csak jelzünk,
+            // mert ott egy konkrét, létező sort szerkeszt a felhasználó — a szó
+            // néma átírása véletlen átnevezés lenne.
+            const lemma =
+                data.normalized_from_input && data.base_form
+                    ? (data.base_form as string)
+                    : null;
+
+            applyForm((prev) =>
+                mergeGeminiData(
+                    prev,
+                    data,
+                    switchWord && lemma ? lemma : undefined,
+                ),
+            );
+
+            if (lemma) {
+                setGeminiBaseFormNotice(
+                    switchWord
+                        ? `A(z) „${word}" a(z) „${lemma}" ragozott alakja — az alapszóból indultunk ki.`
+                        : `A(z) „${word}" a(z) „${lemma}" ragozott alakja. A kitöltött alakok az alapszóra vonatkoznak.`,
+                );
+            }
         } catch {
             setErrors({
                 word: 'Nincs hálózati kapcsolat — az AI-kitöltés nem sikerült.',
@@ -719,6 +756,7 @@ export default function WordsIndex({
                 setCustomWordForm(EMPTY_WORD_FORM);
                 setShowAddCustomWord(false);
                 setCustomWordErrors({});
+                setGeminiBaseFormNotice(null);
             },
             onError: (e) => setCustomWordErrors(e),
         });
@@ -948,6 +986,7 @@ export default function WordsIndex({
                             setShowAddCustomWord(false);
                             setCustomWordErrors({});
                             setCustomWordForm(EMPTY_WORD_FORM);
+                            setGeminiBaseFormNotice(null);
                         }
                     }}
                 >
@@ -964,29 +1003,37 @@ export default function WordsIndex({
                                     autoFocus
                                     afterWordSlot={
                                         hasAiAccess && (
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                onClick={() =>
-                                                    handleGeminiAutofill(
-                                                        customWordForm.word,
-                                                        setCustomWordForm,
-                                                        setCustomWordErrors,
-                                                    )
-                                                }
-                                                disabled={
-                                                    geminiLoading ||
-                                                    !customWordForm.word.trim()
-                                                }
-                                                className="w-full border-violet-200 text-violet-700 hover:bg-violet-50 dark:border-violet-800 dark:text-violet-400 dark:hover:bg-violet-950/30"
-                                            >
-                                                {geminiLoading ? (
-                                                    <Loader2 className="size-4 animate-spin" />
-                                                ) : (
-                                                    <Sparkles className="size-4" />
+                                            <>
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    onClick={() =>
+                                                        handleGeminiAutofill(
+                                                            customWordForm.word,
+                                                            setCustomWordForm,
+                                                            setCustomWordErrors,
+                                                            true,
+                                                        )
+                                                    }
+                                                    disabled={
+                                                        geminiLoading ||
+                                                        !customWordForm.word.trim()
+                                                    }
+                                                    className="w-full border-violet-200 text-violet-700 hover:bg-violet-50 dark:border-violet-800 dark:text-violet-400 dark:hover:bg-violet-950/30"
+                                                >
+                                                    {geminiLoading ? (
+                                                        <Loader2 className="size-4 animate-spin" />
+                                                    ) : (
+                                                        <Sparkles className="size-4" />
+                                                    )}
+                                                    Kitöltés Gemini AI-val
+                                                </Button>
+                                                {geminiBaseFormNotice && (
+                                                    <p className="rounded-md bg-blue-50 px-3 py-2 text-sm text-blue-700 dark:bg-blue-950/30 dark:text-blue-400">
+                                                        {geminiBaseFormNotice}
+                                                    </p>
                                                 )}
-                                                Kitöltés Gemini AI-val
-                                            </Button>
+                                            </>
                                         )
                                     }
                                 />
@@ -1035,6 +1082,7 @@ export default function WordsIndex({
                                         setShowAddCustomWord(false);
                                         setCustomWordErrors({});
                                         setCustomWordForm(EMPTY_WORD_FORM);
+                                        setGeminiBaseFormNotice(null);
                                     }}
                                 >
                                     Mégse
@@ -2387,6 +2435,7 @@ export default function WordsIndex({
                                                     ),
                                                 );
                                                 setEditWordErrors({});
+                                                setGeminiBaseFormNotice(null);
                                             }}
                                         >
                                             <Pencil className="size-3.5" />
@@ -2407,6 +2456,7 @@ export default function WordsIndex({
                         if (!open) {
                             setEditWordId(null);
                             setEditWordErrors({});
+                            setGeminiBaseFormNotice(null);
                         }
                     }}
                 >
@@ -2421,29 +2471,36 @@ export default function WordsIndex({
                                 errors={editWordErrors}
                                 autoFocus
                                 afterWordSlot={
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        onClick={() =>
-                                            handleGeminiAutofill(
-                                                editWordForm.word,
-                                                setEditWordForm,
-                                                setEditWordErrors,
-                                            )
-                                        }
-                                        disabled={
-                                            geminiLoading ||
-                                            !editWordForm.word.trim()
-                                        }
-                                        className="w-full border-violet-200 text-violet-700 hover:bg-violet-50 dark:border-violet-800 dark:text-violet-400 dark:hover:bg-violet-950/30"
-                                    >
-                                        {geminiLoading ? (
-                                            <Loader2 className="size-4 animate-spin" />
-                                        ) : (
-                                            <Sparkles className="size-4" />
+                                    <>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            onClick={() =>
+                                                handleGeminiAutofill(
+                                                    editWordForm.word,
+                                                    setEditWordForm,
+                                                    setEditWordErrors,
+                                                )
+                                            }
+                                            disabled={
+                                                geminiLoading ||
+                                                !editWordForm.word.trim()
+                                            }
+                                            className="w-full border-violet-200 text-violet-700 hover:bg-violet-50 dark:border-violet-800 dark:text-violet-400 dark:hover:bg-violet-950/30"
+                                        >
+                                            {geminiLoading ? (
+                                                <Loader2 className="size-4 animate-spin" />
+                                            ) : (
+                                                <Sparkles className="size-4" />
+                                            )}
+                                            Újratöltés Gemini AI-val
+                                        </Button>
+                                        {geminiBaseFormNotice && (
+                                            <p className="rounded-md bg-blue-50 px-3 py-2 text-sm text-blue-700 dark:bg-blue-950/30 dark:text-blue-400">
+                                                {geminiBaseFormNotice}
+                                            </p>
                                         )}
-                                        Újratöltés Gemini AI-val
-                                    </Button>
+                                    </>
                                 }
                             />
                         </div>
