@@ -402,7 +402,9 @@ class ExtensionController extends Controller
      * Szó-fontosság állítása a token-alapú kliensből. A webes megfelelővel
      * azonos szabályok (1–5 vagy null; pivot nélküli szónál a beállítás
      * 'known' státusszal veszi fel a szót, a levétel nem csinál semmit).
-     * A webes viselkedéssel egyezően nem számít az írás-keretbe.
+     * Meglévő jelölés módosítása nem számít az írás-keretbe, de az ÚJ szó
+     * felvétele igen — különben a csillagozás keret nélküli felvételi út
+     * lenne a státusz-állítás mellett (PL-M1).
      */
     public function updateImportance(Request $request): JsonResponse
     {
@@ -441,7 +443,18 @@ class ExtensionController extends Controller
         if ($existing) {
             $request->user()->knownWords()->updateExistingPivot($word->id, ['importance' => $importance]);
         } elseif ($importance !== null) {
-            $request->user()->knownWords()->syncWithoutDetaching([$word->id => ['status' => 'known', 'importance' => $importance]]);
+            if (! $request->user()->reserveExtensionWrite()) {
+                return response()->json(['error' => 'plan'], 403);
+            }
+
+            // Refund a lefoglalt keret, ha a pivot-írás elbukik (S1).
+            try {
+                $request->user()->knownWords()->syncWithoutDetaching([$word->id => ['status' => 'known', 'importance' => $importance]]);
+            } catch (\Throwable $e) {
+                $request->user()->refundExtensionWrite();
+
+                throw $e;
+            }
         }
 
         return response()->json(['ok' => true, 'importance' => $importance]);

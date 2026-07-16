@@ -8,7 +8,8 @@
 > **RE-AUDIT (2026-07-16 délután, a d40207c után):** a W-M2 + S-M1 + W-L1 javítása kézzel
 > ellenőrizve HELYES és teljes (részletek az egyes tételeknél), a javítások új hibát nem
 > vezettek be; a terület mind a 164 tesztje zöld (70 pay/webhook + 94 player/extension).
-> Új találat egyetlen Low (S-L7). A W-M1 és PL-M1 változatlanul nyitott.
+> Új találat egyetlen Low (S-L7). A W-M1 és PL-M1 a re-audit idején még nyitott volt —
+> azóta mindkettő JAVÍTVA (W-M1: 16f489c; PL-M1: lásd a tételnél).
 
 **Összegzés: nincs HIGH találat.** A fizetési mag (ár-manipuláció, webhook-aláírás, idempotencia,
 mass assignment, IDOR, limit-race-ek) továbbra is masszív. 4 Medium és ~15 Low maradt, jellemzően
@@ -83,7 +84,7 @@ Jelölésmagyarázat: `[ ]` = nyitott · `[x]` = kész · `[~]` = folyamatban
 - **Javítási irány:** dedikált `hasPastDueSubscription` prop `valid()`-et megkerülő lekérdezésből
   (`subscriptions()->where('stripe_status','past_due')`), az `isPremium` blokkon kívül renderelve.
 
-### [ ] PL-M1 — Napi írás-keret megkerülhető: `update-importance` keret nélkül vesz fel szót „known"-ként
+### [x] PL-M1 — Napi írás-keret megkerülhető: `update-importance` keret nélkül vesz fel szót „known"-ként
 
 - **Hely:** `app/Http/Controllers/ExtensionController.php:443-445` (route: `player.update-importance`,
   60/perc throttle; kézzel ellenőrizve)
@@ -98,6 +99,14 @@ Jelölésmagyarázat: `[ ]` = nyitott · `[x]` = kész · `[~]` = folyamatban
   importance-útvonalú *felvétel* (a meglévő szó importance-módosítása maradhat ingyen).
 - **Melléklelet (PL-L6):** ez az út a streak/achievement-könyvelést (`recordStatusActivity`) is kihagyja.
 - **Teszt:** csak prémium userrel tesztelt az attach-út; kimerített keretű Free user nincs lefedve.
+- **JAVÍTVA (2026-07-16, üzleti döntés: B-opció):** az `updateImportance` új-pivot ága (`ExtensionController.php:443`)
+  `reserveExtensionWrite()` guardot kapott a `updateStatus`-szal azonos szemantikával (betelt keretnél
+  `403 {error:'plan'}`, bukó insertnél refund — S1); meglévő jelölés importance-módosítása és a levétel
+  változatlanul ingyenes. A webes oldal (`WordController::importance`) szándékosan érintetlen — a weben
+  nincs írás-keret. A player kliens a `plan` hibakódot már ismerte (magyar üzenet + optimista rollback),
+  kliens-változás nem kellett. Tesztek: PlayerWordActionsTest +5 (betelt keretnél blokk / meglévőn ingyen /
+  levétel ingyen / slot-fogyasztás / refund SQLite-triggerrel — a teszt-rés is zárva); 99 player+extension
+  teszt zöld. A PL-L6 (streak/achievement kihagyása) továbbra is nyitott, külön tétel.
 
 ---
 

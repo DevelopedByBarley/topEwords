@@ -4,6 +4,7 @@ use App\Models\User;
 use App\Models\UserCustomWord;
 use App\Models\Word;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Laravel\Sanctum\Sanctum;
 
@@ -230,6 +231,76 @@ test('update-importance marks an unmarked word as known', function () {
 
     expect($pivot->status)->toBe('known')
         ->and($pivot->importance)->toBe(5);
+});
+
+// ── Fontosság: napi írás-keret (PL-M1) ───────────────────────────────────────
+
+test('importance-adding a word consumes a daily write slot on the free plan', function () {
+    $free = User::factory()->create();
+    Sanctum::actingAs($free, ['player']);
+
+    $this->postJson(route('player.update-importance'), ['id' => $this->apple->id, 'is_custom' => false, 'importance' => 5])
+        ->assertSuccessful();
+
+    expect($free->extensionWritesToday())->toBe(1);
+});
+
+test('importance set on an unmarked word is blocked once the daily write quota is exhausted', function () {
+    $free = User::factory()->create();
+    $limit = $free->planLimit('extension_writes_per_day');
+    Cache::put("extension_writes_daily_{$free->id}_".today()->format('Y-m-d'), $limit, now()->endOfDay());
+    Sanctum::actingAs($free, ['player']);
+
+    $this->postJson(route('player.update-importance'), ['id' => $this->apple->id, 'is_custom' => false, 'importance' => 3])
+        ->assertForbidden()
+        ->assertJson(['error' => 'plan']);
+
+    expect($free->knownWords()->wherePivot('word_id', $this->apple->id)->exists())->toBeFalse();
+});
+
+test('importance change on an already marked word is allowed even with an exhausted quota', function () {
+    $free = User::factory()->create();
+    $free->knownWords()->attach($this->apple->id, ['status' => 'learning']);
+    $limit = $free->planLimit('extension_writes_per_day');
+    Cache::put("extension_writes_daily_{$free->id}_".today()->format('Y-m-d'), $limit, now()->endOfDay());
+    Sanctum::actingAs($free, ['player']);
+
+    $this->postJson(route('player.update-importance'), ['id' => $this->apple->id, 'is_custom' => false, 'importance' => 5])
+        ->assertSuccessful()
+        ->assertJson(['ok' => true, 'importance' => 5]);
+});
+
+test('importance removal on an unmarked word is allowed even with an exhausted quota', function () {
+    $free = User::factory()->create();
+    $limit = $free->planLimit('extension_writes_per_day');
+    Cache::put("extension_writes_daily_{$free->id}_".today()->format('Y-m-d'), $limit, now()->endOfDay());
+    Sanctum::actingAs($free, ['player']);
+
+    $this->postJson(route('player.update-importance'), ['id' => $this->apple->id, 'is_custom' => false, 'importance' => null])
+        ->assertSuccessful()
+        ->assertJson(['ok' => true, 'importance' => null]);
+
+    expect($free->knownWords()->wherePivot('word_id', $this->apple->id)->exists())->toBeFalse();
+});
+
+test('a failed importance pivot write refunds the reserved daily quota', function () {
+    // A guard utáni pivot-írás bukásakor a lefoglalt slot visszajár (S1). A
+    // tábla-eldobás itt nem játszik (már a guard ELŐTTI $existing-select is
+    // elhasalna rajta), ezért SQLite-triggerrel csak az INSERT-et buktatjuk el.
+    $free = User::factory()->create();
+    $start = 2;
+    Cache::put("extension_writes_daily_{$free->id}_".today()->format('Y-m-d'), $start, now()->endOfDay());
+    Sanctum::actingAs($free, ['player']);
+
+    DB::statement("CREATE TRIGGER fail_user_word_insert BEFORE INSERT ON user_word BEGIN SELECT RAISE(ABORT, 'insert blocked by test'); END");
+
+    $this->postJson(route('player.update-importance'), ['id' => $this->apple->id, 'is_custom' => false, 'importance' => 4])
+        ->assertStatus(500);
+
+    expect($free->extensionWritesToday())->toBe($start)
+        ->and($free->knownWords()->wherePivot('word_id', $this->apple->id)->exists())->toBeFalse();
+
+    DB::statement('DROP TRIGGER fail_user_word_insert');
 });
 
 test('removing importance from an unmarked word does not create a marking', function () {
