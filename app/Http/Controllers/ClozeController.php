@@ -90,6 +90,7 @@ class ClozeController extends Controller
 
         // In setup mode: return selectable word list
         $selectableWords = [];
+        $selectableTruncated = false;
         if ($count === 0 && count($selectedIds) === 0) {
             $regularSelectable = (clone $query)
                 ->orderBy('rank')
@@ -117,6 +118,11 @@ class ClozeController extends Controller
                 : collect();
 
             $selectableWords = $regularSelectable->concat($customSelectable)->values()->all();
+
+            // A választható lista rendes szavaknál 500-ra, saját szavaknál
+            // 200-ra van vágva; ha az elérhető készlet ennél nagyobb, a UI
+            // ezt jelzi (a "Mind be" gomb nem jelölné ki a teljes készletet).
+            $selectableTruncated = $query->count() > 500 || $customAvailable > 200;
         }
 
         $items = [];
@@ -232,6 +238,7 @@ class ClozeController extends Controller
             'missingCount' => $missingCount,
             'folders' => $folders,
             'selectableWords' => $selectableWords,
+            'selectableTruncated' => $selectableTruncated,
             'filters' => [
                 'status' => $status,
                 'level' => $level,

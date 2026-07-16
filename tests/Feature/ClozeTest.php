@@ -108,3 +108,21 @@ test('cloze complete requires authentication', function () {
 
     $this->post(route('words.cloze.complete'))->assertRedirect(route('login'));
 });
+
+test('setup does not flag truncation when the selectable list fits', function () {
+    insertClozeWords(20);
+
+    $props = clozeProps($this);
+
+    expect($props['selectableWords'])->toHaveCount(20)
+        ->and($props['selectableTruncated'])->toBeFalse();
+});
+
+test('setup flags truncation when more than 500 regular words match', function () {
+    insertClozeWords(501);
+
+    $props = clozeProps($this);
+
+    expect($props['selectableWords'])->toHaveCount(500)
+        ->and($props['selectableTruncated'])->toBeTrue();
+});

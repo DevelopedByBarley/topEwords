@@ -60,6 +60,7 @@ interface Props {
     folders: Folder[];
     filters: Filters;
     selectableWords: SelectableWord[];
+    selectableTruncated: boolean;
     freeClozeLimit: number | null;
 }
 
@@ -132,6 +133,7 @@ function ClozeSetup({
     folders,
     filters,
     selectableWords,
+    selectableTruncated,
     freeClozeLimit,
     onStart,
     onStartWithIds,
@@ -140,6 +142,7 @@ function ClozeSetup({
     folders: Folder[];
     filters: Filters;
     selectableWords: SelectableWord[];
+    selectableTruncated: boolean;
     freeClozeLimit: number | null;
     onStart: (
         status: string,
@@ -166,7 +169,12 @@ function ClozeSetup({
                 count: 0,
             },
             {
-                only: ['available', 'filters', 'selectableWords'],
+                only: [
+                    'available',
+                    'filters',
+                    'selectableWords',
+                    'selectableTruncated',
+                ],
                 preserveState: true,
                 preserveScroll: true,
                 replace: true,
@@ -397,6 +405,14 @@ function ClozeSetup({
                             )}
                         </div>
 
+                        {selectableTruncated && (
+                            <p className="mb-3 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:bg-amber-950/30 dark:text-amber-400">
+                                Sok szó felel meg a szűrőnek – itt csak az első
+                                néhány száz jelenik meg. Szűkíts a szűrőkkel vagy
+                                a kereséssel, ha egy távolabbi szót keresel.
+                            </p>
+                        )}
+
                         <div className="mb-3 flex items-center gap-2">
                             <div className="relative flex-1">
                                 <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -518,6 +534,7 @@ export default function Cloze({
     folders,
     filters,
     selectableWords,
+    selectableTruncated,
     freeClozeLimit,
 }: Props) {
     const [current, setCurrent] = useState(0);
@@ -712,6 +729,7 @@ export default function Cloze({
                 folders={folders}
                 filters={filters}
                 selectableWords={selectableWords}
+                selectableTruncated={selectableTruncated}
                 freeClozeLimit={freeClozeLimit}
                 onStart={startCloze}
                 onStartWithIds={startClozeWithIds}
@@ -807,6 +825,13 @@ export default function Cloze({
     }
 
     // ── Play ──────────────────────────────────────────────────────────────────
+    // Ha játék közben rövidebb items-prop érkezik (pl. böngésző-vissza), a
+    // current túlnyúlhat, mielőtt a reset-useEffect lefutna. A null-guard
+    // megvédi a lenti card.* hozzáféréseket a fehér-képernyős TypeErrortól.
+    if (!card) {
+        return null;
+    }
+
     return (
         <>
             <Head
