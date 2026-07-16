@@ -9,6 +9,7 @@ use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\Log;
+use RuntimeException;
 
 /**
  * Egy sikeresen kifizetett Stripe számlából NAV-kompatibilis Billingo számlát állít
@@ -249,6 +250,14 @@ class InvoiceGenerator
         $grossMinor = $this->grossMinor($stripeInvoice);
         $currency = strtoupper((string) ($stripeInvoice['currency'] ?? 'EUR'));
 
+        // A lenti round($grossMinor / 100) két tizedesjegyes valutát feltételez — a
+        // Stripe a HUF-ot és az EUR-t így kezeli, de egy zero-decimal valuta (pl. JPY)
+        // 1/100-ad összegű NAV-számlát kapna. Inkább bukjon hangosan a job (riasztással),
+        // mint hogy rossz összegű számla szülessen.
+        if (! in_array($currency, ['HUF', 'EUR'], true)) {
+            throw new RuntimeException("Nem támogatott valuta a Billingo-számlázáshoz: {$currency}");
+        }
+
         // A fizetés dátuma a teljesítési dátum; a számla azonnal kifizetett.
         $paidAt = $this->paidAt($stripeInvoice);
 
@@ -322,7 +331,11 @@ class InvoiceGenerator
     }
 
     /**
-     * A teljesítés napja (Y-m-d) a Stripe fizetés időpontjából.
+     * A teljesítés napja (Y-m-d) a Stripe fizetés időpontjából, magyar
+     * (Europe/Budapest) naptári nap szerint — a NAV-számla teljesítési dátuma és a
+     * hozzá tartozó MNB-árfolyam-nap is ehhez igazodik. A Stripe UTC-timestampje
+     * éjfél körül (pl. budapesti 00:30-as terhelésnél) egy nappal korábbi dátumot
+     * adna.
      *
      * @param  array<string, mixed>  $stripeInvoice
      */
@@ -332,6 +345,8 @@ class InvoiceGenerator
             ?? $stripeInvoice['created']
             ?? null;
 
-        return ($timestamp ? Date::createFromTimestamp($timestamp) : Date::now())->format('Y-m-d');
+        return ($timestamp ? Date::createFromTimestamp($timestamp) : Date::now())
+            ->setTimezone('Europe/Budapest')
+            ->format('Y-m-d');
     }
 }

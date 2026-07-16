@@ -172,6 +172,24 @@ test('security page lists only the users own player devices', function () {
         );
 });
 
+test('the security page does not list expired player devices', function () {
+    $user = User::factory()->create();
+
+    $user->createToken('topwords Player – Élő', ['player'], now()->addDays(30));
+    // Lejárt token: a guard már elutasítja, de a sora a napi prune-ig a táblában marad.
+    $user->createToken('topwords Player – Lejárt', ['player'], now()->subDay());
+
+    $this->actingAs($user)
+        ->withSession(['auth.password_confirmed_at' => time()])
+        ->get(route('security.edit'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('settings/security')
+            ->has('playerDevices', 1)
+            ->where('playerDevices.0.name', 'topwords Player – Élő'),
+        );
+});
+
 test('a player device can be revoked', function () {
     $user = User::factory()->create();
     $token = $user->createToken('topwords Player – Laptop', ['player'])->accessToken;

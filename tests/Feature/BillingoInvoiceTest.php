@@ -7,6 +7,7 @@ use App\Services\Billingo\BillingoClient;
 use App\Services\Billingo\InvoiceGenerator;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Http\Client\RequestException;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -192,6 +193,59 @@ test('devizás (nem HUF) számlán a teljesítés napi MNB-árfolyam kerül a co
             && $request->data()['conversion_rate'] === 390.5
             && $request->data()['items'][0]['unit_price'] === 29.9;
     });
+});
+
+test('a teljesítési dátum budapesti naptári nap szerint számolódik, nem UTC szerint', function () {
+    fakeBillingo();
+    $user = billableUser();
+
+    // 2026-01-15 23:30 UTC = 2026-01-16 00:30 Europe/Budapest (téli, UTC+1) — a
+    // NAV-számla teljesítési dátuma a magyar naptári nap, nem az eltolt UTC-dátum.
+    $paidAt = Carbon::parse('2026-01-15 23:30:00', 'UTC')->timestamp;
+
+    app(InvoiceGenerator::class)->generateForStripeInvoice($user, stripeInvoice([
+        'id' => 'in_midnight',
+        'status_transitions' => ['paid_at' => $paidAt],
+    ]));
+
+    Http::assertSent(fn ($request) => str_ends_with($request->url(), '/documents')
+        && $request->data()['fulfillment_date'] === '2026-01-16'
+        && $request->data()['due_date'] === '2026-01-16');
+});
+
+test('devizás számlán az MNB-árfolyam is a budapesti teljesítési napra kérődik le', function () {
+    fakeBillingo();
+    $user = billableUser();
+
+    $paidAt = Carbon::parse('2026-01-15 23:30:00', 'UTC')->timestamp;
+
+    app(InvoiceGenerator::class)->generateForStripeInvoice($user, stripeInvoice([
+        'id' => 'in_midnight_eur',
+        'amount_paid' => 2990,
+        'currency' => 'eur',
+        'status_transitions' => ['paid_at' => $paidAt],
+    ]));
+
+    // Az árfolyam-lookup dátuma a budapesti teljesítési nap — így az MNB-árfolyam
+    // ugyanahhoz a naphoz tartozik, mint a számla teljesítési dátuma.
+    Http::assertSent(fn ($request) => str_contains($request->url(), '/currencies')
+        && str_contains($request->url(), 'date=2026-01-16'));
+});
+
+test('nem támogatott (pl. zero-decimal) valutánál nem állít ki számlát, hanem kivételt dob', function () {
+    fakeBillingo();
+    $user = billableUser();
+
+    // A JPY-t a Stripe zero-decimal valutaként kezeli — a /100-as osztás 1/100-ad
+    // összegű NAV-számlát adna. Inkább hangosan bukjon a job (failed-job riasztás),
+    // mint hogy rossz összegű számla szülessen.
+    expect(fn () => app(InvoiceGenerator::class)->generateForStripeInvoice($user, stripeInvoice([
+        'id' => 'in_jpy',
+        'currency' => 'jpy',
+    ])))->toThrow(RuntimeException::class, 'JPY');
+
+    Http::assertNotSent(fn ($request) => $request->method() === 'POST'
+        && str_ends_with($request->url(), '/documents'));
 });
 
 test('érvénytelen árfolyam-válasznál nem állít ki számlát, hanem kivételt dob', function () {

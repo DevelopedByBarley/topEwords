@@ -41,8 +41,8 @@ Route::middleware(['auth'])->group(function () {
     Route::put('settings/flashcards', [FlashcardController::class, 'update'])->name('flashcard-settings.update');
 
     Route::get('settings/subscription', [SubscriptionController::class, 'edit'])->name('subscription.edit');
-    Route::post('settings/subscription/cancel', [SubscriptionController::class, 'cancel'])->name('subscription.cancel');
-    Route::post('settings/subscription/resume', [SubscriptionController::class, 'resume'])->name('subscription.resume');
+    Route::post('settings/subscription/cancel', [SubscriptionController::class, 'cancel'])->name('subscription.cancel')->middleware('throttle:10,1,subscription-manage');
+    Route::post('settings/subscription/resume', [SubscriptionController::class, 'resume'])->name('subscription.resume')->middleware('throttle:10,1,subscription-manage');
     Route::post('settings/subscription/portal', [SubscriptionController::class, 'portal'])->name('subscription.portal')->middleware('throttle:10,1');
     Route::get('settings/subscription/invoices/{invoice}', [SubscriptionController::class, 'downloadInvoice'])->name('subscription.invoice.download')->middleware('throttle:30,1');
 });

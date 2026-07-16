@@ -139,13 +139,19 @@ class PlayerPairingController extends Controller
         }
 
         $user = $pairing->user;
+
+        // Az „egyszer használatos" beváltást a sor törlése claimeli atomian: két
+        // konkurens poll közül csak az kap tokent, amelyiknek a DELETE ténylegesen
+        // talált sort — a vesztes ugyanazt a 404-et kapja, mint egy már beváltott kód.
+        if (PlayerPairing::whereKey($pairing->getKey())->delete() !== 1) {
+            return response()->json(['error' => 'not_found'], 404);
+        }
+
         $token = $user->createToken(
             'topwords Player – '.$pairing->device_name,
             ['player'],
             now()->addDays(PlayerPairing::TOKEN_LIFETIME_DAYS),
         );
-
-        $pairing->delete();
 
         return response()->json([
             'status' => 'approved',

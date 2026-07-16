@@ -105,9 +105,12 @@ Jelölésmagyarázat: `[ ]` = nyitott · `[x]` = kész · `[~]` = folyamatban
 
 ### Fizetés / előfizetés
 
-- [ ] **S-L1 — Nincs throttle a `subscription.cancel`/`resume`-on** (`routes/settings.php:44-45`) —
+- [x] **S-L1 — Nincs throttle a `subscription.cancel`/`resume`-on** (`routes/settings.php:44-45`) —
   mindkettő élő Stripe API-hívás; a testvér-route-ok (portal 10/perc, checkout 20/perc) throttle-oltak.
-  A `billing.update` szintén throttle nélküli, de az csak DB-írás.
+  A `billing.update` szintén throttle nélküli, de az csak DB-írás. **JAVÍTVA (2026-07-16):**
+  közös nevesített `throttle:10,1,subscription-manage` mindkét route-on (a nevesítés szándékos:
+  a sima `throttle:10,1` bejelentkezett usernél route-független kulcsot használ, így a portal
+  és az invoice-letöltés számlálójával osztozna). Teszt: SubscriptionTest.
 - [ ] **S-L2 — A regisztráció némán eldobja a `billing_country`-t** (`app/Actions/Fortify/CreateNewUser.php:65-72`) —
   a form gyűjti, a rules validálja, a `$billingFields` kihagyja. Ma kozmetikai (csak HU engedélyezett,
   az InvoiceGenerator `?: 'HU'` defaultol), de második ország engedélyezésekor számlázási csapda.
@@ -155,18 +158,23 @@ Jelölésmagyarázat: `[ ]` = nyitott · `[x]` = kész · `[~]` = folyamatban
   vissza (nem rosszabb, mint a fix előtt); (b) a 120s lock-TTL alatt most már akár 6 szekvenciális
   30s-os HTTP-hívás is futhat (list+partner+árfolyam+create+send) — elvi túlfutás, gyakorlatban
   továbbra sem reális.
-- [ ] **W-L2 — `fulfillment_date`/`due_date` UTC-ben számolódik, nem Europe/Budapest-ben**
+- [x] **W-L2 — `fulfillment_date`/`due_date` UTC-ben számolódik, nem Europe/Budapest-ben**
   (`InvoiceGenerator.php:258-265`, `config/app.php` timezone=UTC) — budapesti 00:30-as fizetés egy
   nappal korábbi teljesítési dátumot kap, és az MNB-árfolyam-lookup is a tolt dátumot használja.
   AAM ÁFA mellett fiskális hatása nulla; 27%-ra váltásnál hóhatáron rossz ÁFA-időszak.
+  **JAVÍTVA (2026-07-16):** a `paidAt()` a formázás előtt Europe/Budapest zónára vált — a
+  teljesítési dátum és az árfolyam-nap is a magyar naptári nap. 2 új teszt (BillingoInvoiceTest,
+  23:30 UTC → másnapi budapesti dátum + árfolyam-lookup dátuma).
 - [ ] **W-L3 — Teljes Stripe invoice-payload (ügyfél-PII) a `jobs`/`failed_jobs` táblában**
   (`GenerateBillingoInvoice.php:33-36`) — a jobnak csak ~7 mező kell, mégis a teljes objektum
   (customer_email/name/address) szerializálódik és a `failed_jobs`-ban korlátlanul megmarad.
   Nem szivárgás (azonos DB-trust), de backup/log-shipping PII-felületet szélesít.
-- [ ] **W-L4 — `round($grossMinor/100, 2)` két tizedesjegyes valutát feltételez**
+- [x] **W-L4 — `round($grossMinor/100, 2)` két tizedesjegyes valutát feltételez**
   (`InvoiceGenerator.php:200`; `:182` hiányzó currency → 'EUR' default) — HUF/EUR-ra helyes
   (tesztelt), zero-decimal valutánál (JPY) 1/100-ad összeg menne számlára. Ma alvó invariáns —
-  komment vagy currency-whitelist elég.
+  komment vagy currency-whitelist elég. **JAVÍTVA (2026-07-16):** HUF/EUR-whitelist a
+  `documentPayload()`-ban — ismeretlen valutánál RuntimeException (a job hangosan bukik,
+  failed-job riasztással), rossz összegű számla nem születhet. Teszt: BillingoInvoiceTest (JPY).
 - [ ] **W-L5 — Konkurencia-hézagok:** (a) egyazon user két első számlája (külön `in_...` lock)
   két `createPartner`-t futtathat → árva partner a Billingóban (kozmetikai);
   (b) két igazán párhuzamos `customer.subscription.created` mindegyike a másik commitja előtt
@@ -180,10 +188,12 @@ Jelölésmagyarázat: `[ ]` = nyitott · `[x]` = kész · `[~]` = folyamatban
 
 ### Player-token
 
-- [ ] **PL-L1 — Az `exchange` nem atomi: dupla token-kiadási race** (`PlayerPairingController.php:116-159`) —
+- [x] **PL-L1 — Az `exchange` nem atomi: dupla token-kiadási race** (`PlayerPairingController.php:116-159`) —
   két konkurens poll ugyanazzal a `poll_secret`-tel mindkettő kaphat tokent; az „egyszer
   használatos" csak best-effort. Nem támadható (a 256-bites secret kell hozzá); következmény egy
   árva, 90 napig élő token. `whereKey(...)->delete() === 1` kapu a kiadás előtt lezárná.
+  **JAVÍTVA (2026-07-16):** a token-kiadás előtt a sor törlése az atomi claim — csak a
+  ténylegesen törlő kérés kap tokent, a vesztes 404-et. A meglévő single-use tesztek fedik.
 - [ ] **PL-L2 — Párosítási kód eltéríthető a kódot megismerő harmadik fél által** (`:81-109`) —
   bármely bejelentkezett fiók jóváhagyhat bármely függő kódot; aki a 10 perces ablakban látja az
   áldozat kódját (screen share, válla fölött), a SAJÁT fiókjába hagyhatja jóvá → az áldozat playere
@@ -195,11 +205,14 @@ Jelölésmagyarázat: `[ ]` = nyitott · `[x]` = kész · `[~]` = folyamatban
   90 napos player-token az áldozat fiókjához. Jó mitigációk megvannak (kézi kódbevitel, URL-prefill
   tiltva — tesztelt; auth+verified+CSRF); az eszköznév csak a siker-flashben látszik — egy jóváhagyás
   ELŐTTI megerősítő lépés az eszköznévvel tovább gyengítené. A device-flow minta velejárója.
-- [ ] **PL-L4 — A Settings eszközlista lejárt tokeneket is élőként mutat** (`SecurityController.php:57-72`) —
+- [x] **PL-L4 — A Settings eszközlista lejárt tokeneket is élőként mutat** (`SecurityController.php:57-72`) —
   nincs `expires_at`-szűrés; a napi `sanctum:prune-expired --hours=24`-ig (max ~2 nap) halott eszköz
   látszik csatlakoztatottnak. A guard maga helyesen elutasítja a lejárt tokent. Kozmetikai.
-- [ ] **PL-L5 — Elavult komment: „1 éves" token-élettartam** (`routes/console.php:29-30`) — a valós
+  **JAVÍTVA (2026-07-16):** `expires_at`-szűrés a `playerDevices()` lekérdezésében (null vagy
+  jövőbeli). Teszt: SecurityTest (lejárt token nem jelenik meg).
+- [x] **PL-L5 — Elavult komment: „1 éves" token-élettartam** (`routes/console.php:29-30`) — a valós
   érték 90 nap (`PlayerPairing::TOKEN_LIFETIME_DAYS`). Doc-rot; a prune-job helyes.
+  **JAVÍTVA (2026-07-16):** komment 90 napra igazítva.
 - [ ] **PL-L6 — Az importance-útvonalú szófelvétel nem könyvel streaket/achievementet**
   (`ExtensionController.php:443-445`) — lásd PL-M1 melléklelete.
 

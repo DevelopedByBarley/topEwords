@@ -57,6 +57,9 @@ class SecurityController extends Controller implements HasMiddleware
     private function playerDevices(Request $request): array
     {
         return $request->user()->tokens()
+            // A lejárt tokent a guard már elutasítja, de a sora a napi prune-ig a
+            // táblában marad — csatlakoztatott eszközként ne mutassuk.
+            ->where(fn ($query) => $query->whereNull('expires_at')->orWhere('expires_at', '>', now()))
             ->orderByDesc('last_used_at')
             ->get()
             ->filter(fn ($token) => $this->isPlayerToken($token))

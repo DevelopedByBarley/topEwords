@@ -27,7 +27,8 @@ Schedule::command('queue:monitor', [config('queue.default').':default', '--max=2
 | Sanctum token-takarítás
 |--------------------------------------------------------------------------
 |
-| A desktop lejátszó (topwords Player) tokenjei 1 éves lejáratot kapnak;
+| A desktop lejátszó (topwords Player) tokenjei 90 napos lejáratot kapnak
+| (PlayerPairing::TOKEN_LIFETIME_DAYS);
 | a lejárt token-sorokat naponta töröljük, hogy a tábla ne hízzon.
 */
 Schedule::command('sanctum:prune-expired --hours=24')->daily();

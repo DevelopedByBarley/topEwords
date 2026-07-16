@@ -147,6 +147,31 @@ test('an unissued invoice cannot be downloaded', function () {
         ->assertNotFound();
 });
 
+test('the cancel and resume routes share a rate limit', function () {
+    // Előfizetés nélkül a cancel/resume azonnal back()-kel tér vissza (nincs valódi
+    // Stripe-hívás), így biztonságosan tesztelhető a közös throttle:10,1 korlát.
+    $user = User::factory()->create();
+
+    foreach (range(1, 5) as $i) {
+        $this->actingAs($user)
+            ->post(route('subscription.cancel'))
+            ->assertStatus(302);
+
+        $this->actingAs($user)
+            ->post(route('subscription.resume'))
+            ->assertStatus(302);
+    }
+
+    // A két végpont közös (nevesített) bucketet használ — a 11. kezelési kísérlet 429.
+    $this->actingAs($user)
+        ->post(route('subscription.cancel'))
+        ->assertStatus(429);
+
+    $this->actingAs($user)
+        ->post(route('subscription.resume'))
+        ->assertStatus(429);
+});
+
 test('the subscription portal route is rate limited', function () {
     // Stripe ügyfél nélkül a portál a /pricing-re irányít (nincs valódi Stripe-hívás),
     // így biztonságosan tesztelhető a throttle:10,1 korlát.
