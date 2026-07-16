@@ -136,10 +136,18 @@ class AiUsageService
             return;
         }
 
-        $user->forceFill([
+        $nextReset = $this->nextReset();
+
+        // Célzott UPDATE a forceFill()->save() helyett: a save() a teljes dirty
+        // modelt írná vissza, így egy párhuzamos kérés alatt memóriában módosult,
+        // ide nem tartozó mezők elavult értékei is a DB-be kerülhetnének.
+        User::whereKey($user->getKey())->update([
             'ai_credits_used' => 0,
-            'ai_credits_reset_at' => $this->nextReset(),
-        ])->save();
+            'ai_credits_reset_at' => $nextReset,
+        ]);
+
+        $user->ai_credits_used = 0; // keep the in-memory model in sync
+        $user->ai_credits_reset_at = $nextReset;
     }
 
     /**

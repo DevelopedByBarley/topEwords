@@ -69,6 +69,27 @@ class TextAnalysisController extends Controller
         ], 429);
     }
 
+    /**
+     * Egységes hibaválasz egy sikertelen callGemini()-eredményből. A callGemini
+     * belső reserve()-jén elbukó kérés (az aiLimitGuard utáni keret-race) a
+     * guarddal azonos alakú 429-et kap 502 helyett; a nyitott circuit breaker
+     * 503-at (átmeneti szolgáltatás-hiba); minden más upstream-hiba 502.
+     *
+     * @param  array{ok: bool, data: mixed, error: string, error_code?: string}  $result
+     */
+    private function aiFailureResponse(array $result, ?User $user): JsonResponse
+    {
+        return match ($result['error_code'] ?? null) {
+            'ai_limit' => response()->json([
+                'error' => 'ai_limit',
+                'message' => $result['error'],
+                ...($user !== null ? $this->aiUsage->snapshot($user) : []),
+            ], 429),
+            'ai_unavailable' => response()->json(['error' => $result['error']], 503),
+            default => response()->json(['error' => $result['error']], 502),
+        };
+    }
+
     public function show(): Response
     {
         return Inertia::render('text-analysis/index');
@@ -1003,7 +1024,7 @@ PROMPT;
         );
 
         if (! $result['ok']) {
-            return response()->json(['error' => $result['error']], 502);
+            return $this->aiFailureResponse($result, $request->user());
         }
 
         $data = $result['data'];
@@ -1158,7 +1179,7 @@ PROMPT;
         $response = $this->callGemini($apiKey, $prompt, 800, $primary, $fallback, temperature: 0.2, responseSchema: $this->practiceCheckSchema(), user: $request->user());
 
         if (! $response['ok']) {
-            return response()->json(['error' => $response['error']], 502);
+            return $this->aiFailureResponse($response, $request->user());
         }
 
         $data = $response['data'];
@@ -1219,7 +1240,7 @@ PROMPT;
         $response = $this->callGemini($apiKey, $prompt, 400, $primary, $fallback, temperature: 0.2, responseSchema: $this->sentenceCheckSchema(), user: $request->user());
 
         if (! $response['ok']) {
-            return response()->json(['error' => $response['error']], 502);
+            return $this->aiFailureResponse($response, $request->user());
         }
 
         $data = $response['data'];
@@ -1275,7 +1296,7 @@ PROMPT;
         );
 
         if (! $result['ok']) {
-            return response()->json(['error' => $result['error']], 502);
+            return $this->aiFailureResponse($result, $request->user());
         }
 
         $data = $result['data'];
@@ -1296,7 +1317,9 @@ PROMPT;
         // Dev tooling that proxies the raw upstream model list — admin-only.
         abort_unless(Gate::check('admin'), 403);
         $apiKey = config('services.gemini.api_key');
-        $response = Http::withHeaders(['x-goog-api-key' => $apiKey])
+        $response = Http::connectTimeout(self::GEMINI_CONNECT_TIMEOUT_SECONDS)
+            ->timeout(self::GEMINI_HTTP_TIMEOUT_SECONDS)
+            ->withHeaders(['x-goog-api-key' => $apiKey])
             ->get('https://generativelanguage.googleapis.com/v1beta/models');
 
         return response()->json($response->json());
@@ -1368,7 +1391,7 @@ PROMPT;
             : $generator();
 
         if (! $result['ok']) {
-            return response()->json(['error' => $result['error']], 502);
+            return $this->aiFailureResponse($result, $request->user());
         }
 
         $data = $result['data'];
@@ -2118,12 +2141,32 @@ PROMPT;
     private const GEMINI_CONNECT_TIMEOUT_SECONDS = 10.0;
 
     /**
+     * A Gemini circuit breaker cache-kulcsai. A „nyitva" flag megléte alatt a
+     * callGemini azonnali hibát ad HTTP-hívás nélkül; a számláló az egymást
+     * követő, átmeneti hibájú teljes lánc-kudarcokat gyűjti (sikeres válasz
+     * nullázza). Küszöb és cooldown a config/services.php-ból (env-ből hangolható).
+     */
+    private const GEMINI_BREAKER_OPEN_CACHE_KEY = 'gemini:breaker:open';
+
+    private const GEMINI_BREAKER_FAILURES_CACHE_KEY = 'gemini:breaker:failures';
+
+    /** A kudarc-számláló ablaka másodpercben: ennyi idő után magától elévül. */
+    private const GEMINI_BREAKER_WINDOW_SECONDS = 600;
+
+    /**
      * Call Gemini with retry logic and thinking disabled.
      *
-     * @return array{ok: bool, data: mixed, error: string, cost_micros?: int, model?: string}
+     * @return array{ok: bool, data: mixed, error: string, error_code?: string, cost_micros?: int, model?: string}
      */
     private function callGemini(string $apiKey, string $prompt, int $maxTokens, string $model = 'gemini-2.5-flash-lite', ?string $fallbackModel = null, float $temperature = 0.3, ?array $responseSchema = null, ?User $user = null): array
     {
+        // Nyitott circuit breaker: tartós Gemini-kiesés alatt azonnali hibát adunk
+        // HTTP-hívás és keret-foglalás nélkül, hogy a lógó upstream ne fogja a
+        // PHP-workereket kérésenként a teljes deadline-ig (lásd recordGeminiChainFailure).
+        if (Cache::has(self::GEMINI_BREAKER_OPEN_CACHE_KEY)) {
+            return ['ok' => false, 'data' => null, 'error' => 'Az AI-szolgáltatás átmenetileg nem elérhető. Próbáld újra pár perc múlva.', 'error_code' => 'ai_unavailable', 'cost_micros' => 0];
+        }
+
         $generationConfig = [
             'temperature' => $temperature,
             'maxOutputTokens' => $maxTokens,
@@ -2152,7 +2195,7 @@ PROMPT;
         $estimatedMicros = (int) round(((int) ceil(mb_strlen($prompt) / 4)) * $primaryRate['in'] + $maxTokens * $primaryRate['out']);
 
         if ($user !== null && ! $this->aiUsage->reserve($user, $estimatedMicros)) {
-            return ['ok' => false, 'data' => null, 'error' => 'Elérted a havi AI-felhasználási kereted.', 'cost_micros' => 0];
+            return ['ok' => false, 'data' => null, 'error' => 'Elérted a havi AI-felhasználási kereted. A keret a következő hónap elején újraindul.', 'error_code' => 'ai_limit', 'cost_micros' => 0];
         }
 
         // Modell-lánc: a primary-vel indulunk, és kapacitás-hibára (503/429/5xx,
@@ -2161,6 +2204,11 @@ PROMPT;
         $models = array_values(array_unique(array_filter([$model, $fallbackModel])));
         $lastError = 'Ismeretlen hiba.';
         $bumpedForTruncation = false;
+
+        // Volt-e a láncban átmeneti (timeout / 429 / 5xx / deadline) hiba. Csak az
+        // ilyen teljes kudarc számít bele a circuit breakerbe — a végleges 4xx vagy
+        // a rosszul formált JSON kérés-specifikus, nem szolgáltatás-kiesés.
+        $sawTransientFailure = false;
 
         // A teljes lánc (modellek + újrapróbák együtt) felső időkorlátja. A boldog
         // út egyetlen gyors hívás, így ez csak kiesés/elakadás esetén vág közbe:
@@ -2181,6 +2229,7 @@ PROMPT;
                 // Az első próbát mindig elindítjuk; utána a deadline átlépése leállítja
                 // az egész láncot (a már lefoglalt keretet a foreach után felszabadítjuk).
                 if ($httpCallsMade > 0 && $remaining <= 0) {
+                    $sawTransientFailure = true;
                     Log::warning('Gemini deadline reached, aborting retries', [
                         'model' => $currentModel,
                         'attempt' => $attempt,
@@ -2208,6 +2257,7 @@ PROMPT;
                 } catch (\Throwable $e) {
                     // Hálózati hiba (timeout, DNS, kapcsolat) — átmeneti, újrapróbáljuk;
                     // a próbák kifutása után a foreach a fallback modellre lép.
+                    $sawTransientFailure = true;
                     $lastError = 'Kapcsolódási hiba.';
                     Log::warning('Gemini connection error', [
                         'model' => $currentModel,
@@ -2237,6 +2287,7 @@ PROMPT;
 
                     // 429 (kvóta) / 5xx (túlterhelt modell): visszalépéssel újrapróbáljuk
                     // ezen a modellen, majd — ha elfogytak a próbák — a fallback jön.
+                    $sawTransientFailure = true;
                     $this->backoff($attempt, $response->header('Retry-After'));
 
                     continue;
@@ -2306,6 +2357,9 @@ PROMPT;
                     $this->aiUsage->settle($user, $estimatedMicros, $costMicros);
                 }
 
+                // Sikeres válasz: a breaker „egymást követő kudarc" számlálója nullázódik.
+                Cache::forget(self::GEMINI_BREAKER_FAILURES_CACHE_KEY);
+
                 return ['ok' => true, 'data' => $data, 'error' => '', 'cost_micros' => $costMicros, 'model' => $currentModel];
             }
         }
@@ -2314,7 +2368,49 @@ PROMPT;
             $this->aiUsage->refund($user, $estimatedMicros);
         }
 
+        // Teljes lánc-kudarc (minden modell minden próbája elbukott): error szint,
+        // mert az AlertAdminOfLoggedError csak error+ szintre riaszt — warningnál egy
+        // órákig tartó Gemini-kiesés (rossz kulcs, kvóta, Google-leállás) alatt a
+        // felhasználók tömegesen kapnának hibát admin-email nélkül.
+        Log::error('Gemini full chain failure', [
+            'models' => $models,
+            'http_calls' => $httpCallsMade,
+            'last_error' => $lastError,
+            'elapsed_seconds' => round(microtime(true) - $startedAt, 2),
+        ]);
+
+        if ($sawTransientFailure) {
+            $this->recordGeminiChainFailure();
+        }
+
         return ['ok' => false, 'data' => null, 'error' => $lastError, 'cost_micros' => 0];
+    }
+
+    /**
+     * Átmeneti hibájú teljes lánc-kudarc rögzítése a circuit breakerhez. A küszöb
+     * elérésekor a breaker kinyílik: a cooldown alatt a callGemini azonnali hibát
+     * ad Gemini-hívás és keret-foglalás nélkül. Így tartós kiesés (lógó kapcsolat)
+     * alatt a beérkező AI-kérések nem égetik végig fejenként a teljes deadline-t,
+     * ami a PHP-FPM worker-poolt merítené ki — a nem-AI oldalak rovására is.
+     */
+    private function recordGeminiChainFailure(): void
+    {
+        Cache::add(self::GEMINI_BREAKER_FAILURES_CACHE_KEY, 0, self::GEMINI_BREAKER_WINDOW_SECONDS);
+        $failures = (int) Cache::increment(self::GEMINI_BREAKER_FAILURES_CACHE_KEY);
+
+        if ($failures < (int) config('services.gemini.breaker.failure_threshold', 5)) {
+            return;
+        }
+
+        $cooldownSeconds = (int) config('services.gemini.breaker.cooldown_seconds', 120);
+
+        Cache::put(self::GEMINI_BREAKER_OPEN_CACHE_KEY, true, $cooldownSeconds);
+        Cache::forget(self::GEMINI_BREAKER_FAILURES_CACHE_KEY);
+
+        Log::error('Gemini circuit breaker opened', [
+            'failures' => $failures,
+            'cooldown_seconds' => $cooldownSeconds,
+        ]);
     }
 
     /**

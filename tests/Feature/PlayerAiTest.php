@@ -10,7 +10,6 @@ use Laravel\Sanctum\Sanctum;
 
 beforeEach(function () {
     config(['services.gemini.api_key' => 'test-key']);
-    config(['services.gemini.monthly_budget_micros' => 500000]);
     config(['app.admin_email' => 'admin@example.com']);
 });
 

@@ -6,7 +6,6 @@ use Illuminate\Support\Facades\Http;
 
 beforeEach(function () {
     config(['services.gemini.api_key' => 'test-key']);
-    config(['services.gemini.monthly_budget_micros' => 500000]); // $0.50
     config(['app.admin_email' => 'admin@example.com']);
 });
 

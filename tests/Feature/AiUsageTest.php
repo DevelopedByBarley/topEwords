@@ -24,7 +24,6 @@ function fakeGemini(array $json, int $inputTokens = 300, int $outputTokens = 250
 
 beforeEach(function () {
     config(['services.gemini.api_key' => 'test-key']);
-    config(['services.gemini.monthly_budget_micros' => 500000]); // $0.50
     config(['app.admin_email' => 'admin@example.com']);
 });
 
@@ -168,4 +167,20 @@ test('free users get a usage snapshot reflecting their taste budget', function (
             ->where('aiUsage.limit', $limit)
             ->where('aiUsage.unlimited', false)
         );
+});
+
+test('az esedékes havi reset nem ír vissza más, memóriában módosult mezőt', function () {
+    // A resetIfDue korábban forceFill()->save()-vel a TELJES dirty modelt írta:
+    // egy párhuzamos kérés alatt memóriában módosult mező elavult értéke is a
+    // DB-be került volna. A célzott UPDATE csak a két számláló-mezőt írhatja.
+    $user = User::factory()->create(['name' => 'Eredeti Név']);
+    $user->forceFill(['ai_credits_used' => 5000, 'ai_credits_reset_at' => now()->subDay()])->save();
+
+    $user->name = 'Elavult memóriabeli érték';
+
+    app(AiUsageService::class)->allows($user);
+
+    expect($user->fresh()->name)->toBe('Eredeti Név')
+        ->and($user->fresh()->ai_credits_used)->toBe(0)
+        ->and($user->ai_credits_used)->toBe(0);
 });
