@@ -129,13 +129,18 @@ Jelölésmagyarázat: `[ ]` = nyitott · `[x]` = kész · `[~]` = folyamatban
 - [ ] **S-L6 — Halott `subscribed` middleware-alias** (`bootstrap/app.php:25`) — 0 route használja;
   a kapuzás szándékosan limit-alapú, de az alias hamis biztonságérzetet kelt. Törölni vagy használni
   (releváns a tervezett extension-paywallnál).
-- [ ] **S-L7 — ÚJ (re-audit): past_due-nál a recovery-sáv MELLETT az ingyenes-csomag upsell is
+- [x] **S-L7 — ÚJ (re-audit): past_due-nál a recovery-sáv MELLETT az ingyenes-csomag upsell is
   renderel** (`subscription.tsx:222`: `!isSubscribed && !isOnTrial && !hasActiveAccess` past_due-nál
   mind igaz) — a user egyszerre látja a „frissítsd a kártyád" sávot ÉS a „Váltás Prémiumra" gombot;
   utóbbi a pricing→checkout úton MÁSODIK előfizetést indít (az `activeSubscription()` past_due-nál
   null, így a swap-ág nem fogja meg). A duplikátum-takarító lekezeli (keeper-logika + critical
-  riasztás + cancelNow), tehát pénz nem vész el, de elkerülhető zaj. Javítási irány:
-  `hasPastDueSubscription`-nél az upsell-blokk elrejtése és/vagy checkout-kapu past_due-ra.
+  riasztás + cancelNow), tehát pénz nem vész el, de elkerülhető zaj. **JAVÍTVA (2026-07-16):**
+  mindkét irány megvalósítva — (1) új `User::hasPastDueSubscription()` helper (a
+  SubscriptionController inline lekérdezése is erre vált); (2) szerveroldali checkout-kapu a
+  `PricingController::checkout`-ban: nem-lezárt past_due előfizetésnél a checkout info-üzenettel a
+  subscription-settingsre irányít (kártya-frissítés), új előfizetés nem indul; (3) a
+  `subscription.tsx` upsell-blokkja `!hasPastDueSubscription`-re is feltételes. Tesztek:
+  PricingCheckoutGatekeeperTest +2 (kapu + lezárt past_due nem zár), 44+51 kapcsolódó teszt zöld.
 
 ### Stripe webhook / Billingo
 

@@ -67,6 +67,15 @@ class PricingController extends Controller
             return redirect()->route('pricing')->with('info', 'Már aktív hozzáférésed van, nincs szükség fizetésre.');
         }
 
+        // Past_due előfizetésnél az activeSubscription() null (deactivatePastDue default),
+        // így a lenti swap-ág nem fogná meg, és egy MÁSODIK előfizetés jönne létre a meglévő
+        // mellé (a duplikátum-takarító lekezelné, de fölösleges terhelés+zaj). A helyes út
+        // nem az új checkout, hanem a kártya frissítése — a Stripe utána magától újrapróbálja
+        // a meglévő előfizetés terhelését.
+        if ($user->activeSubscription() === null && $user->hasPastDueSubscription()) {
+            return redirect()->route('subscription.edit')->with('info', 'A meglévő előfizetésed sikertelen terhelés miatt szünetel. Új előfizetés helyett frissítsd a kártyaadataidat — sikeres terhelés után a hozzáférésed magától visszaáll.');
+        }
+
         // A 14 napos elállási jogról való lemondás kifejezett hozzájárulása kötelező, és
         // szerveroldalon is kikényszerítjük — a kliensoldali pipa közvetlen POST-tal megkerülhető.
         $request->validate(['accept_terms' => ['accepted']]);

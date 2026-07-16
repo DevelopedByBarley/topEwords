@@ -98,6 +98,21 @@ class User extends Authenticatable implements MustVerifyEmail
     }
 
     /**
+     * Van-e sikertelen terhelés miatt szünetelő (past_due) előfizetése.
+     *
+     * A Cashier deactivatePastDue=true defaultja miatt a past_due előfizetés már nem
+     * valid() → az activeSubscription() null, ezért a valid()-et megkerülő dedikált
+     * lekérdezés kell. A lemondott (ends_at kitöltött) előfizetésre nem szól.
+     */
+    public function hasPastDueSubscription(): bool
+    {
+        return $this->subscriptions()
+            ->where('stripe_status', 'past_due')
+            ->whereNull('ends_at')
+            ->exists();
+    }
+
+    /**
      * The paid plan tier, or null without a subscription. Egyetlen fizetős
      * csomag van (Pro), így minden aktív előfizetés = 'premium', függetlenül a
      * típusnévtől és az ártól (a régi Standard-árú előfizetés is Pro-t kap).

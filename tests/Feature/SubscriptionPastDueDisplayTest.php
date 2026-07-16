@@ -26,7 +26,8 @@ test('past_due előfizetésnél a hasPastDueSubscription prop igaz, az isPremium
         ->assertInertia(fn (Assert $page) => $page
             ->component('settings/subscription')
             ->where('hasPastDueSubscription', true)
-            // A fail-closed lefokozás szándékos: prémium hozzáférés nincs, az upsell nézet jön.
+            // A fail-closed lefokozás szándékos: prémium hozzáférés nincs. (Az upsell-blokkot
+            // a frontend ilyenkor elrejti — S-L7 —, csak a recovery-sáv renderel.)
             ->where('isPremium', false)
             ->where('isSubscribed', false)
         );

@@ -149,6 +149,43 @@ test('checkout blocks lifetime access users without a subscription', function ()
     expect($user->fresh()->subscriptions()->count())->toBe(0);
 });
 
+test('past_due előfizetésnél a checkout elzárva, a kártya-frissítés felé irányít', function () {
+    // S-L7: past_due-nál az activeSubscription() null (deactivatePastDue default), így a
+    // swap-ág nem fogná meg a meglévő előfizetést — a checkout egy MÁSODIK előfizetést
+    // indítana mellé. A helyes út a kártya frissítése, ezért szerveroldalon elzárjuk.
+    $user = User::factory()->withBilling()->create(['stripe_id' => 'cus_'.uniqid()]);
+    $user->subscriptions()->create([
+        'type' => 'premium',
+        'stripe_id' => 'sub_'.uniqid(),
+        'stripe_status' => 'past_due',
+        'stripe_price' => 'price_pro',
+        'quantity' => 1,
+    ]);
+
+    $this->actingAs($user)
+        ->post(route('pricing.checkout', 'premium'), ['accept_terms' => true])
+        ->assertRedirect(route('subscription.edit'))
+        ->assertSessionHas('info');
+
+    expect($user->fresh()->subscriptions()->count())->toBe(1);
+});
+
+test('a lemondott (ends_at kitöltött) past_due előfizetés nem zárja el a checkoutot', function () {
+    // A már lezárt előfizetésre nincs mit "helyreállítani" — ott az újra-előfizetés a
+    // helyes út, a hasPastDueSubscription() az ends_at-os sorokra nem szól.
+    $user = User::factory()->create(['stripe_id' => 'cus_'.uniqid()]);
+    $user->subscriptions()->create([
+        'type' => 'premium',
+        'stripe_id' => 'sub_'.uniqid(),
+        'stripe_status' => 'past_due',
+        'stripe_price' => 'price_pro',
+        'quantity' => 1,
+        'ends_at' => now()->subDay(),
+    ]);
+
+    expect($user->hasPastDueSubscription())->toBeFalse();
+});
+
 test('a generikus próbaidő (ajándék hónap) alatt is lehet előfizetni, a megmaradt idő a checkout próbaidejeként megy tovább', function () {
     // M2: a hasActiveAccess() gate eddig a generikus trialt is elzárta a checkouttól,
     // így az ajándék hónap alatt nem lehetett konvertálni. Az átengedés önmagában
@@ -170,6 +207,8 @@ test('a generikus próbaidő (ajándék hónap) alatt is lehet előfizetni, a me
     $user->shouldReceive('hasVerifiedEmail')->andReturnTrue();
     $user->shouldReceive('hasBillingDetails')->andReturnTrue();
     $user->shouldReceive('activeSubscription')->andReturnNull();
+    // A hasMany a mock-osztálynévből képezné az idegen kulcsot (mockery_..._user_id) → mockolni kell.
+    $user->shouldReceive('hasPastDueSubscription')->andReturnFalse();
     $user->shouldReceive('newSubscription')->once()->with('premium', 'price_pro')->andReturn($builder);
     // A consent-naplózás (forceFill->save) ne próbáljon DB-be írni a mock usernél.
     $user->shouldReceive('save')->andReturnTrue();
@@ -198,6 +237,8 @@ test('ha a konfigurált első-előfizetési trial hosszabb a megmaradt ajándék
     $user->shouldReceive('hasVerifiedEmail')->andReturnTrue();
     $user->shouldReceive('hasBillingDetails')->andReturnTrue();
     $user->shouldReceive('activeSubscription')->andReturnNull();
+    // A hasMany a mock-osztálynévből képezné az idegen kulcsot (mockery_..._user_id) → mockolni kell.
+    $user->shouldReceive('hasPastDueSubscription')->andReturnFalse();
     $user->shouldReceive('isEligibleForSubscriptionTrial')->andReturnTrue();
     $user->shouldReceive('newSubscription')->once()->with('premium', 'price_pro')->andReturn($builder);
     $user->shouldReceive('save')->andReturnTrue();

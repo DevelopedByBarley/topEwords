@@ -1,5 +1,13 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { CreditCard, Crown, Download, ExternalLink, FileText, Sparkles, Zap } from 'lucide-react';
+import {
+    CreditCard,
+    Crown,
+    Download,
+    ExternalLink,
+    FileText,
+    Sparkles,
+    Zap,
+} from 'lucide-react';
 import { useState } from 'react';
 import Heading from '@/components/heading';
 import { Button } from '@/components/ui/button';
@@ -120,11 +128,11 @@ export default function Subscription({
                         <p className="mb-4 text-sm text-amber-700 dark:text-amber-400">
                             A legutóbbi terhelés nem sikerült, ezért a prémium
                             hozzáférésed egyelőre szünetel. Kérlek frissítsd a
-                            kártyaadataidat — a Stripe automatikusan újrapróbálja
-                            a terhelést, és sikeres fizetés után a prémium
-                            hozzáférésed azonnal visszaáll. Ha nem intézkedsz, a
-                            Stripe néhány próbálkozás után véglegesen lemondja az
-                            előfizetést.
+                            kártyaadataidat — a Stripe automatikusan
+                            újrapróbálja a terhelést, és sikeres fizetés után a
+                            prémium hozzáférésed azonnal visszaáll. Ha nem
+                            intézkedsz, a Stripe néhány próbálkozás után
+                            véglegesen lemondja az előfizetést.
                         </p>
                         <Button
                             variant="outline"
@@ -155,19 +163,19 @@ export default function Subscription({
                                         subscription.ends_at!,
                                     ).toLocaleDateString('hu-HU')}
                                 </strong>
-                                -ig megmarad, addig minden funkciót
-                                korlátozás nélkül használhatsz. Utána a fiókod
-                                automatikusan az ingyenes csomagra vált, és
-                                nem terheljük meg többé a kártyádat.
+                                -ig megmarad, addig minden funkciót korlátozás
+                                nélkül használhatsz. Utána a fiókod
+                                automatikusan az ingyenes csomagra vált, és nem
+                                terheljük meg többé a kártyádat.
                             </p>
                         ) : (
                             <p className="mb-4 text-sm text-violet-600 dark:text-violet-400">
                                 Aktív prémium előfizetés. Korlátlan szavak,
                                 szólisták, flashcardok, kvíz- és cloze-körök,
                                 magasabb napi szövegelemzési és AI-keret, plusz
-                                a teljes AI-funkcionalitás. Havonta automatikusan
-                                megújul; bármikor lemondhatod, és a hónap végéig
-                                akkor is megmarad a hozzáférésed.
+                                a teljes AI-funkcionalitás. Havonta
+                                automatikusan megújul; bármikor lemondhatod, és
+                                a hónap végéig akkor is megmarad a hozzáférésed.
                             </p>
                         )}
                         <div className="flex flex-wrap gap-2">
@@ -218,61 +226,69 @@ export default function Subscription({
                     </div>
                 )}
 
-                {/* No subscription */}
-                {!isSubscribed && !isOnTrial && !hasActiveAccess && (
-                    <div className="rounded-xl border p-5">
-                        <div className="mb-1 flex items-center gap-2">
-                            <Zap className="size-4 text-muted-foreground" />
-                            <p className="font-semibold">Jelenlegi csomag</p>
-                        </div>
-                        <p className="mb-4 text-sm text-muted-foreground">
-                            Az <strong className="text-foreground">
-                                ingyenes csomagot
-                            </strong>{' '}
-                            használod. Minden fő funkciót kipróbálhatsz, de napi
-                            és havi limitekkel: korlátozott flashcard- és
-                            szólista-szám, kevesebb napi szövegelemzés, és csak
-                            egy kis AI-kóstoló.
-                        </p>
-
-                        <div className="mb-4 rounded-lg border border-violet-200 bg-violet-50 p-4 dark:border-violet-800 dark:bg-violet-950/30">
-                            <div className="mb-2 flex items-center gap-2">
-                                <Crown className="size-4 text-violet-600 dark:text-violet-400" />
-                                <p className="text-sm font-semibold text-violet-700 dark:text-violet-300">
-                                    Prémiummal a tiéd lenne:
+                {/* No subscription — past_due-nál nem renderel: ott a recovery-sáv az
+                    egyetlen helyes út (kártya-frissítés), az upsell egy második,
+                    párhuzamos checkout-ösvényt nyitna a szünetelő előfizetés mellé. */}
+                {!isSubscribed &&
+                    !isOnTrial &&
+                    !hasActiveAccess &&
+                    !hasPastDueSubscription && (
+                        <div className="rounded-xl border p-5">
+                            <div className="mb-1 flex items-center gap-2">
+                                <Zap className="size-4 text-muted-foreground" />
+                                <p className="font-semibold">
+                                    Jelenlegi csomag
                                 </p>
                             </div>
-                            <ul className="space-y-1.5 text-sm text-violet-600 dark:text-violet-400">
-                                <li>
-                                    ✓ Korlátlan szó, szólista, flashcard, kvíz-
-                                    és cloze-kör
-                                </li>
-                                <li>
-                                    ✓ Lényegesen magasabb napi szövegelemzési
-                                    keret
-                                </li>
-                                <li>
-                                    ✓ Teljes AI-funkcionalitás a nagyobb havi
-                                    AI-kerettel
-                                </li>
-                            </ul>
-                        </div>
+                            <p className="mb-4 text-sm text-muted-foreground">
+                                Az{' '}
+                                <strong className="text-foreground">
+                                    ingyenes csomagot
+                                </strong>{' '}
+                                használod. Minden fő funkciót kipróbálhatsz, de
+                                napi és havi limitekkel: korlátozott flashcard-
+                                és szólista-szám, kevesebb napi szövegelemzés,
+                                és csak egy kis AI-kóstoló.
+                            </p>
 
-                        <div className="flex flex-wrap gap-2">
-                            <Link href={pricing()}>
-                                <Button size="sm">
-                                    <Sparkles className="mr-1.5 size-3.5" />
-                                    Váltás Prémiumra
-                                </Button>
-                            </Link>
-                            <Link href={pricing()}>
-                                <Button size="sm" variant="outline">
-                                    Csomagok összehasonlítása
-                                </Button>
-                            </Link>
+                            <div className="mb-4 rounded-lg border border-violet-200 bg-violet-50 p-4 dark:border-violet-800 dark:bg-violet-950/30">
+                                <div className="mb-2 flex items-center gap-2">
+                                    <Crown className="size-4 text-violet-600 dark:text-violet-400" />
+                                    <p className="text-sm font-semibold text-violet-700 dark:text-violet-300">
+                                        Prémiummal a tiéd lenne:
+                                    </p>
+                                </div>
+                                <ul className="space-y-1.5 text-sm text-violet-600 dark:text-violet-400">
+                                    <li>
+                                        ✓ Korlátlan szó, szólista, flashcard,
+                                        kvíz- és cloze-kör
+                                    </li>
+                                    <li>
+                                        ✓ Lényegesen magasabb napi
+                                        szövegelemzési keret
+                                    </li>
+                                    <li>
+                                        ✓ Teljes AI-funkcionalitás a nagyobb
+                                        havi AI-kerettel
+                                    </li>
+                                </ul>
+                            </div>
+
+                            <div className="flex flex-wrap gap-2">
+                                <Link href={pricing()}>
+                                    <Button size="sm">
+                                        <Sparkles className="mr-1.5 size-3.5" />
+                                        Váltás Prémiumra
+                                    </Button>
+                                </Link>
+                                <Link href={pricing()}>
+                                    <Button size="sm" variant="outline">
+                                        Csomagok összehasonlítása
+                                    </Button>
+                                </Link>
+                            </div>
                         </div>
-                    </div>
-                )}
+                    )}
 
                 {/* AI usage */}
                 {aiUsage && (
@@ -294,7 +310,7 @@ export default function Subscription({
                                     </strong>
                                     -át használtad fel.
                                 </p>
-                                <div className="bg-secondary mb-2 h-2 w-full overflow-hidden rounded-full">
+                                <div className="mb-2 h-2 w-full overflow-hidden rounded-full bg-secondary">
                                     <div
                                         className="h-2 rounded-full bg-violet-500 transition-all"
                                         style={{ width: `${aiUsage.percent}%` }}
@@ -355,8 +371,7 @@ export default function Subscription({
                                 >
                                     <div className="min-w-0">
                                         <p className="truncate text-sm font-medium">
-                                            {invoice.number ??
-                                                'Számla'}
+                                            {invoice.number ?? 'Számla'}
                                         </p>
                                         <p className="text-xs text-muted-foreground">
                                             {new Date(
@@ -364,10 +379,7 @@ export default function Subscription({
                                             ).toLocaleDateString('hu-HU')}
                                         </p>
                                     </div>
-                                    <a
-                                        href={download(invoice.id).url}
-                                        download
-                                    >
+                                    <a href={download(invoice.id).url} download>
                                         <Button variant="outline" size="sm">
                                             <Download className="mr-1.5 size-3.5" />
                                             PDF
@@ -378,7 +390,6 @@ export default function Subscription({
                         </ul>
                     </div>
                 )}
-
             </div>
         </>
     );

@@ -50,12 +50,9 @@ class SubscriptionController extends Controller
             // A past_due előfizetés a Cashier deactivatePastDue=true defaultja miatt már
             // NEM valid() → activeSubscription() null → isPremium hamis, épp amikor a fizető
             // usernek a recovery-figyelmeztetés kellene. Ezért a valid()-et megkerülő, dedikált
-            // lekérdezésből adjuk át, hogy a banner az isPremium blokkon kívül is renderelhető
+            // helperből adjuk át, hogy a banner az isPremium blokkon kívül is renderelhető
             // legyen. (Az azonnali Free-re esés maga szándékos fail-closed marad — csak az UX pótlódik.)
-            'hasPastDueSubscription' => $user->subscriptions()
-                ->where('stripe_status', 'past_due')
-                ->whereNull('ends_at')
-                ->exists(),
+            'hasPastDueSubscription' => $user->hasPastDueSubscription(),
             'hasAiAccess' => $user->hasAiAccess(),
             'isOnTrial' => $user->isOnAnyTrial(),
             'trialEndsAt' => $user->currentTrialEndsAt()?->toIso8601String(),
