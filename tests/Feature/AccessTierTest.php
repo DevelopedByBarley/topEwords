@@ -94,7 +94,7 @@ test('free user can add more than ten custom words', function () {
 
 // ── Stripe előfizetés → csomag (ár-alapú) ─────────────────────────────────────
 
-function makeSubscription(User $user, string $type, string $price): void
+function makeAccessTierSubscription(User $user, string $type, string $price): void
 {
     $user->subscriptions()->create([
         'type' => $type,
@@ -109,7 +109,7 @@ test('any active subscription maps to the single paid (Pro) plan, regardless of 
     $user = User::factory()->create();
     // swap után a 'default' típusú előfizetésen is lehet a Pro ár — minden aktív
     // előfizetés = premium (egyetlen fizetős csomag van).
-    makeSubscription($user, 'default', 'price_pro');
+    makeAccessTierSubscription($user, 'default', 'price_pro');
 
     expect($user->currentPlan())->toBe('premium')
         ->and($user->hasActiveAccess())->toBeTrue()
@@ -118,7 +118,7 @@ test('any active subscription maps to the single paid (Pro) plan, regardless of 
 
 test('book limit follows the paid plan for any active subscription', function () {
     $user = User::factory()->create();
-    makeSubscription($user, 'default', 'price_pro');
+    makeAccessTierSubscription($user, 'default', 'price_pro');
 
     $this->actingAs($user)
         ->getJson(route('text-analysis.books.index'))
@@ -128,7 +128,7 @@ test('book limit follows the paid plan for any active subscription', function ()
 
 test('youtube limit follows the paid plan for any active subscription', function () {
     $user = User::factory()->create();
-    makeSubscription($user, 'default', 'price_pro');
+    makeAccessTierSubscription($user, 'default', 'price_pro');
 
     $this->actingAs($user)
         ->getJson(route('text-analysis.youtube.index'))
@@ -146,7 +146,7 @@ test('checkout redirects with info when buying the already active plan', functio
     // "már ez az aktív csomagod" ágat (különben a billing.edit-re irányítana).
     $user = User::factory()->withBilling()->create();
     // Ugyanazon a Pro áron van már előfizetve — a swap-ág "már aktív"-ot ad.
-    makeSubscription($user, 'premium', 'price_pro');
+    makeAccessTierSubscription($user, 'premium', 'price_pro');
 
     // accept_terms: a checkout kötelező consent-ellenőrzésén is át kell jutni.
     $this->actingAs($user)

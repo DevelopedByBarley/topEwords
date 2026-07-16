@@ -25,6 +25,41 @@ it('does not create a folder with a name longer than 50 characters', function ()
         ->assertSessionHasErrors('name');
 });
 
+it('does not create two folders with the same name for the same user', function () {
+    Folder::factory()->for($this->user)->create(['name' => 'Utazás']);
+
+    $this->post(route('folders.store'), ['name' => 'Utazás'])
+        ->assertSessionHasErrors('name');
+
+    expect($this->user->folders()->where('name', 'Utazás')->count())->toBe(1);
+});
+
+it('allows two users to have folders with the same name', function () {
+    Folder::factory()->create(['name' => 'Utazás']);
+
+    $this->post(route('folders.store'), ['name' => 'Utazás'])
+        ->assertRedirect()
+        ->assertSessionHasNoErrors();
+
+    expect($this->user->folders()->where('name', 'Utazás')->exists())->toBeTrue();
+});
+
+it('does not create a folder beyond the per-user maximum', function () {
+    Folder::factory()->for($this->user)->count(100)->sequence(fn ($sequence) => ['name' => 'Mappa '.$sequence->index])->create();
+
+    $this->post(route('folders.store'), ['name' => 'Egy mappa túl sok'])
+        ->assertSessionHasErrors('name');
+
+    expect($this->user->folders()->count())->toBe(100);
+});
+
+it('does not report a duplicate-name error as a limit error', function () {
+    Folder::factory()->for($this->user)->create(['name' => 'Létező']);
+
+    $this->post(route('folders.store'), ['name' => 'Létező'])
+        ->assertSessionHasErrors('name');
+});
+
 it('updates a folder name', function () {
     $folder = Folder::factory()->for($this->user)->create(['name' => 'Régi']);
 

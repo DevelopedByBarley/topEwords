@@ -7,10 +7,10 @@ use Laravel\Cashier\Subscription;
 
 function makeActiveSubscription(User $user, string $price): void
 {
-    makeSubscription($user, $price, 'active');
+    makeCleanupSubscription($user, $price, 'active');
 }
 
-function makeSubscription(User $user, string $price, string $status): Subscription
+function makeCleanupSubscription(User $user, string $price, string $status): Subscription
 {
     return $user->subscriptions()->create([
         'type' => 'default',
@@ -76,8 +76,8 @@ test('a healthy subscription is kept even when an unhealthy one was created earl
     // fizető előfizetés. A keeper-választás státusz-vak volt: a régebbi, rossz sort
     // tartotta meg és épp az élőt mondta volna le (#L3).
     $user = User::factory()->create();
-    $broken = makeSubscription($user, 'price_basic', 'past_due');
-    $healthy = makeSubscription($user, 'price_premium', 'active');
+    $broken = makeCleanupSubscription($user, 'price_basic', 'past_due');
+    $healthy = makeCleanupSubscription($user, 'price_premium', 'active');
 
     $duplicates = (new StripeWebhookController)->duplicateSubscriptionsFor($user);
 
@@ -89,8 +89,8 @@ test('a healthy subscription is kept even when an unhealthy one was created earl
 test('with no healthy subscription the earliest is still the keeper', function () {
     // Ha egyik sem valid, a determinisztikus fallback a legrégebbi keeper marad.
     $user = User::factory()->create();
-    $first = makeSubscription($user, 'price_basic', 'past_due');
-    $second = makeSubscription($user, 'price_premium', 'incomplete');
+    $first = makeCleanupSubscription($user, 'price_basic', 'past_due');
+    $second = makeCleanupSubscription($user, 'price_premium', 'incomplete');
 
     $duplicates = (new StripeWebhookController)->duplicateSubscriptionsFor($user);
 
