@@ -18,9 +18,10 @@ trait BillingValidationRules
      * Billing field validation rules, shared between registration (optional) and the
      * billing settings form (required).
      *
-     * IMPORTANT: when $required is true, the enforced fields (name, zip, city, address)
-     * must match the fields User::hasBillingDetails() checks — otherwise a user could save
-     * incomplete billing data that the checkout gatekeeper keeps rejecting (redirect loop).
+     * IMPORTANT: when $required is true, the enforced fields (name, country, zip, city,
+     * address, type — plus tax number for companies) must match the fields
+     * User::hasBillingDetails() checks — otherwise a user could save incomplete billing
+     * data that the checkout gatekeeper keeps rejecting (redirect loop).
      *
      * @return array<string, array<int, \Illuminate\Contracts\Validation\Rule|array<mixed>|string>>
      */

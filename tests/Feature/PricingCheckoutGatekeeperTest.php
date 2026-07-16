@@ -328,3 +328,41 @@ test('hasBillingDetails returns true when all details are set', function () {
 
     expect($user->hasBillingDetails())->toBeTrue();
 });
+
+test('hasBillingDetails returns false when billing_country is missing', function () {
+    // S-L2: a checkout-kaput enélkül átcsúszó fiók NAV-számláján a partner-payload
+    // némán 'HU'-ra esne — a kapunak explicit meg kell követelnie az országot.
+    $user = User::factory()->withBilling()->create(['billing_country' => '']);
+
+    expect($user->hasBillingDetails())->toBeFalse();
+});
+
+test('hasBillingDetails returns false when billing_type is missing', function () {
+    // S-L3: billing_type nélkül a Billingo cég-ága (adószám) sosem futna — a régről
+    // billing_type nélkül maradt fiók nem csúszhat át a checkout-kapun.
+    $user = User::factory()->withBilling()->create(['billing_type' => '']);
+
+    expect($user->hasBillingDetails())->toBeFalse();
+});
+
+test('hasBillingDetails requires a tax number for company billing', function () {
+    // Cégként az adószám a belföldi cégszámlán jogszabály szerint kötelező — enélkül
+    // a checkout nem indulhat, különben adószám nélküli cégszámla készülne.
+    $company = User::factory()->withBilling()->create([
+        'billing_type' => 'company',
+        'billing_tax_number' => null,
+    ]);
+    expect($company->hasBillingDetails())->toBeFalse();
+
+    $company->billing_tax_number = '12345678-1-01';
+    expect($company->hasBillingDetails())->toBeTrue();
+});
+
+test('hasBillingDetails allows individual billing without a tax number', function () {
+    $user = User::factory()->withBilling()->create([
+        'billing_type' => 'individual',
+        'billing_tax_number' => null,
+    ]);
+
+    expect($user->hasBillingDetails())->toBeTrue();
+});

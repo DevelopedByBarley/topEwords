@@ -233,12 +233,29 @@ class User extends Authenticatable implements MustVerifyEmail
         return ! $this->subscriptions()->exists();
     }
 
+    /**
+     * A checkout-kapu (PricingController) ezt használja: ha true, a fizetés lefut és
+     * a Billingo NAV-számla generálódik. Ezért pontosan azokat a mezőket kell
+     * megkövetelnie, amiket a jogi számla-payload (InvoiceGenerator::partnerPayload)
+     * felhasznál — különben egy hiányos fiók átcsúszhat és hibás/hiányos számla készül:
+     *  - billing_country: enélkül a payload némán 'HU'-ra esne vissza,
+     *  - billing_type: enélkül a cég-ág (adószám) sosem futna le,
+     *  - cégnél billing_tax_number: belföldi cégszámlán jogszabály szerint kötelező.
+     */
     public function hasBillingDetails(): bool
     {
-        return filled($this->billing_name)
+        $hasCore = filled($this->billing_name)
+            && filled($this->billing_country)
             && filled($this->billing_zip)
             && filled($this->billing_city)
-            && filled($this->billing_address);
+            && filled($this->billing_address)
+            && filled($this->billing_type);
+
+        if (! $hasCore) {
+            return false;
+        }
+
+        return $this->billing_type !== 'company' || filled($this->billing_tax_number);
     }
 
     /**
