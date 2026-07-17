@@ -133,7 +133,8 @@
       "Bash(php -d memory_limit=512M vendor/bin/pest --compact tests/Feature/Settings/SubscriptionTest.php tests/Feature/Settings/ProfileUpdateTest.php tests/Feature/Settings/FlashcardSettingTest.php tests/Feature/Auth/AuthThrottleTest.php tests/Feature/SubscriptionStripeErrorTest.php tests/Feature/SubscriptionPastDueDisplayTest.php tests/Feature/SubscriptionTrialDisplayTest.php tests/Feature/AiUsageTest.php)",
       "Bash(php -d memory_limit=512M vendor/bin/pest --compact --filter=\"FA-L3\" tests/Feature/Auth/AuthThrottleTest.php)",
       "Bash(php -d memory_limit=512M vendor/bin/pest --compact tests/Feature/Settings/SubscriptionTest.php tests/Feature/Settings/ProfileUpdateTest.php tests/Feature/Settings/FlashcardSettingTest.php tests/Feature/Auth/AuthThrottleTest.php tests/Feature/SubscriptionStripeErrorTest.php tests/Feature/SubscriptionPastDueDisplayTest.php tests/Feature/SubscriptionTrialDisplayTest.php tests/Feature/AiUsageTest.php tests/Feature/Settings/SecurityTest.php tests/Feature/PlayerPairingTest.php)",
-      "Bash(php -d memory_limit=512M vendor/bin/pest --compact tests/Feature/PlayerWordActionsTest.php tests/Feature/PlayerAiTest.php tests/Feature/PlayerPairingTest.php)"
+      "Bash(php -d memory_limit=512M vendor/bin/pest --compact tests/Feature/PlayerWordActionsTest.php tests/Feature/PlayerAiTest.php tests/Feature/PlayerPairingTest.php)",
+      "Bash(php -d memory_limit=512M vendor/bin/pest --compact tests/Feature/StripeWebhookSecurityTest.php)"
     ],
     "additionalDirectories": [
       "/private/tmp",
