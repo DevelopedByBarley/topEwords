@@ -417,6 +417,44 @@ test('a sikeres fizetés webhookja a számlázó jobot sorba teszi, ha a Billing
     });
 });
 
+test('W-L3: a jobra tett payload csak a szükséges mezőket tartja meg, az ügyfél-PII-t nem', function () {
+    // A teljes Stripe invoice ügyfél-PII-t is tartalmaz (customer_email/name/address), amiből a
+    // generator semmit sem használ. A jobs/failed_jobs táblába csak a ténylegesen olvasott
+    // mezők kerüljenek — a PII ne szerializálódjon és ne maradjon meg végleges bukásnál sem.
+    Queue::fake();
+    $user = billableUser();
+    $invoice = stripeInvoice([
+        'id' => 'in_pii',
+        'customer' => $user->stripe_id,
+        'customer_email' => 'ugyfel@example.com',
+        'customer_name' => 'Teszt Elek',
+        'customer_address' => ['line1' => 'Fő utca 1', 'city' => 'Budapest'],
+    ]);
+
+    $this->postJson('/stripe/webhook', [
+        'type' => 'invoice.payment_succeeded',
+        'data' => ['object' => $invoice],
+    ])->assertOk();
+
+    Queue::assertPushed(GenerateBillingoInvoice::class, function (GenerateBillingoInvoice $job) {
+        $payload = $job->stripeInvoice;
+
+        // A generator által olvasott mezők megvannak…
+        expect($payload['id'])->toBe('in_pii')
+            ->and($payload['currency'])->toBe('huf')
+            ->and($payload['amount_paid'])->toBe(299000)
+            ->and($payload['lines']['data'][0]['description'])->toBe('topEwords Pro – havi');
+
+        // …az ügyfél-PII viszont NEM.
+        expect($payload)->not->toHaveKey('customer_email')
+            ->and($payload)->not->toHaveKey('customer_name')
+            ->and($payload)->not->toHaveKey('customer_address')
+            ->and($payload)->not->toHaveKey('customer');
+
+        return true;
+    });
+});
+
 test('a sorba tett job végigfut és kiállítja a Billingo számlát', function () {
     fakeBillingo();
     $user = billableUser();

@@ -28,12 +28,41 @@ class GenerateBillingoInvoice implements ShouldQueue
     public int $tries = 4;
 
     /**
-     * @param  array<string, mixed>  $stripeInvoice  a Stripe invoice objektum (webhook payload data.object)
+     * @param  array<string, mixed>  $stripeInvoice  a Stripe invoice szűkített mezőhalmaza (lásd onlyNeededFields)
      */
     public function __construct(
         public User $user,
         public array $stripeInvoice,
     ) {}
+
+    /**
+     * A teljes Stripe invoice payload ügyfél-PII-t (customer_email/name/address) is tartalmaz,
+     * amiből az InvoiceGenerator semmit sem használ (a partner-adatok a User-ből jönnek). A
+     * teljes objektum szerializálva a `jobs`/`failed_jobs` táblában maradna — végleges bukásnál
+     * korlátlanul —, fölöslegesen szélesítve a backup/log-shipping PII-felületet. Ezért a
+     * dispatch előtt csak a generator által ténylegesen olvasott mezőket tartjuk meg.
+     *
+     * @param  array<string, mixed>  $stripeInvoice
+     * @return array<string, mixed>
+     */
+    public static function onlyNeededFields(array $stripeInvoice): array
+    {
+        return [
+            'id' => $stripeInvoice['id'] ?? null,
+            'currency' => $stripeInvoice['currency'] ?? null,
+            'amount_paid' => $stripeInvoice['amount_paid'] ?? null,
+            'total' => $stripeInvoice['total'] ?? null,
+            'created' => $stripeInvoice['created'] ?? null,
+            'lines' => [
+                'data' => [
+                    ['description' => $stripeInvoice['lines']['data'][0]['description'] ?? null],
+                ],
+            ],
+            'status_transitions' => [
+                'paid_at' => $stripeInvoice['status_transitions']['paid_at'] ?? null,
+            ],
+        ];
+    }
 
     public function handle(InvoiceGenerator $generator): void
     {

@@ -29,7 +29,9 @@ class StripeWebhookController extends WebhookController
         $user = $this->getUserByStripeId($invoice['customer'] ?? null);
 
         if ($user instanceof User && config('services.billingo.enabled')) {
-            GenerateBillingoInvoice::dispatch($user, $invoice);
+            // Csak a generator által olvasott mezőket adjuk át — a teljes payload ügyfél-PII-ja
+            // ne szerializálódjon a jobs/failed_jobs táblába (W-L3).
+            GenerateBillingoInvoice::dispatch($user, GenerateBillingoInvoice::onlyNeededFields($invoice));
         } elseif (config('services.billingo.enabled') && $this->grossMinorPaid($invoice) > 0) {
             // Pénz beszedve (pozitív terhelés), de nincs helyi user a customerhez — pl. egy
             // out-of-order customer.deleted már kinullázta a stripe_id-t, vagy a customert a

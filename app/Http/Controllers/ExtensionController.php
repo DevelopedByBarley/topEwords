@@ -455,6 +455,12 @@ class ExtensionController extends Controller
 
                 throw $e;
             }
+
+            // Ez az ág ténylegesen új 'known' szót vesz fel — tartalmilag azonos az
+            // updateStatus felvételével, ezért ugyanúgy könyveli a streaket/achievementet
+            // (PL-L6). A fenti $existing-ág csak meglévő jelölést módosít, ott nincs új
+            // aktivitás, ezért oda nem való könyvelés.
+            $this->recordStatusActivity($request);
         }
 
         return response()->json(['ok' => true, 'importance' => $importance]);

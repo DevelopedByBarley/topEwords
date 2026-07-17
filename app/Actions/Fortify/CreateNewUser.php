@@ -66,6 +66,7 @@ class CreateNewUser implements CreatesNewUsers
                 'billing_name' => $input['billing_name'] ?? null,
                 'billing_tax_number' => $input['billing_tax_number'] ?? null,
                 'billing_type' => $input['billing_type'] ?? null,
+                'billing_country' => $input['billing_country'] ?? null,
                 'billing_zip' => $input['billing_zip'] ?? null,
                 'billing_city' => $input['billing_city'] ?? null,
                 'billing_address' => $input['billing_address'] ?? null,

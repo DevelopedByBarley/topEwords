@@ -221,6 +221,18 @@ test('update-importance sets importance on an already marked word', function () 
         ->and($pivot->status)->toBe('learning');
 });
 
+test('PL-L6: meglévő jelölés fontosság-módosítása nem könyvel streaket (nincs új aktivitás)', function () {
+    Sanctum::actingAs($this->user, ['player']);
+    $this->user->knownWords()->attach($this->apple->id, ['status' => 'learning']);
+
+    $this->postJson(route('player.update-importance'), ['id' => $this->apple->id, 'is_custom' => false, 'importance' => 4])
+        ->assertSuccessful();
+
+    // A puszta jelölés-módosítás nem új szófelvétel — a streak nem indul el.
+    expect($this->user->refresh()->streak)->toBe(0)
+        ->and($this->user->last_activity_date)->toBeNull();
+});
+
 test('update-importance marks an unmarked word as known', function () {
     Sanctum::actingAs($this->user, ['player']);
 
@@ -231,6 +243,18 @@ test('update-importance marks an unmarked word as known', function () {
 
     expect($pivot->status)->toBe('known')
         ->and($pivot->importance)->toBe(5);
+});
+
+test('PL-L6: fontosság-útvonalú új known szó könyveli a streaket és achievementet', function () {
+    // Az importance-ág is új 'known' szót vesz fel — ugyanúgy aktivitás, mint az
+    // update-status, ezért a streak/achievement-könyvelésnek is le kell futnia.
+    Sanctum::actingAs($this->user, ['player']);
+
+    $this->postJson(route('player.update-importance'), ['id' => $this->apple->id, 'is_custom' => false, 'importance' => 5])
+        ->assertSuccessful();
+
+    expect($this->user->refresh()->streak)->toBe(1)
+        ->and($this->user->last_activity_date?->isToday())->toBeTrue();
 });
 
 // ── Fontosság: napi írás-keret (PL-M1) ───────────────────────────────────────

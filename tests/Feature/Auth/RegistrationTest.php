@@ -81,7 +81,11 @@ test('registration accepts a company with a valid tax number', function () {
     $user = User::where('email', 'company@example.com')->first();
     expect($user)->not->toBeNull()
         ->and($user->billing_tax_number)->toBe('12345678-1-01')
-        ->and($user->billing_type)->toBe('company');
+        ->and($user->billing_type)->toBe('company')
+        // S-L2: a regisztrációkor megadott (és validált) billing_country tényleg elmentődik —
+        // korábban a CreateNewUser mentendő mezőiből kimaradt, és némán elveszett, majd a NAV-
+        // számla partner-payloadja csendben 'HU'-ra esett volna vissza.
+        ->and($user->billing_country)->toBe('HU');
 });
 
 test('unverified users are redirected away from protected routes', function () {
