@@ -103,6 +103,31 @@ test('user can delete their account', function () {
     expect($user->fresh())->toBeNull();
 });
 
+test('S-L4/W-L6: fióktörlés megőrzi a NAV-számla-nyilvántartást, csak a user-hivatkozást nullázza', function () {
+    // A billingo_invoices FK nullOnDelete: a kiállított számlák könyvelési/megfelelőségi
+    // nyilvántartása a törölt felhasználó után is megmarad (a Billingo a külső igazságforrás,
+    // de a stripe↔billingo linkelést helyben is meg kell őriznünk). Korábban cascadeOnDelete
+    // némán törölte.
+    $user = User::factory()->create();
+    $invoice = $user->billingoInvoices()->create([
+        'stripe_invoice_id' => 'in_'.uniqid(),
+        'billingo_document_id' => 987654,
+        'invoice_number' => 'TEST-2026-1',
+    ]);
+
+    $this->actingAs($user)
+        ->delete(route('profile.destroy'), ['password' => 'password'])
+        ->assertRedirect(route('home'));
+
+    $invoice->refresh();
+
+    expect($user->fresh())->toBeNull()
+        ->and($invoice->exists)->toBeTrue()
+        ->and($invoice->user_id)->toBeNull()
+        ->and($invoice->billingo_document_id)->toBe(987654)
+        ->and($invoice->invoice_number)->toBe('TEST-2026-1');
+});
+
 test('deleting an account cancels every still-live stripe subscription', function () {
     $user = User::factory()->create();
 
