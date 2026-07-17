@@ -53,15 +53,13 @@ class AdminController extends Controller
         // Teljes userlista a hozzáférés-kezelőhöz — az effektív csomaggal
         $accessUsers = User::with('subscriptions')
             ->orderBy('name')
-            ->get(['id', 'name', 'email', 'plan_override', 'ai_access', 'lifetime_access', 'trial_ends_at'])
+            ->get(['id', 'name', 'email', 'plan_override', 'lifetime_access', 'trial_ends_at'])
             ->map(fn (User $u) => [
                 'id' => $u->id,
                 'name' => $u->name,
                 'email' => $u->email,
                 'plan' => $u->currentPlan(),
                 'plan_override' => $u->plan_override,
-                'ai_access' => $u->ai_access,
-                'has_ai' => $u->hasAiAccess(),
                 // Valódi (fizető) Stripe-előfizetés van-e, és milyen csomag — az
                 // admin felülírástól / próbaidőtől / lifetime-tól függetlenül.
                 'subscribed' => $u->activeSubscription() !== null,
@@ -185,18 +183,5 @@ class AdminController extends Controller
         $until = $user->trial_ends_at->timezone(config('app.timezone'))->isoFormat('YYYY. MM. DD.');
 
         return back()->with('success', "{$user->name} +1 hónap ingyen Prót kapott ({$until}-ig).");
-    }
-
-    public function toggleAiAccess(Request $request): RedirectResponse
-    {
-        $data = $request->validate(['email' => 'required|email|exists:users,email']);
-
-        $user = User::where('email', $data['email'])->firstOrFail();
-        $user->ai_access = ! $user->ai_access;
-        $user->save();
-
-        $status = $user->ai_access ? 'megkapta' : 'elvesztette';
-
-        return back()->with('success', "{$user->name} {$status} az AI hozzáférést.");
     }
 }

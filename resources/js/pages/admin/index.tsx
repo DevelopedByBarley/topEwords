@@ -6,7 +6,6 @@ import {
     BookMarked,
     Gift,
     Mic,
-    Sparkles,
     Trash2,
     Users,
     TrendingUp,
@@ -16,7 +15,6 @@ import { useState } from 'react';
 import AppLogoIcon from '@/components/app-logo-icon';
 import { Input } from '@/components/ui/input';
 import { set as setAccess } from '@/routes/admin/access';
-import { toggle as toggleAiAccess } from '@/routes/admin/ai-access';
 import { grant as grantFreeMonth } from '@/routes/admin/free-month';
 
 interface Stats {
@@ -53,8 +51,6 @@ interface AccessUser {
     email: string;
     plan: 'free' | 'premium';
     plan_override: 'premium' | null;
-    ai_access: boolean;
-    has_ai: boolean;
     subscribed: boolean;
     subscription_plan: 'premium' | null;
     trial_ends_at: string | null;
@@ -518,9 +514,8 @@ export default function AdminIndex({
                             <p className="text-xs text-zinc-500">
                                 Free = napi keretek + kis AI-kóstoló · Pro =
                                 korlátlan + teljes AI-keret. Az AI minden
-                                csomagon elérhető (a havi keret a korlát); a ✨
-                                gomb az ai_access jelzőt kapcsolja. A „+1 hó"
-                                gomb egy hónap ingyen Prót ad — halmozható,
+                                csomagon elérhető (a havi keret a korlát). A „+1
+                                hó" gomb egy hónap ingyen Prót ad — halmozható,
                                 lejáratkor magától visszaáll Free-re.
                             </p>
                             <Input
@@ -553,9 +548,6 @@ export default function AdminIndex({
                                                 >
                                                     {u.plan}
                                                 </span>
-                                                {u.has_ai && (
-                                                    <Sparkles className="size-3.5 shrink-0 text-amber-400" />
-                                                )}
                                                 <div className="min-w-0">
                                                     <div className="truncate text-sm font-medium">
                                                         {u.name}
@@ -616,26 +608,6 @@ export default function AdminIndex({
                                                 >
                                                     <Gift className="size-3.5" />
                                                     +1 hó
-                                                </button>
-                                                <button
-                                                    onClick={() =>
-                                                        router.post(
-                                                            toggleAiAccess()
-                                                                .url,
-                                                            { email: u.email },
-                                                            {
-                                                                preserveScroll: true,
-                                                            },
-                                                        )
-                                                    }
-                                                    title="ai_access jelző ki/be (az AI amúgy minden csomagon elérhető)"
-                                                    className={`rounded-md px-2 py-1 transition-colors ${
-                                                        u.ai_access
-                                                            ? 'bg-amber-400/20 text-amber-400'
-                                                            : 'bg-zinc-800 text-zinc-500 hover:bg-zinc-700'
-                                                    }`}
-                                                >
-                                                    <Sparkles className="size-3.5" />
                                                 </button>
                                                 {u.plan_override && (
                                                     <button
