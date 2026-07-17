@@ -141,8 +141,10 @@ class ReviewController extends Controller
     public function complete(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'ids' => ['required', 'array'],
-            'ids.*' => ['required', 'string'],
+            // Egy kör legfeljebb MAX_PER_SESSION szót ad ki, ennél több id-t a
+            // kliens legitim úton nem küldhet — a plafon a korlátlan whereIn-t fogja meg.
+            'ids' => ['required', 'array', 'max:'.self::MAX_PER_SESSION],
+            'ids.*' => ['required', 'string', 'max:32'],
         ]);
 
         $user = $request->user();

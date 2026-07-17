@@ -42,6 +42,7 @@ test('a lemondás Stripe-hibája nem 500, hanem hibaüzenettel tér vissza', fun
     $user->shouldReceive('activeSubscription')->andReturn($subscription);
 
     $this->actingAs($user)
+        ->withSession(['auth.password_confirmed_at' => time()])
         ->post(route('subscription.cancel'))
         ->assertRedirect()
         ->assertSessionHas('error');
@@ -58,6 +59,7 @@ test('a visszavonás Stripe-hibája nem 500, hanem hibaüzenettel tér vissza', 
     $user->shouldReceive('activeSubscription')->andReturn($subscription);
 
     $this->actingAs($user)
+        ->withSession(['auth.password_confirmed_at' => time()])
         ->post(route('subscription.resume'))
         ->assertRedirect()
         ->assertSessionHas('error');

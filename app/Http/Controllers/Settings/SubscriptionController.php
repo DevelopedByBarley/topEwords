@@ -9,13 +9,32 @@ use App\Services\Billingo\BillingoClient;
 use Illuminate\Http\Client\HttpClientException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 use Inertia\Inertia;
 use Inertia\Response;
+use Laravel\Fortify\Features;
 use Stripe\Exception\ApiErrorException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
-class SubscriptionController extends Controller
+class SubscriptionController extends Controller implements HasMiddleware
 {
+    /**
+     * Az előfizetés lemondása/visszavonása jelszó-megerősítéshez kötött:
+     * eltérített, bejelentkezve hagyott munkamenetből ne lehessen jelszó nélkül
+     * lemondani a fizető előfizetést. A megerősítést az `edit`-re is kérjük, így a
+     * cancel/resume POST a már megerősített ablakon belül fut — ugyanaz a minta,
+     * mint a SecurityController player-eszköz-visszavonásánál. A számla-letöltés és
+     * a Stripe-portál kimarad (a portál maga is újra hitelesít).
+     */
+    public static function middleware(): array
+    {
+        return Features::canManageTwoFactorAuthentication()
+            && Features::optionEnabled(Features::twoFactorAuthentication(), 'confirmPassword')
+                ? [new Middleware('password.confirm', only: ['edit', 'cancel', 'resume'])]
+                : [];
+    }
+
     public function edit(Request $request, AiUsageService $aiUsage): Response
     {
         $user = $request->user();

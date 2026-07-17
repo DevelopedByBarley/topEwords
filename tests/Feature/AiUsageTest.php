@@ -123,6 +123,7 @@ test('subscription settings page exposes the ai budget percentage', function () 
     $user->forceFill(['ai_credits_used' => intdiv($limit, 2), 'ai_credits_reset_at' => now()->addMonth()])->save();
 
     $this->actingAs($user)
+        ->withSession(['auth.password_confirmed_at' => time()])
         ->get(route('subscription.edit'))
         ->assertInertia(fn ($page) => $page
             ->where('aiUsage.percent', 50)
@@ -162,6 +163,7 @@ test('free users get a usage snapshot reflecting their taste budget', function (
     $limit = (int) config('plans.limits.free.ai_budget_micros');
 
     $this->actingAs($user)
+        ->withSession(['auth.password_confirmed_at' => time()])
         ->get(route('subscription.edit'))
         ->assertInertia(fn ($page) => $page
             ->where('aiUsage.limit', $limit)

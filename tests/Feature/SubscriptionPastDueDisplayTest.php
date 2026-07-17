@@ -22,6 +22,7 @@ test('past_due előfizetésnél a hasPastDueSubscription prop igaz, az isPremium
     makePastDueSubscription($user);
 
     $this->actingAs($user)
+        ->withSession(['auth.password_confirmed_at' => time()])
         ->get(route('subscription.edit'))
         ->assertInertia(fn (Assert $page) => $page
             ->component('settings/subscription')
@@ -44,6 +45,7 @@ test('aktív előfizetésnél a hasPastDueSubscription prop hamis', function () 
     ]);
 
     $this->actingAs($user)
+        ->withSession(['auth.password_confirmed_at' => time()])
         ->get(route('subscription.edit'))
         ->assertInertia(fn (Assert $page) => $page
             ->component('settings/subscription')
@@ -65,6 +67,7 @@ test('lemondott (ends_at kitöltött) past_due előfizetésnél a prop hamis', f
     ]);
 
     $this->actingAs($user)
+        ->withSession(['auth.password_confirmed_at' => time()])
         ->get(route('subscription.edit'))
         ->assertInertia(fn (Assert $page) => $page
             ->component('settings/subscription')
@@ -76,6 +79,7 @@ test('előfizetés nélküli usernél a hasPastDueSubscription prop hamis', func
     $user = User::factory()->create();
 
     $this->actingAs($user)
+        ->withSession(['auth.password_confirmed_at' => time()])
         ->get(route('subscription.edit'))
         ->assertInertia(fn (Assert $page) => $page
             ->component('settings/subscription')

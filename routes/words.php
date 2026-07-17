@@ -43,8 +43,8 @@ Route::middleware(['auth', 'verified', EnsureOnboardingComplete::class])->group(
     Route::post('words/sentence-check', [TextAnalysisController::class, 'sentenceCheck'])->name('words.sentence-check')->middleware('throttle:30,1,ta-ai');
 
     // Napi ismétlés
-    Route::get('review', [ReviewController::class, 'index'])->name('review.index');
-    Route::post('review/complete', [ReviewController::class, 'complete'])->name('review.complete');
+    Route::get('review', [ReviewController::class, 'index'])->name('review.index')->middleware('throttle:60,1,words-play');
+    Route::post('review/complete', [ReviewController::class, 'complete'])->name('review.complete')->middleware('throttle:30,1,words-review');
 
     Route::get('irregular-verbs', [IrregularVerbController::class, 'index'])->name('irregular-verbs.index');
 

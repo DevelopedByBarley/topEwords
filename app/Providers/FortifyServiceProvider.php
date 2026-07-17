@@ -88,7 +88,11 @@ class FortifyServiceProvider extends ServiceProvider
     private function configureRateLimiting(): void
     {
         RateLimiter::for('two-factor', function (Request $request) {
-            return Limit::perMinute(5)->by($request->session()->get('login.id'));
+            // A `login.id` a challenge-flow rendes menetében mindig ki van töltve,
+            // de egy rendellenes belépésnél (közvetlen POST session nélkül) null
+            // lenne — az IP-fallback nélkül minden ilyen kérés egy közös vödörbe
+            // esne. Az IP-re esünk vissza, ahogy a `login` limiter is teszi.
+            return Limit::perMinute(5)->by($request->session()->get('login.id') ?? $request->ip());
         });
 
         RateLimiter::for('login', function (Request $request) {
@@ -105,7 +109,7 @@ class FortifyServiceProvider extends ServiceProvider
 
     /**
      * Attach throttle middleware to Fortify's registration and password-reset
-     * request routes, which Fortify itself registers without any rate limiting.
+     * routes, which Fortify itself registers without any rate limiting.
      * Done after booting so the routes are already registered.
      */
     private function configureRouteThrottling(): void
@@ -114,6 +118,7 @@ class FortifyServiceProvider extends ServiceProvider
             $throttles = [
                 'register.store' => 'throttle:register',
                 'password.email' => 'throttle:password-request',
+                'password.update' => 'throttle:password-request',
             ];
 
             foreach (Route::getRoutes() as $route) {

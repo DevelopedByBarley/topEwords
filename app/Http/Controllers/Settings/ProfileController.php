@@ -67,6 +67,11 @@ class ProfileController extends Controller
             ->get()
             ->each->cancelNow();
 
+        // A player-eszközök Sanctum-tokenjei nem kaszkádolnak a user törlésekor
+        // (nem a users tábla FK-ja mögött állnak), ezért árva sorként bennmaradnának
+        // a personal_access_tokens táblában. Beválthatatlanok, de takarítsuk el.
+        $user->revokePlayerTokens();
+
         Auth::logout();
 
         $user->delete();

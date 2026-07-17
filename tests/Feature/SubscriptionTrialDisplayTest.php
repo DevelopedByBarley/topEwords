@@ -41,6 +41,7 @@ test('a Stripe-előfizetés trialja megjelenik a subscription beállításokon',
     $trialEnd = $user->activeSubscription()->trial_ends_at->toIso8601String();
 
     $this->actingAs($user)
+        ->withSession(['auth.password_confirmed_at' => time()])
         ->get(route('subscription.edit'))
         ->assertInertia(fn (Assert $page) => $page
             ->component('settings/subscription')

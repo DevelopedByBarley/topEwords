@@ -64,6 +64,34 @@ test('password can be reset with valid token', function () {
     });
 });
 
+test('F1-L7: password reset revokes player device tokens', function () {
+    Notification::fake();
+
+    $user = User::factory()->create();
+    $user->createToken('topwords Player – Laptop', ['player']);
+    $user->createToken('Egyéb integráció', ['*']);
+
+    $this->post(route('password.email'), ['email' => $user->email]);
+
+    Notification::assertSentTo($user, ResetPassword::class, function ($notification) use ($user) {
+        $this->post(route('password.update'), [
+            'token' => $notification->token,
+            'email' => $user->email,
+            'password' => 'new-password',
+            'password_confirmation' => 'new-password',
+        ])->assertSessionHasNoErrors();
+
+        return true;
+    });
+
+    // A reset a „kompromittált fiók" tipikus belépője — a player Bearer-tokenek
+    // nem élhetik túl; a szélesebb jogkörű token nem ennek a purge-nek a dolga.
+    $remaining = $user->tokens()->get();
+
+    expect($remaining)->toHaveCount(1)
+        ->and($remaining->first()->name)->toBe('Egyéb integráció');
+});
+
 test('password cannot be reset with invalid token', function () {
     $user = User::factory()->create();
 

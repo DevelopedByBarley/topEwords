@@ -1,5 +1,6 @@
 import { Transition } from '@headlessui/react';
 import { Form, Head, usePage } from '@inertiajs/react';
+import { useState } from 'react';
 import ProfileController from '@/actions/App/Http/Controllers/Settings/ProfileController';
 import DeleteUser from '@/components/delete-user';
 import Heading from '@/components/heading';
@@ -11,6 +12,10 @@ import { edit } from '@/routes/profile';
 
 export default function Profile() {
     const { auth } = usePage().props;
+    // E-mail-cseréhez a backend jelszó-megerősítést kér (ProfileUpdateRequest);
+    // a jelszómezőt csak akkor mutatjuk, ha az e-mail tényleg változik.
+    const [email, setEmail] = useState(auth.user.email);
+    const emailChanged = email !== auth.user.email;
 
     return (
         <>
@@ -66,6 +71,7 @@ export default function Profile() {
                                     required
                                     autoComplete="username"
                                     placeholder="E-mail cím"
+                                    onChange={(e) => setEmail(e.target.value)}
                                 />
 
                                 <InputError
@@ -73,6 +79,34 @@ export default function Profile() {
                                     message={errors.email}
                                 />
                             </div>
+
+                            {emailChanged && (
+                                <div className="grid gap-2">
+                                    <Label htmlFor="current_password">
+                                        Jelenlegi jelszó
+                                    </Label>
+
+                                    <Input
+                                        id="current_password"
+                                        type="password"
+                                        className="mt-1 block w-full"
+                                        name="current_password"
+                                        required
+                                        autoComplete="current-password"
+                                        placeholder="Jelenlegi jelszó"
+                                    />
+
+                                    <p className="text-sm text-muted-foreground">
+                                        Az e-mail cím módosításához adja meg
+                                        jelenlegi jelszavát.
+                                    </p>
+
+                                    <InputError
+                                        className="mt-2"
+                                        message={errors.current_password}
+                                    />
+                                </div>
+                            )}
 
                             <div className="flex items-center gap-4">
                                 <Button

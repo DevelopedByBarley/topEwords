@@ -5,6 +5,7 @@ use App\Models\User;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Inertia\Testing\AssertableInertia as Assert;
+use Laravel\Fortify\Features;
 
 test('subscription page marks non-subscribed premium-access users correctly', function (array $attributes) {
     // Lifetime / admin-adta (plan_override) hozzáférésnél nincs Stripe-előfizetés,
@@ -13,6 +14,7 @@ test('subscription page marks non-subscribed premium-access users correctly', fu
     $user = User::factory()->create($attributes);
 
     $this->actingAs($user)
+        ->withSession(['auth.password_confirmed_at' => time()])
         ->get(route('subscription.edit'))
         ->assertInertia(fn (Assert $page) => $page
             ->component('settings/subscription')
@@ -25,10 +27,28 @@ test('subscription page marks non-subscribed premium-access users correctly', fu
     'lifetime_access' => [['lifetime_access' => true]],
 ]);
 
+test('cancelling a subscription requires a confirmed password', function () {
+    // FA-L2: eltérített, bejelentkezve hagyott munkamenetből ne lehessen jelszó
+    // nélkül lemondani a fizető előfizetést — a password.confirm a lemondás elé áll.
+    $this->skipUnlessFortifyFeature(Features::twoFactorAuthentication());
+
+    Features::twoFactorAuthentication([
+        'confirm' => true,
+        'confirmPassword' => true,
+    ]);
+
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->post(route('subscription.cancel'))
+        ->assertRedirect(route('password.confirm'));
+});
+
 test('cancel without an active subscription does not flash a fake success', function () {
     $user = User::factory()->create();
 
     $this->actingAs($user)
+        ->withSession(['auth.password_confirmed_at' => time()])
         ->from(route('subscription.edit'))
         ->post(route('subscription.cancel'))
         ->assertRedirect(route('subscription.edit'))
@@ -39,6 +59,7 @@ test('resume without a cancellation informs the user instead of staying silent',
     $user = User::factory()->create();
 
     $this->actingAs($user)
+        ->withSession(['auth.password_confirmed_at' => time()])
         ->from(route('subscription.edit'))
         ->post(route('subscription.resume'))
         ->assertRedirect(route('subscription.edit'))
@@ -64,6 +85,7 @@ test('the subscription page lists only issued invoices', function () {
     ]);
 
     $this->actingAs($user)
+        ->withSession(['auth.password_confirmed_at' => time()])
         ->get(route('subscription.edit'))
         ->assertInertia(fn (Assert $page) => $page
             ->component('settings/subscription')
@@ -151,23 +173,28 @@ test('the cancel and resume routes share a rate limit', function () {
     // Előfizetés nélkül a cancel/resume azonnal back()-kel tér vissza (nincs valódi
     // Stripe-hívás), így biztonságosan tesztelhető a közös throttle:10,1 korlát.
     $user = User::factory()->create();
+    $confirmed = ['auth.password_confirmed_at' => time()];
 
     foreach (range(1, 5) as $i) {
         $this->actingAs($user)
+            ->withSession($confirmed)
             ->post(route('subscription.cancel'))
             ->assertStatus(302);
 
         $this->actingAs($user)
+            ->withSession($confirmed)
             ->post(route('subscription.resume'))
             ->assertStatus(302);
     }
 
     // A két végpont közös (nevesített) bucketet használ — a 11. kezelési kísérlet 429.
     $this->actingAs($user)
+        ->withSession($confirmed)
         ->post(route('subscription.cancel'))
         ->assertStatus(429);
 
     $this->actingAs($user)
+        ->withSession($confirmed)
         ->post(route('subscription.resume'))
         ->assertStatus(429);
 });

@@ -195,6 +195,7 @@ test('a player device can be revoked', function () {
     $token = $user->createToken('topwords Player – Laptop', ['player'])->accessToken;
 
     $this->actingAs($user)
+        ->withSession(['auth.password_confirmed_at' => time()])
         ->from(route('security.edit'))
         ->delete(route('security.player-devices.destroy', ['tokenId' => $token->id]))
         ->assertRedirect(route('security.edit'));
@@ -208,10 +209,49 @@ test('a user cannot revoke another users player device', function () {
     $token = $other->createToken('topwords Player – Idegen gép', ['player'])->accessToken;
 
     $this->actingAs($user)
+        ->withSession(['auth.password_confirmed_at' => time()])
         ->delete(route('security.player-devices.destroy', ['tokenId' => $token->id]));
 
     // Idegen tokent nem érhet el (user-scoped lekérdezés) — megmarad.
     expect($other->tokens()->count())->toBe(1);
+});
+
+test('F1-L5: revoking a player device requires password confirmation', function () {
+    $this->skipUnlessFortifyFeature(Features::twoFactorAuthentication());
+
+    Features::twoFactorAuthentication([
+        'confirm' => true,
+        'confirmPassword' => true,
+    ]);
+
+    $user = User::factory()->create();
+    $token = $user->createToken('topwords Player – Laptop', ['player'])->accessToken;
+
+    // Friss jelszó-megerősítés nélkül a DELETE nem futhat le — eltérített
+    // sessionből ne lehessen jelszó nélkül leválasztani az eszközöket.
+    $this->actingAs($user)
+        ->delete(route('security.player-devices.destroy', ['tokenId' => $token->id]))
+        ->assertRedirect(route('password.confirm'));
+
+    expect($user->tokens()->count())->toBe(1);
+});
+
+test('F1-L5: revoking all player devices requires password confirmation', function () {
+    $this->skipUnlessFortifyFeature(Features::twoFactorAuthentication());
+
+    Features::twoFactorAuthentication([
+        'confirm' => true,
+        'confirmPassword' => true,
+    ]);
+
+    $user = User::factory()->create();
+    $user->createToken('topwords Player – Laptop', ['player']);
+
+    $this->actingAs($user)
+        ->delete(route('security.player-devices.destroy-all'))
+        ->assertRedirect(route('password.confirm'));
+
+    expect($user->tokens()->count())->toBe(1);
 });
 
 test('revoking all player devices leaves non-player tokens intact', function () {
@@ -221,6 +261,7 @@ test('revoking all player devices leaves non-player tokens intact', function () 
     $user->createToken('Egyéb integráció', ['*']);
 
     $this->actingAs($user)
+        ->withSession(['auth.password_confirmed_at' => time()])
         ->from(route('security.edit'))
         ->delete(route('security.player-devices.destroy-all'))
         ->assertRedirect(route('security.edit'));
@@ -236,8 +277,29 @@ test('the revoke endpoint refuses to delete a non-player token', function () {
     $token = $user->createToken('Egyéb integráció', ['*'])->accessToken;
 
     $this->actingAs($user)
+        ->withSession(['auth.password_confirmed_at' => time()])
         ->delete(route('security.player-devices.destroy', ['tokenId' => $token->id]));
 
     // A `*`-token nem player-eszköz → nem törölhető ezen a végponton.
     expect($user->tokens()->count())->toBe(1);
+});
+
+test('F1-L7: changing the password revokes player device tokens', function () {
+    $user = User::factory()->create();
+    $user->createToken('topwords Player – Laptop', ['player']);
+    $user->createToken('Egyéb integráció', ['*']);
+
+    $this->actingAs($user)
+        ->put(route('user-password.update'), [
+            'current_password' => 'password',
+            'password' => 'new-password',
+            'password_confirmation' => 'new-password',
+        ])
+        ->assertSessionHasNoErrors();
+
+    // A player Bearer-token nem élheti túl a jelszóváltást; a szélesebb
+    // jogkörű token nem ennek a purge-nek a dolga.
+    $remaining = $user->tokens()->get();
+    expect($remaining)->toHaveCount(1)
+        ->and($remaining->first()->name)->toBe('Egyéb integráció');
 });

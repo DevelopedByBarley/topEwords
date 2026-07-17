@@ -19,12 +19,17 @@ class SecurityController extends Controller implements HasMiddleware
 {
     /**
      * Get the middleware that should be assigned to the controller.
+     *
+     * A revoke-végpontok is jelszó-megerősítéshez kötöttek: eltérített
+     * munkamenetből ne lehessen jelszó nélkül leválasztani a user összes
+     * player-eszközét. Az `edit`-tel közös feltétel garantálja, hogy a
+     * megerősítés a lap megnyitásakor már megtörtént (a confirm-ablakon belül).
      */
     public static function middleware(): array
     {
         return Features::canManageTwoFactorAuthentication()
             && Features::optionEnabled(Features::twoFactorAuthentication(), 'confirmPassword')
-                ? [new Middleware('password.confirm', only: ['edit'])]
+                ? [new Middleware('password.confirm', only: ['edit', 'revokePlayerDevice', 'revokeAllPlayerDevices'])]
                 : [];
     }
 
@@ -97,10 +102,7 @@ class SecurityController extends Controller implements HasMiddleware
      */
     public function revokeAllPlayerDevices(Request $request): RedirectResponse
     {
-        $request->user()->tokens()
-            ->get()
-            ->filter(fn ($token) => $this->isPlayerToken($token))
-            ->each(fn ($token) => $token->delete());
+        $request->user()->revokePlayerTokens();
 
         return back();
     }
@@ -122,6 +124,8 @@ class SecurityController extends Controller implements HasMiddleware
      * A remember token rotálása érvényteleníti a más eszközökön élő
      * „emlékezz rám" cookie-kat; az aktív sessionjeiket az
      * AuthenticateSession middleware lépteti ki a jelszóhash-váltás miatt.
+     * A player-tokenek purge-e nélkül a Bearer-token túlélné a jelszóváltást —
+     * kompromittált fióknál a támadó player-hozzáférése megmaradna.
      */
     public function update(PasswordUpdateRequest $request): RedirectResponse
     {
@@ -129,6 +133,8 @@ class SecurityController extends Controller implements HasMiddleware
             'password' => $request->password,
             'remember_token' => Str::random(60),
         ])->save();
+
+        $request->user()->revokePlayerTokens();
 
         return back();
     }

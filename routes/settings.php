@@ -11,14 +11,15 @@ Route::middleware(['auth'])->group(function () {
     Route::redirect('settings', '/settings/profile');
 
     Route::get('settings/profile', [ProfileController::class, 'edit'])->name('profile.edit')->middleware('throttle:60,1,settings-view');
-    Route::patch('settings/profile', [ProfileController::class, 'update'])->name('profile.update');
+    // Az e-mail-váltás verifikációs levelet küld — a szűk sapka az email-bombingot fogja meg.
+    Route::patch('settings/profile', [ProfileController::class, 'update'])->name('profile.update')->middleware('throttle:6,1,profile-update');
 });
 
 Route::middleware(['auth'])->group(function () {
-    Route::delete('settings/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+    Route::delete('settings/profile', [ProfileController::class, 'destroy'])->name('profile.destroy')->middleware('throttle:6,1,profile-delete');
 
     Route::get('settings/billing', [BillingController::class, 'edit'])->name('billing.edit')->middleware('throttle:60,1,settings-view');
-    Route::put('settings/billing', [BillingController::class, 'update'])->name('billing.update');
+    Route::put('settings/billing', [BillingController::class, 'update'])->name('billing.update')->middleware('throttle:10,1,billing-update');
 
     Route::get('settings/security', [SecurityController::class, 'edit'])->name('security.edit')->middleware('throttle:60,1,settings-view');
 
@@ -38,7 +39,7 @@ Route::middleware(['auth'])->group(function () {
     Route::inertia('settings/appearance', 'settings/appearance')->name('appearance.edit');
 
     Route::get('settings/flashcards', [FlashcardController::class, 'edit'])->name('flashcard-settings.edit')->middleware('throttle:60,1,settings-view');
-    Route::put('settings/flashcards', [FlashcardController::class, 'update'])->name('flashcard-settings.update');
+    Route::put('settings/flashcards', [FlashcardController::class, 'update'])->name('flashcard-settings.update')->middleware('throttle:10,1,flashcard-settings-update');
 
     Route::get('settings/subscription', [SubscriptionController::class, 'edit'])->name('subscription.edit')->middleware('throttle:60,1,settings-view');
     Route::post('settings/subscription/cancel', [SubscriptionController::class, 'cancel'])->name('subscription.cancel')->middleware('throttle:10,1,subscription-manage');

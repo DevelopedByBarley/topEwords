@@ -20,6 +20,7 @@ use Laravel\Cashier\Billable;
 use Laravel\Cashier\Subscription;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 use Laravel\Sanctum\HasApiTokens;
+use Laravel\Sanctum\PersonalAccessToken;
 
 // Entitlement/billing columns (lifetime_access, ai_access, plan_override, trial_ends_at,
 // invite_id, stripe_*, ai_credit*, terms_accepted_at, billingo_partner_id) are intentionally NOT fillable — they are
@@ -442,6 +443,21 @@ class User extends Authenticatable implements MustVerifyEmail
         $this->save();
 
         return true;
+    }
+
+    /**
+     * A KIZÁRÓLAG `player` ability-jű Sanctum-tokenek visszavonása — jelszóváltás,
+     * jelszó-reset és a Settings „Minden eszköz leválasztása" közös magja.
+     * Szándékosan nem `->can('player')`: az egy `*`-tokenre is igaz volna, így
+     * egy szélesebb jogkörű token is véletlenül törlődhetne (lásd
+     * SecurityController::isPlayerToken()).
+     */
+    public function revokePlayerTokens(): void
+    {
+        $this->tokens()
+            ->get()
+            ->filter(fn (PersonalAccessToken $token) => $token->abilities === ['player'])
+            ->each(fn (PersonalAccessToken $token) => $token->delete());
     }
 
     /**

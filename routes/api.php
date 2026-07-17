@@ -53,5 +53,6 @@ Route::middleware(['auth:sanctum', 'abilities:player'])->group(function () {
         ->name('player.create-flashcard')
         ->middleware('throttle:20,1,player-write');
     Route::post('player/disconnect', [PlayerPairingController::class, 'disconnect'])
-        ->name('player.disconnect');
+        ->name('player.disconnect')
+        ->middleware('throttle:20,1,player-write');
 });
