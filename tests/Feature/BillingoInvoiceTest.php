@@ -652,3 +652,52 @@ test('kikapcsolt Billingónál ismeretlen customer sem riaszt', function () {
 
     Log::shouldNotHaveReceived('critical');
 });
+
+// ── W-L7: charge.refunded → NAV-sztornó emlékeztető ──────────────────────────
+
+test('W-L7: visszatérítés critical riasztást ad, de a webhook 200-at ad (kézi NAV-sztornó kell)', function () {
+    Log::spy();
+
+    // Refund (jellemzően dashboardról) — a Cashier alapból némán 200-azna rá; nekünk
+    // hangosan kell riasztanunk, mert a jóváíró NAV-számla kézi feladat.
+    $this->postJson('/stripe/webhook', [
+        'type' => 'charge.refunded',
+        'data' => ['object' => [
+            'id' => 'ch_refund',
+            'customer' => 'cus_valaki',
+            'invoice' => 'in_eredeti',
+            'amount_refunded' => 299000,
+            'currency' => 'huf',
+        ]],
+    ])->assertOk();
+
+    Log::shouldHaveReceived('critical')->once()->withArgs(function (string $message, array $context) {
+        return str_contains($message, 'sztornó')
+            && $context['stripe_charge_id'] === 'ch_refund'
+            && $context['stripe_invoice_id'] === 'in_eredeti'
+            && $context['amount_refunded_minor'] === 299000;
+    });
+});
+
+test('W-L7: 0 összegű (tényleges visszatérítés nélküli) charge.refunded nem riaszt', function () {
+    Log::spy();
+
+    $this->postJson('/stripe/webhook', [
+        'type' => 'charge.refunded',
+        'data' => ['object' => ['id' => 'ch_zero', 'amount_refunded' => 0]],
+    ])->assertOk();
+
+    Log::shouldNotHaveReceived('critical');
+});
+
+test('W-L7: kikapcsolt Billingónál a visszatérítés sem riaszt', function () {
+    config(['services.billingo.enabled' => false]);
+    Log::spy();
+
+    $this->postJson('/stripe/webhook', [
+        'type' => 'charge.refunded',
+        'data' => ['object' => ['id' => 'ch_no_billingo', 'amount_refunded' => 299000]],
+    ])->assertOk();
+
+    Log::shouldNotHaveReceived('critical');
+});

@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\StripeWebhookController;
 use App\Models\User;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Laravel\Cashier\Subscription;
 
@@ -55,6 +56,35 @@ test('egyetlen előfizetésnél nincs riasztás', function () {
     (new StripeWebhookController)->cancelDuplicateSubscriptions($user);
 
     Log::shouldNotHaveReceived('critical');
+});
+
+test('W-L5: ha a user-szintű lockot már más birtokolja, a takarítás kimarad (nem buktat, nem mond le)', function () {
+    // Két igazán párhuzamos subscription.created versenyét szimuláljuk: az egyik folyamat
+    // épp takarít (birtokolja a lockot), a másik hívás nem várakozik rá vég nélkül, hanem
+    // kilép — a duplikátumot a lockot tartó futás vagy a következő webhook-ciklus rendezi.
+    $user = User::factory()->create();
+    makeActiveSubscription($user, 'price_basic');
+    makeActiveSubscription($user, 'price_premium');
+
+    // A "másik folyamat" előre megszerzi a user-szintű lockot.
+    $held = Cache::lock("stripe:dup-subs:{$user->id}", 30);
+    expect($held->get())->toBeTrue();
+
+    // 0 mp várakozással próbáljon takarítani — a foglalt lock miatt azonnal kilép.
+    $controller = new class extends StripeWebhookController
+    {
+        protected int $duplicateCleanupLockWaitSeconds = 0;
+    };
+
+    Log::spy();
+
+    $controller->cancelDuplicateSubscriptions($user);
+
+    // Nem riasztott és nem mondott le semmit — mindkét előfizetés él.
+    Log::shouldNotHaveReceived('critical');
+    expect($user->subscriptions()->whereNull('ends_at')->count())->toBe(2);
+
+    $held->release();
 });
 
 test('the earliest active subscription is kept and later ones are duplicates', function () {

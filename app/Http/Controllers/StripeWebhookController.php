@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Jobs\GenerateBillingoInvoice;
 use App\Models\User;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Laravel\Cashier\Http\Controllers\WebhookController;
 use Laravel\Cashier\Subscription;
@@ -12,6 +14,12 @@ use Stripe\Subscription as StripeSubscription;
 
 class StripeWebhookController extends WebhookController
 {
+    /**
+     * Meddig várjon a duplikátum-takarítás a user-szintű lockra, mielőtt feladja
+     * (a következő webhook-ciklus úgyis újra elvégzi). Tesztben 0-ra állítható.
+     */
+    protected int $duplicateCleanupLockWaitSeconds = 10;
+
     /**
      * A sikeres fizetés után NAV-kompatibilis Billingo számlát állítunk ki. A számlázás
      * külön kapcsolóval ki is hagyható, hogy a fizetés a Billingo nélkül is működjön.
@@ -58,6 +66,33 @@ class StripeWebhookController extends WebhookController
     private function grossMinorPaid(array $invoice): int
     {
         return (int) ($invoice['amount_paid'] ?? $invoice['total'] ?? 0);
+    }
+
+    /**
+     * Visszatérítéskor (jellemzően a Stripe dashboardról adott refund) jogszabály szerint
+     * NAV-sztornó (jóváíró) számla is jár. A Cashier a charge.refunded eseményre alapból
+     * néma 200-at ad, így a kötelező sztornó észrevétlenül elmaradhat. Automatikus
+     * sztornózás kockázatos (részleges refund, több számla, valuta), ezért itt NEM
+     * sztornózunk — csak hangosan riasztunk (mint a dupla-terhelés/ismeretlen-customer
+     * ágakban), hogy a Billingo-sztornó kézzel, kereshető nyom alapján pótolható legyen.
+     * Csak Billingo-számlázás mellett és tényleges (pozitív) visszatérített összegre szól.
+     */
+    protected function handleChargeRefunded(array $payload)
+    {
+        $charge = $payload['data']['object'] ?? [];
+        $amountRefundedMinor = (int) ($charge['amount_refunded'] ?? 0);
+
+        if (config('services.billingo.enabled') && $amountRefundedMinor > 0) {
+            Log::critical('Stripe-visszatérítés történt — NAV-sztornó (jóváíró) számla NEM készül automatikusan, kézi kiállítás kell!', [
+                'stripe_charge_id' => $charge['id'] ?? null,
+                'stripe_customer' => $charge['customer'] ?? null,
+                'stripe_invoice_id' => $charge['invoice'] ?? null,
+                'amount_refunded_minor' => $amountRefundedMinor,
+                'currency' => $charge['currency'] ?? null,
+            ]);
+        }
+
+        return $this->successMethod();
     }
 
     /**
@@ -161,6 +196,34 @@ class StripeWebhookController extends WebhookController
      * maradjon észrevétlen a dupla terhelés.
      */
     public function cancelDuplicateSubscriptions(User $user): void
+    {
+        // User-szintű lock: két igazán párhuzamos customer.subscription.created (pl. két
+        // böngészőfülből indított Checkout) egymás commitja ELŐTT futtathatná ezt, így
+        // egyik sem látná a másik előfizetését, és a duplikátum takarítatlanul maradna
+        // (W-L5). A lock szerializálja a takarítást userenként: a vesztes megvárja a
+        // győztest, és annak commitolt előfizetését már látja. Ha a lockot nem sikerül
+        // megszerezni a várakozási ablakon belül (ritka torlódás), NEM buktatjuk a
+        // webhookot — a következő webhook-ciklus (pl. invoice.payment_succeeded) úgyis
+        // újra lefuttatja a takarítást. Más felhasználók webhookjai nem érintettek.
+        $lock = Cache::lock("stripe:dup-subs:{$user->id}", 30);
+
+        try {
+            $lock->block($this->duplicateCleanupLockWaitSeconds);
+        } catch (LockTimeoutException) {
+            return;
+        }
+
+        try {
+            $this->cancelDuplicateSubscriptionsLocked($user);
+        } finally {
+            $lock->release();
+        }
+    }
+
+    /**
+     * A tényleges takarítás — mindig lock alatt fut (lásd cancelDuplicateSubscriptions).
+     */
+    private function cancelDuplicateSubscriptionsLocked(User $user): void
     {
         foreach ($this->duplicateSubscriptionsFor($user) as $subscription) {
             Log::critical('Duplikált Stripe-előfizetés — lemondjuk; ellenőrizd, kell-e kézi refund és Billingo-sztornó!', [
