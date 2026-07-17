@@ -15,6 +15,16 @@ class BillingoClient
 {
     private const BASE_URL = 'https://api.billingo.hu/v3';
 
+    /**
+     * Explicit hálózati időkorlátok. Nélkülük a hívás a Guzzle alap „végtelen" viselkedésével
+     * korlátlanul lóghatna egy beragadt Billingón — a queue worker közben lelőné a beragadt
+     * jobot, és az újrapróba (findIssuedDocument keresés) egy még nem indexelt számlát „nincs"-nek
+     * látva másodikat állítana ki. A véges timeout tiszta hibát dob, amit a job backoffja kezel.
+     */
+    private const CONNECT_TIMEOUT_SECONDS = 10;
+
+    private const REQUEST_TIMEOUT_SECONDS = 30;
+
     public function __construct(private string $apiKey) {}
 
     /**
@@ -146,6 +156,8 @@ class BillingoClient
     {
         return Http::baseUrl(self::BASE_URL)
             ->withHeaders(['X-API-KEY' => $this->apiKey])
+            ->connectTimeout(self::CONNECT_TIMEOUT_SECONDS)
+            ->timeout(self::REQUEST_TIMEOUT_SECONDS)
             ->acceptJson()
             ->asJson();
     }

@@ -43,8 +43,12 @@ class AiUsageService
 
         $estimate = max(1, $estimatedMicros);
 
+        // A foglalás akkor mehet át, ha a becslés MÉG BELEFÉR a keretbe: a feltétel
+        // ezért a nyers limit helyett a limit-becslést nézi. Enélkül a keret határán
+        // több párhuzamos kérés is átcsúszhatna (mind „<limit"-et lát, majd mind
+        // hozzáadja a becslését), és a settle() csak utólag korrigálná a túlfoglalást.
         $consumed = User::whereKey($user->getKey())
-            ->where('ai_credits_used', '<', $user->aiMonthlyLimit())
+            ->where('ai_credits_used', '<=', $user->aiMonthlyLimit() - $estimate)
             ->increment('ai_credits_used', $estimate);
 
         if ($consumed === 0) {

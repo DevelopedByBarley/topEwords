@@ -32,3 +32,16 @@ Schedule::command('queue:monitor', [config('queue.default').':default', '--max=2
 | a lejárt token-sorokat naponta töröljük, hogy a tábla ne hízzon.
 */
 Schedule::command('sanctum:prune-expired --hours=24')->daily();
+
+/*
+|--------------------------------------------------------------------------
+| Előfizetés-egyeztetés a Stripe-pal
+|--------------------------------------------------------------------------
+|
+| A Stripe webhookok legalább-egyszer és sorrend nélkül érkeznek: egy végleg
+| elveszett customer.subscription.deleted a helyi előfizetést tartósan aktívan
+| hagyná (beragadt „ingyen prémium"). A cashier:reconcile-subscriptions naponta
+| a Stripe valós állapotához igazítja a helyileg aktív előfizetéseket, és
+| lezárja a Stripe-nál már halottakat. Igényel élő Stripe API-kulcsot.
+*/
+Schedule::command('cashier:reconcile-subscriptions')->daily();

@@ -41,15 +41,29 @@ test('a kivétel osztálya és helye bekerül a riasztásba', function () {
     );
 });
 
-test('az error-riasztás óránként legfeljebb egyszer megy ki', function () {
+test('ugyanaz a hiba óránként legfeljebb egyszer riaszt', function () {
     Notification::fake();
     config(['app.admin_email' => 'admin@example.com']);
     simulateProduction();
 
-    Log::error('első hiba');
-    Log::error('második hiba');
+    Log::error('ismétlődő beragadt hiba');
+    Log::error('ismétlődő beragadt hiba');
 
     Notification::assertSentOnDemandTimes(ApplicationErrorDetected::class, 1);
+});
+
+test('két különböző hiba egy órán belül külön-külön riaszt', function () {
+    // A throttle korábban egyetlen közös kulcson osztozott: egy órán belül a MÁSODIK,
+    // más okú kritikus hiba (pl. dupla terhelés az ismeretlen-customer után) némán kimaradt.
+    // A szint+üzenet szerinti kulccsal mindkettő eljut az adminhoz.
+    Notification::fake();
+    config(['app.admin_email' => 'admin@example.com']);
+    simulateProduction();
+
+    Log::error('ismeretlen customer — NAV-számla kézzel');
+    Log::error('duplikált előfizetés — ellenőrizd a refundot');
+
+    Notification::assertSentOnDemandTimes(ApplicationErrorDetected::class, 2);
 });
 
 test('error alatti szintű log nem riaszt', function () {

@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Services\Billingo\BillingoClient;
 use App\Services\Billingo\InvoiceGenerator;
 use Illuminate\Contracts\Cache\LockTimeoutException;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
@@ -700,4 +701,32 @@ test('W-L7: kikapcsolt Billingónál a visszatérítés sem riaszt', function ()
     ])->assertOk();
 
     Log::shouldNotHaveReceived('critical');
+});
+
+test('BILL-L1: a Billingo-kérések explicit connect- és response-timeouttal épülnek', function () {
+    // A klienssel indított minden kérésnek véges időkorláttal kell lógnia, hogy egy
+    // beragadt Billingo ne fogja fel korlátlanul a queue workert (a beragadt job lelövése
+    // + retry keresés különben dupla számlát okozhat). A privát request() építi a közös
+    // PendingRequestet — reflexióval kiolvassuk a rá beállított Guzzle-opciókat.
+    $client = app(BillingoClient::class);
+    $method = new ReflectionMethod($client, 'request');
+    $pending = $method->invoke($client);
+
+    $optionsProp = new ReflectionProperty($pending, 'options');
+    $options = $optionsProp->getValue($pending);
+
+    expect($options['connect_timeout'] ?? null)->toBe(10)
+        ->and($options['timeout'] ?? null)->toBe(30);
+});
+
+test('BILL-L1: a hálózati timeout (ConnectionException) átjut a hívón, hogy a job retry kezelhesse', function () {
+    // A véges timeout tényleges hatása: időtúllépéskor a Guzzle ConnectionExceptiont dob.
+    // A kliens ezt NEM nyelheti el — a GenerateBillingoInvoice job backoffja csak akkor tud
+    // újrapróbálni (és a findIssuedDocument-tel dupla számla ellen védeni), ha a hiba felszáll.
+    Http::fake(function () {
+        throw new ConnectionException('cURL error 28: Operation timed out');
+    });
+
+    expect(fn () => app(BillingoClient::class)->createDocument(['dummy' => true]))
+        ->toThrow(ConnectionException::class);
 });

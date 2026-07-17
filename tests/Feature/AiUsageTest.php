@@ -105,6 +105,26 @@ test('a refund cannot push the unsigned usage counter below zero', function () {
     expect($user->ai_credits_used)->toBe(0); // in-memory model stays clamped too
 });
 
+test('a foglalás nem csúszhat a keret fölé, ha a becslés már nem fér bele', function () {
+    // A keret határán: a nyers „<limit" feltétel átengedett volna egy olyan foglalást is,
+    // amelynek becslése túllóg a kereten (a settle() csak utólag korrigál). A limit-becslés
+    // feltétel ezt már a foglalásnál megtagadja, így a számláló nem megy a limit fölé.
+    $service = app(AiUsageService::class);
+    $user = User::factory()->create();
+    $limit = (int) config('plans.limits.free.ai_budget_micros');
+    // 1 mikrodollárral a limit alatt állunk, de a becslés 10 000 — nem férhet be.
+    $user->forceFill(['ai_credits_used' => $limit - 1, 'ai_credits_reset_at' => now()->addMonth()])->save();
+
+    expect($service->reserve($user, 10_000))->toBeFalse()
+        ->and($user->fresh()->ai_credits_used)->toBe($limit - 1); // változatlan, nem lépte túl
+
+    // Épp befér: a becslés pontosan a maradék kerettel egyenlő → átmegy, és a limitig tölt.
+    $user->forceFill(['ai_credits_used' => $limit - 10_000, 'ai_credits_reset_at' => now()->addMonth()])->save();
+
+    expect($service->reserve($user, 10_000))->toBeTrue()
+        ->and($user->fresh()->ai_credits_used)->toBe($limit);
+});
+
 test('a settle to a smaller actual cost clamps the counter at zero, never negative', function () {
     // Same race but via settle(): reservation was 5000, reset() zeroed it, then
     // the real cost (130) reconciles with a negative delta that would underflow.

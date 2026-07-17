@@ -5,8 +5,10 @@ namespace App\Http\Controllers;
 use App\Jobs\GenerateBillingoInvoice;
 use App\Models\User;
 use Illuminate\Contracts\Cache\LockTimeoutException;
+use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Laravel\Cashier\Http\Controllers\WebhookController;
 use Laravel\Cashier\Subscription;
@@ -19,6 +21,55 @@ class StripeWebhookController extends WebhookController
      * (a következő webhook-ciklus úgyis újra elvégzi). Tesztben 0-ra állítható.
      */
     protected int $duplicateCleanupLockWaitSeconds = 10;
+
+    /**
+     * Központi event-id idempotencia a Cashier feldolgozása köré. A Stripe legalább-egyszer
+     * kézbesít: lassú/hibázó válasznál UGYANAZT az `evt_…` eseményt újraküldi, így egy kezelő
+     * kétszer is lefuthatna. A két valós mutáló ág (Billingo-számla, előfizetés-swap) ma
+     * egyenként idempotens, de egy jövőbeli, magától nem idempotens kezelő (pl. kredit-jóváírás)
+     * duplán hatna. Ezért minden eseményt feldolgozás ELŐTT egyszer „lefoglalunk" az event_id-ra:
+     *
+     *  - Ha az insertOrIgnore 0 sort ír, az eseményt már feldolgoztuk → érdemi munka nélkül 200.
+     *  - Ha most szúrtuk be, lefuttatjuk a szülő kezelőt. Kivételkor TÖRÖLJÜK a sort, hogy a
+     *    Stripe-újraküldés valóban újrapróbálhassa (különben egy soha le nem futott eseményt
+     *    „feldolgozottnak" néznénk, és tartósan elveszne).
+     *
+     * Aláírás-ellenőrzés nélküli id (üres cashier.webhook.secret, csak teszt) vagy hiányzó id
+     * esetén nem dedupolunk — a viselkedés a Cashier alapértelmezettje marad.
+     */
+    public function handleWebhook(Request $request)
+    {
+        $payload = json_decode($request->getContent(), true);
+        $eventId = is_array($payload) ? ($payload['id'] ?? null) : null;
+
+        if (! is_string($eventId) || $eventId === '') {
+            return parent::handleWebhook($request);
+        }
+
+        $reserved = DB::table('stripe_webhook_events')->insertOrIgnore([
+            'event_id' => $eventId,
+            'type' => is_string($payload['type'] ?? null) ? $payload['type'] : null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        if ($reserved === 0) {
+            Log::info('Duplikált Stripe-webhook event — kihagyva (már feldolgozva).', [
+                'stripe_event_id' => $eventId,
+                'type' => $payload['type'] ?? null,
+            ]);
+
+            return $this->successMethod();
+        }
+
+        try {
+            return parent::handleWebhook($request);
+        } catch (\Throwable $e) {
+            DB::table('stripe_webhook_events')->where('event_id', $eventId)->delete();
+
+            throw $e;
+        }
+    }
 
     /**
      * A sikeres fizetés után NAV-kompatibilis Billingo számlát állítunk ki. A számlázás
