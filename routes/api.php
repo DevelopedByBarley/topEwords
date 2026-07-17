@@ -29,14 +29,6 @@ Route::middleware(['auth:sanctum', 'abilities:player'])->group(function () {
         Route::get('player/decks', [ExtensionController::class, 'decks'])->name('player.decks');
     });
 
-    // A státusz/fontosság gyakori, könnyű írás (szavankénti kattintás nézés
-    // közben), ezért a webes word-writes vödörrel azonos méretű, de saját
-    // keretet kap — nem meríti az add-word/flashcard írás-keretét.
-    Route::middleware('throttle:60,1,player-status')->group(function () {
-        Route::post('player/update-status', [ExtensionController::class, 'updateStatus'])->name('player.update-status');
-        Route::post('player/update-importance', [ExtensionController::class, 'updateImportance'])->name('player.update-importance');
-    });
-
     // AI-műveletek a lejátszó szó-buborékjából — ugyanazok a végpontok, mint a
     // webes szövegelemzőben és az extensionben (AI-kitöltés, AI-flashcard). A
     // hozzáférést és a havi AI-keretet a controller kapuzza; a throttle a webes
@@ -46,12 +38,27 @@ Route::middleware(['auth:sanctum', 'abilities:player'])->group(function () {
         Route::get('player/gemini-flashcard', [TextAnalysisController::class, 'geminiFlashcard'])->name('player.gemini-flashcard');
     });
 
-    Route::post('player/add-word', [ExtensionController::class, 'addWord'])
-        ->name('player.add-word')
-        ->middleware('throttle:20,1,player-write');
-    Route::post('player/create-flashcard', [ExtensionController::class, 'createFlashcard'])
-        ->name('player.create-flashcard')
-        ->middleware('throttle:20,1,player-write');
+    // Tartalom-létrehozó/-módosító végpontok: a webes felülettel egyezően csak
+    // megerősített e-mail-című fióknak (verified). A párosítás, az olvasás és a
+    // disconnect szándékosan kimarad — azok nem hoznak létre user-tartalmat.
+    // JSON-kliensnél a verified middleware 403-at ad (nem HTML-redirectet).
+    Route::middleware('verified')->group(function () {
+        // A státusz/fontosság gyakori, könnyű írás (szavankénti kattintás nézés
+        // közben), ezért a webes word-writes vödörrel azonos méretű, de saját
+        // keretet kap — nem meríti az add-word/flashcard írás-keretét.
+        Route::middleware('throttle:60,1,player-status')->group(function () {
+            Route::post('player/update-status', [ExtensionController::class, 'updateStatus'])->name('player.update-status');
+            Route::post('player/update-importance', [ExtensionController::class, 'updateImportance'])->name('player.update-importance');
+        });
+
+        Route::post('player/add-word', [ExtensionController::class, 'addWord'])
+            ->name('player.add-word')
+            ->middleware('throttle:20,1,player-write');
+        Route::post('player/create-flashcard', [ExtensionController::class, 'createFlashcard'])
+            ->name('player.create-flashcard')
+            ->middleware('throttle:20,1,player-write');
+    });
+
     Route::post('player/disconnect', [PlayerPairingController::class, 'disconnect'])
         ->name('player.disconnect')
         ->middleware('throttle:20,1,player-write');

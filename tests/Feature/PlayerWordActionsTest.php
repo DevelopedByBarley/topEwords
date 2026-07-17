@@ -363,3 +363,31 @@ test('update-importance rejects an out-of-range value', function () {
     $this->postJson(route('player.update-importance'), ['id' => $this->apple->id, 'is_custom' => false, 'importance' => 6])
         ->assertUnprocessable();
 });
+
+// ── F1-L2: e-mail-verifikáció a tartalom-írás előtt ──────────────────────────
+
+test('F1-L2: an unverified user cannot write via the player write endpoints', function () {
+    // A weboldal `verified` middleware-t követel az írásra; ugyanez kell a
+    // player/extension API-n is, hogy a megerősítetlen fiók se írhasson tartalmat.
+    $unverified = User::factory()->premium()->unverified()->create();
+    Sanctum::actingAs($unverified, ['player']);
+
+    $this->postJson(route('player.update-status'), ['id' => $this->apple->id, 'is_custom' => false, 'status' => 'known'])
+        ->assertForbidden();
+    $this->postJson(route('player.update-importance'), ['id' => $this->apple->id, 'is_custom' => false, 'importance' => 3])
+        ->assertForbidden();
+    $this->postJson(route('player.add-word'), ['word' => 'apple'])
+        ->assertForbidden();
+    $this->postJson(route('player.create-flashcard'), ['word' => 'apple', 'meaning' => 'alma'])
+        ->assertForbidden();
+
+    expect($this->user->knownWords()->wherePivot('word_id', $this->apple->id)->exists())->toBeFalse();
+});
+
+test('F1-L2: a verified user can still write via the player endpoints', function () {
+    // Regresszió-őr: a verified-kapu ne zárja ki a megerősített fiókot.
+    Sanctum::actingAs($this->user, ['player']);
+
+    $this->postJson(route('player.update-status'), ['id' => $this->apple->id, 'is_custom' => false, 'status' => 'learning'])
+        ->assertSuccessful();
+});

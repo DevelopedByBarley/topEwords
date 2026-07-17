@@ -5,7 +5,6 @@ use App\Http\Controllers\FolderController;
 use App\Http\Controllers\FolderWordController;
 use App\Http\Controllers\IrregularVerbController;
 use App\Http\Controllers\QuizController;
-use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\TextAnalysisController;
 use App\Http\Controllers\UserCustomWordController;
 use App\Http\Controllers\WordController;
@@ -41,10 +40,6 @@ Route::middleware(['auth', 'verified', EnsureOnboardingComplete::class])->group(
     Route::get('words/quiz', [WordController::class, 'quiz'])->name('words.quiz')->middleware('throttle:60,1,words-play');
     Route::post('words/quiz/complete', [QuizController::class, 'complete'])->name('words.quiz.complete')->middleware('throttle:30,1,words-quiz');
     Route::post('words/sentence-check', [TextAnalysisController::class, 'sentenceCheck'])->name('words.sentence-check')->middleware('throttle:30,1,ta-ai');
-
-    // Napi ismétlés
-    Route::get('review', [ReviewController::class, 'index'])->name('review.index')->middleware('throttle:60,1,words-play');
-    Route::post('review/complete', [ReviewController::class, 'complete'])->name('review.complete')->middleware('throttle:30,1,words-review');
 
     Route::get('irregular-verbs', [IrregularVerbController::class, 'index'])->name('irregular-verbs.index');
 
