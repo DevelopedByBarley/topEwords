@@ -186,10 +186,28 @@ class TextAnalysisController extends Controller
     }
 
     /**
+     * A safeFetch által engedélyezett célportok (SSRF-LOW-2). Port-szűrés nélkül
+     * a hitelesített felhasználó a szerver forrás-IP-jéről időzítés-alapú
+     * port-felderítést végezhetne tetszőleges PUBLIKUS hoston (a privát tartomány
+     * már tiltott). Webes szöveg-forrás kizárólag HTTP(S)-en él, ezért a szűk
+     * allowlist funkcionális veszteség nélkül zárja a maradék primitívet.
+     *
+     * Elvetett alternatíva: portonkénti denylist (3306, 6379, 22, …) — a nyitott
+     * halmaz miatt sosem teljes, és minden új szolgáltatásnál karban kellene tartani.
+     *
+     * @var list<int>
+     */
+    private const ALLOWED_FETCH_PORTS = [80, 443, 8080, 8443];
+
+    /**
      * Resolve the URL's host and ensure it points to a public IP (SSRF guard).
      * Returns the validated IP so the caller can pin the connection to it
      * (defeats DNS rebinding). Throws if the host is missing, unresolvable,
-     * or resolves to a private/reserved range.
+     * resolves to a private/reserved range, or targets a non-web port.
+     *
+     * A port-ellenőrzés szándékosan ITT van, nem a safeFetch belépő pontján: így
+     * minden redirect-hopra lefut (a safeFetch hoponként újrahívja), és egy
+     * `Location: http://public-host:3306/` átirányítás sem kerülheti meg.
      */
     private function assertPublicHost(string $url): string
     {
@@ -197,6 +215,13 @@ class TextAnalysisController extends Controller
 
         if (! is_string($host) || $host === '') {
             throw new \RuntimeException('Érvénytelen URL.');
+        }
+
+        $scheme = parse_url($url, PHP_URL_SCHEME) ?: 'http';
+        $port = parse_url($url, PHP_URL_PORT) ?: ($scheme === 'https' ? 443 : 80);
+
+        if (! in_array($port, self::ALLOWED_FETCH_PORTS, true)) {
+            throw new \RuntimeException('Ez a cím nem érhető el.');
         }
 
         $ip = filter_var($host, FILTER_VALIDATE_IP) ? $host : gethostbyname($host);
@@ -714,6 +739,13 @@ class TextAnalysisController extends Controller
      * Valódi könyvek jóval alatta maradnak (a Háború és béke is ~3 MB).
      */
     private const MAX_BOOK_TEXT_BYTES = 10 * 1024 * 1024;
+
+    /**
+     * A TÖMÖRÍTETT YouTube-átirat felső sapkája (CAP-1). A compressed_segments
+     * oszlop MEDIUMBLOB (16 MB); a 12 MB-os sapka biztonsági ráhagyást tart a
+     * határ alatt. Valós felirat ezt nem éri el (több tíz órányi beszéd kellene).
+     */
+    private const MAX_TRANSCRIPT_BYTES = 12 * 1024 * 1024;
 
     /** @throws \RuntimeException ha a kinyert szöveg átlépi a MAX_BOOK_TEXT_BYTES sapkát */
     private function assertBookTextWithinCap(string $text): void
@@ -1539,10 +1571,29 @@ PROMPT;
         $title = $transcript['title'] ?? 'YouTube videó';
         $json = json_encode(array_values($segments), JSON_UNESCAPED_UNICODE) ?: '[]';
         $totalPages = max(1, (int) ceil(count($segments) / YoutubeTranscript::SEGMENTS_PER_PAGE));
+        $compressed = gzencode($json, 6);
+
+        // A compressed_segments oszlop MEDIUMBLOB (16 MB): sapka nélkül egy
+        // rendkívül hosszú videó felirata kezeletlen „Data too long" QueryException-t
+        // (500-as fehér hibaoldal) okozna a felhasználónak (CAP-1). A könyv-ágon
+        // ugyanez az assertBookTextWithinCap() szerepe.
+        //
+        // A TÖMÖRÍTETT méretet mérjük, mert a DB is azt tárolja — a nyers JSON-on
+        // mért sapka a gzip arányától függően vagy túl korán tiltana, vagy átengedne
+        // egy 16 MB fölötti blobot. A gzencode() itt, a zár ELŐTT fut, hogy a
+        // (CPU-igényes) tömörítés és az ellenőrzés ne a lock alatt történjen.
+        //
+        // Hatókör: ez a guard a „Data too long" 500-ast zárja, NEM memória-védelem —
+        // a $json ekkor már felépült. A memória-oldali korlátot a letöltési sapka
+        // adja (YouTubeCaptionService::MAX_CAPTION_BYTES, CAP-2), ami a feliratot
+        // már a beolvasáskor 8 MB-ra vágja; ez a két sapka együtt zárja a láncot.
+        if ($compressed === false || strlen($compressed) > self::MAX_TRANSCRIPT_BYTES) {
+            return response()->json(['error' => 'Ez a videó túl hosszú a feldolgozáshoz.'], 422);
+        }
 
         // User-szintű zár alatt újraellenőrzött kapu + insert, hogy párhuzamos
         // kérések ne mehessenek át ugyanazon az elavult darabszámon (#R10).
-        $transcript = Cache::lock("plan-limit:youtube:{$user->id}", 15)->block(10, function () use ($user, $limit, $videoId, $title, $json, $totalPages): YoutubeTranscript|JsonResponse {
+        $transcript = Cache::lock("plan-limit:youtube:{$user->id}", 15)->block(10, function () use ($user, $limit, $videoId, $title, $json, $compressed, $totalPages): YoutubeTranscript|JsonResponse {
             if ($error = $this->youtubeLimitError($user, $limit)) {
                 return $error;
             }
@@ -1551,7 +1602,7 @@ PROMPT;
                 'user_id' => $user->id,
                 'video_id' => $videoId,
                 'title' => mb_substr($title, 0, 255),
-                'compressed_segments' => gzencode($json, 6),
+                'compressed_segments' => $compressed,
                 'total_pages' => $totalPages,
                 'text_size' => mb_strlen($json, '8bit'),
             ]);
@@ -2227,6 +2278,19 @@ PROMPT;
         // ritka eszkaláció drágább fallback-en köt ki, a settle() rátölti a
         // különbözetet. Pre-charge atomikusan, hogy párhuzamos hívások ne
         // csússzanak át mind egy elavult „kereten belül" ellenőrzésen (TOCTOU).
+        //
+        // AI-L2 (tudatosan vállalt LOW): a lánc EGY foglalást tesz, és pontosan
+        // egy settle()-lel vagy refund()-dal zárul; a köztes, díjköteles próbák
+        // (429/5xx utáni újrapróba, MAX_TOKENS-bump) így nem kerülnek külön
+        // elszámolásra. Elvetett alternatíva: próbánkénti futó összeg — ehhez a
+        // lánc MIND a négy kilépési ágán (break 2 végleges 4xx-nél, deadline-
+        // megszakítás, blokk-ág, sikeres return) helyesen kellene rendezni a
+        // részösszeget, vagyis az „egy reserve ↔ egy zárás" invariáns helyébe egy
+        // többállapotú, sorrendfüggő könyvelés lépne. Egy elrontott ág itt nem
+        // pontatlan számlát, hanem hibás keret-kényszerítést (vagy negatívba futó
+        // számlálót) okozna — több kockázat, mint amennyit a mikro-dolláros
+        // pontosság ér. Maradvány-kockázat: Gemini-akadozás idején a valósnál
+        // kissé olcsóbb könyvelés; a havi keret mint felső korlát ép marad.
         $primaryRate = self::GEMINI_PRICING[$model] ?? self::GEMINI_PRICING['gemini-2.5-flash-lite'];
         $estimatedMicros = (int) round(((int) ceil(mb_strlen($prompt) / 4)) * $primaryRate['in'] + $maxTokens * $primaryRate['out']);
 
@@ -2334,7 +2398,7 @@ PROMPT;
 
                 // Biztonsági/szabályzati blokk (prompt vagy válasz): sem az újrapróba,
                 // sem a fallback nem segít (ugyanaz a prompt ugyanúgy blokkolódna),
-                // ezért azonnal hibát adunk vissza és a keretet felszabadítjuk.
+                // ezért azonnal hibát adunk vissza.
                 if (
                     $blockReason !== null
                     || in_array($finishReason, ['SAFETY', 'RECITATION', 'PROHIBITED_CONTENT'], true)
@@ -2345,8 +2409,24 @@ PROMPT;
                         'blockReason' => $blockReason,
                     ]);
 
+                    // A blokk NEM ingyenes: a kérés eljutott a modellhez, a Gemini a
+                    // beküldött promptot (és a leblokkolt kimenetet) kiszámlázza. A
+                    // korábbi teljes refund() ezért a valóságnál olcsóbbnak könyvelte
+                    // a hívást, és blokkolt kérések ismételgetésével a havi keret
+                    // megkerülhető volt (AI-L1). A settle() ugyanazzal a
+                    // usageMetadata-alapú számítással rendezi a foglalást, mint a
+                    // sikeres ág — hiányzó usageMetadata esetén a prompt hosszából
+                    // becsülve; a kimenet a blokk miatt üres, ezért csak az input árazódik.
                     if ($user !== null) {
-                        $this->aiUsage->refund($user, $estimatedMicros);
+                        $blockedInputTokens = (int) ($response->json('usageMetadata.promptTokenCount')
+                            ?? ceil(mb_strlen($prompt) / 4));
+                        $blockedOutputTokens = (int) ($response->json('usageMetadata.candidatesTokenCount') ?? 0);
+
+                        $this->aiUsage->settle(
+                            $user,
+                            $estimatedMicros,
+                            (int) round($blockedInputTokens * $rate['in'] + $blockedOutputTokens * $rate['out']),
+                        );
                     }
 
                     return ['ok' => false, 'data' => null, 'error' => 'Az AI biztonsági okból nem tudott választ adni erre a kérésre.', 'cost_micros' => 0];

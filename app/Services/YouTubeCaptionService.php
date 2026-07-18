@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
@@ -10,6 +11,15 @@ class YouTubeCaptionService
 {
     /** Sikeres átirat ennyi ideig él a videónkénti cache-ben. */
     private const CACHE_TTL_HOURS = 24;
+
+    /**
+     * Egy feliratfájlból legfeljebb ennyi byte-ot olvasunk be (CAP-2). A cél-URL
+     * a YouTube saját válaszából jön (a user csak a 11 karakteres videó-ID-t
+     * választja), ezért ez nem támadó-vezérelt vektor, hanem védelmi mélység:
+     * a partner hibás/óriási válasza se tölthesse memóriába a workert.
+     * 8 MB felirat több tíz órányi beszédnek felel meg — valós videó nem éri el.
+     */
+    private const MAX_CAPTION_BYTES = 8 * 1024 * 1024;
 
     /** „Nincs felirat" eredmény rövid negatív cache-e, hogy az ismételt próbálkozás se scrape-eljen. */
     private const MISS_CACHE_TTL_MINUTES = 15;
@@ -246,7 +256,7 @@ class YouTubeCaptionService
 
             // Try XML (default, no fmt) first — ANDROID returns timedtext XML with <p> tags
             foreach ([$captionUrl, $captionUrl.'&fmt=json3'] as $url) {
-                $captionResponse = Http::timeout(15)->get($url);
+                $captionResponse = $this->fetchCaptionBody($url);
 
                 if (! $captionResponse->ok() || mb_strlen($captionResponse->body()) < 20) {
                     if (! $captionResponse->ok()) {
@@ -335,7 +345,7 @@ class YouTubeCaptionService
             }
 
             foreach ([$json3Url, $captionUrl] as $url) {
-                $response = Http::timeout(15)->get($url);
+                $response = $this->fetchCaptionBody($url);
                 if (! $response->ok() || mb_strlen($response->body()) < 20) {
                     if (! $response->ok()) {
                         $this->sawTransientError = true;
@@ -354,6 +364,33 @@ class YouTubeCaptionService
         }
 
         return [];
+    }
+
+    /**
+     * Feliratfájl letöltése MAX_CAPTION_BYTES sapkával (CAP-2).
+     *
+     * A sapkát a curl progress-callback érvényesíti, vagyis MENET KÖZBEN szakítja
+     * meg a letöltést — a `Http::get()` utáni méret-ellenőrzés már későn jönne,
+     * a teljes válasz addigra memóriában lenne (ugyanez a minta, mint a
+     * TextAnalysisController::safeFetch sizeGuardja).
+     *
+     * A megszakítást a curl ConnectionException-ként dobja; a hívók már ma is
+     * kezelik (a külső try/catch `sawTransientError`-t állít), ezért a túl nagy
+     * felirat ugyanúgy „nincs használható felirat" ágra fut, mint bármely más
+     * letöltési hiba — nem szivárog ki kezeletlen 500-asként.
+     */
+    private function fetchCaptionBody(string $url): Response
+    {
+        $sizeGuard = function ($handle, int $downloadTotal, int $downloaded): int {
+            return ($downloadTotal > self::MAX_CAPTION_BYTES || $downloaded > self::MAX_CAPTION_BYTES) ? 1 : 0;
+        };
+
+        return Http::timeout(15)
+            ->withOptions(['curl' => [
+                CURLOPT_NOPROGRESS => false,
+                CURLOPT_PROGRESSFUNCTION => $sizeGuard,
+            ]])
+            ->get($url);
     }
 
     /**

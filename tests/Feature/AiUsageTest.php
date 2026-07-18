@@ -206,3 +206,59 @@ test('az esedékes havi reset nem ír vissza más, memóriában módosult mezőt
         ->and($user->fresh()->ai_credits_used)->toBe(0)
         ->and($user->ai_credits_used)->toBe(0);
 });
+
+// ── AI-L1: a biztonsági blokk sem ingyenes ───────────────────────────────────
+
+test('a biztonsági blokk a tényleges token-költséget számolja el, nem refundál teljesen', function () {
+    // A kérés eljutott a modellhez, tehát a Gemini kiszámlázza a promptot — a
+    // korábbi teljes refund() nullára írta a keretet (AI-L1), amivel blokkolt
+    // kérések ismételgetésével a havi keret megkerülhető volt.
+    Http::fake(['generativelanguage.googleapis.com/*' => Http::response([
+        'promptFeedback' => ['blockReason' => 'SAFETY'],
+        'usageMetadata' => ['promptTokenCount' => 300, 'candidatesTokenCount' => 0],
+    ])]);
+
+    $user = User::factory()->create(['ai_access' => true]);
+
+    $this->actingAs($user)
+        ->getJson(route('text-analysis.gemini-lookup', ['word' => 'dog']))
+        ->assertStatus(502);
+
+    // 300 input token * 0.10 + 0 output = 30 mikro-dollár. A fix nélkül ez 0 lenne.
+    expect($user->fresh()->ai_credits_used)->toBe(30);
+});
+
+test('a blokkolt válasz usageMetadata nélkül is elszámolódik (becsléssel)', function () {
+    // Él-eset: a Gemini blokknál elhagyhatja a usageMetadata-t. Ilyenkor a
+    // prompt hosszából becsülünk — a lényeg, hogy NE essen vissza teljes
+    // refundra (0-ra), mert az újra megnyitná az AI-L1 rést.
+    Http::fake(['generativelanguage.googleapis.com/*' => Http::response([
+        'promptFeedback' => ['blockReason' => 'SAFETY'],
+    ])]);
+
+    $user = User::factory()->create(['ai_access' => true]);
+
+    $this->actingAs($user)
+        ->getJson(route('text-analysis.gemini-lookup', ['word' => 'dog']))
+        ->assertStatus(502);
+
+    expect($user->fresh()->ai_credits_used)->toBeGreaterThan(0);
+});
+
+test('a blokk-elszámolás nem viszi negatívba a számlálót párhuzamos reset mellett', function () {
+    // Él-eset: egy reset() nullázza a számlálót a reserve() és a blokk-settle()
+    // között. Az ai_credits_used UNSIGNED, így a levonásnak 0-n kell megállnia,
+    // nem out-of-range hibát dobnia.
+    Http::fake(['generativelanguage.googleapis.com/*' => Http::response([
+        'promptFeedback' => ['blockReason' => 'SAFETY'],
+        'usageMetadata' => ['promptTokenCount' => 10, 'candidatesTokenCount' => 0],
+    ])]);
+
+    $user = User::factory()->create(['ai_access' => true]);
+
+    // A settle() a foglalásnál kisebb tényleges költséget von vissza; ha közben
+    // a számláló 0, a clamp lép életbe.
+    app(AiUsageService::class)->settle($user, estimatedMicros: 5000, actualMicros: 1);
+
+    expect($user->fresh()->ai_credits_used)->toBe(0);
+});

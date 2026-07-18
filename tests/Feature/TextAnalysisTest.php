@@ -200,6 +200,30 @@ test('youtube endpoint rejects non-youtube urls', function () {
         ->assertJsonPath('error', 'Érvénytelen YouTube link.');
 });
 
+test('a normal-length youtube transcript is still saved (CAP-1/CAP-2 ellenpróba)', function () {
+    // A YouTube-ághoz két méret-sapka került: a feliratletöltésre
+    // (YouTubeCaptionService::MAX_CAPTION_BYTES, CAP-2) és a MEDIUMBLOB-ba írás
+    // előtt a tömörített átiratra (MAX_TRANSCRIPT_BYTES, CAP-1).
+    //
+    // Amit ez a teszt bizonyít: a sapkák NEM törték el a valós működést — a
+    // normál hosszúságú felirat ugyanúgy letöltődik, lapozódik és mentődik.
+    //
+    // Amit szándékosan NEM tesztelünk: a sapkák túllépését. A CAP-2-t a curl
+    // progress-callbackje érvényesíti, amit a Http::fake nem szimulál; a CAP-1
+    // kiváltásához 16+ MB-os payload kellene, ami a teszt memory_limitjét
+    // kiütné. Mindkettő a partner (YouTube) válaszának méretétől függ, nem
+    // felhasználói bemenettől — reziliencia-guardok, nem támadás-elleni kapuk.
+    fakeYoutubeCaptions(120);
+
+    $this->postJson(route('text-analysis.youtube.store'), [
+        'url' => 'https://www.youtube.com/watch?v=abcdefghijk',
+    ])
+        ->assertOk()
+        ->assertJsonPath('transcript.total_pages', 3);
+
+    expect(YoutubeTranscript::where('user_id', $this->user->id)->count())->toBe(1);
+});
+
 test('book overview returns whole-book comprehension', function () {
     $this->user->knownWords()->attach(Word::where('word', 'dog')->first()->id, ['status' => 'known']);
 
@@ -355,6 +379,49 @@ test('fetch-source rejects a response body over the size cap', function () {
     $this->postJson(route('text-analysis.fetch-source'), ['url' => 'http://93.184.216.34/huge'])
         ->assertStatus(422)
         ->assertJsonPath('error', 'A megadott oldal túl nagy a beolvasáshoz.');
+});
+
+test('fetch-source rejects a non-web port (SSRF-LOW-2)', function () {
+    // Port-allowlist nélkül a szerver forrás-IP-jéről időzítés-alapú
+    // port-felderítés volt végezhető publikus hostokon.
+    Http::fake(); // semmit nem szabad lekérni
+
+    $this->postJson(route('text-analysis.fetch-source'), ['url' => 'http://93.184.216.34:3306/'])
+        ->assertStatus(422);
+
+    Http::assertNothingSent();
+});
+
+test('fetch-source rejects a redirect to a non-web port (SSRF-LOW-2)', function () {
+    // Él-eset: a belépő URL szabályos, de az átirányítás visz tiltott portra.
+    // A port-ellenőrzés az assertPublicHost-ban van, amit a safeFetch HOPONKÉNT
+    // hív — így a redirect sem kerülheti meg.
+    Http::fake([
+        'http://93.184.216.34/article' => Http::response('', 302, ['Location' => 'http://93.184.216.34:6379/']),
+        // A tiltott portra menő hívást a guardnak MEG KELL előznie; ha mégis
+        // kimenne, ez a fake fogná el (különben valós kapcsolatra futna ki).
+        'http://93.184.216.34:6379/*' => Http::response('leaked', 200, ['Content-Type' => 'text/html']),
+    ]);
+
+    $this->postJson(route('text-analysis.fetch-source'), ['url' => 'http://93.184.216.34/article'])
+        ->assertStatus(422);
+
+    // A lelet lényege: a tiltott portot a szerver soha ne is érintse meg.
+    Http::assertNotSent(fn ($request) => str_contains($request->url(), ':6379'));
+});
+
+test('fetch-source allows the standard web ports', function () {
+    // Ellenpróba: az allowlist nem törheti el a normál működést — a 8080 is
+    // engedélyezett, és az explicit :80 sem esik ki.
+    Http::fake([
+        'http://93.184.216.34:8080/*' => Http::response(
+            '<html><body><article><p>This is a sufficiently long article paragraph that survives the short-line filter.</p></article></body></html>',
+            200,
+        ),
+    ]);
+
+    $this->postJson(route('text-analysis.fetch-source'), ['url' => 'http://93.184.216.34:8080/article'])
+        ->assertOk();
 });
 
 // ── Multi-word custom phrases must not hijack a plain word ────────────────────

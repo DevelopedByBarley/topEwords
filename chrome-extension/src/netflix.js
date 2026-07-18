@@ -108,6 +108,12 @@ function ensureNfxBar() {
         }
     });
     bar.addEventListener('click', (e) => {
+        // Csak valódi kattintásra reagálunk — lásd youtube.js: az `open` shadow
+        // DOM miatt az oldal JS-e szintetikus eseménnyel kiválthatná a kezelőt.
+        if (!e.isTrusted) {
+            return;
+        }
+
         handleNfxWordClick(e.target.closest('.tw-word'), e.shiftKey);
     });
 

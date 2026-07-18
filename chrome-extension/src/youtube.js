@@ -267,6 +267,14 @@ function ensureYtBar() {
         }
     });
     bar.addEventListener('click', (e) => {
+        // Csak valódi kattintásra reagálunk — a sáv `open` shadow DOM-ban van,
+        // így az oldal JS-e szintetikus MouseEvent-tel kéretlen popupot, TTS-t
+        // és videó-pause-t tudna kiváltani. Ugyanaz a guard, mint a
+        // lookup-popup.js / page-highlight.js kezelőiben.
+        if (!e.isTrusted) {
+            return;
+        }
+
         handleYtWordClick(e.target.closest('.tw-word'), e.shiftKey);
     });
 
