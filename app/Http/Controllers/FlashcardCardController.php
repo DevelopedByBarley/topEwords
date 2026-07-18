@@ -9,6 +9,7 @@ use App\Models\FlashcardDeck;
 use App\Models\FlashcardReview;
 use App\Models\UserCustomWord;
 use App\Models\Word;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
@@ -24,13 +25,34 @@ class FlashcardCardController extends Controller
         return "Elérted a csomagod kártyakeretét (összesen {$limit} kártya). Válts magasabb csomagra a folytatáshoz.";
     }
 
+    /**
+     * A "kártyáid épp zárolva" üzenet zár-timeoutra (LIMIT-L1). A
+     * reserveFlashcardSlots() torlódásnál (pl. párhuzamos nagy CSV-import)
+     * LockTimeoutException-t dob; ezt minden webes hívóhelyen barátságos
+     * "próbáld újra" hibává fordítjuk a StripeWebhookController
+     * LockTimeoutException-catch mintájára. Ilyenkor az insert el sem indult,
+     * így az elkapás nem hagyhat részleges állapotot. Szándékosan NEM a
+     * User-helperben nyeljük el (false-ként összekeveredne a "betelt a keret"
+     * válasszal, az extension-út refund-logikája pedig a felfutó kivételre
+     * épül), és nem globális exception-renderrel, hogy a viselkedés hívónként
+     * explicit maradjon.
+     */
+    private function busyMessage(): string
+    {
+        return 'A kártyáidon épp egy másik művelet fut (pl. import). Próbáld újra pár másodperc múlva.';
+    }
+
     public function store(StoreFlashcardRequest $request, FlashcardDeck $deck): RedirectResponse
     {
         abort_unless($deck->user_id === $request->user()->id, 403);
 
-        $reserved = $request->user()->reserveFlashcardSlots(1, function () use ($deck, $request) {
-            $deck->flashcards()->create($request->validated());
-        });
+        try {
+            $reserved = $request->user()->reserveFlashcardSlots(1, function () use ($deck, $request) {
+                $deck->flashcards()->create($request->validated());
+            });
+        } catch (LockTimeoutException) {
+            return back()->with('error', $this->busyMessage());
+        }
 
         if (! $reserved) {
             return back()->with('error', $this->limitMessage($request));
@@ -71,9 +93,14 @@ class FlashcardCardController extends Controller
 
         /** @var Flashcard|null $flashcard */
         $flashcard = null;
-        $reserved = $request->user()->reserveFlashcardSlots(1, function () use ($deck, $attributes, &$flashcard) {
-            $flashcard = $deck->flashcards()->create($attributes);
-        });
+
+        try {
+            $reserved = $request->user()->reserveFlashcardSlots(1, function () use ($deck, $attributes, &$flashcard) {
+                $flashcard = $deck->flashcards()->create($attributes);
+            });
+        } catch (LockTimeoutException) {
+            return back()->with('error', $this->busyMessage());
+        }
 
         if (! $reserved || $flashcard === null) {
             return back()->with('error', $this->limitMessage($request));
@@ -136,19 +163,23 @@ class FlashcardCardController extends Controller
         abort_unless($deck->user_id === $request->user()->id, 403);
         abort_unless($flashcard->deck_id === $deck->id, 403);
 
-        $reserved = $request->user()->reserveFlashcardSlots(1, function () use ($deck, $flashcard) {
-            $deck->flashcards()->create([
-                'word_id' => $flashcard->word_id,
-                'front' => $flashcard->front,
-                'front_notes' => $flashcard->front_notes,
-                'front_speak' => $flashcard->front_speak,
-                'back' => $flashcard->back,
-                'back_notes' => $flashcard->back_notes,
-                'back_speak' => $flashcard->back_speak,
-                'direction' => $flashcard->direction,
-                'color' => $flashcard->color,
-            ]);
-        });
+        try {
+            $reserved = $request->user()->reserveFlashcardSlots(1, function () use ($deck, $flashcard) {
+                $deck->flashcards()->create([
+                    'word_id' => $flashcard->word_id,
+                    'front' => $flashcard->front,
+                    'front_notes' => $flashcard->front_notes,
+                    'front_speak' => $flashcard->front_speak,
+                    'back' => $flashcard->back,
+                    'back_notes' => $flashcard->back_notes,
+                    'back_speak' => $flashcard->back_speak,
+                    'direction' => $flashcard->direction,
+                    'color' => $flashcard->color,
+                ]);
+            });
+        } catch (LockTimeoutException) {
+            return back()->with('error', $this->busyMessage());
+        }
 
         if (! $reserved) {
             return back()->with('error', $this->limitMessage($request));
@@ -210,24 +241,29 @@ class FlashcardCardController extends Controller
         $cards = $deck->flashcards()->whereIn('id', $ids)->get();
 
         $now = now();
-        $reserved = $request->user()->reserveFlashcardSlots($cards->count(), function () use ($deck, $cards, $now) {
-            $deck->flashcards()->insert($cards->map(fn (Flashcard $card) => [
-                'deck_id' => $deck->id,
-                'front' => $card->back,
-                'front_notes' => $card->back_notes,
-                'front_speak' => $card->back_speak,
-                'back' => $card->front,
-                'back_notes' => $card->front_notes,
-                'back_speak' => $card->front_speak,
-                'direction' => $card->direction,
-                'color' => $card->color,
-                // A fordított másolat is importált kártyaként indul, hogy a többi
-                // tömeges import-úthoz hasonlóan előbb a kalibrációs sorba menjen (#R5).
-                'is_imported' => true,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ])->all());
-        });
+
+        try {
+            $reserved = $request->user()->reserveFlashcardSlots($cards->count(), function () use ($deck, $cards, $now) {
+                $deck->flashcards()->insert($cards->map(fn (Flashcard $card) => [
+                    'deck_id' => $deck->id,
+                    'front' => $card->back,
+                    'front_notes' => $card->back_notes,
+                    'front_speak' => $card->back_speak,
+                    'back' => $card->front,
+                    'back_notes' => $card->front_notes,
+                    'back_speak' => $card->front_speak,
+                    'direction' => $card->direction,
+                    'color' => $card->color,
+                    // A fordított másolat is importált kártyaként indul, hogy a többi
+                    // tömeges import-úthoz hasonlóan előbb a kalibrációs sorba menjen (#R5).
+                    'is_imported' => true,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ])->all());
+            });
+        } catch (LockTimeoutException) {
+            return back()->with('error', $this->busyMessage());
+        }
 
         if (! $reserved) {
             return back()->with('error', $this->limitMessage($request));

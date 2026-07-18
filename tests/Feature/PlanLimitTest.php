@@ -4,6 +4,9 @@ use App\Models\FlashcardDeck;
 use App\Models\User;
 use App\Models\Word;
 use App\Services\AchievementService;
+use Illuminate\Contracts\Cache\Lock;
+use Illuminate\Contracts\Cache\LockTimeoutException;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
 
 test('every plan defines every limit key so a typo key never becomes unlimited', function () {
@@ -189,6 +192,112 @@ test('reserveFlashcardDeckSlot skips the count and always runs for unlimited pla
 
     expect($deck)->not->toBeNull()
         ->and($pro->flashcardDecks()->count())->toBe(21);
+});
+
+/**
+ * A plan-limit zár torlódását szimulálja: a Cache::lock(...)->block(...) azonnal
+ * LockTimeoutException-nel bukik. A valós block(10) kivárása 10 mp-re lassítaná a
+ * tesztet, a wait-seconds seam (InvoiceGenerator / StripeWebhookController mintája)
+ * pedig az auth-olt User-modellen HTTP-tesztből nem elérhető — ezért a fájlban már
+ * bevált Cache-facade-mockot használjuk (lásd a fail-closed teszteket fentebb).
+ */
+function fakeContendedPlanLimitLock(): void
+{
+    $lock = Mockery::mock(Lock::class);
+    $lock->shouldReceive('block')->once()->andThrow(new LockTimeoutException);
+    Cache::shouldReceive('lock')->once()->andReturn($lock);
+}
+
+// LIMIT-L1: zár-timeoutkor a webes végpontok barátságos "próbáld újra" hibát adnak
+// 500 helyett, és garantáltan semmi nem íródik az adatbázisba (az insert a zár
+// alatt futna, ami meg sem szerződött).
+test('zár-timeout a kártya-létrehozásnál barátságos hibát ad, nem 500-at (LIMIT-L1)', function () {
+    $user = User::factory()->create();
+    $deck = $user->flashcardDecks()->create(['name' => 'D']);
+
+    fakeContendedPlanLimitLock();
+
+    $this->actingAs($user)
+        ->post(route('flashcards.cards.store', $deck), [
+            'front' => 'f', 'back' => 'b', 'direction' => 'front_to_back',
+        ])
+        ->assertRedirect()
+        ->assertSessionHas('error');
+
+    expect($deck->flashcards()->count())->toBe(0);
+});
+
+test('zár-timeout a szóból importnál barátságos hibát ad, nem 500-at (LIMIT-L1)', function () {
+    $user = User::factory()->create();
+    $deck = $user->flashcardDecks()->create(['name' => 'D']);
+    $word = Word::create(['word' => 'lock', 'meaning_hu' => 'zár', 'rank' => 1]);
+
+    fakeContendedPlanLimitLock();
+
+    $this->actingAs($user)
+        ->post(route('flashcards.cards.import', $deck), ['word_id' => $word->id])
+        ->assertRedirect()
+        ->assertSessionHas('error');
+
+    expect($deck->flashcards()->count())->toBe(0);
+});
+
+test('zár-timeout a kártya-duplikálásnál barátságos hibát ad, nem 500-at (LIMIT-L1)', function () {
+    $user = User::factory()->create();
+    $deck = $user->flashcardDecks()->create(['name' => 'D']);
+    $card = $deck->flashcards()->create(['front' => 'f', 'back' => 'b', 'direction' => 'front_to_back']);
+
+    fakeContendedPlanLimitLock();
+
+    $this->actingAs($user)
+        ->post(route('flashcards.cards.duplicate', [$deck, $card]))
+        ->assertRedirect()
+        ->assertSessionHas('error');
+
+    expect($deck->flashcards()->count())->toBe(1);
+});
+
+test('zár-timeout a bulk-reverse-nél barátságos hibát ad, nem 500-at (LIMIT-L1)', function () {
+    $user = User::factory()->create();
+    $deck = $user->flashcardDecks()->create(['name' => 'D']);
+    $card = $deck->flashcards()->create(['front' => 'f', 'back' => 'b', 'direction' => 'front_to_back']);
+
+    fakeContendedPlanLimitLock();
+
+    $this->actingAs($user)
+        ->post(route('flashcards.cards.bulk-reverse', $deck), ['ids' => [$card->id]])
+        ->assertRedirect()
+        ->assertSessionHas('error');
+
+    expect($deck->flashcards()->count())->toBe(1);
+});
+
+test('zár-timeout a CSV-importnál barátságos hibát ad, nem 500-at (LIMIT-L1)', function () {
+    $user = User::factory()->create();
+    $deck = $user->flashcardDecks()->create(['name' => 'D']);
+    $csv = UploadedFile::fake()->createWithContent('cards.csv', "hello,szia\nworld,világ\n");
+
+    fakeContendedPlanLimitLock();
+
+    $this->actingAs($user)
+        ->post(route('flashcards.csv.import', $deck), ['csv_file' => $csv])
+        ->assertRedirect()
+        ->assertSessionHas('error');
+
+    expect($deck->flashcards()->count())->toBe(0);
+});
+
+test('zár-timeout a pakli-létrehozásnál barátságos hibát ad, nem 500-at (LIMIT-L1)', function () {
+    $user = User::factory()->create();
+
+    fakeContendedPlanLimitLock();
+
+    $this->actingAs($user)
+        ->post(route('flashcards.store'), ['name' => 'Új pakli'])
+        ->assertRedirect()
+        ->assertSessionHas('error');
+
+    expect($user->flashcardDecks()->count())->toBe(0);
 });
 
 test('quiz round size is capped by the plan', function () {

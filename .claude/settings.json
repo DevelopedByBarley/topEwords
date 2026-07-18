@@ -134,7 +134,17 @@
       "Bash(php -d memory_limit=512M vendor/bin/pest --compact --filter=\"FA-L3\" tests/Feature/Auth/AuthThrottleTest.php)",
       "Bash(php -d memory_limit=512M vendor/bin/pest --compact tests/Feature/Settings/SubscriptionTest.php tests/Feature/Settings/ProfileUpdateTest.php tests/Feature/Settings/FlashcardSettingTest.php tests/Feature/Auth/AuthThrottleTest.php tests/Feature/SubscriptionStripeErrorTest.php tests/Feature/SubscriptionPastDueDisplayTest.php tests/Feature/SubscriptionTrialDisplayTest.php tests/Feature/AiUsageTest.php tests/Feature/Settings/SecurityTest.php tests/Feature/PlayerPairingTest.php)",
       "Bash(php -d memory_limit=512M vendor/bin/pest --compact tests/Feature/PlayerWordActionsTest.php tests/Feature/PlayerAiTest.php tests/Feature/PlayerPairingTest.php)",
-      "Bash(php -d memory_limit=512M vendor/bin/pest --compact tests/Feature/StripeWebhookSecurityTest.php)"
+      "Bash(php -d memory_limit=512M vendor/bin/pest --compact tests/Feature/StripeWebhookSecurityTest.php)",
+      "Bash(php -r '$r=json_decode\\(file_get_contents\\(\"php://stdin\"\\),true\\); foreach\\($r as $x\\){ if\\(fnmatch\\(\"stripe/*\",$x[\"uri\"]\\)\\){ echo $x[\"method\"].\" \".$x[\"uri\"].\" | mw: \".implode\\(\",\",$x[\"middleware\"]??[]\\).\"\\\\n\"; } }')",
+      "Bash(grep -n 'public.*timeout\\\\|$timeout\\\\|retryUntil' app/Jobs/GenerateBillingoInvoice.php)",
+      "Bash(grep -nE 'function handleWebhook|public function|event\\\\[|payload\\\\[|\\\\$method|normalizeMethod' vendor/laravel/cashier/src/Http/Controllers/WebhookController.php)",
+      "Bash(php -d memory_limit=512M vendor/bin/pest --compact tests/Feature/StripeWebhookIdempotencyTest.php)",
+      "Bash(sed -n '/public function markAsCanceled/,/^    }/p' vendor/laravel/cashier/src/Subscription.php)",
+      "Bash(sed -n '/public function syncStripeStatus/,/^    }/p' vendor/laravel/cashier/src/Subscription.php)",
+      "Bash(grep -n 'public static function factory\\\\|function setStripeCode\\\\|protected $stripeCode' vendor/stripe/stripe-php/lib/Exception/ApiErrorException.php)",
+      "Bash(sed -n '/public static function factory/,/^    }/p' vendor/stripe/stripe-php/lib/Exception/ApiErrorException.php)",
+      "Bash(php -d memory_limit=512M vendor/bin/pest --compact tests/Feature/ReconcileStripeSubscriptionsTest.php)",
+      "Bash(grep -rn 'deactivatePastDue\\\\|public static \\\\$deactivatePastDue\\\\|keepPastDueActive' /Applications/XAMPP/xamppfiles/htdocs/topEwords/vendor/laravel/cashier/src/Cashier.php)"
     ],
     "additionalDirectories": [
       "/private/tmp",

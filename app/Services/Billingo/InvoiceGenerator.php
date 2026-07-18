@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
+use Throwable;
 
 /**
  * Egy sikeresen kifizetett Stripe számlából NAV-kompatibilis Billingo számlát állít
@@ -94,7 +95,31 @@ class InvoiceGenerator
             // számla egy későbbi futáson utólag is kimegy.
             if ($record->isIssued() && $record->emailed_at === null) {
                 $this->client->sendDocument((int) $record->billingo_document_id);
-                $record->update(['emailed_at' => Date::now()]);
+
+                // A küldés (visszavonhatatlan mellékhatás) UTÁNI jelölés-hiba nem szállhat
+                // fel: a job elbukna, a queue-retry pedig emailed_at===null-t látva
+                // MÁSODSZOR is kiküldené ugyanazt a levelet. Ezért a hibát helyben tartjuk
+                // riasztó error-loggal (AlertAdminOfLoggedError e-mailez), és a job
+                // sikeresen zárul — nincs retry, nincs dupla levél; a jelöletlen sort az
+                // admin rendezi. A fordított sorrendet (jelölés a küldés ELŐTT) elvetettük:
+                // az a dupla levél helyett némán ELVESZŐ levelet kockáztatna (crash a
+                // jelölés után, a küldés előtt → minden későbbi futás kézbesítettnek
+                // hinné). A send és a jelölés közti hard-kill ablak elvi maradvány (külső
+                // hívás + DB nem tehető atomivá) — az legfeljebb dupla levél, sosem elvesző.
+                try {
+                    $record->update(['emailed_at' => Date::now()]);
+                } catch (Throwable $e) {
+                    // Az update() fill-je már beírta a memóriába — a visszaadott modell a
+                    // DB-igazságot (jelöletlen) mutassa.
+                    $record->emailed_at = null;
+
+                    Log::error('A számla-e-mail kiment, de az emailed_at jelölés mentése elhasalt — a sor kézbesítetlennek látszik, kézi ellenőrzés kell (egy újrafuttatás újraküldené a levelet).', [
+                        'user_id' => $user->id,
+                        'stripe_invoice_id' => $stripeInvoiceId,
+                        'billingo_document_id' => $record->billingo_document_id,
+                        'exception' => $e,
+                    ]);
+                }
             }
 
             return $record;

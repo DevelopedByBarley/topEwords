@@ -142,6 +142,64 @@ test('egy korábban kiállított, de el nem küldött számlát utólag elküld'
     expect($record->refresh()->emailed_at)->not->toBeNull();
 });
 
+test('F2-BILL-1: a küldés utáni emailed_at-mentés hibája nem buktatja a jobot — nincs retry, nincs dupla e-mail', function () {
+    fakeBillingo();
+    Log::spy();
+    $user = billableUser();
+
+    // Tranziens DB-hiba szimulálása pontosan az emailed_at jelölő mentésénél: az updating
+    // modell-esemény a tényleges UPDATE előtt fut, az itt dobott kivétel ugyanúgy a
+    // save()-ből száll fel, mint egy QueryException.
+    BillingoInvoice::updating(function (BillingoInvoice $record) {
+        if ($record->isDirty('emailed_at')) {
+            throw new RuntimeException('szimulált tranziens DB-hiba');
+        }
+    });
+
+    // Fix nélkül a kivétel innen kiszállna → a queue újrapróbálná a jobot, és mivel az
+    // emailed_at null maradt, MÁSODSZOR is kiküldené ugyanazt a számla-e-mailt.
+    $record = app(InvoiceGenerator::class)->generateForStripeInvoice($user, stripeInvoice(['id' => 'in_mark_fail']));
+
+    // Az e-mail pontosan egyszer ment ki, a kiállítás sértetlenül mentődött
+    // (partner + dokumentum + küldés = 3 hívás, retry nélkül).
+    Http::assertSentCount(3);
+    Http::assertSent(fn ($request) => str_ends_with($request->url(), '/documents/5001/send'));
+    expect($record->billingo_document_id)->toBe(5001);
+
+    // A jelölés őszintén elmaradt: a visszaadott modell is a DB-igazságot mutatja.
+    expect($record->emailed_at)->toBeNull()
+        ->and($record->refresh()->emailed_at)->toBeNull();
+
+    // Riasztás ment (error-szint → AlertAdminOfLoggedError e-mailez élesben).
+    Log::shouldHaveReceived('error')->once()->withArgs(function (string $message, array $context) {
+        return str_contains($message, 'emailed_at')
+            && $context['stripe_invoice_id'] === 'in_mark_fail'
+            && $context['billingo_document_id'] === 5001
+            && $context['exception'] instanceof RuntimeException;
+    });
+});
+
+test('F2-BILL-1 él-eset: a küldés hibája továbbra is buktatja a jobot, hogy a retry pótolja a kézbesítést', function () {
+    Http::fake([
+        // A küldés-végpont hibázik, a kiállítás sikerül. (A specifikusabb minta elöl.)
+        'api.billingo.hu/v3/documents/*/send' => Http::response(['error' => 'Server error'], 500),
+        'api.billingo.hu/v3/documents' => Http::response(['id' => 5001, 'invoice_number' => 'TESZT-2026-1'], 200),
+        'api.billingo.hu/v3/partners' => Http::response(['id' => 777], 200),
+    ]);
+    $user = billableUser();
+
+    // A hiba-lokalizálás CSAK a jelölés-mentésre vonatkozik — a küldés hibája felszáll,
+    // hogy a job backoff-fal újrapróbálja, és a levél végül kimenjen (at-least-once).
+    expect(fn () => app(InvoiceGenerator::class)->generateForStripeInvoice($user, stripeInvoice(['id' => 'in_send_500'])))
+        ->toThrow(RequestException::class);
+
+    // A kiállítás mentve maradt: a retry nem állít ki második NAV-számlát, csak a
+    // küldést pótolja (lásd: „egy korábban kiállított, de el nem küldött számlát utólag elküld").
+    $record = BillingoInvoice::where('stripe_invoice_id', 'in_send_500')->first();
+    expect($record->billingo_document_id)->toBe(5001)
+        ->and($record->emailed_at)->toBeNull();
+});
+
 test('HUF számlán a kifizetett bruttó összeg és a konfigurált ÁFA jelenik meg, átváltás nélkül', function () {
     fakeBillingo();
     $user = billableUser();

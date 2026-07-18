@@ -9,6 +9,7 @@ use App\Models\Flashcard;
 use App\Models\FlashcardDeck;
 use App\Services\AchievementService;
 use App\Services\FlashcardSrsService;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -75,11 +76,17 @@ class FlashcardDeckController extends Controller
         // A keret-ellenőrzés és az insert közös per-user zár alatt fut, hogy
         // párhuzamos POST-ok ne csússzanak át ugyanazon az elavult pakli-számon
         // (TOCTOU) — ugyanaz a minta, mint a kártya-úton (reserveFlashcardSlots).
-        $deck = $request->user()->reserveFlashcardDeckSlot(
-            fn () => $request->user()->flashcardDecks()->create(
-                collect($validated)->except('folder_id')->all()
-            )
-        );
+        try {
+            $deck = $request->user()->reserveFlashcardDeckSlot(
+                fn () => $request->user()->flashcardDecks()->create(
+                    collect($validated)->except('folder_id')->all()
+                )
+            );
+        } catch (LockTimeoutException) {
+            // Zár-torlódásnál barátságos hiba 500 helyett — a create el sem indult;
+            // ugyanaz a minta, mint a kártya-utakon (LIMIT-L1).
+            return back()->with('error', 'A paklijaidon épp egy másik művelet fut. Próbáld újra pár másodperc múlva.');
+        }
 
         if ($deck === null) {
             $limit = $request->user()->planLimit('decks');

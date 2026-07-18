@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\FlashcardDeck;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -87,13 +88,20 @@ class FlashcardCsvController extends Controller
         // A kártyakeret-kapu és az insert egy user-szintű zár alatt fut, hogy
         // párhuzamos importok ne mehessenek át ugyanazon az elavult kártyaszámon
         // (SEC_AUDIT #R10 / #R1).
-        $withinLimit = $request->user()->reserveFlashcardSlots(count($rows), function () use ($rows, $deck) {
-            DB::transaction(function () use ($rows, $deck) {
-                foreach (array_chunk($rows, 500) as $chunk) {
-                    $deck->flashcards()->insert($chunk);
-                }
+        try {
+            $withinLimit = $request->user()->reserveFlashcardSlots(count($rows), function () use ($rows, $deck) {
+                DB::transaction(function () use ($rows, $deck) {
+                    foreach (array_chunk($rows, 500) as $chunk) {
+                        $deck->flashcards()->insert($chunk);
+                    }
+                });
             });
-        });
+        } catch (LockTimeoutException) {
+            // Zár-torlódás (pl. párhuzamos másik import): átmeneti állapot, az insert
+            // el sem indult — barátságos hiba 500 helyett, ugyanaz a minta, mint a
+            // FlashcardCardController::busyMessage() útjain (LIMIT-L1).
+            return back()->with('error', 'A kártyáidon épp egy másik művelet fut (pl. import). Próbáld újra pár másodperc múlva.');
+        }
 
         if (! $withinLimit) {
             $limit = $request->user()->planLimit('flashcards');

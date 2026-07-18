@@ -5,6 +5,7 @@ namespace App\Models;
 use Carbon\CarbonInterface;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -296,6 +297,8 @@ class User extends Authenticatable implements MustVerifyEmail
      * lock so parallel create requests cannot both pass on the same stale count
      * (TOCTOU). Returns false without running $insert when the plan cap would be
      * exceeded; unlimited (Pro) plans skip the count entirely.
+     *
+     * @throws LockTimeoutException ha a zár a várakozási ablakon belül sem szabadul fel (torlódás, pl. párhuzamos nagy import) — ilyenkor $insert el sem indult; a webes hívók ezt barátságos "próbáld újra" hibává fordítják (LIMIT-L1), az extension-út a napi keret refundja után továbbdobja
      */
     public function reserveFlashcardSlots(int $count, \Closure $insert): bool
     {
@@ -333,6 +336,8 @@ class User extends Authenticatable implements MustVerifyEmail
      * cap would be exceeded; unlimited (Pro) plans skip the count entirely.
      *
      * @param  \Closure(): FlashcardDeck  $create
+     *
+     * @throws LockTimeoutException ha a zár a várakozási ablakon belül sem szabadul fel — ilyenkor $create el sem indult; a hívó barátságos "próbáld újra" hibává fordítja (LIMIT-L1)
      */
     public function reserveFlashcardDeckSlot(\Closure $create): ?FlashcardDeck
     {
