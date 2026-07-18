@@ -200,19 +200,63 @@ test('youtube endpoint rejects non-youtube urls', function () {
         ->assertJsonPath('error', 'Érvénytelen YouTube link.');
 });
 
+test('an oversized caption download is refused, not parsed (CAP-2)', function () {
+    // A feliratletöltésnek nem volt byte-sapkája: a YouTube (vagy egy hibás
+    // válasz) tetszőleges méretű törzset tölthetett a memóriába.
+    //
+    // A sapkának KÉT rétege van: a curl progress-callback (valódi kapcsolaton
+    // menet közben szakít) és a letöltés utáni méret-ellenőrzés. Ez a teszt a
+    // másodikat hajtja — ugyanaz a minta, mint a fetch-source méret-sapkájánál.
+    Http::fake([
+        'https://www.youtube.com/youtubei/v1/player*' => Http::response([
+            'captions' => ['playerCaptionsTracklistRenderer' => ['captionTracks' => [
+                ['languageCode' => 'en', 'baseUrl' => 'https://caption.test/track'],
+            ]]],
+        ]),
+        'https://caption.test/*' => Http::response(str_repeat('x', 8 * 1024 * 1024 + 1), 200),
+        'https://www.youtube.com/watch*' => Http::response(
+            '<html><head><title>Huge Video - YouTube</title></head><body>"INNERTUBE_API_KEY":"AIzaTest123"</body></html>'
+        ),
+    ]);
+
+    $this->postJson(route('text-analysis.youtube.store'), [
+        'url' => 'https://www.youtube.com/watch?v=abcdefghijk',
+    ])
+        ->assertStatus(422)
+        ->assertJsonPath('error', 'A felirat túl nagy a feldolgozáshoz.');
+
+    // A túl nagy felirat nem kerül feldolgozásra és nem is mentődik el.
+    expect(YoutubeTranscript::where('user_id', $this->user->id)->count())->toBe(0);
+});
+
+test('a caption exactly at the cap is still accepted (CAP-2 határeset)', function () {
+    // Határeset: a sapka a SZIGORÚAN nagyobb méretet tiltja, a pontosan akkorát
+    // nem. Enélkül egy off-by-one hiba némán levágna legitim feliratokat.
+    // A törzs itt szemétnek számít (nem parse-olható felirat), ezért a kérés
+    // „nincs használható felirat" 422-vel zárul — a lényeg, hogy NEM a
+    // méret-sapka utasítja el.
+    Http::fake([
+        'https://www.youtube.com/youtubei/v1/player*' => Http::response([
+            'captions' => ['playerCaptionsTracklistRenderer' => ['captionTracks' => [
+                ['languageCode' => 'en', 'baseUrl' => 'https://caption.test/track'],
+            ]]],
+        ]),
+        'https://caption.test/*' => Http::response(str_repeat('x', 8 * 1024 * 1024), 200),
+        'https://www.youtube.com/watch*' => Http::response(
+            '<html><head><title>Edge Video - YouTube</title></head><body>"INNERTUBE_API_KEY":"AIzaTest123"</body></html>'
+        ),
+    ]);
+
+    $this->postJson(route('text-analysis.youtube.store'), [
+        'url' => 'https://www.youtube.com/watch?v=abcdefghijk',
+    ])
+        ->assertStatus(422)
+        ->assertJsonPath('error', 'Ehhez a videóhoz nem érhetők el angol feliratok, vagy a felirat nem feldolgozható.');
+});
+
 test('a normal-length youtube transcript is still saved (CAP-1/CAP-2 ellenpróba)', function () {
-    // A YouTube-ághoz két méret-sapka került: a feliratletöltésre
-    // (YouTubeCaptionService::MAX_CAPTION_BYTES, CAP-2) és a MEDIUMBLOB-ba írás
-    // előtt a tömörített átiratra (MAX_TRANSCRIPT_BYTES, CAP-1).
-    //
-    // Amit ez a teszt bizonyít: a sapkák NEM törték el a valós működést — a
-    // normál hosszúságú felirat ugyanúgy letöltődik, lapozódik és mentődik.
-    //
-    // Amit szándékosan NEM tesztelünk: a sapkák túllépését. A CAP-2-t a curl
-    // progress-callbackje érvényesíti, amit a Http::fake nem szimulál; a CAP-1
-    // kiváltásához 16+ MB-os payload kellene, ami a teszt memory_limitjét
-    // kiütné. Mindkettő a partner (YouTube) válaszának méretétől függ, nem
-    // felhasználói bemenettől — reziliencia-guardok, nem támadás-elleni kapuk.
+    // A sapkák nem törhetik el a valós működést: a normál hosszúságú felirat
+    // ugyanúgy letöltődik, lapozódik és mentődik.
     fakeYoutubeCaptions(120);
 
     $this->postJson(route('text-analysis.youtube.store'), [

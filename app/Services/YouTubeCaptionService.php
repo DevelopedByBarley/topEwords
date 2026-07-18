@@ -378,6 +378,8 @@ class YouTubeCaptionService
      * kezelik (a külső try/catch `sawTransientError`-t állít), ezért a túl nagy
      * felirat ugyanúgy „nincs használható felirat" ágra fut, mint bármely más
      * letöltési hiba — nem szivárog ki kezeletlen 500-asként.
+     *
+     * @throws \RuntimeException ha a letöltött törzs átlépi a MAX_CAPTION_BYTES-t
      */
     private function fetchCaptionBody(string $url): Response
     {
@@ -385,12 +387,22 @@ class YouTubeCaptionService
             return ($downloadTotal > self::MAX_CAPTION_BYTES || $downloaded > self::MAX_CAPTION_BYTES) ? 1 : 0;
         };
 
-        return Http::timeout(15)
+        $response = Http::timeout(15)
             ->withOptions(['curl' => [
                 CURLOPT_NOPROGRESS => false,
                 CURLOPT_PROGRESSFUNCTION => $sizeGuard,
             ]])
             ->get($url);
+
+        // Védőháló a curl-szintű sapka mellé (ugyanaz a minta, mint a
+        // TextAnalysisController::fetchWebpageText-ben): a progress-callback csak
+        // valódi kapcsolaton fut, fake-elt HTTP kliens alatt nem — enélkül a sapka
+        // se tesztelhető, se érvényes nem lenne minden úton.
+        if (strlen($response->body()) > self::MAX_CAPTION_BYTES) {
+            throw new \RuntimeException('A felirat túl nagy a feldolgozáshoz.');
+        }
+
+        return $response;
     }
 
     /**
