@@ -90,6 +90,54 @@ test('a flashcard és a word insight külön cache-sort kap ugyanarra a szóra',
     Http::assertSentCount(1);
 });
 
+test('egy nem létező szóra adott insight-választ nem tárol a cache', function () {
+    fakeGeminiOnce(['is_real_word' => false, 'areas' => [], 'register_hu' => '', 'tip_hu' => '']);
+    $user = User::factory()->create(['ai_access' => true]);
+
+    $this->actingAs($user)
+        ->getJson(route('text-analysis.word-insight', ['word' => 'asdfgh']))
+        ->assertSuccessful();
+
+    // A hallucinált insight nem mérgezheti meg a megosztott cache-t.
+    expect(AiWordCache::count())->toBe(0);
+});
+
+test('a valódi szóra adott insight cache-elődik, a második hívás onnan jön', function () {
+    fakeGeminiOnce(['is_real_word' => true, 'areas' => [], 'register_hu' => 'neutral', 'tip_hu' => 'tipp']);
+    $user = User::factory()->create(['ai_access' => true]);
+
+    $this->actingAs($user)->getJson(route('text-analysis.word-insight', ['word' => 'run']))->assertSuccessful();
+
+    expect(AiWordCache::where('cache_key', 'insight:run:en:v2')->exists())->toBeTrue();
+
+    // A második hívás cache-ből jön: ha Geminihez fordulna, az 500-as fake hibázna.
+    $this->actingAs($user)->getJson(route('text-analysis.word-insight', ['word' => 'run']))->assertSuccessful();
+    Http::assertSentCount(1);
+});
+
+test('a fix előtt cache-elt insight-sor (is_real_word nélkül) továbbra is kiszolgálódik', function () {
+    // Visszafelé kompatibilitás: a kulcs (insight:dog:en:v2) nem változott, így a
+    // régi, is_real_word mező nélküli sorok bent maradtak. A `?? true` miatt ezek
+    // érvényes találatként szolgálódnak ki, nem esnek ki és nem generálnak új hívást.
+    AiWordCache::create([
+        'cache_key' => 'insight:dog:en:v2',
+        'task' => 'insight',
+        'word' => 'dog',
+        'prompt_version' => 2,
+        'model' => 'gemini-2.5-flash-lite',
+        'response' => ['areas' => [], 'register_hu' => 'neutral', 'tip_hu' => 'régi tipp'],
+    ]);
+    Http::fake(['generativelanguage.googleapis.com/*' => Http::response([], 500)]);
+    $user = User::factory()->create(['ai_access' => true]);
+
+    $this->actingAs($user)
+        ->getJson(route('text-analysis.word-insight', ['word' => 'dog']))
+        ->assertSuccessful()
+        ->assertJson(['tip_hu' => 'régi tipp']);
+
+    Http::assertNothingSent();
+});
+
 test('egy nem létező szóra adott AI-választ nem tárol a cache', function () {
     fakeGeminiOnce(['is_real_word' => false, 'meaning_hu' => '']);
     $user = User::factory()->create(['ai_access' => true]);

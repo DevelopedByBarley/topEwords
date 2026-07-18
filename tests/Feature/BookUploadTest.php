@@ -218,6 +218,49 @@ test('an EPUB entry larger than the per-entry cap is skipped (zip-bomb guard)', 
     @unlink($path);
 });
 
+test('a PDF feltöltése el van utasítva (a PDF-támogatás ki lett vezetve)', function () {
+    $user = User::factory()->create();
+
+    // Egy szintaktikailag érvényes, apró PDF. A validációnak a fájl tartalmától
+    // függetlenül vissza kell utasítania, MIELŐTT bármilyen feldolgozás indulna:
+    // a PdfParser getText()-je szuperlineáris (mérve: 3,8 KB-os fájl = 163 s),
+    // és méret-alapon nem szűrhető, mert egy valódi könyv nyers tartalma
+    // ugyanakkora, mint a támadóé. Lásd uploadBook() kommentjét.
+    $path = tempnam(sys_get_temp_dir(), 'pdf').'.pdf';
+    file_put_contents($path, "%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF\n");
+
+    $upload = new UploadedFile($path, 'book.pdf', 'application/pdf', null, true);
+
+    $this->actingAs($user)
+        ->postJson(route('text-analysis.books.store'), ['file' => $upload])
+        ->assertStatus(422)
+        ->assertJsonValidationErrors('file');
+
+    expect(UserBook::where('user_id', $user->id)->count())->toBe(0);
+
+    @unlink($path);
+});
+
+test('a .epub-ra átnevezett PDF sem csúszik át (kiterjesztés-hamisítás)', function () {
+    $user = User::factory()->create();
+
+    // Él-eset: a validáció nem csak a kiterjesztést nézi. Egy PDF-tartalmú,
+    // .epub-ra keresztelt fájlt a mimetypes szabálynak kell megfognia — különben
+    // a match() default ága kapná el, ami már csak második védvonal.
+    $path = tempnam(sys_get_temp_dir(), 'fake').'.epub';
+    file_put_contents($path, "%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF\n");
+
+    $upload = new UploadedFile($path, 'fake.epub', 'application/epub+zip', null, true);
+
+    $this->actingAs($user)
+        ->postJson(route('text-analysis.books.store'), ['file' => $upload])
+        ->assertStatus(422);
+
+    expect(UserBook::where('user_id', $user->id)->count())->toBe(0);
+
+    @unlink($path);
+});
+
 test('getPage returns empty string for a corrupt compressed blob instead of erroring', function () {
     $user = User::factory()->create();
 

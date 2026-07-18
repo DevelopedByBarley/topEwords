@@ -1183,7 +1183,7 @@ export default function Handbook() {
                                             'A videó angol feliratát automatikusan kinyeri és elemzi',
                                         ],
                                         [
-                                            'Könyv (PDF/EPUB)',
+                                            'Könyv (EPUB)',
                                             'Feltöltés után oldalankénti navigáció érhető el',
                                         ],
                                     ]}

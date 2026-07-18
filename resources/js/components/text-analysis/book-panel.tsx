@@ -26,7 +26,7 @@ export function BookList({ books, bookLimit, usedStorage, booksLoaded, isUploadi
             <input
                 ref={fileInputRef}
                 type="file"
-                accept=".pdf,.epub"
+                accept=".epub"
                 className="hidden"
                 onChange={(e) => {
                     const file = e.target.files?.[0];
@@ -52,7 +52,7 @@ export function BookList({ books, bookLimit, usedStorage, booksLoaded, isUploadi
                     }
                 >
                     {isUploading ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
-                    {isUploading ? 'Feldolgozás...' : 'PDF / EPUB feltöltése'}
+                    {isUploading ? 'Feldolgozás...' : 'EPUB feltöltése'}
                 </Button>
             </div>
             {!booksLoaded && (

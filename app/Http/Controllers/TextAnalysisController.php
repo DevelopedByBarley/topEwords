@@ -27,7 +27,6 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Inertia\Response;
-use Smalot\PdfParser\Parser as PdfParser;
 
 class TextAnalysisController extends Controller
 {
@@ -710,8 +709,8 @@ class TextAnalysisController extends Controller
 
     /**
      * A kinyert könyvszöveg felső sapkája. A compressed_text oszlop MEDIUMBLOB
-     * (16 MB), és egy erősen tömörített PDF/EPUB több száz MB szöveget is
-     * kibonthat — sapka nélkül ez OOM-ot vagy "Data too long" 500-ast okozna.
+     * (16 MB), és egy erősen tömörített EPUB több száz MB szöveget is kibonthat
+     * — sapka nélkül ez OOM-ot vagy "Data too long" 500-ast okozna.
      * Valódi könyvek jóval alatta maradnak (a Háború és béke is ~3 MB).
      */
     private const MAX_BOOK_TEXT_BYTES = 10 * 1024 * 1024;
@@ -895,6 +894,7 @@ class TextAnalysisController extends Controller
         return [
             'type' => 'OBJECT',
             'properties' => [
+                'is_real_word' => ['type' => 'BOOLEAN'],
                 'areas' => [
                     'type' => 'ARRAY',
                     'items' => [
@@ -912,8 +912,8 @@ class TextAnalysisController extends Controller
                 'register_hu' => ['type' => 'STRING'],
                 'tip_hu' => ['type' => 'STRING'],
             ],
-            'required' => ['areas', 'register_hu', 'tip_hu'],
-            'propertyOrdering' => ['areas', 'register_hu', 'tip_hu'],
+            'required' => ['is_real_word', 'areas', 'register_hu', 'tip_hu'],
+            'propertyOrdering' => ['is_real_word', 'areas', 'register_hu', 'tip_hu'],
         ];
     }
 
@@ -1279,11 +1279,23 @@ PROMPT;
 You are an English vocabulary educator for Hungarian learners. For the English word "{$word}", explain where and how it is used in real life.
 
 Rules:
+- is_real_word: true only if "{$word}" is a genuine, standard English word or fixed expression. Set false for gibberish, random letters, a clear misspelling, or a word from another language. Judge the word itself — rare, technical or proper-noun English words are still real (true). If false, you may leave the other fields empty.
 - areas: 3 distinct real-life areas where this word is genuinely and commonly used. For each area set: name_hu = the area's name in Hungarian (e.g. Üzleti élet, Orvostudomány, Hétköznapi élet); description_hu = 1-2 concise sentences in Hungarian on why/how the word is used there; example_en = a natural example sentence in that context; example_hu = its Hungarian translation.
 - register_hu: 1 sentence in Hungarian — is the word formal, informal, neutral, or context-dependent?
 - tip_hu: 1 short learning tip in Hungarian (e.g. a common mistake, a memorable phrase, or a useful pattern).
 - Example sentences must be natural and varied across registers/contexts.
 PROMPT;
+
+        // Csak valódi szóra adott választ cache-elünk: a séma miatt a Gemini
+        // gibberishre is jól formált insightot ad, így a well-formed kapu önmagában
+        // nem véd — egy kitalált szóra hallucinált válasz véglegesen beragadna a
+        // mindenki által használt cache-be. Ugyanaz a minta, mint a lookup/flashcard
+        // ágon; a `?? true` miatt egy hiányzó mező (régi/fallback válasz) a korábbi
+        // viselkedést tartja, nem borítja a cache-elést.
+        // Elvetett alternatíva: csak létező `Word`/lookup-cache találatra engedni az
+        // insight-cache-t — az DB-lekérdezést tenne minden hívásba, és a még fel nem
+        // vett, de valódi szavakat feleslegesen kizárná a cache-ből.
+        $onlyRealWords = fn (array $data): bool => ($data['is_real_word'] ?? true) === true;
 
         [$primary, $fallback] = $this->modelsFor('insight');
 
@@ -1293,6 +1305,7 @@ PROMPT;
             self::AI_CACHE_VERSION['insight'],
             $primary,
             fn () => $this->callGemini($apiKey, $prompt, 600, $primary, $fallback, temperature: 0.2, responseSchema: $this->insightSchema(), user: $request->user()),
+            $onlyRealWords,
         );
 
         if (! $result['ok']) {
@@ -1596,8 +1609,17 @@ PROMPT;
 
     public function uploadBook(Request $request): JsonResponse
     {
+        // Csak EPUB. A PDF-támogatás tudatosan ki lett vezetve: a PdfParser
+        // getText()-je szuperlineáris, mérve egy 3,8 KB-os fájl 163 s-ig futott
+        // (a memória közben végig ártalmatlan, 25 MB), vagyis egy apró feltöltés
+        // percekre lefogott volna egy PHP-workert. Méret-alapon nem szűrhető:
+        // egy valódi 400 oldalas könyv és a támadó fájl nyers tartalma egyaránt
+        // ~1,3 MB, tehát nincs olyan küszöb, ami az egyiket átengedi és a másikat
+        // megfogja. Az EPUB azért maradhat, mert a ZIP-fejléc előre elárulja a
+        // kicsomagolt méretet, így a safeReadZipEntry() a kibontás ELŐTT dönt
+        // (mérve: 34 MB-os bomba blokkolva 0,0000 s alatt, 2 MB memóriával).
         $request->validate([
-            'file' => 'required|file|mimetypes:application/pdf,application/epub+zip,application/zip|extensions:pdf,epub|max:30720',
+            'file' => 'required|file|mimetypes:application/epub+zip,application/zip|extensions:epub|max:30720',
         ]);
 
         $user = $request->user();
@@ -1613,10 +1635,11 @@ PROMPT;
         $title = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
 
         try {
+            // A default ág megmarad második védvonalnak: ha a validáció valaha
+            // felenged egy új formátumot, itt hibát kapunk, nem néma átcsúszást.
             $text = match ($extension) {
-                'pdf' => $this->extractPdfText($file->getRealPath()),
                 'epub' => $this->extractEpubText($file->getRealPath()),
-                default => throw new \RuntimeException('Nem támogatott formátum.'),
+                default => throw new \RuntimeException('Csak EPUB formátumú könyveket tudunk feldolgozni.'),
             };
         } catch (\RuntimeException $e) {
             return response()->json(['error' => $e->getMessage()], 422);
@@ -1627,7 +1650,7 @@ PROMPT;
         $text = preg_replace('/\s+/', ' ', trim($text)) ?? '';
 
         if (mb_strlen($text) < 100) {
-            return response()->json(['error' => 'A fájlból nem sikerült szöveget kinyerni. Szkennelt PDF-eket nem tudunk feldolgozni.'], 422);
+            return response()->json(['error' => 'A fájlból nem sikerült szöveget kinyerni. Lehet, hogy a könyv csak képeket tartalmaz.'], 422);
         }
 
         $totalPages = (int) ceil(mb_strlen($text) / UserBook::PAGE_SIZE);
@@ -1754,19 +1777,6 @@ PROMPT;
         $book->delete();
 
         return response()->json(['ok' => true]);
-    }
-
-    private function extractPdfText(string $path): string
-    {
-        $parser = new PdfParser;
-        $pdf = $parser->parseFile($path);
-        $raw = $pdf->getText();
-
-        // Még a tisztítás előtt, hogy egy kibontott óriás-szöveg ne járja végig
-        // a soronkénti feldolgozást (memória-védelem).
-        $this->assertBookTextWithinCap($raw);
-
-        return $this->cleanExtractedText($raw);
     }
 
     private function extractEpubText(string $path): string
