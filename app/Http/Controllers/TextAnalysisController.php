@@ -2155,6 +2155,32 @@ PROMPT;
      * callGemini azonnali hibát ad HTTP-hívás nélkül; a számláló az egymást
      * követő, átmeneti hibájú teljes lánc-kudarcokat gyűjti (sikeres válasz
      * nullázza). Küszöb és cooldown a config/services.php-ból (env-ből hangolható).
+     *
+     * TUDATOSAN VÁLLALT LOW (AI-M1, `last_audit/fazis-3.md`): a breaker
+     * szándékosan „egymást követő kudarc" (consecutive-failure) szemantikájú, ezért
+     * részleges/flapping Gemini-kiesésnél — ahol siker és kudarc váltakozik — nem
+     * nyílik ki. Ez nem hiba, hanem a védett kockázat természete: a breaker célja
+     * kizárólag a PHP-worker-kimerülés megakadályozása TARTÓS kiesésnél, és
+     * flappingnél épp az a helyes viselkedés, hogy a sikerrel kiszolgálható
+     * kéréseket nem dobjuk el.
+     *
+     * Az elvetett alternatíva a csúszóablakos hibaarány-breaker (siker- és
+     * kudarc-számláló, arány-küszöb) volt. Azért nem építettük meg, mert TÖBB
+     * kockázatot hozna, mint amennyit megszüntet:
+     *  - Új, két-kulcsos, nem-atomi állapotot vezetne be (`CACHE_STORE=database`
+     *    mellett a siker- és kudarc-számláló külön sor) — a köztük lévő rés
+     *    pontosan az a fajta race, amit az audit később új leletként találna meg.
+     *  - Egy hibaarány-breaker RÉSZLEGES kiesésnél globálisan levágná a még
+     *    működő forgalmat is: a flapping ma degradációt okoz, a „javítás" után
+     *    teljes AI-kiesést okozna. A tünet enyhébb, mint a gyógymód.
+     *  - A maradvány-kockázatot már három meglévő mechanizmus korlátozza: a
+     *    per-kérés deadline (`request_deadline_seconds`, worker SOHA nem lóg
+     *    tovább), az `ai_word_cache` védőháló, és a végpont-throttle.
+     * Maradvány-kockázat: elhúzódó részleges Gemini-incidensben a kérések a
+     * deadline-ig futnak worker-időt égetve, breaker-védelem nélkül. Ez lassulás,
+     * nem kiesés — és a `Gemini full chain failure` error-log riasztja az admint.
+     * A viselkedést a „sikeres válasz nullázza a breaker kudarc-számlálóját"
+     * teszt (`tests/Feature/GeminiOutageTest.php`) SZÁNDÉKOSKÉNT rögzíti.
      */
     private const GEMINI_BREAKER_OPEN_CACHE_KEY = 'gemini:breaker:open';
 

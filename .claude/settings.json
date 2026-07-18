@@ -224,7 +224,11 @@
       "Bash(perl -0pi -e \"s/mimetypes:application\\\\/epub\\\\+zip,application\\\\/zip\\\\|extensions:epub/mimetypes:application\\\\/pdf,application\\\\/epub+zip,application\\\\/zip|extensions:pdf,epub/\" app/Http/Controllers/TextAnalysisController.php)",
       "Bash(php -d memory_limit=512M vendor/bin/pest --compact --filter=\"PDF\")",
       "Bash(git checkout *)",
-      "Bash(grep -E \"^topwords-extension-1\\\\.|zip$\")"
+      "Bash(grep -E \"^topwords-extension-1\\\\.|zip$\")",
+      "Bash(grep -o 'registerRoute\\([^;]\\\\{0,220\\\\}' public/sw.js)",
+      "Bash(grep -o 'SKIP_WAITING[^;]\\\\{0,120\\\\}' public/sw.js)",
+      "Bash(grep -o 'NavigationRoute[^;]\\\\{0,200\\\\}' public/sw.js)",
+      "Bash(node --check public/sw.js)"
     ],
     "additionalDirectories": [
       "/private/tmp",
