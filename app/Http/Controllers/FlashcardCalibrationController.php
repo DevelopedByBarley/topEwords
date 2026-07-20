@@ -118,7 +118,9 @@ class FlashcardCalibrationController extends Controller
 
         if ($data['rating'] === 1) {
             if ($data['is_last_direction']) {
-                $card->update(['is_imported' => false]);
+                // Explicit property-set, mert az is_imported szándékosan nincs a fillable-ban (MA-4).
+                $card->is_imported = false;
+                $card->save();
             }
 
             return response()->json(['ok' => true]);
@@ -160,7 +162,9 @@ class FlashcardCalibrationController extends Controller
         );
 
         if ($data['is_last_direction']) {
-            $card->update(['is_imported' => false]);
+            // Explicit property-set, mert az is_imported szándékosan nincs a fillable-ban (MA-4).
+            $card->is_imported = false;
+            $card->save();
         }
 
         return response()->json(['ok' => true]);

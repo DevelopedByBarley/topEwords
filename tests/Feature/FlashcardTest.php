@@ -6,6 +6,7 @@ use App\Models\FlashcardReview;
 use App\Models\FlashcardSetting;
 use App\Models\User;
 use App\Services\FlashcardSrsService;
+use Illuminate\Http\UploadedFile;
 use Inertia\Inertia;
 use Tests\TestCase;
 
@@ -32,7 +33,8 @@ test('due count excludes uncalibrated imported cards', function () {
     $deck = FlashcardDeck::create(['user_id' => $user->id, 'name' => 'Import Deck']);
 
     // An imported card with no review is pending calibration — not study-able yet.
-    Flashcard::create(['deck_id' => $deck->id, 'front' => 'A', 'back' => 'B', 'direction' => 'front_to_back', 'is_imported' => true]);
+    // forceCreate: az is_imported rendszer-vezérelt, szándékosan nincs a fillable-ban (MA-4).
+    Flashcard::forceCreate(['deck_id' => $deck->id, 'front' => 'A', 'back' => 'B', 'direction' => 'front_to_back', 'is_imported' => true]);
     // A normal new card is study-able.
     Flashcard::create(['deck_id' => $deck->id, 'front' => 'C', 'back' => 'D', 'direction' => 'front_to_back']);
 
@@ -332,6 +334,79 @@ test('user can update a card', function () {
     expect($card->fresh()->front)->toBe('apple updated');
 });
 
+// --- MA-4: is_imported nem tömeg-hozzárendelhető (rendszer-vezérelt SRS-flag) ---
+
+test('store ignores a smuggled is_imported flag from the request payload', function () {
+    $user = User::factory()->create();
+    $deck = FlashcardDeck::create(['user_id' => $user->id, 'name' => 'Deck']);
+
+    // A támadó a manuális create payloadba is_imported:true-t csempész, hogy a saját
+    // kártyáját a kalibrációs sorba tolja a szándékolt új-kártya folyamat helyett.
+    $this->actingAs($user)
+        ->post(route('flashcards.cards.store', $deck), [
+            'front' => 'apple',
+            'back' => 'alma',
+            'direction' => 'both',
+            'is_imported' => true,
+        ])
+        ->assertRedirect(route('flashcards.show', $deck));
+
+    // A fillable-ból való strukturális kizárás miatt a flag sosem íródik be a payloadból.
+    expect((bool) $deck->flashcards()->first()->is_imported)->toBeFalse();
+});
+
+test('update ignores a smuggled is_imported flag from the request payload', function () {
+    $user = User::factory()->create();
+    $deck = FlashcardDeck::create(['user_id' => $user->id, 'name' => 'Deck']);
+    $card = Flashcard::create(['deck_id' => $deck->id, 'front' => 'apple', 'back' => 'alma', 'direction' => 'both']);
+
+    $this->actingAs($user)
+        ->patch(route('flashcards.cards.update', [$deck, $card]), [
+            'front' => 'apple',
+            'back' => 'alma',
+            'direction' => 'both',
+            'is_imported' => true,
+        ])
+        ->assertRedirect(route('flashcards.show', $deck));
+
+    expect((bool) $card->fresh()->is_imported)->toBeFalse();
+});
+
+test('csv import still marks cards as imported after is_imported left the fillable', function () {
+    $user = User::factory()->create();
+    $deck = FlashcardDeck::create(['user_id' => $user->id, 'name' => 'Deck']);
+
+    $file = UploadedFile::fake()->createWithContent('cards.csv', "apple,alma\npear,körte\n");
+
+    $this->actingAs($user)
+        ->post(route('flashcards.csv.import', $deck), ['csv_file' => $file])
+        ->assertRedirect(route('flashcards.show', $deck));
+
+    // Az import query-builder insert()-tel ír (megkerüli a fillable-t) → a flag beíródik.
+    expect($deck->flashcards()->count())->toBe(2)
+        ->and($deck->flashcards()->where('is_imported', true)->count())->toBe(2);
+});
+
+test('calibration graduates an imported card by clearing is_imported', function () {
+    $user = User::factory()->create();
+    $deck = FlashcardDeck::create(['user_id' => $user->id, 'name' => 'Deck']);
+    $card = Flashcard::forceCreate(['deck_id' => $deck->id, 'front' => 'apple', 'back' => 'alma', 'direction' => 'front_to_back', 'is_imported' => true]);
+
+    // Egyirányú kártya → egyetlen irány, ez az utolsó (is_last_direction).
+    $this->actingAs($user)
+        ->postJson(route('flashcards.calibrate.rate', $deck), [
+            'flashcard_id' => $card->id,
+            'rating' => 3,
+            'direction' => 'front_to_back',
+            'is_last_direction' => true,
+        ])
+        ->assertOk()
+        ->assertJson(['ok' => true]);
+
+    // Az explicit property-set író (a fillable-kivétel után) végzi a graduálást.
+    expect((bool) $card->fresh()->is_imported)->toBeFalse();
+});
+
 test('user can delete a card', function () {
     $user = User::factory()->create();
     $deck = FlashcardDeck::create(['user_id' => $user->id, 'name' => 'Deck']);
@@ -360,7 +435,7 @@ test('import from word without any word id fails validation instead of erroring'
 test('bulk reverse marks the reversed copies as imported so they enter calibration first', function () {
     $user = User::factory()->create();
     $deck = FlashcardDeck::create(['user_id' => $user->id, 'name' => 'Deck']);
-    $card = Flashcard::create(['deck_id' => $deck->id, 'front' => 'apple', 'back' => 'alma', 'direction' => 'front_to_back', 'is_imported' => false]);
+    $card = Flashcard::forceCreate(['deck_id' => $deck->id, 'front' => 'apple', 'back' => 'alma', 'direction' => 'front_to_back', 'is_imported' => false]);
 
     $this->actingAs($user)
         ->post(route('flashcards.cards.bulk-reverse', $deck), ['ids' => [$card->id]])
@@ -401,7 +476,7 @@ test('bulk direction change to both keeps every review', function () {
 test('resetting an imported card keeps it in the calibration queue', function () {
     $user = User::factory()->create();
     $deck = FlashcardDeck::create(['user_id' => $user->id, 'name' => 'Deck']);
-    $card = Flashcard::create(['deck_id' => $deck->id, 'front' => 'apple', 'back' => 'alma', 'direction' => 'both', 'is_imported' => true]);
+    $card = Flashcard::forceCreate(['deck_id' => $deck->id, 'front' => 'apple', 'back' => 'alma', 'direction' => 'both', 'is_imported' => true]);
     FlashcardReview::create(['flashcard_id' => $card->id, 'direction' => 'front_to_back', 'state' => 'review']);
 
     $this->actingAs($user)
@@ -416,7 +491,7 @@ test('resetting an imported card keeps it in the calibration queue', function ()
 test('resetting a manually created card does not force it into calibration', function () {
     $user = User::factory()->create();
     $deck = FlashcardDeck::create(['user_id' => $user->id, 'name' => 'Deck']);
-    $card = Flashcard::create(['deck_id' => $deck->id, 'front' => 'apple', 'back' => 'alma', 'direction' => 'both', 'is_imported' => false]);
+    $card = Flashcard::forceCreate(['deck_id' => $deck->id, 'front' => 'apple', 'back' => 'alma', 'direction' => 'both', 'is_imported' => false]);
     FlashcardReview::create(['flashcard_id' => $card->id, 'direction' => 'front_to_back', 'state' => 'review']);
 
     $this->actingAs($user)
@@ -431,8 +506,8 @@ test('resetting a manually created card does not force it into calibration', fun
 test('bulk reset preserves each card imported flag', function () {
     $user = User::factory()->create();
     $deck = FlashcardDeck::create(['user_id' => $user->id, 'name' => 'Deck']);
-    $imported = Flashcard::create(['deck_id' => $deck->id, 'front' => 'apple', 'back' => 'alma', 'direction' => 'both', 'is_imported' => true]);
-    $manual = Flashcard::create(['deck_id' => $deck->id, 'front' => 'pear', 'back' => 'körte', 'direction' => 'both', 'is_imported' => false]);
+    $imported = Flashcard::forceCreate(['deck_id' => $deck->id, 'front' => 'apple', 'back' => 'alma', 'direction' => 'both', 'is_imported' => true]);
+    $manual = Flashcard::forceCreate(['deck_id' => $deck->id, 'front' => 'pear', 'back' => 'körte', 'direction' => 'both', 'is_imported' => false]);
     FlashcardReview::create(['flashcard_id' => $imported->id, 'direction' => 'front_to_back', 'state' => 'review']);
     FlashcardReview::create(['flashcard_id' => $manual->id, 'direction' => 'front_to_back', 'state' => 'review']);
 
@@ -938,7 +1013,7 @@ test('countDueCards matches the study queue getDueCards builds', function () {
     $today = now()->toDateString();
     $yesterday = now()->subDay()->toDateString();
 
-    $makeCard = fn (array $attributes) => Flashcard::create(array_merge(
+    $makeCard = fn (array $attributes) => Flashcard::forceCreate(array_merge(
         ['deck_id' => $deck->id, 'front' => uniqid(), 'back' => 'x', 'direction' => 'front_to_back'],
         $attributes,
     ));

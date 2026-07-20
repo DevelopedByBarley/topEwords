@@ -8,7 +8,16 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['deck_id', 'word_id', 'front', 'front_notes', 'front_speak', 'back', 'back_notes', 'back_speak', 'direction', 'color', 'is_imported'])]
+/**
+ * Az `is_imported` SZÁNDÉKOSAN nincs a fillable-ban: rendszer-vezérelt SRS-besorolási
+ * flag, amit kizárólag a tömeges import (query-builder `insert`, mass-assignt megkerüli)
+ * és a kalibráció (explicit `$card->is_imported = ...; save()`) állít — sosem user-payload.
+ * A user-facing `store`/`update` a `validated()`-en megy át, ami nem tartalmazza; a fillable-ból
+ * való kizárás ezt STRUKTURÁLISAN garantálja, nem a FormRequest-fegyelemre bízza (MA-4).
+ * Elvetett alternatíva: a fillable-ban hagyni és a FormRequest hiányzó szabályára hagyatkozni —
+ * az egy jövőbeli `$request->all()`-alapú create-helyen néma keret-megkerülést nyitna.
+ */
+#[Fillable(['deck_id', 'word_id', 'front', 'front_notes', 'front_speak', 'back', 'back_notes', 'back_speak', 'direction', 'color'])]
 class Flashcard extends Model
 {
     public const ACTIVE_REVIEW_STATES = ['learning', 'review', 'relearning'];
