@@ -98,6 +98,7 @@ function extErrorMessage(error, fallback) {
     const messages = {
         network: 'Nincs kapcsolat a TopWords-szel.',
         unauthenticated: 'Jelentkezz be a TopWords-be.',
+        unverified: 'Erősítsd meg az e-mail-címed a TopWords-en a mentéshez.',
         csrf: 'A munkameneted lejárt — jelentkezz be újra a TopWords-be.',
         rate_limit: 'Túl sok kérés — várj egy kicsit, és próbáld újra.',
     };

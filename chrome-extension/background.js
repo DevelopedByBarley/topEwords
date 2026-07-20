@@ -35,6 +35,13 @@ function fetchJson(url, options = {}) {
                 return { error: 'unauthenticated' };
             }
 
+            if (r.status === 403) {
+                // A verified middleware megerősítetlen e-mailnél 403-at ad
+                // (JSON-kérés → nincs HTML-redirect). A body-error ágra (plan,
+                // ai_limit…) ez nem jut el, azt fentebb már visszaadtuk.
+                return { error: 'unverified' };
+            }
+
             if (r.status === 419) {
                 return { error: 'csrf' };
             }

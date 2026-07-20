@@ -615,3 +615,37 @@ test('youtube transcript returns timestamped segments for premium users', functi
             ],
         ]);
 });
+
+test('L1: an unverified user cannot write via the extension write endpoints', function () {
+    // A weboldal és a player-ikrek `verified` middleware-t követelnek az írásra;
+    // ugyanez kell a bővítmény add-word/create-flashcard végpontjain is, hogy a
+    // megerősítetlen fiók se hozhasson létre tartalmat. JSON-kérésnél a middleware
+    // 403-at ad (nem HTML-redirectet), amit a kliens 'unverified'-ként kezel.
+    $unverified = User::factory()->premium()->unverified()->create();
+    $deck = $unverified->flashcardDecks()->create(['name' => 'Angol szavak']);
+
+    $this->actingAs($unverified)
+        ->postJson(route('extension.add-word'), ['word' => 'apple', 'meaning_hu' => 'alma'])
+        ->assertForbidden();
+
+    $this->actingAs($unverified)
+        ->postJson(route('extension.create-flashcard'), [
+            'deck_id' => $deck->id,
+            'front' => 'apple',
+            'back' => 'alma',
+            'direction' => 'both',
+        ])
+        ->assertForbidden();
+
+    expect($unverified->customWords()->count())->toBe(0);
+    expect($deck->flashcards()->count())->toBe(0);
+});
+
+test('L1: a verified user can still write via the extension endpoints', function () {
+    // Regresszió-őr: a verified-kapu ne zárja ki a megerősített fiókot. A
+    // beforeEach `$this->user`-je premium + verified (a factory alap).
+    $this->actingAs($this->user)
+        ->postJson(route('extension.add-word'), ['word' => 'serendipity', 'meaning_hu' => 'véletlen szerencse'])
+        ->assertSuccessful()
+        ->assertJson(['ok' => true]);
+});

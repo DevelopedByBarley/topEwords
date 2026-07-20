@@ -1910,14 +1910,34 @@ export default function Welcome({
                                     Store-ban is.
                                 </p>
                                 {auth.user ? (
-                                    <a
-                                        href="/downloads/topwords-extension.zip"
-                                        download
-                                        className="mt-4 inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-violet-500 to-violet-400 px-5 py-3 text-sm font-bold text-white shadow-md transition-all hover:-translate-y-0.5 hover:bg-violet-700"
-                                    >
-                                        <MI n="download" s={20} /> Bővítmény
-                                        letöltése (.zip)
-                                    </a>
+                                    <div className="mt-4 flex flex-col gap-2.5">
+                                        <a
+                                            href="/downloads/topwords-extension.zip"
+                                            download
+                                            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-violet-500 to-violet-400 px-5 py-3 text-sm font-bold text-white shadow-md transition-all hover:-translate-y-0.5 hover:bg-violet-700"
+                                        >
+                                            <MI n="download" s={20} /> Bővítmény
+                                            letöltése (.zip)
+                                        </a>
+                                        <div className="flex flex-wrap gap-2.5">
+                                            <a
+                                                href="/downloads/topwords-player-mac.dmg"
+                                                download
+                                                className="inline-flex items-center gap-2 rounded-xl border border-neutral-300 bg-white px-5 py-3 text-sm font-bold text-neutral-700 shadow-sm transition-all hover:-translate-y-0.5 hover:border-violet-400 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-200"
+                                            >
+                                                <MI n="download" s={20} /> Player
+                                                – macOS (.dmg)
+                                            </a>
+                                            <a
+                                                href="/downloads/topwords-player-win.exe"
+                                                download
+                                                className="inline-flex items-center gap-2 rounded-xl border border-neutral-300 bg-white px-5 py-3 text-sm font-bold text-neutral-700 shadow-sm transition-all hover:-translate-y-0.5 hover:border-violet-400 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-200"
+                                            >
+                                                <MI n="download" s={20} /> Player
+                                                – Windows (.exe)
+                                            </a>
+                                        </div>
+                                    </div>
                                 ) : (
                                     <Link
                                         href={login()}
@@ -1928,7 +1948,9 @@ export default function Welcome({
                                     </Link>
                                 )}
                                 <p className="mt-2 text-xs text-neutral-400 dark:text-neutral-500">
-                                    Chrome / Edge / Brave böngészőkben működik.
+                                    A bővítmény Chrome / Edge / Brave böngészőkben
+                                    működik; a lejátszó macOS és Windows
+                                    rendszeren.
                                 </p>
                             </div>
                             <div className="flex flex-col gap-2.5">
