@@ -31,6 +31,7 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->configureDefaults();
         $this->assertStripeWebhookSecured();
+        $this->assertStripeSecretMatchesEnvironment();
 
         Gate::define('admin', fn (User $user): bool => $user->isAdmin());
     }
@@ -50,6 +51,34 @@ class AppServiceProvider extends ServiceProvider
                 'STRIPE_ENABLED is true but STRIPE_WEBHOOK_SECRET is empty. The stripe/* '
                 .'webhook is CSRF-exempt, so an unset secret disables Stripe signature '
                 .'verification and would accept forged webhooks. Set STRIPE_WEBHOOK_SECRET.'
+            );
+        }
+    }
+
+    /**
+     * Fail loudly in production if the Stripe secret key is a TEST-mode key.
+     *
+     * REC-1 defense-in-depth: a test-mode (or wrong-account) STRIPE_SECRET makes the
+     * Stripe API answer resource_missing for every live subscription retrieve, which
+     * the daily cashier:reconcile-subscriptions would read as "deleted". The reconcile
+     * command now has a blast-radius kill switch, but the far cheaper fix is to never
+     * boot production with a mismatched key. We only assert when Stripe is enabled and
+     * a secret is present (empty/local keys are the developer's concern, not this guard).
+     */
+    public function assertStripeSecretMatchesEnvironment(): void
+    {
+        if (! app()->isProduction() || ! config('services.stripe.enabled')) {
+            return;
+        }
+
+        $secret = (string) config('cashier.secret');
+
+        if ($secret !== '' && str_starts_with($secret, 'sk_test_')) {
+            throw new \RuntimeException(
+                'APP_ENV is production but STRIPE_SECRET is a test-mode key (sk_test_…). '
+                .'A test/wrong-account key makes Stripe return resource_missing for every '
+                .'live subscription, which the reconcile command would treat as a lost '
+                .'cancellation. Refusing to boot — set the live STRIPE_SECRET (sk_live_…).'
             );
         }
     }
