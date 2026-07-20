@@ -3,10 +3,10 @@
 // ── Közös szó/kifejezés tokenizálás ─────────────────────────────────────────
 // Ugyanaz a logika, mint a webes szövegelemzőben (buildRenderTokens): a szöveget
 // szó/elválasztó darabokra bontja, és a leghosszabb ismert kifejezést illeszti
-// elsőként (max 3 szó, közöttük csak whitespace), így a kifejezés egy egységként
+// elsőként (max 5 szó, közöttük csak whitespace), így a kifejezés egy egységként
 // jelölhető. A kifejezéseket a státusztérkép kulcsában lévő szóköz árulja el.
 
-const MAX_PHRASE_WORDS = 3;
+const MAX_PHRASE_WORDS = 5;
 const HL_WORD_SPLIT = /([a-zA-Z]+(?:['’][a-zA-Z]+)*)/;
 const phraseFlagCache = new WeakMap();
 

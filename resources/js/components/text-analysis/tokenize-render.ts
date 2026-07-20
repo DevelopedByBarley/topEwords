@@ -20,7 +20,12 @@ export const tokenKey = (word: string): string =>
 export const phraseKey = (text: string): string =>
     text.trim().split(/\s+/).map(tokenKey).join(' ');
 
-const MAX_PHRASE_WORDS = 3;
+// A szövegbeli kiemelés mohó n-gram illesztéssel a leghosszabb ismert
+// kifejezést emeli ki, de csak eddig a szó-számig — a felirat/szöveg minden
+// frissítésnél újratokenizálódik, ezért van a plafon. A Shift-kijelöléses
+// mentésnek is ehhez kell igazodnia, különben hosszabb kifejezés menthető
+// lenne, de olvasáskor sosem jelölődne ki. Player és extension is 5-öt használ.
+export const MAX_PHRASE_WORDS = 5;
 
 /**
  * Turn display text into render tokens, greedily matching the longest known

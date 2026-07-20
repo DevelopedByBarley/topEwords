@@ -502,6 +502,22 @@ test('analysis returns phrase statuses for multi-word custom phrases present in 
         ->assertJsonPath('tokenStatuses.cut', 'in_list');
 });
 
+test('analysis returns phrase statuses for a five-word custom phrase present in the text', function () {
+    // A kliens kiemelés-plafonja (MAX_PHRASE_WORDS) 5 szó — a backend nem
+    // korlátoz hosszra, így egy 5 szavas kifejezésnek is el kell jutnia a
+    // phraseStatuses térképbe, hogy a szövegben kifestődhessen.
+    $this->user->customWords()->create([
+        'word' => 'closing in on you now',
+        'status' => 'learning',
+    ]);
+
+    $this->postJson(route('text-analysis.analyze'), [
+        'text' => 'The walls are closing in on you now completely',
+    ])
+        ->assertOk()
+        ->assertJsonPath('phraseStatuses.closing in on you now', 'learning');
+});
+
 test('looking up a plain word does not return a multi-word custom phrase', function () {
     $cut = Word::where('word', 'cut')->firstOrFail();
     $this->user->knownWords()->attach($cut->id, ['status' => 'known']);

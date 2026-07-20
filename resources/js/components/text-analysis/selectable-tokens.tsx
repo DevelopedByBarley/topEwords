@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type { RenderToken } from '@/components/text-analysis/tokenize-render';
+import { MAX_PHRASE_WORDS } from '@/components/text-analysis/tokenize-render';
 import { STATUS_STYLES } from '@/components/text-analysis/types';
+import { showToast } from '@/lib/toast';
 
 /** Egy bekezdés / felirat-sor előre tokenizálva, a kereséshez tartozó kontextussal. */
 export interface TokenBlock {
@@ -82,6 +84,19 @@ export default function SelectableTokens({ blocks, onWordClick, lookupOpen, rend
             }
 
             const [lo, hi] = selected;
+
+            // A kijelölt kifejezésnek a kiemelés-motor plafonjához kell
+            // igazodnia — hosszabb kifejezés menthető lenne, de olvasáskor a
+            // mohó n-gram illesztés (MAX_PHRASE_WORDS) sosem festené ki.
+            if (hi - lo + 1 > MAX_PHRASE_WORDS) {
+                showToast(
+                    'error',
+                    `Legfeljebb ${MAX_PHRASE_WORDS} szavas kifejezés jelölhető ki.`,
+                );
+
+                return;
+            }
+
             const items = flatRef.current;
             const phrase = normalizePhrase(items.slice(lo, hi + 1).map((f) => f.text).join(' '));
             onWordClickRef.current?.(phrase, items[lo].context);

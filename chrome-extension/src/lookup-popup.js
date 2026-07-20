@@ -189,6 +189,46 @@ function showPopup(word, rect, preferAbove = false) {
     });
 }
 
+/**
+ * Rövid tájékoztató buborék lookup nélkül (pl. „a kifejezés túl hosszú a
+ * kiemeléshez"). A szó-popup vázát használja, de csak egy üzenetet mutat, és
+ * pár másodperc után magától eltűnik.
+ *
+ * @param {string} message
+ * @param {DOMRect} rect
+ */
+function showInfoPopup(message, rect) {
+    hidePopup();
+
+    const fsEl = document.fullscreenElement;
+
+    host = document.createElement('div');
+    host.style.cssText = `
+        position: ${fsEl ? 'fixed' : 'absolute'};
+        z-index: 2147483647;
+        pointer-events: auto;
+    `;
+    (fsEl ?? document.body).appendChild(host);
+    positionHost(host, rect, !!fsEl, true);
+
+    shadow = host.attachShadow({ mode: 'closed' });
+
+    const style = document.createElement('style');
+    style.textContent = POPUP_CSS;
+    shadow.appendChild(style);
+
+    const wrap = document.createElement('div');
+    wrap.id = 'wrap';
+    wrap.innerHTML = `<div class="body"><span class="msg">${esc(message)}</span></div>`;
+    shadow.appendChild(wrap);
+
+    positionHost(host, rect, !!fsEl, true);
+
+    setTimeout(() => {
+        document.addEventListener('mousedown', onOutsideClick);
+    }, 0);
+}
+
 function positionHost(el, rect, fixed = false, preferAbove = false) {
     // Fix pozíciónál (fullscreen) viewport-koordináták kellenek, görgetés nélkül.
     const offsetX = fixed ? 0 : window.scrollX;
@@ -330,6 +370,21 @@ function twSelCommit() {
 
     if (!phrase) {
         twSelClear();
+
+        return;
+    }
+
+    // A szövegbeli kiemelés (buildHlTokens) a leghosszabb ismert kifejezést
+    // mohó n-gram illesztéssel emeli ki, de csak MAX_PHRASE_WORDS szóig — ennél
+    // hosszabb kifejezést elmentve a popup megjelenne, de a szövegben SOHA nem
+    // jelölődne. Ezért itt levágjuk, és jelezzük, miért nem menthető.
+    if (range.length > MAX_PHRASE_WORDS) {
+        const rect = range[range.length - 1].getBoundingClientRect();
+        twSelClear();
+        showInfoPopup(
+            `Legfeljebb ${MAX_PHRASE_WORDS} szavas kifejezés jelölhető ki.`,
+            rect,
+        );
 
         return;
     }
