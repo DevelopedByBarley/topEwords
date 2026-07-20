@@ -33,7 +33,10 @@ return [
         'local' => [
             'driver' => 'local',
             'root' => storage_path('app/private'),
-            'serve' => true,
+            // HDR-4/STORAGE-2: the app never serves files off this private disk
+            // (no disk('local')/temporaryUrl usage), so we keep serve=false to
+            // avoid registering the middleware-less storage/{path} GET+PUT routes.
+            'serve' => false,
             'throw' => false,
             'report' => false,
         ],

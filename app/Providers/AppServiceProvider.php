@@ -29,11 +29,63 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        $this->assertKnownEnvironment();
+        $this->assertDebugDisabledInProduction();
         $this->configureDefaults();
         $this->assertStripeWebhookSecured();
         $this->assertStripeSecretMatchesEnvironment();
 
         Gate::define('admin', fn (User $user): bool => $user->isAdmin());
+    }
+
+    /**
+     * Fail loudly if APP_ENV is set to an unrecognized value.
+     *
+     * ENV-1 / HDR-1 defense-in-depth: nearly every production hardening layer
+     * (CSP + HSTS, the SESSION_SECURE_COOKIE fail-safe, Password::defaults(),
+     * DB::prohibitDestructiveCommands, the Stripe live-key assert and the error
+     * alert) keys off app()->isProduction(), which is a strict === 'production'
+     * match. A typo — APP_ENV=prod / live / "production " — would SILENTLY drop
+     * all of them at once. An empty/unset APP_ENV fails safe to 'production'
+     * (config/app.php), so the only dangerous state is an actively mistyped,
+     * non-empty value; a boot-time whitelist turns that silent downgrade into a
+     * hard boot failure. We never treat production itself as unknown.
+     */
+    public function assertKnownEnvironment(): void
+    {
+        $known = ['local', 'testing', 'staging', 'production'];
+
+        if (! in_array(app()->environment(), $known, true)) {
+            throw new \RuntimeException(sprintf(
+                'APP_ENV is "%s", which is not a recognized environment (%s). '
+                .'Production hardening (CSP/HSTS, secure cookies, strong-password '
+                .'policy, destructive-command guard) only activates on the exact '
+                .'value "production", so an unrecognized value silently disables '
+                .'it. Refusing to boot — fix APP_ENV.',
+                app()->environment(),
+                implode(', ', $known),
+            ));
+        }
+    }
+
+    /**
+     * Fail loudly if APP_DEBUG is left on in production.
+     *
+     * ENV-2 defense-in-depth: config/app.php fails safe (APP_DEBUG defaults to
+     * false), but a .env copied from .env.example ships APP_DEBUG=true. If that
+     * line survives a production deploy, every 500 leaks a full Whoops/Ignition
+     * stack trace and config values. The default is safe, so this only fires on
+     * an explicit, mistyped APP_DEBUG=true under APP_ENV=production.
+     */
+    public function assertDebugDisabledInProduction(): void
+    {
+        if (app()->isProduction() && config('app.debug')) {
+            throw new \RuntimeException(
+                'APP_ENV is production but APP_DEBUG is true. Detailed error pages '
+                .'would leak stack traces and config values on every exception. '
+                .'Refusing to boot — set APP_DEBUG=false.'
+            );
+        }
     }
 
     /**
