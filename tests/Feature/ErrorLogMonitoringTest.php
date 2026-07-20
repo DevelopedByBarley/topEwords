@@ -66,6 +66,21 @@ test('két különböző hiba egy órán belül külön-külön riaszt', functio
     Notification::assertSentOnDemandTimes(ApplicationErrorDetected::class, 2);
 });
 
+test('a kérésenként változó üzenetű hiba-áradat nem árasztja el a postafiókot', function () {
+    // Regresszió-védő: a per-üzenet dedup önmagában minden változó szövegű 500-at átengedne
+    // (Stripe/Billingo timeout URL-lel, SQL-érték a QueryExceptionben). A globális óránkénti
+    // burst-plafon fogja az áradatot — 30 különböző hibából legfeljebb a plafonnyi riaszt.
+    Notification::fake();
+    config(['app.admin_email' => 'admin@example.com']);
+    simulateProduction();
+
+    foreach (range(1, 30) as $i) {
+        Log::error("cURL timeout https://api.stripe.com/v1/... kérés #{$i}");
+    }
+
+    Notification::assertSentOnDemandTimes(ApplicationErrorDetected::class, 10);
+});
+
 test('error alatti szintű log nem riaszt', function () {
     Notification::fake();
     config(['app.admin_email' => 'admin@example.com']);
