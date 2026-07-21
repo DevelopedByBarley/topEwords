@@ -509,7 +509,7 @@ export default function FlashcardCalibrate({
                 >
                     {current.direction === 'both' && (
                         <div className="flex justify-center px-4 pt-3">
-                            <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-medium tracking-wide text-violet-500 uppercase dark:bg-violet-950/30">
+                            <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-medium tracking-wide text-indigo-500 uppercase dark:bg-indigo-950/30">
                                 {current.calibration_direction ===
                                 'front_to_back'
                                     ? 'Előlap → Hátlap'

@@ -133,6 +133,7 @@ export default function AdminIndex({
             if (!navigator.clipboard) {
                 throw new Error('clipboard unavailable');
             }
+
             await navigator.clipboard.writeText(invite.url);
             setCopiedId(invite.id);
             setTimeout(() => setCopiedId(null), 1500);
@@ -271,7 +272,7 @@ export default function AdminIndex({
                                     label: 'Kiejtés',
                                     value: stats.pronunciation,
                                     icon: Mic,
-                                    color: 'text-violet-400 bg-violet-400/10',
+                                    color: 'text-indigo-400 bg-indigo-400/10',
                                 },
                             ].map((s) => (
                                 <div
@@ -542,7 +543,7 @@ export default function AdminIndex({
                                                 <span
                                                     className={`w-16 shrink-0 rounded px-1.5 py-0.5 text-center text-[10px] font-bold uppercase ${
                                                         u.plan === 'premium'
-                                                            ? 'bg-violet-400/10 text-violet-400'
+                                                            ? 'bg-indigo-400/10 text-indigo-400'
                                                             : 'bg-zinc-700/40 text-zinc-400'
                                                     }`}
                                                 >
@@ -566,7 +567,7 @@ export default function AdminIndex({
                                                             </span>
                                                         )}
                                                         {u.trial_ends_at && (
-                                                            <span className="ml-1.5 rounded bg-sky-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-sky-400">
+                                                            <span className="ml-1.5 rounded bg-indigo-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-400">
                                                                 Ingyen Pro ·{' '}
                                                                 {new Date(
                                                                     u.trial_ends_at,
@@ -593,7 +594,7 @@ export default function AdminIndex({
                                                     className={`rounded-md px-2.5 py-1 text-xs font-semibold transition-colors ${
                                                         u.plan_override ===
                                                         'premium'
-                                                            ? 'bg-violet-500 text-white'
+                                                            ? 'bg-indigo-500 text-white'
                                                             : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
                                                     }`}
                                                 >
@@ -604,7 +605,7 @@ export default function AdminIndex({
                                                         giveFreeMonth(u.email)
                                                     }
                                                     title="+1 hónap ingyen Pro (halmozható, lejáratkor magától visszaáll)"
-                                                    className="flex items-center gap-1 rounded-md bg-zinc-800 px-2 py-1 text-xs font-semibold text-zinc-300 transition-colors hover:bg-sky-500/20 hover:text-sky-400"
+                                                    className="flex items-center gap-1 rounded-md bg-zinc-800 px-2 py-1 text-xs font-semibold text-zinc-300 transition-colors hover:bg-indigo-500/20 hover:text-indigo-400"
                                                 >
                                                     <Gift className="size-3.5" />
                                                     +1 hó

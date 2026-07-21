@@ -30,7 +30,7 @@ export function NavMain({ label, items = [] }: { label?: string; items: NavItem[
                                     <span className="truncate">{item.title}</span>
                                 </span>
                                 {item.isAi && (
-                                    <span className="group-data-[collapsible=icon]:hidden ml-auto flex items-center gap-1 rounded-md bg-violet-100 px-1.5 py-0.5 text-[10px] font-semibold text-violet-600 dark:bg-violet-900/40 dark:text-violet-400 shrink-0">
+                                    <span className="group-data-[collapsible=icon]:hidden ml-auto flex items-center gap-1 rounded-md bg-indigo-100 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-400 shrink-0">
                                         <Sparkles className="size-3" />
                                         AI
                                     </span>

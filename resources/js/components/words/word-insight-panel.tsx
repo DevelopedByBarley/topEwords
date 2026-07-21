@@ -54,7 +54,7 @@ export default function WordInsightPanel({ word }: { word: string }) {
             <Button
                 variant="outline"
                 size="sm"
-                className="w-full border-violet-300 text-violet-700 hover:bg-violet-50 hover:text-violet-800 dark:border-violet-700 dark:text-violet-400 dark:hover:bg-violet-950/30"
+                className="w-full border-indigo-300 text-indigo-700 hover:bg-indigo-50 hover:text-indigo-800 dark:border-indigo-700 dark:text-indigo-400 dark:hover:bg-indigo-950/30"
                 disabled={loading}
                 onClick={loadInsight}
             >
@@ -69,8 +69,8 @@ export default function WordInsightPanel({ word }: { word: string }) {
             {error && <p className="text-xs text-red-500">{error}</p>}
 
             {data && (
-                <div className="flex flex-col gap-3 rounded-xl border bg-violet-50/50 px-4 py-3.5 dark:bg-violet-950/10">
-                    <p className="text-[10px] font-semibold tracking-wider text-violet-600 uppercase dark:text-violet-400">
+                <div className="flex flex-col gap-3 rounded-xl border bg-indigo-50/50 px-4 py-3.5 dark:bg-indigo-950/10">
+                    <p className="text-[10px] font-semibold tracking-wider text-indigo-600 uppercase dark:text-indigo-400">
                         Szó a valóságban
                     </p>
                     {data.areas.map((area, i) => (

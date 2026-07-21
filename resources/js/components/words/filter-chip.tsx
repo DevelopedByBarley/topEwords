@@ -16,7 +16,7 @@ export function FilterChip({ active, onClick, activeClass, title, children }: Fi
             title={title}
             className={`relative inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all ${
                 active
-                    ? (activeClass ?? 'bg-primary text-primary-foreground shadow-sm')
+                    ? (activeClass ?? 'bg-linear-to-br from-indigo-600 to-indigo-800 text-white shadow-sm')
                     : 'bg-muted text-muted-foreground hover:bg-accent hover:text-accent-foreground'
             }`}
         >

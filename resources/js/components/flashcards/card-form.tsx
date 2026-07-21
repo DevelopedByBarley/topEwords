@@ -183,13 +183,13 @@ export default function CardForm({
                 <>
                     {/* Gemini AI banner */}
                     {hasAiAccess && (
-                        <div className="flex items-center justify-between gap-3 rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 dark:border-violet-800 dark:bg-violet-950/30">
+                        <div className="flex items-center justify-between gap-3 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 dark:border-indigo-800 dark:bg-indigo-950/30">
                             <div className="flex min-w-0 items-center gap-3">
-                                <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 to-violet-400 text-white">
+                                <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-linear-to-br from-indigo-600 to-indigo-800 text-white">
                                     <Sparkles className="size-4" />
                                 </div>
                                 <div className="min-w-0">
-                                    <p className="text-sm font-semibold text-violet-800 dark:text-violet-200">
+                                    <p className="text-sm font-semibold text-indigo-800 dark:text-indigo-200">
                                         Gemini AI kitöltés
                                     </p>
                                 </div>
@@ -198,7 +198,7 @@ export default function CardForm({
                                 type="button"
                                 onClick={generateGeminiFlashcard}
                                 disabled={!frontText.trim() || geminiLoading}
-                                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-gradient-to-br from-violet-500 to-violet-400 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-40"
+                                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-linear-to-br from-indigo-600 to-indigo-800 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-40"
                             >
                                 {geminiLoading ? (
                                     <>

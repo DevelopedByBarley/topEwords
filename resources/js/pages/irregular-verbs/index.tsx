@@ -38,10 +38,12 @@ function normalize(value: string): string {
 /** Egyenletes (Fisher–Yates) keverés — új tömböt ad, az eredetit nem módosítja. */
 function shuffle<T>(items: readonly T[]): T[] {
     const result = [...items];
+
     for (let i = result.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [result[i], result[j]] = [result[j], result[i]];
     }
+
     return result;
 }
 
@@ -141,7 +143,10 @@ function SetupScreen({
 
             <div className="space-y-6 px-4 py-6">
                 {/* Hero */}
-                <div className="relative overflow-hidden rounded-3xl bg-rose-500 p-6 md:p-8">
+                <div
+                    className="relative overflow-hidden rounded-3xl p-6 md:p-8"
+                    style={{ background: 'linear-gradient(135deg,#4338CA,#4F8EEC)' }}
+                >
                     <div className="pointer-events-none absolute -top-14 -right-14 size-56 rounded-full bg-white/15" />
                     <div className="pointer-events-none absolute right-32 -bottom-20 size-40 rounded-full bg-white/10" />
                     <div className="relative max-w-xl">

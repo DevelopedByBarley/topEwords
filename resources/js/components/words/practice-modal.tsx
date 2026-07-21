@@ -89,8 +89,8 @@ return;
             <DialogContent className="sm:max-w-lg">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
-                        <Sparkles className="size-4 text-violet-500" />
-                        Gyakorlás: <span className="text-violet-600 dark:text-violet-400">{word?.word}</span>
+                        <Sparkles className="size-4 text-indigo-500" />
+                        Gyakorlás: <span className="text-indigo-600 dark:text-indigo-400">{word?.word}</span>
                     </DialogTitle>
                     {word?.meaning_hu && <p className="text-sm text-muted-foreground">{word.meaning_hu}</p>}
                 </DialogHeader>
@@ -107,7 +107,7 @@ return;
                     <Button
                         onClick={handleCheck}
                         disabled={text.trim().length < 5 || loading}
-                        className="w-full gap-2 bg-gradient-to-br from-violet-500 to-violet-400 hover:bg-violet-700 text-white"
+                        className="w-full gap-2 bg-linear-to-br from-indigo-600 to-indigo-800 hover:brightness-105 text-white"
                     >
                         {loading ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
                         {loading ? 'Ellenőrzés...' : 'Ellenőrzés'}
@@ -122,7 +122,7 @@ return;
                                 {result.feedback_hu}
                             </div>
                             {result.overall_hu && (
-                                <div className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2.5 text-sm text-violet-800 dark:border-violet-800 dark:bg-violet-950/30 dark:text-violet-300">
+                                <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2.5 text-sm text-indigo-800 dark:border-indigo-800 dark:bg-indigo-950/30 dark:text-indigo-300">
                                     {result.overall_hu}
                                 </div>
                             )}

@@ -16,7 +16,7 @@ export default function ChromeExtensionsLink() {
                 type="button"
                 onClick={copy}
                 title="Másolás a vágólapra"
-                className="inline-flex items-center gap-1.5 rounded-md bg-violet-100 px-2 py-1 font-mono text-xs font-semibold text-violet-800 transition-colors hover:bg-violet-200 dark:bg-violet-900/50 dark:text-violet-200 dark:hover:bg-violet-800/60"
+                className="inline-flex items-center gap-1.5 rounded-md bg-indigo-100 px-2 py-1 font-mono text-xs font-semibold text-indigo-800 transition-colors hover:bg-indigo-200 dark:bg-indigo-900/50 dark:text-indigo-200 dark:hover:bg-indigo-800/60"
             >
                 {copied ? (
                     <Check className="size-3 shrink-0 text-green-500" />

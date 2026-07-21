@@ -180,7 +180,7 @@ function Badge({
         blue: 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300',
         green: 'bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300',
         orange: 'bg-orange-100 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300',
-        purple: 'bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300',
+        purple: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300',
         default: 'bg-muted text-foreground',
     };
 
@@ -228,7 +228,7 @@ function InfoBox({
 
 function PremiumBadge() {
     return (
-        <span className="inline-flex items-center gap-1 rounded-md bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">
+        <span className="inline-flex items-center gap-1 rounded-md bg-indigo-100 px-2 py-0.5 text-xs font-semibold text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300">
             <Star className="size-3" />
             Prémium
         </span>
@@ -1400,15 +1400,15 @@ export default function Handbook() {
                                 — így a szótanulás beépül a mindennapi
                                 böngészésedbe:
                             </P>
-                            <div className="rounded-2xl border-2 border-violet-200 bg-linear-to-br from-violet-50 to-fuchsia-50/80 p-5 dark:border-violet-800/60 dark:from-violet-950/30 dark:to-fuchsia-950/10">
+                            <div className="rounded-2xl border-2 border-indigo-200 bg-linear-to-br from-indigo-50 to-blue-50/80 p-5 dark:border-indigo-800/60 dark:from-indigo-950/30 dark:to-blue-950/10">
                                 <div className="mb-4 flex items-center gap-2">
-                                    <Star className="size-4 text-violet-600 dark:text-violet-400" />
-                                    <span className="text-sm font-bold tracking-wide text-violet-700 uppercase dark:text-violet-300">
+                                    <Star className="size-4 text-indigo-600 dark:text-indigo-400" />
+                                    <span className="text-sm font-bold tracking-wide text-indigo-700 uppercase dark:text-indigo-300">
                                         Prémium funkciók
                                     </span>
                                 </div>
                                 <div className="grid gap-4 sm:grid-cols-2">
-                                    <div className="flex flex-col gap-3 rounded-xl border border-violet-100 bg-white p-4 shadow-sm dark:border-violet-900/40 dark:bg-neutral-900/60">
+                                    <div className="flex flex-col gap-3 rounded-xl border border-indigo-100 bg-white p-4 shadow-sm dark:border-indigo-900/40 dark:bg-neutral-900/60">
                                         <div className="flex items-center gap-2.5">
                                             <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-red-500 text-white">
                                                 <Youtube className="size-4" />
@@ -1459,7 +1459,7 @@ export default function Handbook() {
                                         </InfoBox>
                                     </div>
 
-                                    <div className="flex flex-col gap-3 rounded-xl border border-violet-100 bg-white p-4 shadow-sm dark:border-violet-900/40 dark:bg-neutral-900/60">
+                                    <div className="flex flex-col gap-3 rounded-xl border border-indigo-100 bg-white p-4 shadow-sm dark:border-indigo-900/40 dark:bg-neutral-900/60">
                                         <div className="flex items-center gap-2.5">
                                             <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-red-600 text-white">
                                                 <Tv2 className="size-4" />

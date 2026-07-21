@@ -39,7 +39,7 @@ export function NavUser() {
                             <UserInfo user={auth.user} />
                             {/* Payment temporarily disabled — subscription badges hidden
                             {sub?.isPremium && (
-                                <span className="ml-auto flex items-center gap-1 rounded-full bg-violet-100 px-1.5 py-0.5 text-[10px] font-semibold text-violet-700 dark:bg-violet-900/40 dark:text-violet-400 group-data-[collapsible=icon]:hidden">
+                                <span className="ml-auto flex items-center gap-1 rounded-full bg-indigo-100 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-400 group-data-[collapsible=icon]:hidden">
                                     <Crown className="size-3" />
                                     Prémium
                                 </span>

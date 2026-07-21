@@ -78,8 +78,8 @@ const STATUS_BUTTONS = [
         s: 'pronunciation',
         label: 'Kiejtés',
         Icon: Mic,
-        active: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-400',
-        hover: 'hover:bg-violet-50 hover:text-violet-700',
+        active: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-400',
+        hover: 'hover:bg-indigo-50 hover:text-indigo-700',
     },
 ] as const;
 
@@ -539,7 +539,7 @@ export default function WordLookupDialog({
                                                             disabled={
                                                                 geminiLoading
                                                             }
-                                                            className="flex-1 border-violet-200 text-violet-700 hover:bg-violet-50 dark:border-violet-800 dark:text-violet-400 dark:hover:bg-violet-950/30"
+                                                            className="flex-1 border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-400 dark:hover:bg-indigo-950/30"
                                                         >
                                                             {geminiLoading ? (
                                                                 <Loader2 className="size-4 animate-spin" />

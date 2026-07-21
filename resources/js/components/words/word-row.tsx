@@ -75,7 +75,7 @@ function WordRow({
                         onPractice(item.data.word, item.data.meaning_hu ?? null)
                     }
                     title="Gyakorlás"
-                    className="shrink-0 cursor-pointer rounded p-1 text-violet-500 transition-colors hover:bg-violet-50 hover:text-violet-700 dark:hover:bg-violet-950/30"
+                    className="shrink-0 cursor-pointer rounded p-1 text-indigo-500 transition-colors hover:bg-indigo-50 hover:text-indigo-700 dark:hover:bg-indigo-950/30"
                 >
                     <Sparkles className="size-3.5" />
                 </button>

@@ -239,7 +239,7 @@ export default function FlashcardsIndex({
                     {(dueCounts?.[deck.id] ?? 0) > 0 ? (
                         <Link
                             href={study({ deck: deck.id })}
-                            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-sky-500 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-sky-600"
+                            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-linear-to-br from-indigo-600 to-indigo-800 px-3 py-2 text-xs font-semibold text-white transition-colors hover:brightness-105"
                         >
                             <Sparkles className="size-3.5" />
                             Tanulás
@@ -332,7 +332,10 @@ export default function FlashcardsIndex({
 
             <div className="space-y-6 px-4 py-6">
                 {/* Hero */}
-                <div className="relative overflow-hidden rounded-3xl bg-sky-500 p-6 md:p-8">
+                <div
+                    className="relative overflow-hidden rounded-3xl p-6 md:p-8"
+                    style={{ background: 'linear-gradient(135deg,#4338CA,#4F8EEC)' }}
+                >
                     <div className="pointer-events-none absolute -top-14 -right-14 size-56 rounded-full bg-white/15" />
                     <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                         <div className="flex flex-col gap-1">
@@ -360,7 +363,7 @@ export default function FlashcardsIndex({
                             )}
                             <button
                                 onClick={openNewDeckDialog}
-                                className="inline-flex items-center gap-1.5 rounded-xl bg-white px-5 py-2.5 text-sm font-bold text-sky-600 shadow-[0_4px_0_0_oklch(0.55_0.12_230)] transition-all hover:brightness-95 active:translate-y-0.75 active:shadow-[0_1px_0_0_oklch(0.55_0.12_230)]"
+                                className="inline-flex items-center gap-1.5 rounded-full bg-linear-to-br from-green-400 to-green-500 px-5 py-2.5 text-sm font-bold text-green-950 shadow-[0_4px_0_0_var(--color-green-600)] transition-all hover:brightness-105 active:translate-y-0.75"
                             >
                                 <Plus className="size-4" />
                                 Új pakli
@@ -658,7 +661,7 @@ export default function FlashcardsIndex({
                             className={cn(
                                 'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-colors',
                                 activeFolderId === null
-                                    ? 'bg-sky-500 text-white'
+                                    ? 'bg-linear-to-br from-indigo-600 to-indigo-800 text-white'
                                     : 'bg-muted text-muted-foreground hover:bg-accent hover:text-foreground',
                             )}
                         >
@@ -683,7 +686,7 @@ export default function FlashcardsIndex({
                             className={cn(
                                 'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-colors',
                                 activeFolderId === folder.id
-                                    ? 'bg-sky-500 text-white'
+                                    ? 'bg-linear-to-br from-indigo-600 to-indigo-800 text-white'
                                     : 'bg-muted text-muted-foreground hover:bg-accent hover:text-foreground',
                             )}
                         >

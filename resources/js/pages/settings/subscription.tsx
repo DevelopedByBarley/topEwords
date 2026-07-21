@@ -148,15 +148,15 @@ export default function Subscription({
 
                 {/* Premium subscription */}
                 {isPremium && (
-                    <div className="rounded-xl border border-violet-200 bg-violet-50 p-5 dark:border-violet-800 dark:bg-violet-950/30">
+                    <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-5 dark:border-indigo-800 dark:bg-indigo-950/30">
                         <div className="mb-1 flex items-center gap-2">
-                            <Crown className="size-4 text-violet-600 dark:text-violet-400" />
-                            <p className="font-semibold text-violet-700 dark:text-violet-300">
+                            <Crown className="size-4 text-indigo-600 dark:text-indigo-400" />
+                            <p className="font-semibold text-indigo-700 dark:text-indigo-300">
                                 Prémium előfizetés
                             </p>
                         </div>
                         {subscription?.cancel_at_period_end ? (
-                            <p className="mb-4 text-sm text-violet-600 dark:text-violet-400">
+                            <p className="mb-4 text-sm text-indigo-600 dark:text-indigo-400">
                                 Lemondva — a prémium hozzáférésed{' '}
                                 <strong>
                                     {new Date(
@@ -169,7 +169,7 @@ export default function Subscription({
                                 terheljük meg többé a kártyádat.
                             </p>
                         ) : (
-                            <p className="mb-4 text-sm text-violet-600 dark:text-violet-400">
+                            <p className="mb-4 text-sm text-indigo-600 dark:text-indigo-400">
                                 Aktív prémium előfizetés. Korlátlan szavak,
                                 szólisták, flashcardok, kvíz- és cloze-körök,
                                 magasabb napi szövegelemzési és AI-keret, plusz
@@ -212,14 +212,14 @@ export default function Subscription({
                 {/* Előfizetés nélküli prémium hozzáférés (lifetime / admin-adta) —
                     fizetnie nem kell és nem is tud, ezért CTA sincs */}
                 {!isSubscribed && !isOnTrial && hasActiveAccess && (
-                    <div className="rounded-xl border border-violet-200 bg-violet-50 p-5 dark:border-violet-800 dark:bg-violet-950/30">
+                    <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-5 dark:border-indigo-800 dark:bg-indigo-950/30">
                         <div className="mb-1 flex items-center gap-2">
-                            <Crown className="size-4 text-violet-600 dark:text-violet-400" />
-                            <p className="font-semibold text-violet-700 dark:text-violet-300">
+                            <Crown className="size-4 text-indigo-600 dark:text-indigo-400" />
+                            <p className="font-semibold text-indigo-700 dark:text-indigo-300">
                                 Prémium hozzáférés
                             </p>
                         </div>
-                        <p className="text-sm text-violet-600 dark:text-violet-400">
+                        <p className="text-sm text-indigo-600 dark:text-indigo-400">
                             Prémium hozzáférésed van — előfizetés és fizetés
                             nélkül, az összes funkcióval.
                         </p>
@@ -251,14 +251,14 @@ export default function Subscription({
                                 és csak egy kis AI-kóstoló.
                             </p>
 
-                            <div className="mb-4 rounded-lg border border-violet-200 bg-violet-50 p-4 dark:border-violet-800 dark:bg-violet-950/30">
+                            <div className="mb-4 rounded-lg border border-indigo-200 bg-indigo-50 p-4 dark:border-indigo-800 dark:bg-indigo-950/30">
                                 <div className="mb-2 flex items-center gap-2">
-                                    <Crown className="size-4 text-violet-600 dark:text-violet-400" />
-                                    <p className="text-sm font-semibold text-violet-700 dark:text-violet-300">
+                                    <Crown className="size-4 text-indigo-600 dark:text-indigo-400" />
+                                    <p className="text-sm font-semibold text-indigo-700 dark:text-indigo-300">
                                         Prémiummal a tiéd lenne:
                                     </p>
                                 </div>
-                                <ul className="space-y-1.5 text-sm text-violet-600 dark:text-violet-400">
+                                <ul className="space-y-1.5 text-sm text-indigo-600 dark:text-indigo-400">
                                     <li>
                                         ✓ Korlátlan szó, szólista, flashcard,
                                         kvíz- és cloze-kör
@@ -294,7 +294,7 @@ export default function Subscription({
                 {aiUsage && (
                     <div className="rounded-xl border p-5">
                         <div className="mb-1 flex items-center gap-2">
-                            <Sparkles className="size-4 text-violet-600 dark:text-violet-400" />
+                            <Sparkles className="size-4 text-indigo-600 dark:text-indigo-400" />
                             <p className="font-semibold">AI használat</p>
                         </div>
                         {aiUsage.unlimited ? (
@@ -312,7 +312,7 @@ export default function Subscription({
                                 </p>
                                 <div className="mb-2 h-2 w-full overflow-hidden rounded-full bg-secondary">
                                     <div
-                                        className="h-2 rounded-full bg-violet-500 transition-all"
+                                        className="h-2 rounded-full bg-indigo-500 transition-all"
                                         style={{ width: `${aiUsage.percent}%` }}
                                     />
                                 </div>

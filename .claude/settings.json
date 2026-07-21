@@ -347,7 +347,8 @@
       "Bash(git -C /Applications/XAMPP/xamppfiles/htdocs/topEwords status resources/js/pages/welcome.tsx)",
       "Bash(node --input-type=module -e ' *)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://topewords.test/)",
-      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost/)"
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost/)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://topEwords.test)"
     ],
     "additionalDirectories": [
       "/private/tmp",

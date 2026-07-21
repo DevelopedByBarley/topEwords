@@ -867,7 +867,8 @@ export default function WordsIndex({
                 {/* Hero + progress + custom words */}
                 <div
                     id="custom-words"
-                    className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-violet-600 to-violet-400 p-6 md:p-8"
+                    className="relative overflow-hidden rounded-3xl p-6 md:p-8"
+                    style={{ background: 'linear-gradient(135deg,#4338CA,#4F8EEC)' }}
                 >
                     <div className="pointer-events-none absolute -top-14 -right-14 size-56 rounded-full bg-white/15" />
                     <div className="relative flex items-start justify-between gap-3">
@@ -881,7 +882,7 @@ export default function WordsIndex({
                         </div>
                         <button
                             onClick={() => setShowAddCustomWord(true)}
-                            className="mt-1 inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-green-700 shadow-[0_4px_0_0_var(--color-primary-shade)] transition-all hover:brightness-95 active:translate-y-0.75 active:shadow-[0_1px_0_0_var(--color-primary-shade)]"
+                            className="mt-1 inline-flex shrink-0 items-center gap-1.5 rounded-full bg-linear-to-br from-green-400 to-green-500 px-4 py-2.5 text-sm font-bold text-green-950 shadow-[0_4px_0_0_var(--color-green-600)] transition-all hover:brightness-105 active:translate-y-0.75"
                         >
                             <Plus className="size-4" />
                             <span className="hidden sm:inline">Saját szó</span>
@@ -923,7 +924,7 @@ export default function WordsIndex({
                                 Később: {stats.saved.toLocaleString()}
                             </span>
                             <span className="flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-bold text-zinc-700">
-                                <Mic className="size-3.5 text-violet-600" />
+                                <Mic className="size-3.5 text-indigo-600" />
                                 Kiejtés: {stats.pronunciation.toLocaleString()}
                             </span>
                             <span className="flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-bold text-zinc-700">
@@ -971,7 +972,7 @@ export default function WordsIndex({
                                         {customStats.saved.toLocaleString()}
                                     </span>
                                     <span className="flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-bold text-zinc-700">
-                                        <Mic className="size-3.5 text-violet-600" />
+                                        <Mic className="size-3.5 text-indigo-600" />
                                         Kiejtés:{' '}
                                         {customStats.pronunciation.toLocaleString()}
                                     </span>
@@ -1027,7 +1028,7 @@ export default function WordsIndex({
                                                         geminiLoading ||
                                                         !customWordForm.word.trim()
                                                     }
-                                                    className="w-full border-violet-200 text-violet-700 hover:bg-violet-50 dark:border-violet-800 dark:text-violet-400 dark:hover:bg-violet-950/30"
+                                                    className="w-full border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-400 dark:hover:bg-indigo-950/30"
                                                 >
                                                     {geminiLoading ? (
                                                         <Loader2 className="size-4 animate-spin" />
@@ -1280,7 +1281,7 @@ export default function WordsIndex({
                                     >
                                         {letter}
                                         {hasMarks && !isActive && (
-                                            <span className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-violet-500 opacity-80" />
+                                            <span className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-indigo-500 opacity-80" />
                                         )}
                                     </FilterChip>
                                 );
@@ -1468,8 +1469,8 @@ export default function WordsIndex({
                 </p>
 
                 {/* Hint banner */}
-                <div className="flex items-center gap-3 rounded-2xl bg-accent px-4 py-3 text-accent-foreground">
-                    <Info className="size-5 shrink-0 text-violet-600 dark:text-violet-400" />
+                <div className="flex items-center gap-3 rounded-2xl border border-indigo-100 bg-indigo-50 px-4 py-3 text-indigo-900 dark:border-indigo-900/40 dark:bg-indigo-950/20 dark:text-indigo-200">
+                    <Info className="size-5 shrink-0 text-indigo-600 dark:text-indigo-400" />
                     <p className="text-sm font-medium">
                         {flipMode
                             ? 'Fordított mód: a magyar jelentés látszik — kattints a szóra az angol megjelenítéséhez vagy mappa hozzáadásához!'
@@ -1554,7 +1555,7 @@ export default function WordsIndex({
                                             : isCompleted
                                               ? 'bg-green-100 font-medium text-green-800 hover:bg-green-200 dark:bg-green-950/40 dark:text-green-300'
                                               : hasMarks
-                                                ? 'bg-card text-foreground shadow-sm ring-1 ring-violet-300 hover:bg-accent dark:ring-violet-700'
+                                                ? 'bg-card text-foreground shadow-sm ring-1 ring-indigo-300 hover:bg-accent dark:ring-indigo-700'
                                                 : 'bg-card shadow-sm hover:bg-accent'
                                     }`}
                                 >
@@ -2497,7 +2498,7 @@ export default function WordsIndex({
                                                 geminiLoading ||
                                                 !editWordForm.word.trim()
                                             }
-                                            className="w-full border-violet-200 text-violet-700 hover:bg-violet-50 dark:border-violet-800 dark:text-violet-400 dark:hover:bg-violet-950/30"
+                                            className="w-full border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-400 dark:hover:bg-indigo-950/30"
                                         >
                                             {geminiLoading ? (
                                                 <Loader2 className="size-4 animate-spin" />

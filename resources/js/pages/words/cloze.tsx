@@ -230,7 +230,10 @@ function ClozeSetup({
 
             <div className="space-y-6 px-4 py-6">
                 {/* Hero */}
-                <div className="relative overflow-hidden rounded-3xl bg-emerald-500 p-6 md:p-8">
+                <div
+                    className="relative overflow-hidden rounded-3xl p-6 md:p-8"
+                    style={{ background: 'linear-gradient(135deg,#4338CA,#4F8EEC)' }}
+                >
                     <div className="pointer-events-none absolute -top-14 -right-14 size-56 rounded-full bg-white/15" />
                     <div className="pointer-events-none absolute right-32 -bottom-20 size-40 rounded-full bg-white/10" />
                     <div className="relative max-w-xl">
@@ -473,7 +476,7 @@ function ClozeSetup({
                                                 </span>
                                             )}
                                             {w.is_custom && (
-                                                <span className="shrink-0 rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">
+                                                <span className="shrink-0 rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
                                                     saját
                                                 </span>
                                             )}

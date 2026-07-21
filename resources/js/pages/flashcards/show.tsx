@@ -22,11 +22,11 @@ import CardPreviewDialog from '@/components/flashcards/card-preview-dialog';
 import CardRow from '@/components/flashcards/card-row';
 import CardStatsDialog from '@/components/flashcards/card-stats-dialog';
 import DeckSettingsDialog from '@/components/flashcards/deck-settings-dialog';
-import MoveConfirmDialog from '@/components/flashcards/move-confirm-dialog';
 import {
     CsvImport,
     WordSearchImport,
 } from '@/components/flashcards/import-tools';
+import MoveConfirmDialog from '@/components/flashcards/move-confirm-dialog';
 import {
     STATE_FILTER_OPTIONS,
     getXsrfToken,
@@ -334,7 +334,10 @@ export default function FlashcardShow({
 
             <div className="space-y-6 px-4 py-6">
                 {/* Hero: deck info + study CTA */}
-                <div className="relative overflow-hidden rounded-3xl bg-sky-500 p-6 md:p-8">
+                <div
+                    className="relative overflow-hidden rounded-3xl p-6 md:p-8"
+                    style={{ background: 'linear-gradient(135deg,#4338CA,#4F8EEC)' }}
+                >
                     <div className="pointer-events-none absolute -top-14 -right-14 size-56 rounded-full bg-white/15" />
                     <div className="relative flex flex-col gap-4">
                         <div className="flex items-start justify-between gap-3">
@@ -378,7 +381,7 @@ export default function FlashcardShow({
                                                         </span>
                                                     )}
                                                     {reviewDueCount > 0 && (
-                                                        <span className="rounded-full bg-white px-3 py-1.5 text-xs font-bold text-violet-600">
+                                                        <span className="rounded-full bg-white px-3 py-1.5 text-xs font-bold text-indigo-600">
                                                             {reviewDueCount}{' '}
                                                             ismétlés
                                                         </span>
@@ -853,10 +856,10 @@ export default function FlashcardShow({
                 <DialogContent className="max-h-[92vh] w-[calc(100vw-2rem)] overflow-y-auto sm:max-w-2xl">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
-                            <Sparkles className="size-4 text-violet-600" />
+                            <Sparkles className="size-4 text-indigo-600" />
                             Mondatírás gyakorlás
                             {practiceCard && (
-                                <span className="ml-1 rounded-md bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-700 dark:bg-violet-900/40 dark:text-violet-300">
+                                <span className="ml-1 rounded-md bg-indigo-100 px-2 py-0.5 text-xs font-semibold text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
                                     {practiceCard.front
                                         .replace(/<[^>]*>/g, '')
                                         .trim()}
@@ -893,7 +896,7 @@ export default function FlashcardShow({
                                         practiceText.trim().length < 5 ||
                                         practiceLoading
                                     }
-                                    className="gap-2 border-violet-200 bg-gradient-to-br from-violet-500 to-violet-400 text-white hover:bg-violet-700 dark:border-violet-800"
+                                    className="gap-2 rounded-full bg-linear-to-br from-indigo-600 to-indigo-800 text-white shadow-[0_4px_0_0_var(--color-indigo-900)] hover:brightness-105 active:translate-y-0.75"
                                 >
                                     {practiceLoading ? (
                                         <Loader2 className="size-4 animate-spin" />
@@ -916,10 +919,10 @@ export default function FlashcardShow({
 
                         {practiceResult && (
                             <div className="animate-in space-y-3 duration-300 fade-in slide-in-from-bottom-2">
-                                <div className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 dark:border-violet-800 dark:bg-violet-950/30">
+                                <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 dark:border-indigo-800 dark:bg-indigo-950/30">
                                     <div className="flex items-start gap-2">
-                                        <Sparkles className="mt-0.5 size-4 shrink-0 text-violet-600" />
-                                        <p className="text-sm text-violet-800 dark:text-violet-300">
+                                        <Sparkles className="mt-0.5 size-4 shrink-0 text-indigo-600" />
+                                        <p className="text-sm text-indigo-800 dark:text-indigo-300">
                                             {practiceResult.overall_hu}
                                         </p>
                                     </div>

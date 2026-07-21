@@ -73,9 +73,9 @@ const LEVEL_LABELS: Record<
     },
     5: {
         label: '6 001 – 8 000',
-        color: 'text-purple-700 dark:text-purple-400',
-        bg: 'bg-purple-50 dark:bg-purple-950/30',
-        border: 'border-purple-200 dark:border-purple-800',
+        color: 'text-indigo-700 dark:text-indigo-400',
+        bg: 'bg-indigo-50 dark:bg-indigo-950/30',
+        border: 'border-indigo-200 dark:border-indigo-800',
     },
     6: {
         label: '8 001 – 10 000',
@@ -487,7 +487,7 @@ export default function Onboarding({
                             <div className="flex flex-col gap-3">
                                 <button
                                     onClick={() => setStep('test')}
-                                    className="w-full rounded-xl border-2 border-primary bg-primary px-6 py-4 font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+                                    className="w-full rounded-full bg-linear-to-br from-green-400 to-green-500 font-bold text-green-950 shadow-[0_4px_0_0_var(--color-green-600)] transition-all hover:brightness-105 active:translate-y-0.75 px-6 py-4"
                                 >
                                     Igen, csináljuk meg
                                 </button>
@@ -522,7 +522,7 @@ export default function Onboarding({
                                 </div>
                                 <div className="h-1.5 w-full rounded-full bg-secondary">
                                     <div
-                                        className="h-1.5 rounded-full bg-primary transition-all"
+                                        className="h-1.5 rounded-full bg-green-500 transition-all"
                                         style={{
                                             width: `${(currentLevelIndex / levels.length) * 100}%`,
                                         }}
@@ -580,7 +580,7 @@ export default function Onboarding({
                                             });
                                         }
                                     }}
-                                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3.5 font-semibold text-primary-foreground shadow-lg transition-opacity hover:opacity-90"
+                                    className="flex w-full items-center justify-center gap-2 rounded-full bg-linear-to-br from-green-400 to-green-500 font-bold text-green-950 shadow-[0_4px_0_0_var(--color-green-600)] transition-all hover:brightness-105 active:translate-y-0.75 px-6 py-3.5"
                                 >
                                     {isLastLevel
                                         ? 'Eredmény megtekintése'
@@ -678,7 +678,7 @@ export default function Onboarding({
                                         setApplyResults(true);
                                         setStep('features');
                                     }}
-                                    className="w-full rounded-xl bg-primary px-6 py-4 font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+                                    className="w-full rounded-full bg-linear-to-br from-green-400 to-green-500 font-bold text-green-950 shadow-[0_4px_0_0_var(--color-green-600)] transition-all hover:brightness-105 active:translate-y-0.75 px-6 py-4"
                                 >
                                     Érvényesítem – az ismert szavak bejelölve
                                     lesznek
@@ -713,9 +713,9 @@ export default function Onboarding({
                                                 key={s.id}
                                                 className={`h-1.5 rounded-full transition-all ${
                                                     i === featureSlide
-                                                        ? 'w-6 bg-primary'
+                                                        ? 'w-6 bg-green-500'
                                                         : i < featureSlide
-                                                          ? 'w-1.5 bg-primary/50'
+                                                          ? 'w-1.5 bg-green-500/50'
                                                           : 'w-1.5 bg-secondary'
                                                 }`}
                                             />
@@ -791,7 +791,7 @@ export default function Onboarding({
                                                     behavior: 'smooth',
                                                 });
                                             }}
-                                            className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3.5 font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+                                            className="flex flex-1 items-center justify-center gap-2 rounded-full bg-linear-to-br from-green-400 to-green-500 font-bold text-green-950 shadow-[0_4px_0_0_var(--color-green-600)] transition-all hover:brightness-105 active:translate-y-0.75 px-6 py-3.5"
                                         >
                                             {isLastSlide
                                                 ? 'Tovább a témához'
@@ -862,7 +862,7 @@ export default function Onboarding({
                             <button
                                 onClick={submit}
                                 disabled={submitting}
-                                className="w-full rounded-xl bg-primary px-6 py-4 font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
+                                className="w-full rounded-full bg-linear-to-br from-green-400 to-green-500 font-bold text-green-950 shadow-[0_4px_0_0_var(--color-green-600)] transition-all hover:brightness-105 active:translate-y-0.75 px-6 py-4 disabled:opacity-50"
                             >
                                 {submitting ? 'Mentés...' : 'Kezdjük el →'}
                             </button>

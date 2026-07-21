@@ -536,7 +536,7 @@ export default function Welcome({
 
                 {/* side nav */}
                 <div
-                    className="fixed top-1/2 right-[22px] z-50 flex -translate-y-1/2 flex-col gap-1.5 rounded-full border border-[#ececf2] bg-white/90 p-2 shadow-[0_18px_44px_rgba(0,0,0,.12)] backdrop-blur-[10px] transition-opacity duration-300"
+                    className="fixed top-1/2 right-[22px] z-50 hidden -translate-y-1/2 flex-col gap-1.5 rounded-full border border-[#ececf2] bg-white/90 p-2 shadow-[0_18px_44px_rgba(0,0,0,.12)] backdrop-blur-[10px] transition-opacity duration-300 lg:flex"
                     style={{
                         opacity: isHome && showSideNav ? 1 : 0,
                         pointerEvents: isHome && showSideNav ? 'auto' : 'none',
@@ -585,15 +585,16 @@ export default function Welcome({
                         />
 
                         {/* nav */}
-                        <nav className="relative z-5 mx-auto flex max-w-[1200px] items-center justify-between py-6.5">
+                        <nav className="relative z-5 mx-auto flex max-w-[1200px] items-center justify-between gap-3 py-6.5">
                             <button
                                 onClick={goHome}
-                                className="flex cursor-pointer items-center gap-2.5 text-[22px] font-bold tracking-[-.4px] text-white"
+                                className="flex min-w-0 shrink-0 cursor-pointer items-center gap-2.5 text-[18px] font-bold tracking-[-.4px] text-white sm:text-[22px]"
                             >
-                                <span className="grid size-9.5 place-items-center rounded-[11px] bg-gradient-to-br from-indigo-500 to-indigo-700 shadow-[0_6px_18px_rgba(79,70,229,.5)]">
-                                    <Languages size={22} className="text-white" />
+                                <span className="grid size-8.5 shrink-0 place-items-center rounded-[11px] bg-gradient-to-br from-indigo-500 to-indigo-700 shadow-[0_6px_18px_rgba(79,70,229,.5)] sm:size-9.5">
+                                    <Languages size={20} className="text-white sm:hidden" />
+                                    <Languages size={22} className="hidden text-white sm:block" />
                                 </span>
-                                TopWords
+                                <span className="truncate">TopWords</span>
                             </button>
                             <div className="hidden items-center gap-7.5 text-sm text-white/82 lg:flex">
                                 {navLinks.map(([label, id]) => (
@@ -617,13 +618,14 @@ export default function Welcome({
                                     Tananyag
                                 </a>
                             </div>
-                            <div className="flex items-center gap-3.5">
+                            <div className="flex shrink-0 items-center gap-2 sm:gap-3.5">
                                 {auth.user ? (
                                     <Link
                                         href={dashboard()}
-                                        className="rounded-full bg-white px-5.5 py-2.5 font-['Manrope'] text-sm font-semibold text-indigo-950 shadow-[0_8px_22px_rgba(0,0,0,.22)] transition-transform hover:-translate-y-0.5"
+                                        className="rounded-full bg-white px-3.5 py-2 font-['Manrope'] text-xs font-semibold whitespace-nowrap text-indigo-950 shadow-[0_8px_22px_rgba(0,0,0,.22)] transition-transform hover:-translate-y-0.5 sm:px-5.5 sm:py-2.5 sm:text-sm"
                                     >
-                                        Irány az alkalmazás
+                                        <span className="sm:hidden">Alkalmazás</span>
+                                        <span className="hidden sm:inline">Irány az alkalmazás</span>
                                     </Link>
                                 ) : (
                                     <>
@@ -636,7 +638,7 @@ export default function Welcome({
                                         {canRegister && (
                                             <Link
                                                 href={register()}
-                                                className="rounded-full bg-white px-5.5 py-2.5 font-['Manrope'] text-sm font-semibold text-indigo-950 shadow-[0_8px_22px_rgba(0,0,0,.22)] transition-transform hover:-translate-y-0.5"
+                                                className="rounded-full bg-white px-3.5 py-2 font-['Manrope'] text-xs font-semibold whitespace-nowrap text-indigo-950 shadow-[0_8px_22px_rgba(0,0,0,.22)] transition-transform hover:-translate-y-0.5 sm:px-5.5 sm:py-2.5 sm:text-sm"
                                             >
                                                 Regisztráció
                                             </Link>
@@ -645,7 +647,7 @@ export default function Welcome({
                                 )}
                                 <button
                                     onClick={() => setMobileOpen((v) => !v)}
-                                    className="flex size-9 items-center justify-center rounded-full text-white/80 hover:bg-white/10 lg:hidden"
+                                    className="flex size-9 shrink-0 items-center justify-center rounded-full text-white/80 hover:bg-white/10 lg:hidden"
                                     aria-label="Menü"
                                 >
                                     {mobileOpen ? <X size={20} /> : <Menu size={20} />}
@@ -986,42 +988,45 @@ export default function Welcome({
                                 </Reveal>
 
                                 <Reveal
-                                    className="mt-10 rounded-3xl border border-indigo-100 p-8"
+                                    className="mt-10 rounded-3xl border border-indigo-100 p-5 sm:p-8"
                                     style={{ background: 'linear-gradient(155deg,#f5f3ff,#eef2ff)' }}
                                 >
                                     <div>
-                                        <div className="mb-5 flex flex-wrap items-center justify-center gap-3">
+                                        <div className="mb-5 flex flex-wrap items-center justify-center gap-2 sm:gap-3">
                                             <span className="text-sm font-semibold text-[#525252]">Próbáld ki:</span>
                                             <div className="inline-flex gap-1.5 rounded-full border-[1.5px] border-indigo-200 bg-white p-1.5 shadow-[0_10px_26px_rgba(49,46,129,.14)]">
                                                 <button
                                                     onClick={() => setPopupMode('word')}
-                                                    className="inline-flex items-center gap-1.75 rounded-full px-5 py-2.75 font-['Manrope'] text-[15px] font-bold transition-all"
+                                                    className="inline-flex items-center gap-1.25 rounded-full px-3.5 py-2 font-['Manrope'] text-[13px] font-bold whitespace-nowrap transition-all sm:gap-1.75 sm:px-5 sm:py-2.75 sm:text-[15px]"
                                                     style={{
                                                         background: popupMode === 'word' ? '#4338ca' : '#eef2ff',
                                                         color: popupMode === 'word' ? '#fff' : '#4338ca',
                                                         boxShadow: popupMode === 'word' ? '0 8px 20px rgba(67,56,202,.4)' : 'none',
                                                     }}
                                                 >
-                                                    <List size={19} />
+                                                    <List size={17} className="shrink-0 sm:hidden" />
+                                                    <List size={19} className="hidden shrink-0 sm:block" />
                                                     Egy szó
                                                 </button>
                                                 <button
                                                     onClick={() => setPopupMode('phrase')}
-                                                    className="inline-flex items-center gap-1.75 rounded-full px-5 py-2.75 font-['Manrope'] text-[15px] font-bold transition-all"
+                                                    className="inline-flex items-center gap-1.25 rounded-full px-3.5 py-2 font-['Manrope'] text-[13px] font-bold whitespace-nowrap transition-all sm:gap-1.75 sm:px-5 sm:py-2.75 sm:text-[15px]"
                                                     style={{
                                                         background: popupMode === 'phrase' ? '#4338ca' : '#eef2ff',
                                                         color: popupMode === 'phrase' ? '#fff' : '#4338ca',
                                                         boxShadow: popupMode === 'phrase' ? '0 8px 20px rgba(67,56,202,.4)' : 'none',
                                                     }}
                                                 >
-                                                    <MousePointerClick size={19} />
-                                                    Kifejezés · shift+click
+                                                    <MousePointerClick size={17} className="shrink-0 sm:hidden" />
+                                                    <MousePointerClick size={19} className="hidden shrink-0 sm:block" />
+                                                    <span className="sm:hidden">Kifejezés</span>
+                                                    <span className="hidden sm:inline">Kifejezés · shift+click</span>
                                                 </button>
                                             </div>
                                         </div>
 
                                         <div className="relative mx-auto max-w-[900px]">
-                                            <div className="relative aspect-video overflow-hidden rounded-[18px] bg-[#0b0b12] shadow-[0_30px_70px_rgba(0,0,0,.36)]">
+                                            <div className="relative aspect-[3/4] overflow-hidden rounded-[18px] bg-[#0b0b12] shadow-[0_30px_70px_rgba(0,0,0,.36)] sm:aspect-video">
                                                 <div className="absolute top-3.5 left-3.5 z-3 flex gap-2">
                                                     <span className="inline-flex items-center gap-1.25 rounded-lg bg-[#e50914] px-2.75 py-1.25 text-xs font-bold text-white">
                                                         <Film size={15} />
@@ -1092,7 +1097,7 @@ export default function Welcome({
                                             </div>
 
                                             {popupMode === 'word' && (
-                                                <div className="ts-wordpop absolute bottom-30 left-[57%] z-6 w-59 -translate-x-1/2 rounded-[14px] border border-neutral-200 bg-white p-4 shadow-[0_20px_46px_rgba(0,0,0,.28)]">
+                                                <div className="ts-wordpop absolute bottom-38 left-[57%] z-6 w-59 -translate-x-1/2 rounded-[14px] border border-neutral-200 bg-white p-4 shadow-[0_20px_46px_rgba(0,0,0,.28)] sm:bottom-30">
                                                     <div className="ts-wordpop-tail absolute -bottom-1.75 left-1/2 -ml-1.75 size-3.5 rotate-45 border-r border-b border-neutral-200 bg-white" />
                                                     <div className="flex items-center justify-between">
                                                         <div className="flex items-baseline gap-1.75">
@@ -1106,18 +1111,18 @@ export default function Welcome({
                                                     </div>
                                                     <div className="mt-2 text-sm font-semibold text-[#171717]">képes, tud valamit megtenni</div>
                                                     <div className="mt-0.75 text-xs text-[#737373]">≈ capable, competent</div>
-                                                    <div className="ts-pop-hide mt-2.5 border-l-2 border-indigo-200 pl-2.25">
+                                                    <div className="mt-2.5 border-l-2 border-indigo-200 pl-2.25">
                                                         <div className="text-xs text-[#404040] italic">„She is able to speak three languages.”</div>
                                                         <div className="text-xs text-[#a1a1a1]">„Három nyelven tud beszélni.”</div>
                                                     </div>
                                                     <div className="mt-2.5 flex flex-wrap gap-1.5">
                                                         <span className="rounded-full bg-neutral-100 px-2.5 py-1.25 text-xs font-semibold text-neutral-600">Tanulom</span>
                                                         <span className="rounded-full bg-orange-100 px-2.5 py-1.25 text-xs font-bold text-orange-600">Mentett</span>
-                                                        <span className="ts-pop-hide rounded-full bg-neutral-100 px-2.5 py-1.25 text-xs font-semibold text-neutral-600">Tudom</span>
-                                                        <span className="ts-pop-hide rounded-full bg-neutral-100 px-2.5 py-1.25 text-xs font-semibold text-neutral-600">Kiejtés</span>
-                                                        <span className="ts-pop-hide rounded-full bg-neutral-100 px-2.5 py-1.25 text-xs font-semibold text-neutral-600">Gyakorlásra</span>
+                                                        <span className="rounded-full bg-neutral-100 px-2.5 py-1.25 text-xs font-semibold text-neutral-600">Tudom</span>
+                                                        <span className="rounded-full bg-neutral-100 px-2.5 py-1.25 text-xs font-semibold text-neutral-600">Kiejtés</span>
+                                                        <span className="rounded-full bg-neutral-100 px-2.5 py-1.25 text-xs font-semibold text-neutral-600">Gyakorlásra</span>
                                                     </div>
-                                                    <div className="ts-pop-hide mt-3 flex items-center justify-between">
+                                                    <div className="mt-3 flex items-center justify-between">
                                                         <span className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-700">
                                                             Megnyitás
                                                             <ArrowRight size={15} />
@@ -1131,7 +1136,7 @@ export default function Welcome({
                                             )}
 
                                             {popupMode === 'phrase' && (
-                                                <div className="ts-wordpop absolute bottom-30 left-[47%] z-7 w-60 -translate-x-1/2 rounded-[14px] border border-neutral-200 bg-white p-4 shadow-[0_20px_46px_rgba(0,0,0,.28)]">
+                                                <div className="ts-wordpop absolute bottom-38 left-[47%] z-7 w-60 -translate-x-1/2 rounded-[14px] border border-neutral-200 bg-white p-4 shadow-[0_20px_46px_rgba(0,0,0,.28)] sm:bottom-30">
                                                     <div className="ts-wordpop-tail absolute -bottom-1.75 left-1/2 -ml-1.75 size-3.5 rotate-45 border-r border-b border-neutral-200 bg-white" />
                                                     <div className="flex items-center justify-between">
                                                         <span className="text-base font-bold text-[#171717]">not be able</span>
@@ -1165,7 +1170,7 @@ export default function Welcome({
                                         </div>
                                     </div>
 
-                                    <div className="ts-textrow mt-7.5 grid grid-cols-[1.15fr_1fr] items-center gap-10">
+                                    <div className="ts-textrow mt-7.5 grid grid-cols-1 items-center gap-8 lg:grid-cols-[1.15fr_1fr] lg:gap-10">
                                         <div>
                                             <span className="inline-flex items-center gap-1.5 rounded-full border border-indigo-100 bg-white px-3 py-1.25 text-xs font-bold tracking-[.6px] text-indigo-700">
                                                 STREAMING &amp; OFFLINE

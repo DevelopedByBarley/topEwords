@@ -106,7 +106,7 @@ export default function WordsPractice({
             value: 'pronunciation',
             label: 'Kiejtés',
             Icon: Mic,
-            cls: 'bg-violet-100 text-violet-700 hover:bg-violet-200 dark:bg-violet-900/40 dark:text-violet-400',
+            cls: 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200 dark:bg-indigo-900/40 dark:text-indigo-400',
         },
         {
             value: 'practice',
@@ -299,7 +299,10 @@ export default function WordsPractice({
             <Head title="Szabad írás gyakorlás" />
             <div className="space-y-6 px-4 py-6 lg:px-8">
                 {/* Hero */}
-                <div className="relative overflow-hidden rounded-3xl bg-orange-500 p-6 md:p-10">
+                <div
+                    className="relative overflow-hidden rounded-3xl p-6 md:p-10"
+                    style={{ background: 'linear-gradient(135deg,#4338CA,#4F8EEC)' }}
+                >
                     <div className="pointer-events-none absolute -top-16 -right-16 size-64 rounded-full bg-white/15" />
                     <div className="pointer-events-none absolute right-40 -bottom-24 size-48 rounded-full bg-white/10" />
                     <div className="relative flex flex-col gap-1 md:flex-row md:items-end md:justify-between">

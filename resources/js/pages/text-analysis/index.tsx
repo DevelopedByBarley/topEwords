@@ -649,7 +649,10 @@ learningDelta += freq;
 
             <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
                 {/* Hero */}
-                <div className="relative overflow-hidden rounded-3xl bg-violet-500 p-6 md:p-8">
+                <div
+                    className="relative overflow-hidden rounded-3xl p-6 md:p-8"
+                    style={{ background: 'linear-gradient(135deg,#4338CA,#4F8EEC)' }}
+                >
                     <div className="pointer-events-none absolute -top-14 -right-14 size-56 rounded-full bg-white/15" />
                     <div className="relative">
                         <h1 className="text-2xl font-bold tracking-tight text-white md:text-3xl">Szövegelemzés</h1>
@@ -670,7 +673,7 @@ learningDelta += freq;
                                 onClick={() => switchMode(id)}
                                 className={`flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium transition-colors sm:px-4 ${
                                     mode === id
-                                        ? 'bg-violet-500 text-white'
+                                        ? 'bg-indigo-500 text-white'
                                         : 'bg-muted text-muted-foreground hover:bg-accent hover:text-foreground'
                                 }`}
                             >

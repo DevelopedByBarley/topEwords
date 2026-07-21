@@ -51,7 +51,7 @@ export default function Dashboard({ levelStats, totalKnown, totalWords, totalPer
                 {/* Hero */}
                 <div
                     className="relative overflow-hidden rounded-3xl p-6 md:p-8"
-                    style={{ background: 'linear-gradient(135deg,#20276B,#3a3688)' }}
+                    style={{ background: 'linear-gradient(135deg,#4338CA,#4F8EEC)' }}
                 >
                     <div className="pointer-events-none absolute -top-16 -right-16 size-64 rounded-full bg-white/15 blur-2xl" />
                     <div className="pointer-events-none absolute -bottom-24 right-28 size-48 rounded-full bg-white/10 blur-2xl" />
@@ -183,7 +183,7 @@ export default function Dashboard({ levelStats, totalKnown, totalWords, totalPer
                                     </span>
                                 </div>
 
-                                <div className="bg-secondary my-3 h-2 w-full overflow-hidden rounded-full">
+                                <div className="my-3 h-2 w-full overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800">
                                     <div
                                         className={`h-2 rounded-full transition-all duration-500 ${colors.bar}`}
                                         style={{ width: `${level.percent}%` }}

@@ -95,7 +95,7 @@ export default function CardRow({ card, deck, otherDecks, onEdit, onPreview, onP
                 {onPractice && (
                     <button
                         onClick={() => onPractice(card)}
-                        className="size-8 inline-flex items-center justify-center rounded-lg border border-violet-200 bg-violet-50 text-violet-600 transition-colors hover:bg-violet-100 dark:border-violet-800 dark:bg-violet-950/30 dark:text-violet-400 dark:hover:bg-violet-900/40"
+                        className="size-8 inline-flex items-center justify-center rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-600 transition-colors hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/30 dark:text-indigo-400 dark:hover:bg-indigo-900/40"
                         title="Mondatírás gyakorlás"
                     >
                         <Sparkles className="size-3.5" />

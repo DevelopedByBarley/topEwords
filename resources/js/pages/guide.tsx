@@ -145,7 +145,7 @@ function VideoCard({ video, index }: { video: Video; index: number }) {
             </div>
             <div className="p-4">
                 <div className="flex items-start gap-2.5">
-                    <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-violet-100 text-[11px] font-bold text-violet-700 dark:bg-violet-900/40 dark:text-violet-300">
+                    <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-[11px] font-bold text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
                         {index + 1}
                     </span>
                     <div>
@@ -193,7 +193,7 @@ export default function Guide() {
                             href="/"
                             className="flex items-center gap-2.5 text-[20px] font-extrabold leading-none tracking-tight text-neutral-800 dark:text-neutral-100"
                         >
-                            <span className="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-violet-400 text-white">
+                            <span className="flex size-9 items-center justify-center rounded-xl bg-linear-to-br from-indigo-600 to-indigo-800 text-white">
                                 <BookOpen size={22} />
                             </span>
                             TopWords
@@ -219,7 +219,7 @@ export default function Guide() {
                             ))}
                             <Link
                                 href={guide()}
-                                className="rounded-lg px-3 py-2 text-sm font-medium text-violet-600 transition-colors hover:bg-violet-50 dark:text-violet-400 dark:hover:bg-violet-900/20"
+                                className="rounded-lg px-3 py-2 text-sm font-medium text-indigo-600 transition-colors hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-900/20"
                             >
                                 Tananyag
                             </Link>
@@ -238,7 +238,7 @@ export default function Guide() {
                             {auth.user ? (
                                 <Button
                                     asChild
-                                    className="bg-gradient-to-br from-violet-500 to-violet-400 text-white hover:bg-violet-700"
+                                    className="bg-linear-to-br from-indigo-600 to-indigo-800 text-white hover:brightness-105"
                                 >
                                     <Link href={dashboard()}>
                                         Irány az alkalmazás
@@ -257,7 +257,7 @@ export default function Guide() {
                                     </Button>
                                     <Button
                                         asChild
-                                        className="bg-gradient-to-br from-violet-500 to-violet-400 text-white hover:bg-violet-700"
+                                        className="bg-linear-to-br from-indigo-600 to-indigo-800 text-white hover:brightness-105"
                                     >
                                         <Link href={register()}>
                                             Regisztrálás
@@ -290,7 +290,7 @@ export default function Guide() {
                                 onClick={() => setActiveCategory(cat)}
                                 className={`inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-semibold transition-colors ${
                                     activeCategory === cat
-                                        ? 'bg-gradient-to-br from-violet-500 to-violet-400 text-white'
+                                        ? 'bg-linear-to-br from-indigo-600 to-indigo-800 text-white'
                                         : 'bg-white text-neutral-600 hover:bg-neutral-100 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700'
                                 }`}
                             >
