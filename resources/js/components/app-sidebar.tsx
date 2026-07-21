@@ -19,7 +19,6 @@ import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
-import { useExtensionInstalled } from '@/hooks/use-extension-installed';
 import {
     Sidebar,
     SidebarContent,
@@ -32,12 +31,13 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { useCurrentUrl } from '@/hooks/use-current-url';
+import { useExtensionInstalled } from '@/hooks/use-extension-installed';
 import { dashboard } from '@/routes';
 import { index as achievementsIndex } from '@/routes/achievements';
-import { index as irregularVerbsIndex } from '@/routes/irregular-verbs';
-import { cloze as wordsCloze, practice as wordsPractice } from '@/routes/words';
-import { show as textAnalysisShow } from '@/routes/text-analysis';
 import { index as flashcardsIndex } from '@/routes/flashcards';
+import { index as irregularVerbsIndex } from '@/routes/irregular-verbs';
+import { show as textAnalysisShow } from '@/routes/text-analysis';
+import { cloze as wordsCloze, practice as wordsPractice } from '@/routes/words';
 import { index as wordsIndex, quiz as wordsQuiz } from '@/routes/words';
 import type { NavItem } from '@/types';
 
@@ -200,7 +200,7 @@ export function AppSidebar() {
                                             Angol szavak
                                         </span>
                                     </span>
-                                    <span className="ml-auto flex shrink-0 items-center gap-1 rounded-md bg-violet-100 px-1.5 py-0.5 text-[10px] font-semibold text-violet-600 group-data-[collapsible=icon]:hidden dark:bg-violet-900/40 dark:text-violet-400">
+                                    <span className="ml-auto flex shrink-0 items-center gap-1 rounded-md bg-indigo-100 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-600 group-data-[collapsible=icon]:hidden dark:bg-indigo-900/40 dark:text-indigo-400">
                                         <Sparkles className="size-3" />
                                         AI
                                     </span>
@@ -246,7 +246,7 @@ export function AppSidebar() {
                                             </span>
                                         </span>
                                         {item.isAi && (
-                                            <span className="ml-auto flex shrink-0 items-center gap-1 rounded-md bg-violet-100 px-1.5 py-0.5 text-[10px] font-semibold text-violet-600 group-data-[collapsible=icon]:hidden dark:bg-violet-900/40 dark:text-violet-400">
+                                            <span className="ml-auto flex shrink-0 items-center gap-1 rounded-md bg-indigo-100 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-600 group-data-[collapsible=icon]:hidden dark:bg-indigo-900/40 dark:text-indigo-400">
                                                 <Sparkles className="size-3" />
                                                 AI
                                             </span>
@@ -289,12 +289,12 @@ export function AppSidebar() {
                                     tooltip={{
                                         children: 'Bővítmény telepítése',
                                     }}
-                                    className="text-violet-600 hover:bg-violet-50 hover:text-violet-700 dark:text-violet-400 dark:hover:bg-violet-950/20 dark:hover:text-violet-300"
+                                    className="text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700 dark:text-indigo-400 dark:hover:bg-indigo-950/20 dark:hover:text-indigo-300"
                                 >
                                     <Link href="/handbook#extension">
                                         <Puzzle className="animate-pulse" />
                                         <span>Bővítmény telepítése</span>
-                                        <span className="ml-auto size-2 animate-pulse rounded-full bg-violet-500 group-data-[collapsible=icon]:hidden" />
+                                        <span className="ml-auto size-2 animate-pulse rounded-full bg-indigo-500 group-data-[collapsible=icon]:hidden" />
                                     </Link>
                                 </SidebarMenuButton>
                             </SidebarMenuItem>

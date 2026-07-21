@@ -1,246 +1,360 @@
 import { Head, Link, usePage } from '@inertiajs/react';
 import {
-    ArrowLeftRight,
+    AlarmClock,
     ArrowRight,
-    BarChart3,
     Bookmark,
-    BookOpen,
+    Bug,
     Check,
     CheckCircle2,
+    Clock,
     Download,
-    FileText,
-    Filter,
+    Edit,
+    FileSearch,
+    Film,
     Flame,
-    Folder,
-    GraduationCap,
-    Highlighter,
     HelpCircle,
-    History,
     Keyboard,
+    Languages,
     Layers,
+    LayoutGrid,
     List,
-    Lock,
-    LogIn,
     Menu,
-    Moon,
+    Mic,
     MousePointerClick,
-    Percent,
+    NotebookPen,
+    PenTool,
     Play,
-    PlayCircle,
-    PlusCircle,
     Puzzle,
-    RefreshCw,
+    Route,
     Shuffle,
     SlidersHorizontal,
     Sparkles,
-    Sun,
-    Tag,
-    TrendingUp,
-    Upload,
+    Star,
+    Table,
     Volume2,
+    Wand2,
     X,
-    XCircle,
-    Zap,
 } from 'lucide-react';
-import type { LucideProps } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import BetaBanner from '@/components/beta-banner';
 import ChromeExtensionsLink from '@/components/chrome-extensions-link';
-import { Button } from '@/components/ui/button';
-import { useAppearance } from '@/hooks/use-appearance';
 import {
     dashboard,
-    guide,
     login,
-    pricing,
+    pricing as pricingRoute,
     privacy,
     register,
     terms,
 } from '@/routes';
 import { index as wordsIndex } from '@/routes/words';
 
-type Status = 'tudom' | 'tanulom' | 'later' | null;
-type WordTab = 'all' | 'tanulom' | 'tudom';
+type Status = 'Tudom' | 'Tanulom' | 'Később' | 'Kiejtés' | 'Gyakorlásra';
 
-const ICON_MAP: Record<string, React.ComponentType<LucideProps>> = {
-    ads_click: MousePointerClick,
-    add_circle: PlusCircle,
-    arrow_forward: ArrowRight,
-    article: FileText,
-    auto_awesome: Sparkles,
-    bolt: Zap,
-    bookmark: Bookmark,
-    cancel: XCircle,
-    check: Check,
-    check_circle: CheckCircle2,
-    close: X,
-    download: Download,
-    extension: Puzzle,
-    filter_alt: Filter,
-    folder: Folder,
-    format_color_text: Highlighter,
-    format_list_bulleted: List,
-    history: History,
-    keyboard: Keyboard,
-    layers: Layers,
-    local_fire_department: Flame,
-    lock: Lock,
-    login: LogIn,
-    menu_book: BookOpen,
-    percent: Percent,
-    play_arrow: Play,
-    play_circle: PlayCircle,
-    quiz: HelpCircle,
-    refresh: RefreshCw,
-    right_click: MousePointerClick,
-    school: GraduationCap,
-    shuffle: Shuffle,
-    stairs: BarChart3,
-    style: Layers,
-    subtitles: FileText,
-    sync_alt: ArrowLeftRight,
-    tag: Tag,
-    touch_app: MousePointerClick,
-    trending_up: TrendingUp,
-    tune: SlidersHorizontal,
-    upload: Upload,
-    volume_up: Volume2,
+type WordEntry = {
+    num: number;
+    word: string;
+    pos: string;
+    hu: string;
+    syn: string[];
+    ex: { en: string; hu: string };
+    imp: number;
+    status: Status | null;
 };
 
-function MI({
-    n,
-    s = 22,
-    style,
-    className,
-}: {
-    n: string;
-    f?: boolean;
-    s?: number;
-    style?: React.CSSProperties;
-    className?: string;
-}) {
-    const Icon = ICON_MAP[n];
+const INITIAL_WORDS: WordEntry[] = [
+    {
+        num: 178,
+        word: 'between',
+        pos: 'elöljáró',
+        hu: 'között',
+        syn: ['among', 'amid'],
+        ex: {
+            en: 'The space between two cities lies a valley.',
+            hu: 'A két város közötti térben egy völgy fekszik.',
+        },
+        imp: 4,
+        status: 'Tudom',
+    },
+    {
+        num: 288,
+        word: 'important',
+        pos: 'melléknév',
+        hu: 'fontos',
+        syn: ['significant', 'crucial'],
+        ex: {
+            en: 'This is a very important decision.',
+            hu: 'Ez egy nagyon fontos döntés.',
+        },
+        imp: 5,
+        status: 'Tanulom',
+    },
+    {
+        num: 215,
+        word: 'different',
+        pos: 'melléknév',
+        hu: 'különböző',
+        syn: ['distinct', 'various'],
+        ex: {
+            en: 'They have completely different opinions.',
+            hu: 'Teljesen különböző véleményük van.',
+        },
+        imp: 3,
+        status: 'Később',
+    },
+    {
+        num: 305,
+        word: 'government',
+        pos: 'főnév',
+        hu: 'kormány',
+        syn: ['administration', 'state'],
+        ex: {
+            en: 'The government passed a new law.',
+            hu: 'A kormány új törvényt fogadott el.',
+        },
+        imp: 3,
+        status: 'Kiejtés',
+    },
+    {
+        num: 468,
+        word: 'experience',
+        pos: 'főnév',
+        hu: 'tapasztalat',
+        syn: ['expertise', 'knowledge'],
+        ex: {
+            en: 'She has years of experience.',
+            hu: 'Több éves tapasztalata van.',
+        },
+        imp: 4,
+        status: 'Gyakorlásra',
+    },
+    {
+        num: 160,
+        word: 'world',
+        pos: 'főnév',
+        hu: 'világ',
+        syn: ['earth', 'globe'],
+        ex: {
+            en: 'He traveled around the world.',
+            hu: 'Körbeutazta a világot.',
+        },
+        imp: 4,
+        status: 'Tudom',
+    },
+    {
+        num: 92,
+        word: 'because',
+        pos: 'kötőszó',
+        hu: 'mert',
+        syn: ['since', 'as'],
+        ex: {
+            en: 'I stayed because it was raining.',
+            hu: 'Maradtam, mert esett az eső.',
+        },
+        imp: 2,
+        status: null,
+    },
+    {
+        num: 125,
+        word: 'think',
+        pos: 'ige',
+        hu: 'gondol',
+        syn: ['believe', 'consider'],
+        ex: {
+            en: 'I think you are right.',
+            hu: 'Szerintem igazad van.',
+        },
+        imp: 3,
+        status: null,
+    },
+];
 
-    if (!Icon) {
-        return null;
-    }
+const STATUS_META: Record<
+    Status,
+    { icon: React.ComponentType<{ size?: number; className?: string }>; color: string; bg: string; tint: string }
+> = {
+    Tudom: { icon: Check, color: '#16a34a', bg: '#dcfce7', tint: '#f4fcf6' },
+    Tanulom: { icon: AlarmClock, color: '#2563eb', bg: '#dbeafe', tint: '#f3f8ff' },
+    Később: { icon: Bookmark, color: '#ea580c', bg: '#ffedd5', tint: '#fff9f3' },
+    Kiejtés: { icon: Mic, color: '#9333ea', bg: '#f3e8ff', tint: '#fbf7ff' },
+    Gyakorlásra: { icon: Edit, color: '#dc2626', bg: '#fee2e2', tint: '#fff5f5' },
+};
 
-    return <Icon size={s} style={style} className={className} />;
+const RATE_DEFS = [
+    { label: 'Újra', time: '1 perc', c: '#ef4444' },
+    { label: 'Nehéz', time: '6 nap', c: '#f59e0b' },
+    { label: 'Jó', time: '10 nap', c: '#22c55e' },
+    { label: 'Könnyű', time: '15 nap', c: '#3b82f6' },
+];
+
+const SRS_EXPLAIN = [
+    { label: 'Újra', bg: '#ef4444', desc: 'Visszakerül a tanulási lépések elejére.' },
+    { label: 'Nehéz', bg: '#f59e0b', desc: 'Kisebb intervallum, csökkenő ease faktor.' },
+    { label: 'Jó', bg: '#22c55e', desc: 'Az intervallum nő az ease faktor alapján.' },
+    { label: 'Könnyű', bg: '#3b82f6', desc: 'Tovább vár, az ease faktor nő.' },
+];
+
+const FLASH_CAPS = [
+    { icon: Layers, title: 'Saját deck-ek', desc: 'Tetszőleges számú kártyacsomag különböző témákhoz.' },
+    { icon: Route, title: 'Kétirányú kártyák', desc: 'Előlap→hátlap és vissza — külön értékelve.' },
+    { icon: Volume2, title: 'Hangos felolvasás', desc: 'Az elő- és hátlap szövege felolvasható.' },
+    { icon: Shuffle, title: 'Kártyák keverése', desc: 'Bekapcsolható keverés a kétoldalú kártyáknál.' },
+    { icon: Download, title: 'Import a szólistáról', desc: 'Egy kattintással importálhatsz kártyát.' },
+    { icon: Table, title: 'CSV import / export', desc: 'Importálj CSV-ből vagy exportáld a decked.' },
+    { icon: SlidersHorizontal, title: 'Deckenként testreszabható', desc: 'Napi korlát, lépések, ease faktorok, keverés.' },
+    { icon: LayoutGrid, title: 'Haladás nyomon követése', desc: 'Új · Tanulás · Ismétlés — és mikor esedékes.' },
+    { icon: Bug, title: 'Leech detektálás', desc: 'A sokat tévesztett kártyákat automatikusan jelöli.' },
+];
+
+const PRACTICE_MODES = [
+    { icon: HelpCircle, title: 'Kvíz', desc: '4 válaszos teszt, szűrhető státusz, nehézség és mappa szerint.' },
+    { icon: Edit, title: 'Mondatkiegészítés', desc: 'írd be a hiányzó szót a példamondatba (cloze).' },
+    { icon: PenTool, title: 'Szabad írás', desc: 'írj a célszavakkal, az AI ellenőrzi a szóhasználatot és a grammatikát.' },
+    { icon: Route, title: 'Rendhagyó igék', desc: 'gyakorold a Past Simple és Past Participle alakokat.' },
+];
+
+const ANALYZE_BULLETS = [
+    { icon: LayoutGrid, title: 'Érthetőség %', desc: 'látod, hány szót ismersz a szövegben' },
+    { icon: MousePointerClick, title: 'Shift + kattintás', desc: 'jelölj ki több szót, és vidd fel egész kifejezésként' },
+    { icon: Sparkles, title: 'Közvetlen AI-kitöltés', desc: 'a lejátszóból és a bővítményből is — egyenesen a webappba' },
+    { icon: FileSearch, title: 'YouTube & Netflix', desc: 'elemezd a feliratokat, vagy nézz filmet a saját offline lejátszóval' },
+];
+
+const AI_CARDS = [
+    { icon: Wand2, title: 'AI szó-kitöltés', desc: 'Egy kattintással kitölti egy szó magyar jelentését, szófaját és példamondatait — nálad marad a végső szó.' },
+    { icon: Check, title: 'Szabad írás ellenőrzése', desc: 'Írj szabadon a célszavakkal, és az AI visszajelez a szóhasználatról és a grammatikáról.' },
+    { icon: NotebookPen, title: 'AI flashcard', desc: 'A szövegelemzőben talált ismeretlen szóból az AI azonnal kész, kétoldalas kártyát gyárt.' },
+];
+
+const VIDEO_CATS = ['Összes', 'Kezdő lépések', 'Szólista', 'Flashcard', 'Kvíz', 'Szövegelemzés', 'Extension', 'Tesztelőknek'];
+
+const VIDEO_RAW = [
+    { cat: 'Kezdő lépések', title: 'Első lépések a TopWordsban', time: '3:20', desc: 'Regisztráció, a kezdőképernyő és a haladás-sáv értelmezése.' },
+    { cat: 'Kezdő lépések', title: 'A dashboard értelmezése', time: '2:45', desc: 'A haladás-sávok, streak és napi statisztikák olvasása.' },
+    { cat: 'Szólista', title: 'A 10 000 szó böngészése', time: '4:05', desc: 'Hogyan lapozz a frekvencialistában és keress rá szavakra.' },
+    { cat: 'Szólista', title: 'Szavak státuszozása', time: '5:12', desc: 'Tudom / Tanulom / Később jelölése egy kattintással.' },
+    { cat: 'Szólista', title: 'Mappák és szűrők', time: '3:48', desc: 'Témák szerinti rendezés és szűrés nehézség szerint.' },
+    { cat: 'Flashcard', title: 'Első flashcard deck létrehozása', time: '6:30', desc: 'Kártyacsomag indítása és kártyák hozzáadása a listából.' },
+    { cat: 'Flashcard', title: 'Kétirányú kártyák és keverés', time: '4:50', desc: 'Előlap→hátlap és vissza, bekapcsolható kártyakeverés.' },
+    { cat: 'Flashcard', title: 'CSV import és export', time: '3:15', desc: 'Kártyacsomag importálása és exportálása CSV-fájlból.' },
+    { cat: 'Kvíz', title: 'Kvíz és mondatkiegészítés', time: '4:42', desc: 'A gyakorlási módok beállítása a szólistád alapján.' },
+    { cat: 'Szövegelemzés', title: 'Szöveg, YouTube és Netflix elemzése', time: '7:12', desc: 'Feliratelemzés, offline lejátszó és az érthetőség százalék.' },
+    { cat: 'Extension', title: 'A Chrome-bővítmény telepítése', time: '4:18', desc: 'Fejlesztői módú telepítés lépésről lépésre.' },
+    { cat: 'Extension', title: 'Extension használata weboldalakon', time: '3:55', desc: 'Dupla kattintás, Option+W és a jobb-kattintás menü.' },
+    { cat: 'Tesztelőknek', title: 'Hogyan jelentsd a hibákat', time: '3:05', desc: 'A hibajelentés menete és mire érdemes figyelni tesztelés közben.' },
+    { cat: 'Tesztelőknek', title: 'Visszajelzés küldése a fejlesztőknek', time: '2:30', desc: 'Ötletek és javaslatok eljuttatása közvetlenül a csapatnak.' },
+].map((v, i) => ({ ...v, num: i + 1 }));
+
+const EXT_USAGE = [
+    { icon: MousePointerClick, title: 'Dupla kattintás + tartás', desc: 'Dupla kattints egy szóra, tartsd fél másodpercig — megjelenik a jelentés.' },
+    { icon: Keyboard, title: 'Option+W gyorsbillentyű', desc: 'Option+W (Mac) vagy Alt+W (Windows) — megnyílik a keresőmező.' },
+    { icon: MousePointerClick, title: 'Jobb kattintás menü', desc: 'Jelölj ki egy szót → „Szó keresése” a TopWords szólistáján.' },
+    { icon: FileSearch, title: 'Puzzle → szövegelemzés', desc: 'Az ikonra kattintva az oldal szövege megnyílik a szövegelemzőben.' },
+];
+
+const INSTALL_STEPS = [
+    { n: 1, text: 'Töltsd le a .zip-et, és csomagold ki egy mappába' },
+    { n: 2, text: 'Nyisd meg: chrome://extensions' },
+    { n: 3, text: 'Kapcsold be a Fejlesztői módot (jobb felső sarok)' },
+    { n: 4, text: 'Kattints: Kicsomagolt bővítmény betöltése' },
+    { n: 5, text: 'Válaszd ki a kicsomagolt mappát' },
+];
+
+const FREE_PLAN = [
+    '10 000 szavas szólista',
+    'Flashcard SRS, saját deck-ek',
+    'Kvíz és mondatkiegészítés',
+    'Chrome-bővítmény',
+    'AI-kóstoló havi kerettel',
+];
+
+const PRO_PLAN = [
+    'Minden az Ingyenesből',
+    'Korlátlan AI szó-kitöltés',
+    'AI szabad írás ellenőrzés',
+    'Könyv- és YouTube-elemzés',
+    'Legnagyobb keretek, prioritás',
+];
+
+const SIDE_NAV_DEFS = [
+    { id: 'funkciok', label: 'Funkciók', icon: LayoutGrid },
+    { id: 'szovegelemzes', label: 'Szövegelemzés', icon: FileSearch },
+    { id: 'szolista', label: 'Szólista', icon: List },
+    { id: 'flashcard', label: 'Flashcard', icon: Layers },
+    { id: 'gyakorlas', label: 'Gyakorlás', icon: HelpCircle },
+    { id: 'ai', label: 'AI', icon: Sparkles },
+    { id: 'bovitmeny', label: 'Bővítmény', icon: Puzzle },
+    { id: 'arazas', label: 'Árazás', icon: SlidersHorizontal },
+];
+
+function fmt(n: number) {
+    return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 }
 
-const DEMO_WORDS = [
-    { rank: 42, word: 'between' },
-    { rank: 187, word: 'important' },
-    { rank: 234, word: 'different' },
-    { rank: 312, word: 'government' },
-    { rank: 418, word: 'experience' },
-    { rank: 521, word: 'world' },
-    { rank: 634, word: 'because' },
-    { rank: 742, word: 'think' },
-];
+function useCountUp(target: number, suffix = '') {
+    const ref = useRef<HTMLSpanElement>(null);
 
-const FLASHCARDS = [
-    {
-        word: 'between',
-        ipa: '/bɪˈtwiːn/',
-        meaning: 'között, -ek között',
-        ex: '"between you and me"',
-        rank: 42,
-    },
-    {
-        word: 'important',
-        ipa: '/ɪmˈpɔːrtənt/',
-        meaning: 'fontos, jelentős',
-        ex: '"it is important to try"',
-        rank: 187,
-    },
-    {
-        word: 'experience',
-        ipa: '/ɪkˈspɪəriəns/',
-        meaning: 'tapasztalat, élmény',
-        ex: '"years of experience"',
-        rank: 418,
-    },
-];
+    useEffect(() => {
+        const el = ref.current;
 
-const QUIZ_QUESTION = {
-    rank: 42,
-    tier: 'Top 1 000',
-    word: 'between',
-    options: ['között', 'felett', 'mellett', 'mögött'],
-    correct: 0,
-};
+        if (!el) {
+            return;
+        }
 
-const FC_FEATURES = [
-    {
-        icon: 'layers',
-        title: 'Saját deck-ek',
-        desc: 'Tetszőleges számú kártyacsomagot hozhatsz létre különböző témákhoz.',
-    },
-    {
-        icon: 'sync_alt',
-        title: 'Kétirányú kártyák',
-        desc: 'Előlap→hátlap, hátlap→előlap — az algoritmus külön értékeli.',
-    },
-    {
-        icon: 'volume_up',
-        title: 'Hangos felolvasás',
-        desc: 'Az előlap és hátlap szövege felolvasható a kiejtés tanulásához.',
-    },
-    {
-        icon: 'shuffle',
-        title: 'Kártyák keverése',
-        desc: 'Bekapcsolható keverés, hogy kétoldalú kártyáknál ne kerüljenek egymás mellé.',
-    },
-    {
-        icon: 'upload',
-        title: 'Import a szólistáról',
-        desc: 'A TopWords szólistájából egy kattintással importálhatsz kártyát.',
-    },
-    {
-        icon: 'download',
-        title: 'CSV import / export',
-        desc: 'Importálj CSV fájlból, vagy exportáld a deckjed más alkalmazásokba.',
-    },
-    {
-        icon: 'tune',
-        title: 'Deckenként testreszabható',
-        desc: 'Napi korlát, tanulási lépések, ease faktorok, keverés — deckenkénti beállítással.',
-    },
-    {
-        icon: 'trending_up',
-        title: 'Haladás nyomon követése',
-        desc: 'Minden kártya státusza látható: Új · Tanulás · Ismétlés — és mikor esedékes.',
-    },
-    {
-        icon: 'refresh',
-        title: 'Leech detektálás',
-        desc: 'A sokat tévesztett kártyákat automatikusan jelöli, hogy tudd, hol kell más módszer.',
-    },
-];
+        const io = new IntersectionObserver(
+            (entries, obs) => {
+                entries.forEach((entry) => {
+                    if (!entry.isIntersecting) {
+                        return;
+                    }
 
-const EXT_METHODS = [
-    {
-        icon: 'ads_click',
-        title: 'Dupla kattintás + tartás',
-        desc: 'Bármely weboldalon dupla kattints egy szóra, tartsd fél másodpercig — megjelenik a szó jelentése.',
-    },
-    {
-        icon: 'keyboard',
-        title: 'Option+W gyorsbillentyű',
-        desc: 'Option+W (Mac) vagy Alt+W (Windows) — megnyílik a keresőmező, gépeld be a szót.',
-    },
-    {
-        icon: 'right_click',
-        title: 'Jobb kattintás menü',
-        desc: 'Jelölj ki egy szót, kattints jobb gombbal → "Szó keresése" a TopWords szólistáján.',
-    },
-    {
-        icon: 'extension',
-        title: 'Extension ikon → szövegelemzés',
-        desc: 'Az extension ikonjára kattintva az aktuális oldal szövege megnyílik a szövegelemzőben.',
-    },
-];
+                    obs.unobserve(el);
+                    const dur = 1500;
+                    const start = performance.now();
+
+                    const step = (t: number) => {
+                        const p = Math.min(1, (t - start) / dur);
+                        const e = 1 - Math.pow(1 - p, 3);
+                        el.textContent = fmt(target * e) + suffix;
+
+                        if (p < 1) {
+                            requestAnimationFrame(step);
+                        }
+                    };
+
+                    requestAnimationFrame(step);
+                });
+            },
+            { threshold: 0.6 },
+        );
+
+        io.observe(el);
+
+        return () => io.disconnect();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [target]);
+
+    return ref;
+}
+
+function Reveal({
+    as: Tag = 'div',
+    className,
+    style,
+    onMouseEnter,
+    children,
+}: {
+    as?: React.ElementType;
+    className?: string;
+    style?: React.CSSProperties;
+    onMouseEnter?: () => void;
+    children: React.ReactNode;
+}) {
+    return (
+        <Tag data-reveal className={className} style={style} onMouseEnter={onMouseEnter}>
+            {children}
+        </Tag>
+    );
+}
 
 export default function Welcome({
     canRegister = true,
@@ -248,69 +362,157 @@ export default function Welcome({
     canRegister?: boolean;
 }) {
     const { auth, billingEnabled } = usePage().props;
-    const { appearance, updateAppearance } = useAppearance();
 
-    const cycleTheme = () => {
-        if (appearance === 'dark') {
-            updateAppearance('light');
-        } else {
-            updateAppearance('dark');
-        }
-    };
-
-    const ThemeIcon = appearance === 'dark' ? Moon : Sun;
-
+    const [page, setPage] = useState<'home' | 'videos'>('home');
+    const [flipped, setFlipped] = useState(false);
+    const [flipped2, setFlipped2] = useState(false);
+    const [quizPick, setQuizPick] = useState<string | null>(null);
+    const [filter, setFilter] = useState<'Összes' | 'Tanulom' | 'Tudom'>('Összes');
+    const [videoFilter, setVideoFilter] = useState('Összes');
+    const [activeSection, setActiveSection] = useState('funkciok');
+    const [showSideNav, setShowSideNav] = useState(false);
+    const [selWord, setSelWord] = useState(0);
+    const [popupMode, setPopupMode] = useState<'word' | 'phrase'>('word');
     const [mobileOpen, setMobileOpen] = useState(false);
-    const [wordTab, setWordTab] = useState<WordTab>('all');
-    const [statuses, setStatuses] = useState<Record<string, Status>>({
-        between: 'tudom',
-        important: 'tanulom',
-        different: null,
-        government: 'tudom',
-        experience: 'later',
-        world: null,
-        because: null,
-        think: null,
-    });
+    const [words, setWords] = useState<WordEntry[]>(INITIAL_WORDS);
+    const [hoveredFeature, setHoveredFeature] = useState(0);
 
-    const [cardFlipped, setCardFlipped] = useState(false);
-    const [cardIdx, setCardIdx] = useState(0);
-    const [quizAnswer, setQuizAnswer] = useState<number | null>(null);
+    const isHome = page !== 'videos';
+    const isVideos = page === 'videos';
 
-    const knownCount = Object.values(statuses).filter(
-        (s) => s === 'tudom',
-    ).length;
-    const knownPct = Math.round((knownCount / DEMO_WORDS.length) * 100);
-
-    const filteredWords = DEMO_WORDS.filter((w) => {
-        if (wordTab === 'all') {
-            return true;
-        }
-
-        if (wordTab === 'tanulom') {
-            return statuses[w.word] === 'tanulom';
-        }
-
-        if (wordTab === 'tudom') {
-            return statuses[w.word] === 'tudom';
-        }
-
-        return true;
-    });
-
-    const toggleStatus = (word: string, s: Status) => {
-        setStatuses((prev) => ({
-            ...prev,
-            [word]: prev[word] === s ? null : s,
-        }));
+    const goHome = () => setPage('home');
+    const goVideos = (e?: React.MouseEvent) => {
+        e?.preventDefault();
+        setPage('videos');
+        window.scrollTo(0, 0);
     };
 
-    const card = FLASHCARDS[cardIdx % FLASHCARDS.length];
+    const goToSection = (id: string) => {
+        goHome();
+        setMobileOpen(false);
+        requestAnimationFrame(() => {
+            const el = document.getElementById(id);
 
-    const nextCard = () => {
-        setCardFlipped(false);
-        setTimeout(() => setCardIdx((i) => i + 1), 80);
+            if (el) {
+                window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 90, behavior: 'smooth' });
+            }
+        });
     };
+
+    useEffect(() => {
+        const ids = ['funkciok', 'szovegelemzes', 'szolista', 'flashcard', 'gyakorlas', 'ai', 'bovitmeny', 'arazas'];
+        let raf: number | null = null;
+
+        const onScroll = () => {
+            if (raf) {
+                return;
+            }
+
+            raf = requestAnimationFrame(() => {
+                raf = null;
+                const show = window.scrollY > 520;
+                let active = activeSection;
+                let closestDist = Infinity;
+                let closest: string | null = null;
+
+                ids.forEach((id) => {
+                    const el = document.getElementById(id);
+
+                    if (!el) {
+                        return;
+                    }
+
+                    const rect = el.getBoundingClientRect();
+
+                    if (rect.top < window.innerHeight * 0.6) {
+                        const dist = Math.abs(rect.top - 120);
+
+                        if (dist < closestDist) {
+                            closestDist = dist;
+                            closest = id;
+                        }
+                    }
+                });
+
+                if (closest) {
+                    active = closest;
+                }
+
+                setShowSideNav(show);
+                setActiveSection(active);
+            });
+        };
+
+        window.addEventListener('scroll', onScroll, { passive: true });
+
+        return () => window.removeEventListener('scroll', onScroll);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    const setWord = (i: number, st: Status) => {
+        setWords((prev) => {
+            const next = prev.slice();
+            next[i] = { ...next[i], status: next[i].status === st ? null : st };
+
+            return next;
+        });
+    };
+
+    const knownCount = words.filter((w) => w.status === 'Tudom').length;
+    const filterTabs = (['Összes', 'Tanulom', 'Tudom'] as const).map((label) => ({
+        label,
+        count: label === 'Összes' ? words.length : words.filter((w) => w.status === label).length,
+    }));
+    const visibleWords = words
+        .map((w, i) => ({ ...w, i }))
+        .filter((w) => filter === 'Összes' || w.status === filter);
+
+    const sel = words[selWord] ?? words[0];
+    const selMeta = sel.status ? STATUS_META[sel.status] : null;
+    const detailButtons: Status[] = ['Tudom', 'Tanulom', 'Később', 'Kiejtés', 'Gyakorlásra'];
+
+    const answered = quizPick != null;
+    const quizOptions = [
+        { l: 'között', correct: true },
+        { l: 'felett', correct: false },
+        { l: 'mellett', correct: false },
+        { l: 'mögött', correct: false },
+    ];
+    const correct = quizPick === 'között';
+
+    const progressRef = useCountUp(41, '%');
+    const wordCountRef = useCountUp(4187);
+    const analyzePctRef = useCountUp(87, '%');
+    const analyzeCountRef = useCountUp(312);
+    const barRef = useRef<HTMLDivElement>(null);
+    const bar2Ref = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const io = new IntersectionObserver(
+            (entries, obs) => {
+                entries.forEach((entry) => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('animate-bar-grow');
+                        obs.unobserve(entry.target);
+                    }
+                });
+            },
+            { threshold: 0.4 },
+        );
+
+        [barRef.current, bar2Ref.current].forEach((el) => el && io.observe(el));
+
+        return () => io.disconnect();
+    }, []);
+
+    const filteredVideos = VIDEO_RAW.filter((v) => videoFilter === 'Összes' || v.cat === videoFilter);
+
+    const navLinks: [string, string][] = [
+        ['Funkciók', 'funkciok'],
+        ['Szólista', 'szolista'],
+        ['Flashcard', 'flashcard'],
+        ['Árazás', 'arazas'],
+    ];
 
     return (
         <>
@@ -320,1869 +522,1591 @@ export default function Welcome({
                     name="description"
                     content="Tanuld meg a 10 000 leggyakoribb angol szót. Szólista, flashcard SRS, kvíz, mondatkiegészítés, szabad írás és rendhagyó igék, AI-segítséggel, szövegelemzővel és Chrome-bővítménnyel – egy helyen, magyarul."
                 />
-                <meta
-                    head-key="og:title"
-                    property="og:title"
-                    content="TopWords – Top 10 000 angol szó"
-                />
+                <meta head-key="og:title" property="og:title" content="TopWords – Top 10 000 angol szó" />
                 <meta
                     head-key="og:description"
                     property="og:description"
                     content="Tanuld a 10 000 leggyakoribb angol szót flashcard SRS-sel, kvízzel, mondatkiegészítéssel, AI-alapú szabad írással és szövegelemzővel. Jelöld amit tudsz, és kövesd a haladásodat."
                 />
-                <meta
-                    head-key="og:url"
-                    property="og:url"
-                    content="https://topwords.eu/"
-                />
+                <meta head-key="og:url" property="og:url" content="https://topwords.eu/" />
             </Head>
 
-            <div
-                className="min-h-screen overflow-x-hidden bg-neutral-50 text-neutral-800 dark:bg-neutral-900 dark:text-neutral-200"
-                style={{
-                    fontFamily:
-                        '"Roboto", system-ui, -apple-system, sans-serif',
-                }}
-            >
+            <div className="overflow-x-hidden bg-[#fafafa] font-['Manrope',system-ui,sans-serif] text-[#262626] antialiased">
                 <BetaBanner />
 
-                {/* ===================== NAV ===================== */}
-                <header className="sticky top-0 z-50 border-b border-neutral-200 bg-neutral-50/80 backdrop-blur-md dark:border-neutral-700 dark:bg-neutral-900/80">
-                    <div className="mx-auto flex max-w-[1200px] items-center gap-5 px-6 py-3">
-                        <Link
-                            href="/"
-                            className="flex items-center gap-2.5 text-[20px] leading-none font-extrabold tracking-tight text-neutral-800 dark:text-neutral-100"
-                        >
-                            <span className="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-violet-400 text-white">
-                                <MI n="menu_book" s={22} />
-                            </span>
-                            TopWords
-                        </Link>
+                {/* side nav */}
+                <div
+                    className="fixed top-1/2 right-[22px] z-50 flex -translate-y-1/2 flex-col gap-1.5 rounded-full border border-[#ececf2] bg-white/90 p-2 shadow-[0_18px_44px_rgba(0,0,0,.12)] backdrop-blur-[10px] transition-opacity duration-300"
+                    style={{
+                        opacity: isHome && showSideNav ? 1 : 0,
+                        pointerEvents: isHome && showSideNav ? 'auto' : 'none',
+                    }}
+                >
+                    {SIDE_NAV_DEFS.map((n) => {
+                        const active = activeSection === n.id;
+                        const Icon = n.icon;
 
-                        <nav className="ml-2 hidden items-center gap-1 lg:flex">
-                            {[
-                                ['Funkciók', '#features'],
-                                ['Szólista', '#wordlist'],
-                                ['Flashcard', '#flashcard'],
-                                ['Gyakorlás', '#quiz'],
-                                ['AI', '#ai'],
-                                ['Bővítmény', '#extension'],
-                            ].map(([label, href]) => (
-                                <a
-                                    key={label}
-                                    href={href}
-                                    className="rounded-lg px-3 py-2 text-sm font-medium text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-800 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
-                                >
-                                    {label}
-                                </a>
-                            ))}
-                            <Link
-                                href={guide()}
-                                className="rounded-lg px-3 py-2 text-sm font-medium text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-800 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
+                        return (
+                            <div
+                                key={n.id}
+                                onClick={() => goToSection(n.id)}
+                                className="flex cursor-pointer p-1"
                             >
-                                Tananyag
-                            </Link>
-                        </nav>
+                                <span
+                                    className="grid size-10 flex-none place-items-center rounded-full transition-all duration-250"
+                                    style={{
+                                        background: active ? '#4338ca' : 'transparent',
+                                        color: active ? '#fff' : '#b4b4bb',
+                                        boxShadow: active ? '0 8px 18px rgba(67,56,202,.35)' : 'none',
+                                    }}
+                                >
+                                    <Icon size={22} />
+                                </span>
+                            </div>
+                        );
+                    })}
+                </div>
 
-                        <div className="ml-auto flex items-center gap-2">
-                            {billingEnabled && (
-                                <Button
-                                    variant="ghost"
-                                    asChild
-                                    className="hidden sm:inline-flex"
-                                >
-                                    <Link href={pricing()}>Árak</Link>
-                                </Button>
-                            )}
-                            {auth.user ? (
-                                <Button
-                                    asChild
-                                    className="bg-gradient-to-br from-violet-500 to-violet-400 text-white hover:bg-violet-700"
-                                >
-                                    <Link href={dashboard()}>
-                                        Irány az alkalmazás
-                                    </Link>
-                                </Button>
-                            ) : (
-                                <>
-                                    <Button
-                                        variant="ghost"
-                                        asChild
-                                        className="hidden sm:inline-flex"
-                                    >
-                                        <Link href={login()}>
-                                            Bejelentkezés
-                                        </Link>
-                                    </Button>
-                                    {canRegister && (
-                                        <Button
-                                            asChild
-                                            className="hidden bg-gradient-to-br from-violet-500 to-violet-400 text-white hover:bg-violet-700 sm:inline-flex"
-                                        >
-                                            <Link href={register()}>
-                                                Regisztrálás
-                                            </Link>
-                                        </Button>
-                                    )}
-                                </>
-                            )}
+                {isHome && (
+                    <section
+                        className="relative overflow-hidden px-5 pb-[200px]"
+                        style={{
+                            background:
+                                'linear-gradient(180deg,#20276B 0%,#3a3688 14%,#6548AC 30%,#5566c4 44%,#4F8EEC 66%,#4F8EEC 100%)',
+                        }}
+                    >
+                        <div
+                            className="pointer-events-none absolute -top-35 left-1/2 size-[900px] -translate-x-1/2 rounded-full blur-[30px]"
+                            style={{ background: 'radial-gradient(circle,rgba(79,70,229,.45),transparent 62%)' }}
+                        />
+                        <div
+                            className="pointer-events-none absolute top-[340px] -left-30 size-[420px] rounded-full blur-[20px]"
+                            style={{ background: 'radial-gradient(circle,rgba(79,70,229,.28),transparent 65%)' }}
+                        />
+
+                        {/* nav */}
+                        <nav className="relative z-5 mx-auto flex max-w-[1200px] items-center justify-between py-6.5">
                             <button
-                                onClick={cycleTheme}
-                                className="flex size-9 items-center justify-center rounded-lg text-neutral-600 transition-colors hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
-                                aria-label="Téma váltás"
-                                title={
-                                    appearance === 'dark'
-                                        ? 'Sötét téma'
-                                        : 'Világos téma'
-                                }
+                                onClick={goHome}
+                                className="flex cursor-pointer items-center gap-2.5 text-[22px] font-bold tracking-[-.4px] text-white"
                             >
-                                <ThemeIcon className="size-5" />
+                                <span className="grid size-9.5 place-items-center rounded-[11px] bg-gradient-to-br from-indigo-500 to-indigo-700 shadow-[0_6px_18px_rgba(79,70,229,.5)]">
+                                    <Languages size={22} className="text-white" />
+                                </span>
+                                TopWords
                             </button>
-                            <button
-                                onClick={() => setMobileOpen((v) => !v)}
-                                className="flex size-9 items-center justify-center rounded-lg text-neutral-600 transition-colors hover:bg-neutral-100 sm:hidden dark:text-neutral-300 dark:hover:bg-neutral-800"
-                                aria-label="Menü"
-                            >
-                                {mobileOpen ? (
-                                    <X className="size-5" />
-                                ) : (
-                                    <Menu className="size-5" />
-                                )}
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Mobile dropdown */}
-                    {mobileOpen && (
-                        <div className="border-t border-neutral-200 bg-neutral-50/95 px-4 pt-2 pb-4 sm:hidden dark:border-neutral-700 dark:bg-neutral-900/95">
-                            <nav className="flex flex-col gap-0.5">
-                                {[
-                                    ['Funkciók', '#features'],
-                                    ['Szólista', '#wordlist'],
-                                    ['Flashcard', '#flashcard'],
-                                    ['Kvíz', '#quiz'],
-                                    ['Bővítmény', '#extension'],
-                                ].map(([label, href]) => (
+                            <div className="hidden items-center gap-7.5 text-sm text-white/82 lg:flex">
+                                {navLinks.map(([label, id]) => (
                                     <a
-                                        key={label}
-                                        href={href}
-                                        onClick={() => setMobileOpen(false)}
-                                        className="rounded-lg px-3 py-2.5 text-sm font-medium text-neutral-600 transition-colors hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
+                                        key={id}
+                                        href={`#${id}`}
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            goToSection(id);
+                                        }}
+                                        className="text-inherit transition-colors hover:text-white"
                                     >
                                         {label}
                                     </a>
                                 ))}
-                                <Link
-                                    href={guide()}
-                                    onClick={() => setMobileOpen(false)}
-                                    className="rounded-lg px-3 py-2.5 text-sm font-medium text-violet-600 transition-colors hover:bg-violet-50 dark:text-violet-400 dark:hover:bg-violet-900/20"
+                                <a
+                                    href="#tananyag"
+                                    onClick={goVideos}
+                                    className="text-inherit transition-colors hover:text-white"
                                 >
                                     Tananyag
-                                </Link>
-                            </nav>
-                            <div className="mt-3 flex flex-col gap-2 border-t border-neutral-200 pt-3 dark:border-neutral-700">
-                                {billingEnabled && (
-                                    <Button
-                                        variant="outline"
-                                        asChild
-                                        className="w-full"
-                                    >
-                                        <Link
-                                            href={pricing()}
-                                            onClick={() => setMobileOpen(false)}
-                                        >
-                                            Árak
-                                        </Link>
-                                    </Button>
-                                )}
+                                </a>
+                            </div>
+                            <div className="flex items-center gap-3.5">
                                 {auth.user ? (
-                                    <Button
-                                        asChild
-                                        className="w-full bg-gradient-to-br from-violet-500 to-violet-400 text-white hover:bg-violet-700"
+                                    <Link
+                                        href={dashboard()}
+                                        className="rounded-full bg-white px-5.5 py-2.5 font-['Manrope'] text-sm font-semibold text-indigo-950 shadow-[0_8px_22px_rgba(0,0,0,.22)] transition-transform hover:-translate-y-0.5"
                                     >
-                                        <Link href={dashboard()}>
-                                            Irány az alkalmazás
-                                        </Link>
-                                    </Button>
+                                        Irány az alkalmazás
+                                    </Link>
                                 ) : (
                                     <>
-                                        <Button
-                                            variant="outline"
-                                            asChild
-                                            className="w-full"
+                                        <Link
+                                            href={login()}
+                                            className="hidden px-3 py-2.5 font-['Manrope'] text-sm font-medium text-white sm:inline"
                                         >
-                                            <Link
-                                                href={login()}
-                                                onClick={() =>
-                                                    setMobileOpen(false)
-                                                }
-                                            >
-                                                Bejelentkezés
-                                            </Link>
-                                        </Button>
+                                            Belépés
+                                        </Link>
                                         {canRegister && (
-                                            <Button
-                                                asChild
-                                                className="w-full bg-gradient-to-br from-violet-500 to-violet-400 text-white hover:bg-violet-700"
+                                            <Link
+                                                href={register()}
+                                                className="rounded-full bg-white px-5.5 py-2.5 font-['Manrope'] text-sm font-semibold text-indigo-950 shadow-[0_8px_22px_rgba(0,0,0,.22)] transition-transform hover:-translate-y-0.5"
                                             >
-                                                <Link
-                                                    href={register()}
-                                                    onClick={() =>
-                                                        setMobileOpen(false)
-                                                    }
-                                                >
-                                                    Regisztrálás
-                                                </Link>
-                                            </Button>
+                                                Regisztráció
+                                            </Link>
                                         )}
                                     </>
                                 )}
+                                <button
+                                    onClick={() => setMobileOpen((v) => !v)}
+                                    className="flex size-9 items-center justify-center rounded-full text-white/80 hover:bg-white/10 lg:hidden"
+                                    aria-label="Menü"
+                                >
+                                    {mobileOpen ? <X size={20} /> : <Menu size={20} />}
+                                </button>
                             </div>
-                        </div>
-                    )}
-                </header>
+                        </nav>
 
-                {/* ===================== HERO ===================== */}
-                <section
-                    id="top"
-                    className="mx-auto max-w-[1200px] px-4 py-12 sm:px-6 md:py-24"
-                >
-                    <div className="grid items-center gap-12 lg:grid-cols-[1.05fr_0.95fr] lg:gap-14">
-                        {/* left */}
-                        <div className="animate-hero-rise">
-                            <div className="mb-5 inline-flex items-center gap-2 rounded-full bg-violet-100 px-3 py-1.5 text-xs font-bold tracking-widest text-violet-700 uppercase dark:bg-violet-900/40 dark:text-violet-300">
-                                <MI n="bolt" f s={16} />
-                                MAGYAR NYELVŰ · SZÓKINCS FEJLESZTÉS
+                        {mobileOpen && (
+                            <div className="relative z-10 mx-auto flex max-w-[1200px] flex-col gap-1 pb-4 lg:hidden">
+                                {navLinks.map(([label, id]) => (
+                                    <a
+                                        key={id}
+                                        href={`#${id}`}
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            setMobileOpen(false);
+                                            goToSection(id);
+                                        }}
+                                        className="rounded-lg px-3 py-2.5 text-sm font-medium text-white/85 hover:bg-white/10"
+                                    >
+                                        {label}
+                                    </a>
+                                ))}
+                                <a
+                                    href="#tananyag"
+                                    onClick={(e) => {
+                                        setMobileOpen(false);
+                                        goVideos(e);
+                                    }}
+                                    className="rounded-lg px-3 py-2.5 text-sm font-medium text-white/85 hover:bg-white/10"
+                                >
+                                    Tananyag
+                                </a>
                             </div>
-                            <h1 className="mt-2 text-[clamp(38px,5.6vw,68px)] leading-[1.04] font-extrabold tracking-tight text-balance">
-                                A{' '}
-                                <span className="text-violet-600 dark:text-violet-400">
-                                    10 000
-                                </span>{' '}
-                                leggyakoribb angol szó
+                        )}
+
+                        {/* hero copy */}
+                        <div className="relative z-4 mx-auto mt-14 max-w-[840px] text-center">
+                            <div className="ts-hero-badge inline-flex items-center gap-2 rounded-full border border-white/[0.18] bg-white/10 px-4 py-1.75 text-[13px] font-medium text-indigo-200 backdrop-blur-md">
+                                <Sparkles size={16} />
+                                Tanulj angolul okosan — magyarul
+                            </div>
+                            <h1 className="mt-6.5 text-[clamp(42px,6.6vw,80px)] leading-[1.02] font-extrabold tracking-[-1.5px] text-white">
+                                10 000 angol szó,
+                                <br />
+                                egy helyen
                             </h1>
-                            <p className="mt-5 max-w-[540px] text-lg leading-relaxed text-neutral-500 dark:text-neutral-400">
-                                Tanuld az angolt okosan. Szólista nyomon
-                                követéssel, flashcard SRS-sel, kvízzel,
-                                mondatkiegészítéssel, AI-alapú szabad írással,
-                                rendhagyó igékkel, szövegelemzővel és
-                                Chrome-bővítménnyel — minden egy helyen,
-                                magyarul.
+                            <p className="mx-auto mt-5.5 max-w-[600px] text-[17px] leading-[1.65] text-white/78">
+                                Saját bővíthető szótár 10 000 kezdő szóval. Szólista nyomon követéssel, flashcard SRS-sel,
+                                kvízzel, mondatkiegészítéssel, AI-alapú szabad írással, szövegelemzővel és
+                                Chrome-bővítménnyel — minden egy helyen.
                             </p>
-                            <div className="mt-8 flex flex-wrap items-center gap-3">
+                            <div className="mt-8.5 flex flex-wrap justify-center gap-3.5">
                                 {auth.user ? (
-                                    <Button
-                                        size="lg"
-                                        asChild
-                                        className="bg-gradient-to-br from-violet-500 to-violet-400 text-white hover:bg-violet-700"
+                                    <Link
+                                        href={wordsIndex()}
+                                        className="inline-flex items-center gap-2.5 rounded-full bg-gradient-to-br from-green-400 to-green-500 px-7 py-3.75 font-['Manrope'] text-[15px] font-bold text-green-950 shadow-[0_12px_30px_rgba(34,197,94,.45)] transition-transform hover:-translate-y-0.5"
                                     >
-                                        <Link
-                                            href={wordsIndex()}
-                                            className="flex items-center gap-2"
-                                        >
-                                            Szavak böngészése{' '}
-                                            <MI n="arrow_forward" s={20} />
-                                        </Link>
-                                    </Button>
+                                        Szavak böngészése
+                                        <ArrowRight size={20} />
+                                    </Link>
                                 ) : (
-                                    <>
-                                        <Button
-                                            size="lg"
-                                            asChild
-                                            className="bg-gradient-to-br from-violet-500 to-violet-400 text-white hover:bg-violet-700"
-                                        >
-                                            <Link
-                                                href={login()}
-                                                className="flex items-center gap-2"
-                                            >
-                                                Belépés{' '}
-                                                <MI n="arrow_forward" s={20} />
-                                            </Link>
-                                        </Button>
-                                        <Button
-                                            size="lg"
-                                            variant="outline"
-                                            asChild
-                                        >
-                                            <Link
-                                                href="#flashcard"
-                                                className="flex items-center gap-2"
-                                            >
-                                                <MI n="style" s={20} /> Próbáld
-                                                a flashcardot
-                                            </Link>
-                                        </Button>
-                                    </>
-                                )}
-                            </div>
-                            <div className="mt-6 flex flex-wrap items-center gap-5 text-sm text-neutral-500 dark:text-neutral-400">
-                                {[
-                                    'Nincs hirdetés',
-                                    'Ingyenes regisztráció',
-                                    'Gyors tanulás',
-                                ].map((item) => (
-                                    <span
-                                        key={item}
-                                        className="flex items-center gap-1.5"
+                                    <Link
+                                        href={register()}
+                                        className="inline-flex items-center gap-2.5 rounded-full bg-gradient-to-br from-green-400 to-green-500 px-7 py-3.75 font-['Manrope'] text-[15px] font-bold text-green-950 shadow-[0_12px_30px_rgba(34,197,94,.45)] transition-transform hover:-translate-y-0.5"
                                     >
-                                        <MI
-                                            n="check_circle"
-                                            f
-                                            s={16}
-                                            style={
-                                                {
-                                                    color: '#22c55e',
-                                                } as React.CSSProperties
-                                            }
-                                        />
+                                        Regisztrálás ingyen
+                                        <ArrowRight size={20} />
+                                    </Link>
+                                )}
+                                <a
+                                    href="#flashcard"
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        goToSection('flashcard');
+                                    }}
+                                    className="inline-flex items-center gap-2.5 rounded-full border border-white/[0.22] bg-white/[0.08] px-6.5 py-3.75 font-['Manrope'] text-[15px] font-medium text-white backdrop-blur-md transition-colors hover:bg-white/[0.18]"
+                                >
+                                    <Layers size={20} />
+                                    Próbáld a flashcardot
+                                </a>
+                            </div>
+                            <div className="mt-6.5 flex flex-wrap justify-center gap-5.5 text-[13px] text-white/62">
+                                {['Nincs hirdetés', 'Ingyenes regisztráció', 'Gyors tanulás'].map((item) => (
+                                    <span key={item} className="inline-flex items-center gap-1.5">
+                                        <CheckCircle2 size={17} className="text-green-300" />
                                         {item}
                                     </span>
                                 ))}
                             </div>
-                            <div className="mt-10 grid grid-cols-2 gap-5 sm:grid-cols-4 sm:gap-6">
-                                {[
-                                    { value: '10 000', label: 'Angol szó' },
-                                    {
-                                        value: 'SRS',
-                                        label: 'Flashcard rendszer',
-                                    },
-                                    { value: '29', label: 'Teljesítmény' },
-                                    { value: '100%', label: 'Magyar' },
-                                ].map((stat) => (
-                                    <div key={stat.label}>
-                                        <div className="text-3xl font-extrabold tracking-tight text-neutral-800 dark:text-neutral-100">
-                                            {stat.value}
-                                        </div>
-                                        <div className="mt-0.5 text-[13px] text-neutral-500 dark:text-neutral-400">
-                                            {stat.label}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
                         </div>
 
-                        {/* right — progress card */}
-                        <div
-                            className="animate-hero-rise"
-                            style={{ animationDelay: '0.12s' }}
-                        >
-                            <div className="rounded-[22px] border border-neutral-200 bg-white p-6 shadow-lg dark:border-neutral-700 dark:bg-neutral-800">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2 text-[15px] font-bold">
-                                        <MI
-                                            n="trending_up"
-                                            f
-                                            s={20}
-                                            style={
-                                                {
-                                                    color: '#7c3aed',
-                                                } as React.CSSProperties
-                                            }
-                                        />
-                                        Haladás
-                                    </div>
-                                    <div className="flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                                        <MI
-                                            n="local_fire_department"
-                                            f
-                                            s={17}
-                                        />
-                                        7 napos sorozat
-                                    </div>
-                                </div>
-                                <div className="mt-5 flex items-end justify-between">
-                                    <div className="text-2xl font-extrabold tracking-tight">
-                                        4 187{' '}
-                                        <span className="text-lg font-semibold text-neutral-400 dark:text-neutral-500">
-                                            / 10 000 szó
+                        {/* floating mockup cluster */}
+                        <div className="relative z-3 mx-auto mt-16 flex max-w-[1060px] flex-wrap items-center justify-center gap-6">
+                            <div
+                                className="pointer-events-none absolute top-[46%] bottom-[-320px] left-1/2 w-screen -translate-x-1/2 -z-10"
+                                style={{ background: 'linear-gradient(to bottom,rgba(255,255,255,0) 0,#ffffff 90px)' }}
+                            />
+                            <div
+                                className="pointer-events-none absolute top-6 -left-[4%] -z-10 size-[420px] animate-hero-float-slow-a rounded-full blur-[80px]"
+                                style={{ background: 'radial-gradient(circle,rgba(255,255,255,.5),transparent 70%)' }}
+                            />
+                            <div
+                                className="pointer-events-none absolute -top-9 -right-[5%] -z-10 size-[400px] animate-hero-float-slow-b rounded-full blur-[74px]"
+                                style={{ background: 'radial-gradient(circle,rgba(255,255,255,.46),transparent 70%)' }}
+                            />
+                            <div
+                                className="pointer-events-none absolute top-63 right-[4%] -z-10 size-[260px] animate-hero-float-c rounded-full blur-[60px]"
+                                style={{ background: 'radial-gradient(circle,rgba(255,255,255,.4),transparent 72%)' }}
+                            />
+
+                            {/* progress card */}
+                            <div className="animate-hero-float-a">
+                                <div className="w-[280px] rounded-[22px] bg-white p-5.5 shadow-[0_26px_60px_rgba(0,0,0,.28)]">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-[13px] font-semibold text-[#737373]">Haladásod</span>
+                                        <span className="inline-flex items-center gap-1.25 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700">
+                                            <Flame size={15} />7 nap
                                         </span>
                                     </div>
-                                    <div className="text-2xl font-extrabold text-violet-600 dark:text-violet-400">
-                                        41%
+                                    <div className="mt-3.5 flex items-baseline gap-2">
+                                        <span ref={progressRef} className="text-[42px] font-bold tracking-tight text-[#171717]">
+                                            41%
+                                        </span>
+                                        <span className="text-[13px] text-[#a1a1a1]">teljesítve</span>
                                     </div>
-                                </div>
-                                <div className="mt-2.5 h-3 w-full overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-700">
-                                    <div
-                                        className="relative h-full overflow-hidden rounded-full bg-gradient-to-br from-violet-500 to-violet-400"
-                                        style={{ width: '41%' }}
-                                    >
-                                        <div className="absolute inset-0 w-2/5 animate-[shimmer_2.6s_ease-in-out_infinite] bg-gradient-to-r from-transparent via-white/40 to-transparent" />
-                                    </div>
-                                </div>
-                                <div className="mt-4 flex flex-col gap-2">
-                                    {[
-                                        {
-                                            rank: '#42',
-                                            word: 'between',
-                                            status: 'tudom' as const,
-                                        },
-                                        {
-                                            rank: '#187',
-                                            word: 'important',
-                                            status: 'tanulom' as const,
-                                        },
-                                        {
-                                            rank: '#418',
-                                            word: 'experience',
-                                            status: 'later' as const,
-                                        },
-                                    ].map(({ rank, word, status }) => (
+                                    <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-indigo-100">
                                         <div
-                                            key={word}
-                                            className="flex items-center gap-3 rounded-xl bg-neutral-100 px-3 py-2.5 dark:bg-neutral-700"
-                                        >
-                                            <span className="w-10 text-xs font-bold text-neutral-500 tabular-nums dark:text-neutral-400">
-                                                {rank}
-                                            </span>
-                                            <span className="flex-1 text-sm font-semibold">
-                                                {word}
-                                            </span>
-                                            {status === 'tudom' && (
-                                                <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-bold text-green-700 dark:bg-green-900/30 dark:text-green-400">
-                                                    <MI
-                                                        n="check_circle"
-                                                        f
-                                                        s={14}
-                                                    />{' '}
-                                                    Tudom
-                                                </span>
-                                            )}
-                                            {status === 'tanulom' && (
-                                                <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-bold text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
-                                                    <MI n="school" f s={14} />{' '}
-                                                    Tanulom
-                                                </span>
-                                            )}
-                                            {status === 'later' && (
-                                                <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-bold text-amber-700 dark:bg-amber-900/30 dark:text-amber-500">
-                                                    <MI n="bookmark" f s={14} />{' '}
-                                                    Később
-                                                </span>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-
-                {/* ===================== FEATURES ===================== */}
-                <section
-                    id="features"
-                    className="relative overflow-hidden bg-gradient-to-r from-violet-400 to-violet-600"
-                >
-                    <div className="pointer-events-none absolute -top-24 -left-24 size-[420px] rounded-full bg-white/15" />
-                    <div className="pointer-events-none absolute right-0 -bottom-20 size-[360px] rounded-full bg-white/10" />
-                    <div className="pointer-events-none absolute top-1/2 left-1/2 size-[300px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/[0.07]" />
-                    <div className="relative mx-auto max-w-[1200px] px-4 py-16 sm:px-6 md:py-24">
-                        <div className="mx-auto max-w-[680px] text-center">
-                            <div className="mb-3 text-xs font-bold tracking-[1.6px] text-violet-200 uppercase">
-                                FUNKCIÓK
-                            </div>
-                            <h2 className="text-[clamp(26px,3.6vw,44px)] leading-tight font-extrabold tracking-tight text-white">
-                                Minden, ami kell a hatékony tanuláshoz
-                            </h2>
-                            <p className="mt-4 text-lg text-violet-200">
-                                Válaszd a számodra legjobb módszert — vagy
-                                használd mindegyiket egyszerre.
-                            </p>
-                        </div>
-                        <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                            {[
-                                {
-                                    icon: 'format_list_bulleted',
-                                    title: 'Szólista & nyomon követés',
-                                    desc: 'Böngészd a 10 000 leggyakoribb szót, jelöld a tudásodat és szervezd mappákba.',
-                                },
-                                {
-                                    icon: 'style',
-                                    title: 'Flashcard SRS',
-                                    desc: 'Saját kártyacsomag intelligens ismétlési algoritmussal — pontosan akkor mutatja, amikor el akarnád felejteni.',
-                                },
-                                {
-                                    icon: 'quiz',
-                                    title: 'Gyakorlási módok',
-                                    desc: 'Kvíz, mondatkiegészítés, AI-alapú szabad írás és rendhagyó igék — több módszer ugyanahhoz a szókincshez.',
-                                },
-                                {
-                                    icon: 'article',
-                                    title: 'Szövegelemzés',
-                                    desc: 'Elemezz bármilyen szöveget, webcímet, YouTube-feliratot vagy egész könyvet — látod hány szót ismersz belőle.',
-                                },
-                                {
-                                    icon: 'auto_awesome',
-                                    title: 'AI-segítség',
-                                    desc: 'AI tölti ki a szó jelentését és példamondatait, ellenőrzi a szabad írásod, és gyárt kész flashcardot.',
-                                },
-                                {
-                                    icon: 'extension',
-                                    title: 'Chrome Extension',
-                                    desc: 'Bármely weboldalon dupla kattintással vagy Option+W-vel azonnal keresés — popupban megjelenik a jelentés.',
-                                },
-                                {
-                                    icon: 'add_circle',
-                                    title: 'Saját szavak',
-                                    desc: 'Ha a top 10k-ban nem szerepel a szó, add hozzá saját szóként — ugyanúgy viselkedik, mint a lista többi tagja.',
-                                },
-                                {
-                                    icon: 'trending_up',
-                                    title: 'Haladás & teljesítmények',
-                                    desc: 'Napi sorozat (streak), haladás-sávok és feloldható teljesítmények motiválnak a folytatásra.',
-                                },
-                            ].map(({ icon, title, desc }) => (
-                                <div
-                                    key={title}
-                                    className="group rounded-2xl border border-violet-500 bg-violet-700/40 p-6 transition-all hover:-translate-y-1 hover:border-violet-300 hover:bg-violet-700/60 hover:shadow-md"
-                                >
-                                    <div className="mb-4 flex size-12 items-center justify-center rounded-[13px] bg-white/20 text-white">
-                                        <MI n={icon} s={26} />
-                                    </div>
-                                    <h3 className="mb-2 text-[17px] font-bold text-white">
-                                        {title}
-                                    </h3>
-                                    <p className="text-sm leading-relaxed text-violet-200">
-                                        {desc}
-                                    </p>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </section>
-
-                {/* ===================== WORD LIST ===================== */}
-                <section
-                    id="wordlist"
-                    className="mx-auto max-w-[1200px] px-4 py-14 sm:px-6 md:py-24"
-                >
-                    <div className="grid items-center gap-12 md:grid-cols-[0.85fr_1.15fr]">
-                        {/* left */}
-                        <div>
-                            <div className="mb-3 text-xs font-bold tracking-[1.6px] text-violet-600 uppercase dark:text-violet-400">
-                                SZÓLISTA
-                            </div>
-                            <h2 className="text-[clamp(24px,3.2vw,40px)] leading-tight font-extrabold tracking-tight">
-                                Kövesd nyomon a szókincsed fejlődését
-                            </h2>
-                            <p className="mt-4 text-base leading-relaxed text-neutral-500 dark:text-neutral-400">
-                                Minden szóhoz jelölheted, hol tartasz — a
-                                rendszer összeszámolja, és látod a valódi
-                                haladásodat.{' '}
-                                <strong className="text-neutral-800 dark:text-neutral-200">
-                                    Próbáld ki: kattints a státuszokra.
-                                </strong>
-                            </p>
-                            <div className="mt-6 flex flex-col gap-3">
-                                {[
-                                    {
-                                        icon: 'check_circle',
-                                        color: 'text-green-500',
-                                        text: 'Tudom — jelöld meg a biztosan ismert szavakat',
-                                    },
-                                    {
-                                        icon: 'school',
-                                        color: 'text-blue-500',
-                                        text: 'Tanulom — aktívan tanult szavak gyors elérése',
-                                    },
-                                    {
-                                        icon: 'bookmark',
-                                        color: 'text-amber-500',
-                                        text: 'Később — szavak elmentése visszatéréshez',
-                                    },
-                                    {
-                                        icon: 'folder',
-                                        color: 'text-violet-600',
-                                        text: 'Mappák & szűrők — rendezd témák szerint, szűrj nehézség szerint',
-                                    },
-                                ].map(({ icon, color, text }) => (
-                                    <div
-                                        key={text}
-                                        className="flex items-start gap-3"
-                                    >
-                                        <MI
-                                            n={icon}
-                                            f
-                                            s={20}
-                                            style={
-                                                {
-                                                    marginTop: 1,
-                                                } as React.CSSProperties
-                                            }
-                                            className={color}
+                                            ref={barRef}
+                                            className="h-full origin-left rounded-full bg-gradient-to-r from-indigo-600 to-indigo-800 [transform:scaleX(0)]"
+                                            style={{ width: '41%' }}
                                         />
-                                        <span className="text-sm leading-relaxed text-neutral-600 dark:text-neutral-400">
-                                            {text}
+                                    </div>
+                                    <div className="mt-3 text-[13px] text-[#737373]">
+                                        <span ref={wordCountRef}>4 187</span> / 10 000 szó megtanulva
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* flashcard */}
+                            <div className="animate-hero-float-b">
+                                <div className="w-[320px] rounded-[26px] bg-white p-5 shadow-[0_40px_70px_-20px_rgba(49,46,129,.35)]">
+                                    <div className="flex items-center justify-center">
+                                        <span className="rounded-full bg-[#f5f5f5] px-3.5 py-1.5 text-xs font-semibold text-[#525252]">
+                                            Deck: Angol alapszavak · 1/40
                                         </span>
                                     </div>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* right — interactive word list */}
-                        <div className="overflow-hidden rounded-[18px] border border-neutral-200 bg-white shadow-lg dark:border-neutral-700 dark:bg-neutral-800">
-                            {/* header */}
-                            <div className="border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
-                                <div className="flex items-center justify-between gap-3">
-                                    <span className="text-base font-bold">
-                                        Szólista
-                                    </span>
-                                    <div className="flex gap-1 rounded-[10px] bg-neutral-100 p-1 dark:bg-neutral-700">
-                                        {(
-                                            [
-                                                'all',
-                                                'tanulom',
-                                                'tudom',
-                                            ] as WordTab[]
-                                        ).map((tab) => (
-                                            <button
-                                                key={tab}
-                                                onClick={() => setWordTab(tab)}
-                                                className={`rounded-lg px-3 py-1 text-xs font-semibold transition-all ${
-                                                    wordTab === tab
-                                                        ? 'bg-white text-neutral-800 shadow-sm dark:bg-neutral-600 dark:text-neutral-100'
-                                                        : 'text-neutral-500 hover:text-neutral-700 dark:text-neutral-400'
-                                                }`}
+                                    <button
+                                        onClick={() => setFlipped((v) => !v)}
+                                        className="mt-4 h-[186px] w-full cursor-pointer"
+                                        style={{ perspective: 1200 }}
+                                    >
+                                        <div
+                                            className="relative size-full transition-transform duration-600 ease-[cubic-bezier(.4,.2,.2,1)]"
+                                            style={{
+                                                transformStyle: 'preserve-3d',
+                                                transform: flipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
+                                            }}
+                                        >
+                                            <div
+                                                className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-[18px] border border-indigo-200 bg-gradient-to-br from-indigo-50 to-indigo-100"
+                                                style={{ backfaceVisibility: 'hidden' }}
                                             >
-                                                {tab === 'all'
-                                                    ? 'Összes'
-                                                    : tab === 'tanulom'
-                                                      ? 'Tanulom'
-                                                      : 'Tudom'}
+                                                <span className="text-xs font-semibold tracking-wide text-indigo-600">
+                                                    #178 · Top 1 000 · prep
+                                                </span>
+                                                <span className="text-[38px] font-bold tracking-tight text-[#171717]">
+                                                    between
+                                                </span>
+                                                <span className="inline-flex items-center gap-1.25 text-xs text-[#a1a1a1]">
+                                                    <MousePointerClick size={15} />
+                                                    Kattints a megfordításhoz
+                                                </span>
+                                            </div>
+                                            <div
+                                                className="absolute inset-0 flex flex-col items-center justify-center gap-2.5 rounded-[18px] bg-gradient-to-br from-indigo-700 to-indigo-800 p-4 text-center"
+                                                style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
+                                            >
+                                                <span className="text-[34px] font-bold tracking-tight text-white">
+                                                    között
+                                                </span>
+                                                <span className="text-[13px] leading-relaxed text-indigo-200">
+                                                    „The space <b className="text-white">between</b> two cities lies a
+                                                    valley.”
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </button>
+                                    <div className="mt-4 grid grid-cols-4 gap-2">
+                                        {RATE_DEFS.map((r) => (
+                                            <button
+                                                key={r.label}
+                                                onClick={() => setFlipped(false)}
+                                                className="flex flex-col items-center gap-0.25 rounded-[10px] py-2 transition-transform hover:-translate-y-0.5"
+                                                style={{ border: `1px solid ${r.c}33`, background: `${r.c}14`, color: r.c }}
+                                            >
+                                                <span className="text-xs font-semibold">{r.label}</span>
+                                                <span className="text-[10px] opacity-70">{r.time}</span>
                                             </button>
                                         ))}
                                     </div>
                                 </div>
-                                <div className="mt-3 flex items-center gap-3">
-                                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-700">
-                                        <div
-                                            className="h-full rounded-full bg-green-500 transition-all duration-500"
-                                            style={{ width: `${knownPct}%` }}
-                                        />
-                                    </div>
-                                    <span className="text-xs font-bold whitespace-nowrap text-neutral-500 dark:text-neutral-400">
-                                        <span className="text-green-500">
-                                            {knownCount}
-                                        </span>{' '}
-                                        / {DEMO_WORDS.length} tudom
+                            </div>
+
+                            {/* analyzer preview */}
+                            <div className="animate-hero-float-c">
+                                <div className="w-[250px] rounded-[22px] border border-white/[0.28] bg-indigo-800/55 p-5.5 backdrop-blur-[14px] shadow-[0_26px_60px_rgba(49,46,129,.35)]">
+                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-green-300/20 px-3 py-1.25 text-xs font-semibold text-green-200">
+                                        <FileSearch size={15} />
+                                        Szövegelemzés
                                     </span>
-                                </div>
-                            </div>
-                            {/* word rows */}
-                            <div className="max-h-[320px] overflow-y-auto">
-                                {filteredWords.length === 0 ? (
-                                    <div className="py-10 text-center text-sm text-neutral-400 dark:text-neutral-500">
-                                        Nincs szó ebben a szűrőben
-                                    </div>
-                                ) : (
-                                    filteredWords.map(({ rank, word }) => (
-                                        <div
-                                            key={word}
-                                            className="flex items-center gap-3 border-b border-neutral-100 px-5 py-3 last:border-0 dark:border-neutral-700"
-                                        >
-                                            <span className="w-12 text-xs font-bold text-neutral-400 tabular-nums dark:text-neutral-500">
-                                                #{rank}
-                                            </span>
-                                            <span className="flex-1 text-base font-semibold">
-                                                {word}
-                                            </span>
-                                            <div className="flex gap-1.5">
-                                                <button
-                                                    onClick={() =>
-                                                        toggleStatus(
-                                                            word,
-                                                            'tudom',
-                                                        )
-                                                    }
-                                                    className={`rounded-full px-2.5 py-1 text-[11px] font-bold transition-all ${
-                                                        statuses[word] ===
-                                                        'tudom'
-                                                            ? 'bg-green-500 text-white'
-                                                            : 'bg-neutral-100 text-neutral-500 hover:bg-green-100 hover:text-green-700 dark:bg-neutral-700 dark:text-neutral-400'
-                                                    }`}
-                                                >
-                                                    Tudom
-                                                </button>
-                                                <button
-                                                    onClick={() =>
-                                                        toggleStatus(
-                                                            word,
-                                                            'tanulom',
-                                                        )
-                                                    }
-                                                    className={`rounded-full px-2.5 py-1 text-[11px] font-bold transition-all ${
-                                                        statuses[word] ===
-                                                        'tanulom'
-                                                            ? 'bg-blue-500 text-white'
-                                                            : 'bg-neutral-100 text-neutral-500 hover:bg-blue-100 hover:text-blue-700 dark:bg-neutral-700 dark:text-neutral-400'
-                                                    }`}
-                                                >
-                                                    Tanulom
-                                                </button>
-                                                <button
-                                                    onClick={() =>
-                                                        toggleStatus(
-                                                            word,
-                                                            'later',
-                                                        )
-                                                    }
-                                                    className={`rounded-full px-2.5 py-1 text-[11px] font-bold transition-all ${
-                                                        statuses[word] ===
-                                                        'later'
-                                                            ? 'bg-amber-500 text-white'
-                                                            : 'bg-neutral-100 text-neutral-500 hover:bg-amber-100 hover:text-amber-700 dark:bg-neutral-700 dark:text-neutral-400'
-                                                    }`}
-                                                >
-                                                    Később
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ))
-                                )}
-                            </div>
-                            {/* folders */}
-                            <div className="flex gap-2 bg-neutral-50 px-5 py-3 dark:bg-neutral-900">
-                                {[
-                                    { name: 'Utazás', count: 42 },
-                                    { name: 'Munka', count: 78 },
-                                    { name: 'Vizsga', count: 115 },
-                                ].map((f) => (
-                                    <div
-                                        key={f.name}
-                                        className="flex items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs font-semibold dark:border-neutral-700 dark:bg-neutral-800"
-                                    >
-                                        <MI
-                                            n="folder"
-                                            s={15}
-                                            style={
-                                                {
-                                                    color: '#7c3aed',
-                                                } as React.CSSProperties
-                                            }
-                                        />
-                                        {f.name}{' '}
-                                        <span className="text-neutral-400 dark:text-neutral-500">
-                                            {f.count}
-                                        </span>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                </section>
-
-                {/* ===================== FLASHCARD SRS ===================== */}
-                <section
-                    id="flashcard"
-                    className="border-y border-neutral-200 bg-white dark:border-neutral-700 dark:bg-neutral-800"
-                >
-                    <div className="mx-auto max-w-[1200px] px-4 py-14 sm:px-6 md:py-24">
-                        <div className="mx-auto max-w-[680px] text-center">
-                            <div className="mb-3 text-xs font-bold tracking-[1.6px] text-violet-600 uppercase dark:text-violet-400">
-                                FLASHCARD SRS
-                            </div>
-                            <h2 className="text-[clamp(26px,3.6vw,44px)] leading-tight font-extrabold tracking-tight">
-                                Intelligens ismétlési rendszer — mint az Anki
-                            </h2>
-                            <p className="mt-4 text-lg text-neutral-500 dark:text-neutral-400">
-                                Kattints a kártyára a megfordításhoz. Az
-                                algoritmus kiszámolja, mikor kell ismételned.
-                            </p>
-                        </div>
-
-                        <div className="mt-12 grid items-center gap-12 md:grid-cols-2">
-                            {/* card demo */}
-                            <div className="flex flex-col items-center">
-                                <div className="mb-3 text-sm font-medium text-neutral-400 dark:text-neutral-500">
-                                    Deck: Angol alapszavak · {cardIdx + 1}/40
-                                </div>
-                                <button
-                                    onClick={() => setCardFlipped(!cardFlipped)}
-                                    className="w-full max-w-[420px] cursor-pointer rounded-[20px] border border-neutral-200 bg-neutral-50 shadow-xl transition-all select-none hover:shadow-2xl dark:border-neutral-600 dark:bg-neutral-700"
-                                    style={{ minHeight: 280 }}
-                                >
-                                    <div
-                                        className="flex flex-col items-center justify-center p-8 text-center"
-                                        style={{ minHeight: 280 }}
-                                    >
-                                        {cardFlipped ? (
-                                            <>
-                                                <div className="mb-3 text-xs font-bold tracking-widest text-neutral-400 uppercase dark:text-neutral-500">
-                                                    HÁTLAP
-                                                </div>
-                                                <div className="text-3xl font-extrabold tracking-tight text-violet-600 dark:text-violet-400">
-                                                    {card.meaning}
-                                                </div>
-                                                <div className="mt-3 text-base text-neutral-400 italic dark:text-neutral-500">
-                                                    {card.ex}
-                                                </div>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <div className="text-[48px] leading-tight font-extrabold tracking-tight">
-                                                    {card.word}
-                                                </div>
-                                                <div className="mt-2 text-lg text-neutral-400 dark:text-neutral-500">
-                                                    {card.ipa}
-                                                </div>
-                                                <div className="mt-5 flex items-center gap-2 text-sm text-neutral-400 dark:text-neutral-500">
-                                                    <MI n="touch_app" s={18} />
-                                                    Kattints a megfordításhoz
-                                                </div>
-                                            </>
-                                        )}
-                                    </div>
-                                </button>
-                                <div className="mt-4 grid w-full max-w-[420px] grid-cols-4 gap-2">
-                                    {[
-                                        {
-                                            label: 'Újra',
-                                            sub: '1 perc',
-                                            color: 'hover:border-red-400 hover:text-red-500',
-                                        },
-                                        {
-                                            label: 'Nehéz',
-                                            sub: '6 nap',
-                                            color: 'hover:border-amber-400 hover:text-amber-600',
-                                        },
-                                        {
-                                            label: 'Jó',
-                                            sub: '10 nap',
-                                            color: 'hover:border-blue-400 hover:text-blue-500',
-                                        },
-                                        {
-                                            label: 'Könnyű',
-                                            sub: '15 nap',
-                                            color: 'hover:border-green-400 hover:text-green-500',
-                                        },
-                                    ].map(({ label, sub, color }) => (
-                                        <button
-                                            key={label}
-                                            onClick={nextCard}
-                                            className={`flex flex-col items-center gap-1 rounded-xl border border-neutral-200 bg-white py-2.5 transition-all dark:border-neutral-600 dark:bg-neutral-700 ${color}`}
-                                        >
-                                            <span className="text-sm font-bold">
-                                                {label}
-                                            </span>
-                                            <span className="text-[10px] text-neutral-400 dark:text-neutral-500">
-                                                {sub}
-                                            </span>
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* SRS explanation */}
-                            <div>
-                                <h3 className="text-xl font-bold tracking-tight">
-                                    Hogyan működik az SRS algoritmus?
-                                </h3>
-                                <p className="mt-3 text-sm leading-relaxed text-neutral-500 dark:text-neutral-400">
-                                    Minden értékelés után kiszámolja, mikor
-                                    kellene visszamutatnia a kártyát — ha
-                                    könnyen ment, tovább vár; ha nehéz volt,
-                                    hamarabb visszahozza.
-                                </p>
-                                <div className="mt-5 flex flex-col gap-3">
-                                    {[
-                                        {
-                                            color: 'bg-red-500',
-                                            label: 'Újra',
-                                            desc: 'Visszakerül a tanulási lépések elejére.',
-                                        },
-                                        {
-                                            color: 'bg-amber-500',
-                                            label: 'Nehéz',
-                                            desc: 'Kisebb intervallum, csökkenő ease faktor.',
-                                        },
-                                        {
-                                            color: 'bg-blue-500',
-                                            label: 'Jó',
-                                            desc: 'Az intervallum nő az ease faktor alapján.',
-                                        },
-                                        {
-                                            color: 'bg-green-500',
-                                            label: 'Könnyű',
-                                            desc: 'Tovább vár, az ease faktor nő.',
-                                        },
-                                    ].map(({ color, label, desc }) => (
-                                        <div
-                                            key={label}
-                                            className="flex gap-3.5 rounded-[13px] border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-700 dark:bg-neutral-900"
-                                        >
-                                            <span
-                                                className={`mt-1 w-2 flex-none self-stretch rounded-full ${color}`}
+                                    <div className="mt-4 flex items-center gap-3.5">
+                                        <div className="relative size-16">
+                                            <div
+                                                className="absolute inset-0 rounded-full"
+                                                style={{ background: 'conic-gradient(#4ade80 0 87%,rgba(255,255,255,.15) 87%)' }}
                                             />
-                                            <div>
-                                                <div className="font-bold">
-                                                    {label}
-                                                </div>
-                                                <div className="mt-0.5 text-[13px] text-neutral-500 dark:text-neutral-400">
-                                                    {desc}
-                                                </div>
+                                            <div className="absolute inset-[7px] grid place-items-center rounded-full bg-indigo-950 text-[15px] font-bold text-white">
+                                                <span ref={analyzePctRef}>87%</span>
                                             </div>
                                         </div>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* 9 sub-features */}
-                        <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                            {FC_FEATURES.map((f) => (
-                                <div
-                                    key={f.title}
-                                    className="flex gap-3 rounded-[14px] border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-700 dark:bg-neutral-900"
-                                >
-                                    <MI
-                                        n={f.icon}
-                                        s={22}
-                                        style={
-                                            {
-                                                color: '#7c3aed',
-                                                flexShrink: 0,
-                                            } as React.CSSProperties
-                                        }
-                                    />
-                                    <div>
-                                        <div className="text-sm font-bold">
-                                            {f.title}
-                                        </div>
-                                        <div className="mt-1 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">
-                                            {f.desc}
+                                        <div>
+                                            <div className="text-sm font-semibold text-white">érthetőség</div>
+                                            <div className="text-xs text-white/60">
+                                                <span ref={analyzeCountRef}>312</span> / 358 szó
+                                            </div>
                                         </div>
                                     </div>
+                                    <div className="mt-4 text-xs leading-[1.7] text-white/80">
+                                        The space{' '}
+                                        <span className="rounded-[3px] bg-green-500 px-[3px] text-green-950">between</span>{' '}
+                                        two <span className="rounded-[3px] bg-blue-500 px-[3px] text-white">cities</span>{' '}
+                                        lies a <span className="rounded-[3px] bg-red-500 px-[3px] text-white">valley</span>.
+                                    </div>
                                 </div>
-                            ))}
-                        </div>
-                    </div>
-                </section>
+                            </div>
 
-                {/* ===================== QUIZ ===================== */}
-                <section
-                    id="quiz"
-                    className="relative overflow-hidden bg-gradient-to-r from-violet-600 to-violet-400"
-                >
-                    <div className="pointer-events-none absolute -top-16 right-10 size-95 rounded-full bg-white/15" />
-                    <div className="pointer-events-none absolute bottom-0 -left-16 size-80 rounded-full bg-white/10" />
-                    <div className="relative mx-auto max-w-[1200px] px-4 py-14 sm:px-6 md:py-24">
-                        <div className="grid items-center gap-12 md:grid-cols-[0.85fr_1.15fr]">
-                            {/* left */}
-                            <div>
-                                <div className="mb-3 text-xs font-bold tracking-[1.6px] text-violet-200 uppercase">
-                                    GYAKORLÁSI MÓDOK
-                                </div>
-                                <h2 className="text-[clamp(24px,3.2vw,40px)] leading-tight font-extrabold tracking-tight text-white">
-                                    Több módszer ugyanahhoz a szókincshez
+                            <div className="ts-hero-badge pointer-events-none absolute -top-3.5 right-[6%] -rotate-[8deg] animate-hero-float-slow-a rounded-full bg-white px-4 py-2 text-xs font-bold text-indigo-700 shadow-[0_10px_26px_rgba(0,0,0,.2)]">
+                                10 000 SZÓ
+                            </div>
+                            <div className="ts-hero-badge pointer-events-none absolute bottom-2 left-[4%] rotate-[-7deg] animate-hero-pulse rounded-full bg-[#171717] px-4 py-2 text-xs font-bold text-white shadow-[0_10px_26px_rgba(0,0,0,.28)]">
+                                SRS ISMÉTLÉS
+                            </div>
+                        </div>
+                    </section>
+                )}
+
+                {isHome && (
+                    <>
+                        {/* FEATURES */}
+                        <section id="funkciok" className="relative -mt-35 bg-white px-5 pt-24 pb-25">
+                            <Reveal className="mx-auto mb-15 max-w-[780px] text-center">
+                                <span className="inline-block rounded-full bg-indigo-100 px-3.75 py-1.5 text-xs font-bold tracking-[1.2px] text-indigo-700">
+                                    FUNKCIÓK
+                                </span>
+                                <h2 className="mt-5 text-[clamp(32px,4.4vw,50px)] leading-[1.08] font-bold tracking-[-1.2px] text-[#171717]">
+                                    Minden, ami kell a
+                                    <br />
+                                    hatékony tanuláshoz
                                 </h2>
-                                <p className="mt-4 text-base leading-relaxed text-violet-200">
-                                    Ugyanazokat a szavakat többféleképp gyakorolhatod
-                                    — a rendszer a szólistádból automatikusan
-                                    generálja a feladatokat.{' '}
-                                    <strong className="text-white">
-                                        Próbáld ki jobbra: válassz egy választ.
-                                    </strong>
+                                <p className="mx-auto mt-4.5 max-w-[560px] text-[17px] leading-[1.6] text-[#737373]">
+                                    Válaszd a számodra legjobb módszert — vagy használd mindegyiket egyszerre.
                                 </p>
-                                <div className="mt-6 flex flex-col gap-3">
-                                    {[
-                                        {
-                                            icon: 'quiz',
-                                            text: 'Kvíz — 4 válaszos teszt, szűrhető státusz, nehézség és mappa szerint',
-                                        },
-                                        {
-                                            icon: 'subtitles',
-                                            text: 'Mondatkiegészítés — írd be a hiányzó szót a példamondatba (cloze)',
-                                        },
-                                        {
-                                            icon: 'auto_awesome',
-                                            text: 'Szabad írás — írj a célszavakkal, az AI ellenőrzi a szóhasználatot és a grammatikát',
-                                        },
-                                        {
-                                            icon: 'sync_alt',
-                                            text: 'Rendhagyó igék — gyakorold be a Past Simple és Past Participle alakokat',
-                                        },
-                                    ].map(({ icon, text }) => (
-                                        <div
-                                            key={text}
-                                            className="flex items-start gap-3"
-                                        >
-                                            <MI
-                                                n={icon}
-                                                s={20}
-                                                style={
-                                                    {
-                                                        color: '#c4b5fd',
-                                                        marginTop: 1,
-                                                    } as React.CSSProperties
-                                                }
-                                            />
-                                            <span className="text-sm leading-relaxed text-violet-100">
-                                                {text}
-                                            </span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
+                            </Reveal>
+                            <div className="mx-auto grid max-w-[1200px] grid-cols-[repeat(auto-fit,minmax(250px,1fr))] gap-5">
+                                {[
+                                    { icon: List, title: 'Szólista & nyomon követés', desc: 'Böngészd a 10 000 leggyakoribb szót, jelöld a tudásodat és szervezd mappákba.' },
+                                    { icon: Layers, title: 'Flashcard SRS', desc: 'Saját kártyacsomag intelligens ismétlési algoritmussal — pontosan akkor mutatja, amikor el akarnád felejteni.' },
+                                    { icon: HelpCircle, title: 'Gyakorlási módok', desc: 'Kvíz, mondatkiegészítés, AI-alapú szabad írás és rendhagyó igék — több módszer ugyanahhoz a szókincshez.' },
+                                    { icon: FileSearch, title: 'Szövegelemzés', desc: 'Elemezz bármilyen szöveget, webcímet, YouTube-feliratot vagy egész könyvet — látod hány szót ismersz belőle.' },
+                                    { icon: Sparkles, title: 'AI-segítség', desc: 'AI tölti ki a szó jelentését és példamondatait, ellenőrzi a szabad írásod, és gyárt kész flashcardot.' },
+                                    { icon: Puzzle, title: 'Chrome Puzzle', desc: 'Bármely weboldalon dupla kattintással vagy Option+W-vel azonnal keresés — popupban a jelentés.' },
+                                    { icon: Bookmark, title: 'Saját szavak', desc: 'Ha a top 10k-ban nem szerepel a szó, add hozzá saját szóként — ugyanúgy viselkedik, mint a többi.' },
+                                    { icon: Star, title: 'Haladás & teljesítmények', desc: 'Napi sorozat (streak), haladás-sávok és feloldható teljesítmények motiválnak a folytatásra.' },
+                                ].map((f, i) => {
+                                    const active = hoveredFeature === i;
 
-                            {/* right — quiz demo */}
-                            <div className="rounded-[18px] border border-neutral-200 bg-white p-7 shadow-lg dark:border-neutral-700 dark:bg-neutral-800">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2 text-xs font-bold text-neutral-400 tabular-nums dark:text-neutral-500">
-                                        #{QUIZ_QUESTION.rank}
-                                        <span className="size-1 rounded-full bg-neutral-300 dark:bg-neutral-600" />
-                                        {QUIZ_QUESTION.tier}
-                                    </div>
-                                    <div className="flex gap-1.5">
-                                        {[0, 1, 2].map((i) => (
-                                            <span
-                                                key={i}
-                                                className={`size-2 rounded-full ${i === 0 ? 'bg-green-500' : i === 1 ? 'bg-violet-500' : 'bg-neutral-200 dark:bg-neutral-600'}`}
+                                    return (
+                                        <Reveal
+                                            key={f.title}
+                                            className="relative overflow-hidden rounded-[18px] border border-neutral-200 bg-white p-6.5 shadow-[0_6px_20px_rgba(0,0,0,.04)] transition-all duration-500 ease-out hover:-translate-y-1.5"
+                                            style={active ? { boxShadow: '0 20px 50px rgba(32,39,107,.3)' } : undefined}
+                                            onMouseEnter={() => setHoveredFeature(i)}
+                                        >
+                                            <div
+                                                className="absolute inset-0 transition-opacity duration-500 ease-out"
+                                                style={{
+                                                    background: 'linear-gradient(160deg,#20276B,#3a3688)',
+                                                    opacity: active ? 1 : 0,
+                                                }}
                                             />
-                                        ))}
-                                    </div>
-                                </div>
-                                <div className="mt-5 text-sm text-neutral-400 dark:text-neutral-500">
-                                    Mi a magyar jelentése?
-                                </div>
-                                <div className="mt-1 text-[38px] leading-tight font-extrabold tracking-tight">
-                                    {QUIZ_QUESTION.word}
-                                </div>
-                                <div className="mt-5 flex flex-col gap-2.5">
-                                    {QUIZ_QUESTION.options.map((opt, idx) => (
-                                        <button
-                                            key={opt}
-                                            onClick={() => setQuizAnswer(idx)}
-                                            disabled={quizAnswer !== null}
-                                            className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left text-base font-semibold transition-all ${
-                                                quizAnswer === null
-                                                    ? 'border-neutral-200 bg-neutral-50 text-neutral-700 hover:border-violet-300 hover:bg-violet-50 dark:border-neutral-600 dark:bg-neutral-700 dark:text-neutral-200'
-                                                    : quizAnswer === idx &&
-                                                        idx ===
-                                                            QUIZ_QUESTION.correct
-                                                      ? 'border-green-400 bg-green-50 text-green-800 dark:bg-green-900/30 dark:text-green-300'
-                                                      : quizAnswer === idx &&
-                                                          idx !==
-                                                              QUIZ_QUESTION.correct
-                                                        ? 'border-red-400 bg-red-50 text-red-800 dark:bg-red-900/30 dark:text-red-300'
-                                                        : idx ===
-                                                                QUIZ_QUESTION.correct &&
-                                                            quizAnswer !== null
-                                                          ? 'border-green-400 bg-green-50 text-green-800 dark:bg-green-900/30 dark:text-green-300'
-                                                          : 'border-neutral-100 bg-neutral-50/50 text-neutral-400 dark:border-neutral-700 dark:bg-neutral-800/50'
-                                            }`}
-                                        >
-                                            <span>{opt}</span>
-                                            {quizAnswer !== null &&
-                                                idx ===
-                                                    QUIZ_QUESTION.correct && (
-                                                    <MI
-                                                        n="check_circle"
-                                                        f
-                                                        s={21}
-                                                        style={
-                                                            {
-                                                                color: '#22c55e',
-                                                            } as React.CSSProperties
-                                                        }
-                                                    />
-                                                )}
-                                            {quizAnswer !== null &&
-                                                quizAnswer === idx &&
-                                                idx !==
-                                                    QUIZ_QUESTION.correct && (
-                                                    <MI
-                                                        n="cancel"
-                                                        f
-                                                        s={21}
-                                                        style={
-                                                            {
-                                                                color: '#ef4444',
-                                                            } as React.CSSProperties
-                                                        }
-                                                    />
-                                                )}
-                                        </button>
-                                    ))}
-                                </div>
-                                {quizAnswer !== null && (
-                                    <div className="mt-5 flex items-center justify-between border-t border-neutral-100 pt-4 dark:border-neutral-700">
-                                        <div
-                                            className={`flex items-center gap-2 text-base font-bold ${quizAnswer === QUIZ_QUESTION.correct ? 'text-green-500' : 'text-red-500'}`}
-                                        >
-                                            <MI
-                                                n={
-                                                    quizAnswer ===
-                                                    QUIZ_QUESTION.correct
-                                                        ? 'check_circle'
-                                                        : 'cancel'
-                                                }
-                                                f
-                                                s={20}
-                                            />
-                                            {quizAnswer ===
-                                            QUIZ_QUESTION.correct
-                                                ? 'Helyes!'
-                                                : 'Sajnos nem'}
-                                        </div>
-                                        <button
-                                            onClick={() => setQuizAnswer(null)}
-                                            className="flex items-center gap-1.5 rounded-xl bg-gradient-to-br from-violet-500 to-violet-400 px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-violet-700"
-                                        >
-                                            Következő{' '}
-                                            <MI n="arrow_forward" s={18} />
-                                        </button>
-                                    </div>
-                                )}
+                                            <div className="relative">
+                                                <div
+                                                    className="grid size-13 place-items-center rounded-[14px] transition-all duration-500 ease-out"
+                                                    style={
+                                                        active
+                                                            ? { background: 'linear-gradient(135deg,#4ade80,#22c55e)', color: '#052e16', boxShadow: '0 8px 20px rgba(34,197,94,.4)' }
+                                                            : { background: '#e0e7ff', color: '#4338ca' }
+                                                    }
+                                                >
+                                                    <f.icon size={26} />
+                                                </div>
+                                                <h3
+                                                    className="mt-4.5 text-[19px] font-semibold tracking-[-.3px] transition-colors duration-500 ease-out"
+                                                    style={{ color: active ? '#fff' : '#171717' }}
+                                                >
+                                                    {f.title}
+                                                </h3>
+                                                <p
+                                                    className="mt-2.5 text-sm leading-[1.6] transition-colors duration-500 ease-out"
+                                                    style={{ color: active ? 'rgba(255,255,255,.82)' : '#737373' }}
+                                                >
+                                                    {f.desc}
+                                                </p>
+                                            </div>
+                                        </Reveal>
+                                    );
+                                })}
                             </div>
-                        </div>
-                    </div>
-                </section>
+                        </section>
 
-                {/* ===================== TEXT ANALYSIS ===================== */}
-                <section id="analyze">
-                    <div className="mx-auto max-w-[1200px] px-4 py-14 sm:px-6 md:py-24">
-                        <div className="grid items-center gap-12 md:grid-cols-[1.15fr_0.85fr]">
-                            {/* left — mock UI */}
-                            <div>
-                                <div className="overflow-hidden rounded-[18px] border border-neutral-200 bg-white shadow-lg dark:border-neutral-700 dark:bg-neutral-900">
-                                    <div className="flex items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
-                                        <div className="flex items-baseline gap-3">
-                                            <span className="text-3xl font-extrabold text-green-500">
-                                                87%
-                                            </span>
-                                            <div className="text-[13px] leading-tight text-neutral-400 dark:text-neutral-500">
-                                                érthetőség
-                                                <br />
-                                                312 / 358 szó
+                        {/* SZÖVEGELEMZÉS */}
+                        <section id="szovegelemzes" className="bg-white px-5 py-24">
+                            <div className="mx-auto max-w-[1000px]">
+                                <Reveal className="mx-auto max-w-[640px] text-center">
+                                    <span className="inline-block rounded-full bg-indigo-100 px-3.75 py-1.5 text-xs font-bold tracking-[1.2px] text-indigo-700">
+                                        SZÖVEGELEMZÉS
+                                    </span>
+                                    <h2 className="mt-4.5 text-[clamp(30px,4vw,46px)] leading-[1.1] font-bold tracking-[-1px] text-[#171717]">
+                                        Elemezz bármilyen angol szöveget
+                                    </h2>
+                                    <p className="mx-auto mt-4 text-[17px] leading-[1.6] text-[#737373]">
+                                        Illeszd be a szöveget, adj meg egy webcímet vagy könyvet — vagy elemezd egyenesen a{' '}
+                                        <b className="text-[#404040]">YouTube</b> és <b className="text-[#404040]">Netflix</b>{' '}
+                                        feliratait. Sőt: a saját, letölthető lejátszónkkal <b className="text-[#404040]">offline</b>{' '}
+                                        is nézhetsz filmet, tanulás közben.
+                                    </p>
+                                </Reveal>
+
+                                <Reveal
+                                    className="mt-10 rounded-3xl border border-indigo-100 p-8"
+                                    style={{ background: 'linear-gradient(155deg,#f5f3ff,#eef2ff)' }}
+                                >
+                                    <div>
+                                        <div className="mb-5 flex flex-wrap items-center justify-center gap-3">
+                                            <span className="text-sm font-semibold text-[#525252]">Próbáld ki:</span>
+                                            <div className="inline-flex gap-1.5 rounded-full border-[1.5px] border-indigo-200 bg-white p-1.5 shadow-[0_10px_26px_rgba(49,46,129,.14)]">
+                                                <button
+                                                    onClick={() => setPopupMode('word')}
+                                                    className="inline-flex items-center gap-1.75 rounded-full px-5 py-2.75 font-['Manrope'] text-[15px] font-bold transition-all"
+                                                    style={{
+                                                        background: popupMode === 'word' ? '#4338ca' : '#eef2ff',
+                                                        color: popupMode === 'word' ? '#fff' : '#4338ca',
+                                                        boxShadow: popupMode === 'word' ? '0 8px 20px rgba(67,56,202,.4)' : 'none',
+                                                    }}
+                                                >
+                                                    <List size={19} />
+                                                    Egy szó
+                                                </button>
+                                                <button
+                                                    onClick={() => setPopupMode('phrase')}
+                                                    className="inline-flex items-center gap-1.75 rounded-full px-5 py-2.75 font-['Manrope'] text-[15px] font-bold transition-all"
+                                                    style={{
+                                                        background: popupMode === 'phrase' ? '#4338ca' : '#eef2ff',
+                                                        color: popupMode === 'phrase' ? '#fff' : '#4338ca',
+                                                        boxShadow: popupMode === 'phrase' ? '0 8px 20px rgba(67,56,202,.4)' : 'none',
+                                                    }}
+                                                >
+                                                    <MousePointerClick size={19} />
+                                                    Kifejezés · shift+click
+                                                </button>
                                             </div>
                                         </div>
-                                        <div className="flex gap-1.5">
-                                            {['link', 'smart_display'].map(
-                                                (icon) => (
-                                                    <div
-                                                        key={icon}
-                                                        className="flex items-center gap-1.5 rounded-full bg-neutral-100 px-3 py-1 text-xs font-semibold dark:bg-neutral-800"
-                                                    >
-                                                        <MI
-                                                            n={icon}
-                                                            s={16}
-                                                            style={
-                                                                {
-                                                                    color: '#7c3aed',
-                                                                } as React.CSSProperties
-                                                            }
-                                                        />
-                                                        {icon === 'link'
-                                                            ? 'URL'
-                                                            : 'YouTube'}
+
+                                        <div className="relative mx-auto max-w-[900px]">
+                                            <div className="relative aspect-video overflow-hidden rounded-[18px] bg-[#0b0b12] shadow-[0_30px_70px_rgba(0,0,0,.36)]">
+                                                <div className="absolute top-3.5 left-3.5 z-3 flex gap-2">
+                                                    <span className="inline-flex items-center gap-1.25 rounded-lg bg-[#e50914] px-2.75 py-1.25 text-xs font-bold text-white">
+                                                        <Film size={15} />
+                                                        Netflix
+                                                    </span>
+                                                    <span className="inline-flex items-center gap-1.25 rounded-lg bg-[#ff0033] px-2.75 py-1.25 text-xs font-bold text-white">
+                                                        <Play size={15} />
+                                                        YouTube
+                                                    </span>
+                                                </div>
+                                                <span className="absolute top-3.5 right-3.5 z-3 inline-flex items-center gap-1.25 rounded-full bg-green-500/92 px-2.75 py-1.25 text-xs font-bold text-white">
+                                                    <Download size={15} />
+                                                    Offline
+                                                </span>
+                                                <div
+                                                    className="absolute inset-0"
+                                                    style={{ background: 'radial-gradient(circle at 40% 40%,rgba(79,70,229,.34),rgba(11,11,18,.12))' }}
+                                                />
+
+                                                {popupMode === 'word' && (
+                                                    <div className="absolute inset-x-0 bottom-16 z-2 px-5.5 text-center">
+                                                        <span className="ts-subtitle box-decoration-clone rounded-md bg-black/50 px-2.75 py-1.5 text-xl leading-[2] font-bold">
+                                                            <span className="text-orange-500">Something</span>{' '}
+                                                            <span className="text-green-400">we</span>{' '}
+                                                            <span className="text-blue-400">may</span>{' '}
+                                                            <span className="text-green-400">not</span>{' '}
+                                                            <span className="text-green-400">be</span>{' '}
+                                                            <span className="rounded-[3px] bg-orange-500/[0.18] px-0.5 text-orange-500 outline outline-orange-500 outline-offset-2">
+                                                                able
+                                                            </span>{' '}
+                                                            <span className="text-blue-400">to</span>{' '}
+                                                            <span className="text-white">deter</span>.{' '}
+                                                            <span className="text-red-400">Before</span>…
+                                                        </span>
                                                     </div>
-                                                ),
+                                                )}
+                                                {popupMode === 'phrase' && (
+                                                    <div className="absolute inset-x-0 bottom-16 z-2 px-5.5 text-center">
+                                                        <span className="ts-subtitle box-decoration-clone rounded-md bg-black/50 px-2.75 py-1.5 text-xl leading-[2] font-bold">
+                                                            <span className="text-orange-500">Something</span>{' '}
+                                                            <span className="text-green-400">we</span>{' '}
+                                                            <span className="text-blue-400">may</span>{' '}
+                                                            <span className="rounded-[3px] bg-green-400/[0.16] px-0.5 text-green-400 outline outline-green-400 outline-offset-2">
+                                                                not
+                                                            </span>{' '}
+                                                            <span className="rounded-[3px] bg-green-400/[0.16] px-0.5 text-green-400 outline outline-green-400 outline-offset-2">
+                                                                be
+                                                            </span>{' '}
+                                                            <span className="rounded-[3px] bg-green-400/[0.16] px-0.5 text-orange-500 outline outline-green-400 outline-offset-2">
+                                                                able
+                                                            </span>{' '}
+                                                            <span className="text-blue-400">to</span>{' '}
+                                                            <span className="text-white">deter</span>.{' '}
+                                                            <span className="text-red-400">Before</span>…
+                                                        </span>
+                                                    </div>
+                                                )}
+
+                                                <div className="absolute inset-x-0 bottom-0 z-2 bg-gradient-to-t from-black/78 px-4 py-3.5">
+                                                    <div className="flex items-center gap-2.5 text-white">
+                                                        <Menu size={20} className="rotate-90" />
+                                                        <div className="h-1 flex-1 rounded-full bg-white/28">
+                                                            <div className="h-full w-[38%] rounded-full bg-red-500" />
+                                                        </div>
+                                                        <span className="text-[11px] text-white/75">12:04</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {popupMode === 'word' && (
+                                                <div className="ts-wordpop absolute bottom-30 left-[57%] z-6 w-59 -translate-x-1/2 rounded-[14px] border border-neutral-200 bg-white p-4 shadow-[0_20px_46px_rgba(0,0,0,.28)]">
+                                                    <div className="ts-wordpop-tail absolute -bottom-1.75 left-1/2 -ml-1.75 size-3.5 rotate-45 border-r border-b border-neutral-200 bg-white" />
+                                                    <div className="flex items-center justify-between">
+                                                        <div className="flex items-baseline gap-1.75">
+                                                            <span className="text-[17px] font-bold text-[#171717]">able</span>
+                                                            <span className="text-[11px] text-[#a1a1a1] italic">adj</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-[11px] font-semibold text-[#a1a1a1]">#241</span>
+                                                            <X size={16} className="text-[#a1a1a1]" />
+                                                        </div>
+                                                    </div>
+                                                    <div className="mt-2 text-sm font-semibold text-[#171717]">képes, tud valamit megtenni</div>
+                                                    <div className="mt-0.75 text-xs text-[#737373]">≈ capable, competent</div>
+                                                    <div className="ts-pop-hide mt-2.5 border-l-2 border-indigo-200 pl-2.25">
+                                                        <div className="text-xs text-[#404040] italic">„She is able to speak three languages.”</div>
+                                                        <div className="text-xs text-[#a1a1a1]">„Három nyelven tud beszélni.”</div>
+                                                    </div>
+                                                    <div className="mt-2.5 flex flex-wrap gap-1.5">
+                                                        <span className="rounded-full bg-neutral-100 px-2.5 py-1.25 text-xs font-semibold text-neutral-600">Tanulom</span>
+                                                        <span className="rounded-full bg-orange-100 px-2.5 py-1.25 text-xs font-bold text-orange-600">Mentett</span>
+                                                        <span className="ts-pop-hide rounded-full bg-neutral-100 px-2.5 py-1.25 text-xs font-semibold text-neutral-600">Tudom</span>
+                                                        <span className="ts-pop-hide rounded-full bg-neutral-100 px-2.5 py-1.25 text-xs font-semibold text-neutral-600">Kiejtés</span>
+                                                        <span className="ts-pop-hide rounded-full bg-neutral-100 px-2.5 py-1.25 text-xs font-semibold text-neutral-600">Gyakorlásra</span>
+                                                    </div>
+                                                    <div className="ts-pop-hide mt-3 flex items-center justify-between">
+                                                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-700">
+                                                            Megnyitás
+                                                            <ArrowRight size={15} />
+                                                        </span>
+                                                        <div className="flex gap-1.5 text-[#a1a1a1]">
+                                                            <Volume2 size={17} />
+                                                            <Sparkles size={17} />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {popupMode === 'phrase' && (
+                                                <div className="ts-wordpop absolute bottom-30 left-[47%] z-7 w-60 -translate-x-1/2 rounded-[14px] border border-neutral-200 bg-white p-4 shadow-[0_20px_46px_rgba(0,0,0,.28)]">
+                                                    <div className="ts-wordpop-tail absolute -bottom-1.75 left-1/2 -ml-1.75 size-3.5 rotate-45 border-r border-b border-neutral-200 bg-white" />
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-base font-bold text-[#171717]">not be able</span>
+                                                        <X size={16} className="text-[#a1a1a1]" />
+                                                    </div>
+                                                    <div className="mt-1.25 inline-flex items-center gap-1.25 rounded-full bg-green-50 px-2.25 py-0.75 text-[11px] font-semibold text-green-700">
+                                                        <MousePointerClick size={14} />3 szó kijelölve · shift + kattintás
+                                                    </div>
+                                                    <div className="mt-2.5 text-[13px] leading-[1.5] text-[#737373]">
+                                                        A kifejezés még nincs az adatbázisban — vedd fel egészben.
+                                                    </div>
+                                                    <div className="mt-3 flex flex-col gap-2.25 border-t border-neutral-100 pt-3">
+                                                        <span className="inline-flex items-center gap-1.25 text-[13px] font-semibold text-indigo-700">
+                                                            Saját kifejezésként hozzáadom
+                                                            <ArrowRight size={15} />
+                                                        </span>
+                                                        <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-purple-700">
+                                                            <Sparkles size={16} />
+                                                            AI-kitöltés — közvetlen a webappba
+                                                        </span>
+                                                    </div>
+                                                </div>
                                             )}
                                         </div>
-                                    </div>
-                                    <div className="px-5 py-6 text-lg leading-[2.2] font-normal">
-                                        {[
-                                            { word: 'The', status: 'tudom' },
-                                            { word: 'space', status: 'tudom' },
-                                            {
-                                                word: 'between',
-                                                status: 'tanulom',
-                                            },
-                                            { word: 'two', status: 'tudom' },
-                                            { word: 'cities', status: 'tudom' },
-                                            { word: 'lies', status: null },
-                                            { word: 'a', status: 'tudom' },
-                                            {
-                                                word: 'valley',
-                                                status: 'tanulom',
-                                            },
-                                            { word: 'known', status: 'tudom' },
-                                            { word: 'for', status: 'tudom' },
-                                            { word: 'its', status: 'tudom' },
-                                            {
-                                                word: 'remarkable',
-                                                status: null,
-                                            },
-                                            {
-                                                word: 'landscape.',
-                                                status: 'tudom',
-                                            },
-                                        ].map(({ word, status }, i) => (
-                                            <span key={i}>
-                                                <span
-                                                    className={`cursor-pointer rounded px-0.5 transition-opacity hover:opacity-75 ${
-                                                        status === 'tudom'
-                                                            ? 'bg-green-100 text-green-900 dark:bg-green-900/30 dark:text-green-300'
-                                                            : status ===
-                                                                'tanulom'
-                                                              ? 'bg-blue-100 text-blue-900 dark:bg-blue-900/30 dark:text-blue-300'
-                                                              : status === null
-                                                                ? 'bg-red-100 text-red-900 dark:bg-red-900/30 dark:text-red-300'
-                                                                : ''
-                                                    }`}
-                                                >
-                                                    {word}
-                                                </span>{' '}
+
+                                        <div className="mt-4 flex items-center justify-center gap-2">
+                                            <LayoutGrid size={18} className="text-indigo-700" />
+                                            <span className="text-[13px] font-medium text-[#525252]">
+                                                Saját TopWords lejátszó — macOS &amp; Windows
                                             </span>
-                                        ))}
+                                        </div>
                                     </div>
-                                    <div className="flex gap-4 border-t border-neutral-200 bg-neutral-50 px-5 py-3 text-xs font-semibold dark:border-neutral-700 dark:bg-neutral-800">
-                                        <span className="flex items-center gap-1.5">
-                                            <span className="size-2.5 rounded-sm bg-green-400" />{' '}
+
+                                    <div className="ts-textrow mt-7.5 grid grid-cols-[1.15fr_1fr] items-center gap-10">
+                                        <div>
+                                            <span className="inline-flex items-center gap-1.5 rounded-full border border-indigo-100 bg-white px-3 py-1.25 text-xs font-bold tracking-[.6px] text-indigo-700">
+                                                STREAMING &amp; OFFLINE
+                                            </span>
+                                            <h3 className="mt-3.5 text-[clamp(24px,3vw,32px)] leading-[1.15] font-bold tracking-[-.5px] text-[#171717]">
+                                                Nézz YouTube-ot és Netflixet — <span className="text-indigo-700">tanulj közben</span>
+                                            </h3>
+                                            <p className="mt-3 text-base leading-[1.65] text-[#525252]">
+                                                Elemezd a feliratokat, és lásd élőben, hány szót értesz — vagy töltsd le a{' '}
+                                                <b className="text-[#171717]">saját lejátszónkat</b>, és nézz filmet, sorozatot
+                                                akár <b className="text-[#171717]">offline</b>, a szavak menet közbeni
+                                                kiemelésével.
+                                            </p>
+                                            <div className="mt-4.5 flex flex-wrap gap-2.5">
+                                                <span className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-[13px] font-semibold text-[#171717]">
+                                                    <Play size={17} className="text-[#ff0033]" />
+                                                    YouTube
+                                                </span>
+                                                <span className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-[13px] font-semibold text-[#171717]">
+                                                    <Film size={17} className="text-[#e50914]" />
+                                                    Netflix
+                                                </span>
+                                                <span className="inline-flex items-center gap-1.5 rounded-full border border-green-200 bg-green-50 px-3.5 py-2 text-[13px] font-semibold text-green-700">
+                                                    <Download size={17} />
+                                                    Offline lejátszó
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div className="flex flex-col gap-2.75">
+                                            {[
+                                                'YouTube- és Netflix-feliratok elemzése egy kattintással',
+                                                'Szavak kiemelése lejátszás közben — Tudom · Tanulom · Ismeretlen',
+                                                'Töltsd le a saját lejátszót, és nézd offline is',
+                                            ].map((t) => (
+                                                <div key={t} className="flex items-start gap-2.5 text-[15px] leading-[1.5] text-[#404040]">
+                                                    <CheckCircle2 size={20} className="flex-none text-green-500" />
+                                                    {t}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </Reveal>
+
+                                <div className="mt-11 grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4">
+                                    {ANALYZE_BULLETS.map((b) => (
+                                        <Reveal
+                                            key={b.title}
+                                            className="rounded-[14px] border border-neutral-200 bg-[#fafafa] p-5 transition-all duration-250 hover:-translate-y-1.5 hover:shadow-[0_24px_50px_rgba(0,0,0,.12)]"
+                                        >
+                                            <span className="grid size-10.5 place-items-center rounded-[11px] bg-indigo-100 text-indigo-700">
+                                                <b.icon size={23} />
+                                            </span>
+                                            <div className="mt-3 text-[15px] font-semibold text-[#171717]">{b.title}</div>
+                                            <div className="mt-1.25 text-[13px] leading-[1.5] text-[#737373]">{b.desc}</div>
+                                        </Reveal>
+                                    ))}
+                                </div>
+
+                                <Reveal className="mt-6 rounded-3xl bg-[#171717] p-7.5 shadow-[0_24px_60px_rgba(0,0,0,.24)]">
+                                    <div className="flex flex-wrap gap-2">
+                                        <span className="rounded-lg bg-indigo-700 px-3.5 py-1.75 text-xs font-semibold text-white">Szöveg</span>
+                                        <span className="rounded-lg bg-neutral-800 px-3.5 py-1.75 text-xs font-semibold text-neutral-400">URL</span>
+                                        <span className="inline-flex items-center gap-1.25 rounded-lg bg-[#ff0033] px-3.5 py-1.75 text-xs font-bold text-white">
+                                            <Play size={15} />
+                                            YouTube
+                                        </span>
+                                        <span className="inline-flex items-center gap-1.25 rounded-lg bg-[#e50914] px-3.5 py-1.75 text-xs font-bold text-white">
+                                            <Film size={15} />
+                                            Netflix
+                                        </span>
+                                        <span className="rounded-lg bg-neutral-800 px-3.5 py-1.75 text-xs font-semibold text-neutral-400">Könyv</span>
+                                    </div>
+                                    <p className="mt-4.5 text-base leading-[1.85] text-neutral-300">
+                                        The space{' '}
+                                        <span className="rounded bg-green-500 px-1 py-0.25 text-green-950">between</span> two{' '}
+                                        <span className="rounded bg-blue-500 px-1 py-0.25 text-white">cities</span> lies a{' '}
+                                        <span className="rounded bg-red-500 px-1 py-0.25 text-white">valley</span> known for
+                                        its <span className="rounded bg-green-500 px-1 py-0.25 text-green-950">remarkable</span>{' '}
+                                        landscape and <span className="rounded bg-blue-500 px-1 py-0.25 text-white">resilient</span>{' '}
+                                        wildlife.
+                                    </p>
+                                    <div className="mt-5 flex items-center gap-4.5 border-t border-neutral-800 pt-4.5">
+                                        <div className="flex-1">
+                                            <div className="mb-2 flex justify-between text-[13px] text-neutral-400">
+                                                <span>Érthetőség</span>
+                                                <span className="font-semibold text-green-400">87%</span>
+                                            </div>
+                                            <div className="h-2.5 overflow-hidden rounded-full bg-neutral-800">
+                                                <div
+                                                    ref={bar2Ref}
+                                                    className="h-full w-[87%] origin-left rounded-full bg-gradient-to-r from-green-400 to-green-500 [transform:scaleX(0)]"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="mt-4 flex gap-4 text-xs text-neutral-400">
+                                        <span className="inline-flex items-center gap-1.5">
+                                            <span className="size-2.5 rounded-[3px] bg-green-500" />
                                             Tudom
                                         </span>
-                                        <span className="flex items-center gap-1.5">
-                                            <span className="size-2.5 rounded-sm bg-blue-400" />{' '}
+                                        <span className="inline-flex items-center gap-1.5">
+                                            <span className="size-2.5 rounded-[3px] bg-blue-500" />
                                             Tanulom
                                         </span>
-                                        <span className="flex items-center gap-1.5">
-                                            <span className="size-2.5 rounded-sm bg-red-400" />{' '}
+                                        <span className="inline-flex items-center gap-1.5">
+                                            <span className="size-2.5 rounded-[3px] bg-red-500" />
                                             Ismeretlen
                                         </span>
                                     </div>
-                                </div>
-                                <div className="mt-2.5 text-center text-xs text-neutral-400 dark:text-neutral-500">
-                                    Kattints a szavakra a státusz váltásához
-                                </div>
+                                </Reveal>
                             </div>
+                        </section>
 
-                            {/* right */}
-                            <div>
-                                <div className="mb-3 text-xs font-bold tracking-[1.6px] text-violet-600 uppercase dark:text-violet-400">
-                                    SZÖVEGELEMZÉS
-                                </div>
-                                <h2 className="text-[clamp(24px,3.2vw,40px)] leading-tight font-extrabold tracking-tight text-neutral-900 dark:text-white">
-                                    Elemezz bármilyen angol szöveget
+                        {/* SZÓLISTA */}
+                        <section
+                            id="szolista"
+                            className="px-5 py-24"
+                            style={{ background: 'linear-gradient(180deg,#f7f4ff 0%,#f5f3ff 50%,#eef2ff 100%)' }}
+                        >
+                            <Reveal className="mx-auto mb-12 max-w-[680px] text-center">
+                                <span className="inline-block rounded-full bg-indigo-100 px-3.75 py-1.5 text-xs font-bold tracking-[1.2px] text-indigo-700">
+                                    SZÓLISTA
+                                </span>
+                                <h2 className="mt-4.5 text-[clamp(30px,4vw,46px)] leading-[1.1] font-bold tracking-[-1px] text-[#171717]">
+                                    Kövesd nyomon a szókincsed fejlődését
                                 </h2>
-                                <p className="mt-4 text-base leading-relaxed text-neutral-600 dark:text-neutral-400">
-                                    Illeszd be a szöveget, adj meg egy webcímet,
-                                    egy YouTube-videót — vagy tölts fel egy egész
-                                    könyvet — és az alkalmazás azonnal megmutatja,
-                                    mennyit értesz belőle.
+                                <p className="mx-auto mt-4 text-[17px] leading-[1.6] text-[#737373]">
+                                    Minden szóhoz jelölheted, hol tartasz — a rendszer összeszámolja a haladásodat. Próbáld ki:
+                                    kattints egy szóra, majd állítsd a státuszát.
                                 </p>
-                                <div className="mt-6 flex flex-col gap-3">
-                                    {[
-                                        {
-                                            icon: 'percent',
-                                            text: 'Érthetőség % — látod, hány szót ismersz a szövegben',
-                                        },
-                                        {
-                                            icon: 'format_color_text',
-                                            text: 'Kiemelés — zölddel, kékkel, pirossal jelöli a szavakat státusz szerint',
-                                        },
-                                        {
-                                            icon: 'menu_book',
-                                            text: 'Könyv & YouTube — tölts fel könyvet vagy elemezz videófeliratot, lapozható nézetben',
-                                        },
-                                        {
-                                            icon: 'history',
-                                            text: 'Előzmények — korábbi elemzéseid, könyveid és felirataid elmentve',
-                                        },
-                                    ].map(({ icon, text }) => (
-                                        <div
-                                            key={text}
-                                            className="flex items-start gap-3"
-                                        >
-                                            <MI
-                                                n={icon}
-                                                s={20}
-                                                style={
-                                                    {
-                                                        color: '#7c3aed',
-                                                        marginTop: 1,
-                                                    } as React.CSSProperties
-                                                }
-                                            />
-                                            <span className="text-sm leading-relaxed text-neutral-600 dark:text-neutral-400">
-                                                {text}
-                                            </span>
+                            </Reveal>
+
+                            <div className="mx-auto grid max-w-[1080px] grid-cols-[1.1fr_1fr] items-start gap-6 max-lg:grid-cols-1">
+                                {/* list */}
+                                <Reveal className="min-w-0 overflow-hidden rounded-[20px] border border-neutral-200 bg-white shadow-[0_20px_50px_rgba(0,0,0,.06)]">
+                                    <div className="flex items-center justify-between px-5 pt-4.5 pb-3.5">
+                                        <div className="flex items-center gap-2 font-semibold text-[#171717]">
+                                            <List size={20} className="text-indigo-700" />
+                                            Szólista
                                         </div>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-
-                {/* ===================== AI ===================== */}
-                <section
-                    id="ai"
-                    className="border-y border-neutral-200 bg-white dark:border-neutral-700 dark:bg-neutral-800"
-                >
-                    <div className="mx-auto max-w-[1200px] px-4 py-14 sm:px-6 md:py-24">
-                        <div className="mx-auto max-w-[680px] text-center">
-                            <div className="mb-3 inline-flex items-center gap-1.5 text-xs font-bold tracking-[1.6px] text-violet-600 uppercase dark:text-violet-400">
-                                <MI n="auto_awesome" f s={15} /> AI-SEGÍTSÉG
-                            </div>
-                            <h2 className="text-[clamp(26px,3.6vw,44px)] leading-tight font-extrabold tracking-tight">
-                                Az AI végzi a nehezét helyetted
-                            </h2>
-                            <p className="mt-4 text-lg text-neutral-500 dark:text-neutral-400">
-                                Nem kell szótárazni és példamondatokat keresgélni
-                                — beépített AI segít a tanulás minden lépésénél.
-                            </p>
-                        </div>
-
-                        <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                            {[
-                                {
-                                    icon: 'auto_awesome',
-                                    title: 'AI szó-kitöltés',
-                                    desc: 'Egy kattintással kitölti egy szó magyar jelentését, szófaját és példamondatait — nálad marad a végső szó.',
-                                },
-                                {
-                                    icon: 'article',
-                                    title: 'Szabad írás ellenőrzése',
-                                    desc: 'Írj szabadon a célszavakkal, és az AI visszajelez a szóhasználatról és a grammatikáról.',
-                                },
-                                {
-                                    icon: 'style',
-                                    title: 'AI flashcard',
-                                    desc: 'A szövegelemzőben talált ismeretlen szóból az AI azonnal kész, kétoldalas kártyát gyárt.',
-                                },
-                            ].map(({ icon, title, desc }) => (
-                                <div
-                                    key={title}
-                                    className="rounded-2xl border border-neutral-200 bg-neutral-50 p-6 dark:border-neutral-700 dark:bg-neutral-900"
-                                >
-                                    <div className="mb-4 flex size-12 items-center justify-center rounded-[13px] bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-400">
-                                        <MI n={icon} s={26} />
-                                    </div>
-                                    <h3 className="mb-2 text-[17px] font-bold">
-                                        {title}
-                                    </h3>
-                                    <p className="text-sm leading-relaxed text-neutral-500 dark:text-neutral-400">
-                                        {desc}
-                                    </p>
-                                </div>
-                            ))}
-                        </div>
-                        <p className="mt-6 text-center text-xs text-neutral-400 dark:text-neutral-500">
-                            Az ingyenes csomagban is kipróbálható; a teljes
-                            AI-eszköztár Pro-val korlátlan.
-                        </p>
-                    </div>
-                </section>
-
-                {/* ===================== TANANYAG ===================== */}
-                <section
-                    id="tananyag"
-                    className="mx-auto max-w-[1200px] px-4 py-14 sm:px-6 md:py-24"
-                >
-                    <div className="overflow-hidden rounded-[24px] border border-neutral-200 bg-violet-50 dark:border-neutral-700 dark:bg-violet-950/20">
-                        <div className="grid items-center gap-10 p-10 md:p-12 lg:grid-cols-[1.05fr_0.95fr]">
-                            <div>
-                                <div className="mb-3 text-xs font-bold tracking-[1.6px] text-violet-700 uppercase dark:text-violet-400">
-                                    TANANYAG
-                                </div>
-                                <h2 className="text-[clamp(26px,3.4vw,42px)] leading-tight font-extrabold tracking-tight">
-                                    Videós útmutatók a használathoz
-                                </h2>
-                                <p className="mt-4 max-w-[480px] text-lg leading-relaxed text-neutral-500 dark:text-neutral-400">
-                                    Nézd meg lépésről lépésre, hogyan használd a
-                                    szólistát, a flashcardokat, a kvízt és a
-                                    bővítményt — rövid videós tutorialokban.
-                                </p>
-                                <Button
-                                    asChild
-                                    className="mt-7 bg-gradient-to-br from-violet-500 to-violet-400 text-white hover:bg-violet-700"
-                                >
-                                    <Link
-                                        href={guide()}
-                                        className="flex items-center gap-2"
-                                    >
-                                        <MI n="play_circle" s={21} /> Útmutatók
-                                        megnyitása
-                                    </Link>
-                                </Button>
-                            </div>
-                            <div className="flex flex-col gap-3">
-                                {[
-                                    {
-                                        title: 'Első lépések a TopWordsban',
-                                        sub: 'Kezdő lépések · 3:20',
-                                    },
-                                    {
-                                        title: 'Flashcard deck létrehozása',
-                                        sub: 'Flashcard · 6:30',
-                                    },
-                                    {
-                                        title: 'A Chrome bővítmény telepítése',
-                                        sub: 'Extension · 4:18',
-                                    },
-                                ].map((v) => (
-                                    <Link
-                                        key={v.title}
-                                        href={guide()}
-                                        className="flex items-center gap-3.5 rounded-[14px] border border-neutral-200 bg-white px-4 py-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md dark:border-neutral-700 dark:bg-neutral-800"
-                                    >
-                                        <span className="flex size-11 flex-none items-center justify-center rounded-[11px] bg-neutral-900 dark:bg-neutral-700">
-                                            <MI
-                                                n="play_arrow"
-                                                f
-                                                s={24}
-                                                style={
-                                                    {
-                                                        color: '#fff',
-                                                    } as React.CSSProperties
-                                                }
-                                            />
+                                        <span className="rounded-full bg-green-50 px-3 py-1.25 text-[13px] font-semibold text-green-700">
+                                            {knownCount} / {words.length} tudom
                                         </span>
-                                        <div>
-                                            <div className="text-sm font-bold">
-                                                {v.title}
-                                            </div>
-                                            <div className="mt-0.5 text-xs text-neutral-400 dark:text-neutral-500">
-                                                {v.sub}
-                                            </div>
-                                        </div>
-                                    </Link>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                </section>
-
-                {/* ===================== CHROME EXTENSION ===================== */}
-                <section
-                    id="extension"
-                    className="border-y border-neutral-200 bg-white dark:border-neutral-700 dark:bg-neutral-800"
-                >
-                    <div className="mx-auto max-w-[1200px] px-4 py-14 sm:px-6 md:py-24">
-                        <div className="max-w-[680px]">
-                            <div className="mb-3 text-xs font-bold tracking-[1.6px] text-violet-600 uppercase dark:text-violet-400">
-                                CHROME EXTENSION
-                            </div>
-                            <h2 className="text-[clamp(26px,3.6vw,44px)] leading-tight font-extrabold tracking-tight">
-                                Tanuld a szavakat ott, ahol találkozol velük
-                            </h2>
-                            <p className="mt-4 text-lg leading-relaxed text-neutral-500 dark:text-neutral-400">
-                                Híroldalon, YouTube-on, Redditen — keress rá az
-                                ismeretlen szavakra anélkül, hogy elhagynád az
-                                oldalt. A popupban azonnal ott a jelentés és a
-                                státusz.
-                            </p>
-                        </div>
-
-                        <div className="mt-12 grid items-center gap-12 lg:grid-cols-[1.1fr_0.9fr]">
-                            {/* browser mockup */}
-                            <div className="overflow-hidden rounded-[18px] border border-neutral-200 bg-neutral-50 shadow-xl dark:border-neutral-700 dark:bg-neutral-900">
-                                {/* browser chrome bar */}
-                                <div className="flex items-center gap-2 border-b border-neutral-200 bg-neutral-100 px-4 py-3 dark:border-neutral-700 dark:bg-neutral-800">
-                                    <span className="size-2.5 rounded-full bg-red-400 opacity-70" />
-                                    <span className="size-2.5 rounded-full bg-amber-400 opacity-70" />
-                                    <span className="size-2.5 rounded-full bg-green-400 opacity-70" />
-                                    <div className="ml-2 flex flex-1 items-center gap-2 rounded-full border border-neutral-200 bg-white px-3 py-1.5 text-xs text-neutral-400 dark:border-neutral-600 dark:bg-neutral-700">
-                                        <MI n="lock" s={14} />
-                                        en.wikipedia.org
                                     </div>
-                                    <div className="flex size-6 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 to-violet-400">
-                                        <MI
-                                            n="menu_book"
-                                            s={15}
-                                            style={
-                                                {
-                                                    color: '#fff',
-                                                } as React.CSSProperties
-                                            }
-                                        />
+                                    <div className="flex gap-2 border-b border-neutral-100 px-5 pb-3.5">
+                                        {filterTabs.map((t) => (
+                                            <button
+                                                key={t.label}
+                                                onClick={() => setFilter(t.label)}
+                                                className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.75 font-['Manrope'] text-[13px] font-semibold transition-all"
+                                                style={{
+                                                    border: `1px solid ${filter === t.label ? '#4338ca' : '#e5e5e5'}`,
+                                                    background: filter === t.label ? '#4338ca' : '#fff',
+                                                    color: filter === t.label ? '#fff' : '#525252',
+                                                }}
+                                            >
+                                                {t.label}
+                                                <span className="opacity-70">{t.count}</span>
+                                            </button>
+                                        ))}
                                     </div>
-                                </div>
-                                {/* page content */}
-                                <div className="relative min-h-[400px] p-7">
-                                    <p className="text-lg leading-[1.9] text-neutral-700 dark:text-neutral-300">
-                                        The space{' '}
-                                        <span className="rounded-md bg-blue-100 px-1 py-0.5 text-blue-900 shadow-[0_0_0_2px_rgba(59,130,246,0.3)] dark:bg-blue-900/30 dark:text-blue-300">
-                                            between
-                                        </span>{' '}
-                                        two cities lies a valley known for its
-                                        remarkable landscape and resilient
-                                        wildlife.
-                                    </p>
+                                    <div className="max-h-[420px] overflow-auto">
+                                        {visibleWords.map((w) => {
+                                            const th = w.status ? STATUS_META[w.status] : null;
+                                            const selected = selWord === w.i;
 
-                                    {/* popup */}
-                                    <div className="absolute top-28 left-7 w-[300px] overflow-hidden rounded-[16px] border border-neutral-200 bg-white shadow-xl dark:border-neutral-600 dark:bg-neutral-800">
-                                        <div className="flex items-center justify-between border-b border-neutral-100 px-3.5 py-3 dark:border-neutral-700">
-                                            <span className="inline-flex items-center gap-1.5 text-xs font-bold text-green-500">
-                                                <MI n="check_circle" f s={15} />{' '}
-                                                Ismert szó
+                                            return (
+                                                <div
+                                                    key={w.word}
+                                                    onClick={() => setSelWord(w.i)}
+                                                    className="flex cursor-pointer items-center gap-3 border-b border-neutral-100 px-4 py-3 transition-colors"
+                                                    style={{
+                                                        borderLeft: `3px solid ${selected ? '#4338ca' : th ? th.color : 'transparent'}`,
+                                                        background: selected ? '#eef2ff' : th ? th.tint : '#fff',
+                                                    }}
+                                                >
+                                                    <span
+                                                        className="size-2.25 flex-none rounded-full"
+                                                        style={th ? { background: th.color } : { border: '1.5px solid #d4d4d4' }}
+                                                    />
+                                                    <span className="text-base font-semibold transition-colors" style={{ color: th ? th.color : '#171717' }}>
+                                                        {w.word}
+                                                    </span>
+                                                    <span className="text-[11px] text-[#a1a1a1] italic">{w.pos}</span>
+                                                    <span className="flex-1" />
+                                                    <span className="text-[13px] text-[#a1a1a1]">{w.hu}</span>
+                                                    <ArrowRight size={18} className="text-neutral-300" />
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </Reveal>
+
+                                {/* detail */}
+                                <Reveal className="overflow-hidden rounded-[20px] border border-neutral-200 bg-white shadow-[0_20px_50px_rgba(0,0,0,.06)]">
+                                    <div className="border-b border-neutral-100 bg-[#f7f7fb] p-5">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2.5">
+                                                <span className="text-xs font-bold text-[#a1a1a1]">#{sel.num}</span>
+                                                <span className="rounded-full bg-indigo-100 px-2.5 py-0.75 text-[11px] font-semibold text-indigo-700">{sel.pos}</span>
+                                            </div>
+                                            <span className="grid size-8.5 place-items-center rounded-full border-[1.5px] border-indigo-700 text-indigo-700">
+                                                <Volume2 size={19} />
                                             </span>
-                                            <MI
-                                                n="close"
-                                                s={18}
-                                                style={
-                                                    {
-                                                        color: '#a1a1a1',
-                                                        cursor: 'pointer',
-                                                    } as React.CSSProperties
-                                                }
-                                            />
                                         </div>
-                                        <div className="p-3.5">
-                                            <div className="flex items-baseline gap-2">
-                                                <span className="text-[22px] font-extrabold tracking-tight">
-                                                    between
-                                                </span>
-                                                <span className="text-xs text-neutral-400 italic">
-                                                    prep
-                                                </span>
-                                                <span className="ml-auto text-xs font-bold text-violet-600 tabular-nums">
-                                                    #42
-                                                </span>
-                                            </div>
-                                            <div className="mt-2 text-sm text-neutral-700 dark:text-neutral-300">
-                                                között, -ek között
-                                            </div>
-                                            <div className="mt-1 text-xs text-neutral-400 dark:text-neutral-500">
-                                                in the middle of
-                                            </div>
-                                            <div className="mt-3.5 grid grid-cols-2 gap-1.5">
-                                                {[
-                                                    {
-                                                        label: 'Tanulom',
-                                                        active: false,
-                                                    },
-                                                    {
-                                                        label: 'Mentett',
-                                                        active: false,
-                                                    },
-                                                    {
-                                                        label: 'Tudom',
-                                                        active: true,
-                                                    },
-                                                    {
-                                                        label: 'Kiejtés',
-                                                        active: false,
-                                                    },
-                                                ].map(({ label, active }) => (
-                                                    <button
-                                                        key={label}
-                                                        className={`rounded-full py-1 text-[11px] font-semibold transition-all ${
-                                                            active
-                                                                ? 'bg-green-500 text-white'
-                                                                : 'border border-neutral-200 bg-neutral-50 text-neutral-500 dark:border-neutral-600 dark:bg-neutral-700 dark:text-neutral-400'
-                                                        }`}
-                                                    >
-                                                        {label}
-                                                    </button>
+                                        <div className="mt-2 text-[26px] font-bold tracking-[-.4px] text-[#171717]">{sel.word}</div>
+                                    </div>
+                                    <div className="flex flex-col gap-4.5 p-5">
+                                        <div>
+                                            <div className="text-[11px] font-bold tracking-[.8px] text-[#a1a1a1]">MAGYAR JELENTÉS</div>
+                                            <div className="mt-2 rounded-xl border border-neutral-200 px-4 py-3.5 text-[19px] font-semibold text-[#171717]">{sel.hu}</div>
+                                        </div>
+                                        <div>
+                                            <div className="text-[11px] font-bold tracking-[.8px] text-[#a1a1a1]">SZINONIMÁK</div>
+                                            <div className="mt-2 flex flex-wrap gap-2">
+                                                {sel.syn.map((s) => (
+                                                    <span key={s} className="rounded-full border border-neutral-200 bg-[#fafafa] px-3.5 py-1.75 text-[13px] text-[#404040]">
+                                                        {s}
+                                                    </span>
                                                 ))}
                                             </div>
-                                            <div className="mt-3 flex cursor-pointer items-center justify-end gap-1 text-xs font-bold text-violet-600">
-                                                Megnyitás{' '}
-                                                <MI n="arrow_forward" s={16} />
-                                            </div>
                                         </div>
-                                    </div>
-                                </div>
-                            </div>
+                                        <div className="rounded-xl bg-[#f7f7fb] p-4" style={{ borderLeft: `3px solid ${selMeta ? selMeta.color : '#4338ca'}` }}>
+                                            <div className="text-[11px] font-bold tracking-[.8px] text-[#a1a1a1]">PÉLDAMONDAT</div>
+                                            <div className="mt-2 text-[15px] font-medium text-[#171717] italic">„{sel.ex.en}”</div>
+                                            <div className="mt-1.5 text-sm text-[#737373]">{sel.ex.hu}</div>
+                                        </div>
+                                        <div className="flex flex-wrap gap-2">
+                                            {detailButtons.map((key) => {
+                                                const m = STATUS_META[key];
+                                                const active = sel.status === key;
+                                                const full = key === 'Gyakorlásra';
 
-                            {/* methods */}
-                            <div className="flex flex-col gap-3">
-                                {EXT_METHODS.map((m) => (
-                                    <div
-                                        key={m.title}
-                                        className="flex gap-4 rounded-[14px] border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-700 dark:bg-neutral-900"
-                                    >
-                                        <span className="flex size-10 flex-none items-center justify-center rounded-[11px] bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-400">
-                                            <MI n={m.icon} s={22} />
-                                        </span>
+                                                return (
+                                                    <button
+                                                        key={key}
+                                                        onClick={() => setWord(selWord, key)}
+                                                        className="flex items-center justify-center gap-1.5 rounded-[11px] px-2.5 py-2.75 font-['Manrope'] text-[13px] font-semibold transition-all"
+                                                        style={{
+                                                            flex: full ? '1 1 100%' : '1 1 40%',
+                                                            background: active ? m.bg : '#f4f4f5',
+                                                            color: active ? m.color : '#71717a',
+                                                            border: `1px solid ${active ? `${m.color}55` : 'transparent'}`,
+                                                        }}
+                                                    >
+                                                        <m.icon size={17} />
+                                                        {key}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
                                         <div>
-                                            <div className="text-[15px] font-bold">
-                                                {m.title}
-                                            </div>
-                                            <div className="mt-1 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">
-                                                {m.desc}
+                                            <div className="text-[11px] font-bold tracking-[.8px] text-[#a1a1a1]">FONTOSSÁG</div>
+                                            <div className="mt-2 flex gap-2">
+                                                {[1, 2, 3, 4, 5].map((n) => (
+                                                    <Star
+                                                        key={n}
+                                                        size={26}
+                                                        className={n <= sel.imp ? 'fill-amber-500 text-amber-500' : 'text-neutral-200'}
+                                                    />
+                                                ))}
                                             </div>
                                         </div>
+                                        <button className="flex w-full items-center justify-center gap-2 rounded-xl border-[1.5px] border-indigo-200 py-3.25 font-['Manrope'] text-sm font-semibold text-indigo-700 transition-colors hover:bg-indigo-50">
+                                            <Sparkles size={18} />
+                                            Szó infók (AI)
+                                        </button>
                                     </div>
-                                ))}
+                                </Reveal>
                             </div>
-                        </div>
+                        </section>
 
-                        {/* install section */}
-                        <div className="mt-8 grid items-center gap-8 rounded-[20px] border border-neutral-200 bg-neutral-50 p-8 md:grid-cols-[0.8fr_1.2fr] dark:border-neutral-700 dark:bg-neutral-900">
-                            <div>
-                                <h3 className="text-xl font-extrabold tracking-tight">
-                                    Hogyan telepítsd?
-                                </h3>
-                                <p className="mt-2 text-sm leading-relaxed text-neutral-500 dark:text-neutral-400">
-                                    A tesztidőszak alatt fejlesztői módban
-                                    telepíthető. Hamarosan a Chrome Web
-                                    Store-ban is.
+                        {/* FLASHCARD SRS */}
+                        <section id="flashcard" className="bg-white px-5 py-24">
+                            <Reveal className="mx-auto mb-14 max-w-[760px] text-center">
+                                <span className="inline-block rounded-full bg-indigo-100 px-3.75 py-1.5 text-xs font-bold tracking-[1.2px] text-indigo-700">
+                                    FLASHCARD SRS
+                                </span>
+                                <h2 className="mt-4.5 text-[clamp(30px,4vw,46px)] leading-[1.1] font-bold tracking-[-1px] text-[#171717]">
+                                    Intelligens ismétlési rendszer
+                                </h2>
+                                <p className="mx-auto mt-4 max-w-[560px] text-[17px] leading-[1.6] text-[#737373]">
+                                    Minden értékelés után kiszámolja, mikor kell visszamutatnia a kártyát — ha könnyen ment,
+                                    tovább vár; ha nehéz volt, hamarabb visszahozza.
                                 </p>
-                                {auth.user ? (
-                                    <div className="mt-4 flex flex-col gap-2.5">
-                                        <a
-                                            href="/downloads/topwords-extension.zip"
-                                            download
-                                            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-violet-500 to-violet-400 px-5 py-3 text-sm font-bold text-white shadow-md transition-all hover:-translate-y-0.5 hover:bg-violet-700"
+                            </Reveal>
+
+                            <div className="mx-auto grid max-w-[1120px] grid-cols-[repeat(auto-fit,minmax(320px,1fr))] items-start gap-10">
+                                <Reveal className="rounded-3xl border border-neutral-200 p-6 shadow-[0_20px_50px_rgba(0,0,0,.06)]">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2.25 font-semibold text-[#171717]">
+                                            <Layers size={20} className="text-indigo-700" />
+                                            Angol alapszavak
+                                        </div>
+                                        <span className="rounded-full bg-indigo-50 px-3 py-1.25 text-[13px] font-semibold text-indigo-700">1 / 40</span>
+                                    </div>
+                                    <div className="mt-3.5 h-1.5 overflow-hidden rounded-full bg-indigo-50">
+                                        <div className="h-full w-[2.5%] rounded-full bg-gradient-to-r from-indigo-600 to-indigo-800" />
+                                    </div>
+                                    <button
+                                        onClick={() => setFlipped2((v) => !v)}
+                                        className="mt-4.5 h-59 w-full cursor-pointer"
+                                        style={{ perspective: 1200 }}
+                                    >
+                                        <div
+                                            className="relative size-full transition-transform duration-600 ease-[cubic-bezier(.4,.2,.2,1)]"
+                                            style={{
+                                                transformStyle: 'preserve-3d',
+                                                transform: flipped2 ? 'rotateY(180deg)' : 'rotateY(0deg)',
+                                            }}
                                         >
-                                            <MI n="download" s={20} /> Bővítmény
-                                            letöltése (.zip)
-                                        </a>
-                                        <div className="flex flex-wrap gap-2.5">
-                                            <a
-                                                href="/downloads/topwords-player-mac.dmg"
-                                                download
-                                                className="inline-flex items-center gap-2 rounded-xl border border-neutral-300 bg-white px-5 py-3 text-sm font-bold text-neutral-700 shadow-sm transition-all hover:-translate-y-0.5 hover:border-violet-400 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-200"
+                                            <div
+                                                className="absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-[18px] border border-indigo-200 bg-gradient-to-br from-indigo-50 to-indigo-100"
+                                                style={{ backfaceVisibility: 'hidden' }}
                                             >
-                                                <MI n="download" s={20} /> Player
-                                                – macOS (.dmg)
-                                            </a>
-                                            <a
-                                                href="/downloads/topwords-player-win.exe"
-                                                download
-                                                className="inline-flex items-center gap-2 rounded-xl border border-neutral-300 bg-white px-5 py-3 text-sm font-bold text-neutral-700 shadow-sm transition-all hover:-translate-y-0.5 hover:border-violet-400 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-200"
+                                                <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-indigo-700">
+                                                    #288 · Top 1 000 · melléknév
+                                                </span>
+                                                <span className="text-[46px] font-bold tracking-tight text-[#171717]">important</span>
+                                                <span className="inline-flex items-center gap-1.25 text-xs text-indigo-500">
+                                                    <MousePointerClick size={15} />
+                                                    Kattints a megfordításhoz
+                                                </span>
+                                            </div>
+                                            <div
+                                                className="absolute inset-0 flex flex-col items-center justify-center gap-3.5 rounded-[18px] bg-gradient-to-br from-indigo-600 to-indigo-800 p-6 text-center shadow-[inset_0_0_0_1px_rgba(255,255,255,.12)]"
+                                                style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
                                             >
-                                                <MI n="download" s={20} /> Player
-                                                – Windows (.exe)
-                                            </a>
+                                                <span className="text-[42px] font-bold tracking-tight text-white">fontos</span>
+                                                <span className="text-sm leading-[1.55] text-indigo-100">
+                                                    „This is a very <b className="text-white">important</b> decision.”
+                                                </span>
+                                                <span className="text-sm text-indigo-200">Ez egy nagyon fontos döntés.</span>
+                                            </div>
                                         </div>
+                                    </button>
+                                    <div className="mt-3 text-center text-xs text-[#a1a1a1]">
+                                        Hogy ment? Értékeld — az algoritmus ütemezi a következő ismétlést.
                                     </div>
-                                ) : (
-                                    <Link
-                                        href={login()}
-                                        className="mt-4 inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-violet-500 to-violet-400 px-5 py-3 text-sm font-bold text-white shadow-md transition-all hover:-translate-y-0.5 hover:bg-violet-700"
-                                    >
-                                        <MI n="login" s={20} /> Jelentkezz be a
-                                        letöltéshez
-                                    </Link>
-                                )}
-                                <p className="mt-2 text-xs text-neutral-400 dark:text-neutral-500">
-                                    A bővítmény Chrome / Edge / Brave böngészőkben
-                                    működik; a lejátszó macOS és Windows
-                                    rendszeren.
-                                </p>
+                                    <div className="mt-3 grid grid-cols-4 gap-2.5">
+                                        {RATE_DEFS.map((r) => (
+                                            <button
+                                                key={r.label}
+                                                onClick={() => setFlipped2(false)}
+                                                className="flex flex-col items-center gap-0.5 rounded-xl py-3 transition-all hover:-translate-y-0.5"
+                                                style={{ border: `1px solid ${r.c}3d`, background: `${r.c}14`, color: r.c }}
+                                            >
+                                                <span className="text-sm font-bold">{r.label}</span>
+                                                <span className="text-[11px] opacity-80">{r.time}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </Reveal>
+                                <Reveal className="flex flex-col gap-3.5">
+                                    {SRS_EXPLAIN.map((e) => (
+                                        <div key={e.label} className="flex items-start gap-3.5 rounded-[14px] border border-neutral-200 bg-[#fafafa] p-4">
+                                            <span
+                                                className="inline-flex min-w-9 flex-none items-center justify-center rounded-[9px] px-2.25 py-2 text-xs font-semibold whitespace-nowrap text-white"
+                                                style={{ background: e.bg }}
+                                            >
+                                                {e.label}
+                                            </span>
+                                            <p className="text-sm leading-[1.55] text-[#404040]">{e.desc}</p>
+                                        </div>
+                                    ))}
+                                </Reveal>
                             </div>
-                            <div className="flex flex-col gap-2.5">
-                                {[
-                                    {
-                                        n: 1,
-                                        text: 'Töltsd le a .zip-et, és csomagold ki egy mappába',
-                                    },
-                                    {
-                                        n: 2,
-                                        text: (
-                                            <>
-                                                Nyisd meg:{' '}
-                                                <ChromeExtensionsLink />
-                                            </>
-                                        ),
-                                    },
-                                    {
-                                        n: 3,
-                                        text: 'Kapcsold be a Fejlesztői módot (jobb felső sarok)',
-                                    },
-                                    {
-                                        n: 4,
-                                        text: 'Kattints: Kicsomagolt bővítmény betöltése',
-                                    },
-                                    {
-                                        n: 5,
-                                        text: 'Válaszd ki a kicsomagolt mappát',
-                                    },
-                                ].map(({ n, text }) => (
-                                    <div
-                                        key={n}
-                                        className="flex items-center gap-3"
-                                    >
-                                        <span className="flex size-7 flex-none items-center justify-center rounded-full bg-violet-100 text-xs font-bold text-violet-700 dark:bg-violet-900/40 dark:text-violet-400">
-                                            {n}
-                                        </span>
-                                        <span className="text-sm text-neutral-600 dark:text-neutral-400">
-                                            {text}
-                                        </span>
-                                    </div>
+
+                            <div className="mx-auto mt-10 grid max-w-[1120px] grid-cols-[repeat(auto-fit,minmax(210px,1fr))] gap-3.5">
+                                {FLASH_CAPS.map((c) => (
+                                    <Reveal key={c.title} className="flex items-start gap-2.75 rounded-xl border border-indigo-100 bg-indigo-50 p-4">
+                                        <c.icon size={20} className="flex-none text-indigo-600" />
+                                        <div>
+                                            <div className="text-sm font-semibold text-[#171717]">{c.title}</div>
+                                            <div className="mt-0.75 text-xs leading-[1.5] text-[#737373]">{c.desc}</div>
+                                        </div>
+                                    </Reveal>
                                 ))}
                             </div>
-                        </div>
-                    </div>
-                </section>
+                        </section>
 
-                {/* ===================== PRICING ===================== */}
-                {billingEnabled && (
-                    <section
-                        id="pricing"
-                        className="mx-auto max-w-[1200px] px-4 py-14 sm:px-6 md:py-24"
-                    >
-                        <div className="mx-auto max-w-[680px] text-center">
-                            <div className="mb-3 text-xs font-bold tracking-[1.6px] text-violet-600 uppercase dark:text-violet-400">
-                                ÁRAZÁS
+                        {/* GYAKORLÁSI MÓDOK */}
+                        <section
+                            id="gyakorlas"
+                            className="px-5 py-24"
+                            style={{ background: 'linear-gradient(180deg,#eef2ff 0%,#e9e5ff 50%,#f5f3ff 100%)' }}
+                        >
+                            <div className="mx-auto grid max-w-[1160px] grid-cols-[repeat(auto-fit,minmax(340px,1fr))] items-center gap-12">
+                                <Reveal>
+                                    <span className="inline-block rounded-full bg-indigo-100 px-3.75 py-1.5 text-xs font-bold tracking-[1.2px] text-indigo-700">
+                                        GYAKORLÁSI MÓDOK
+                                    </span>
+                                    <h2 className="mt-4.5 text-[clamp(28px,3.6vw,42px)] leading-[1.1] font-bold tracking-[-1px] text-[#171717]">
+                                        Több módszer ugyanahhoz
+                                        <br />a szókincshez
+                                    </h2>
+                                    <p className="mt-4 mb-5.5 text-base leading-[1.65] text-[#737373]">
+                                        Ugyanazokat a szavakat többféleképp gyakorolhatod — a rendszer a szólistádból
+                                        automatikusan generálja a feladatokat. Próbáld ki a kvízt jobbra.
+                                    </p>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        {PRACTICE_MODES.map((m) => (
+                                            <Reveal
+                                                key={m.title}
+                                                className="rounded-[14px] border border-neutral-200 bg-white p-4.5 shadow-[0_6px_18px_rgba(0,0,0,.04)] transition-all duration-250 hover:-translate-y-1.5 hover:shadow-[0_24px_50px_rgba(0,0,0,.12)]"
+                                            >
+                                                <span className="grid size-10.5 place-items-center rounded-xl bg-gradient-to-br from-indigo-600 to-indigo-800 text-white">
+                                                    <m.icon size={23} />
+                                                </span>
+                                                <div className="mt-3 text-[15px] font-semibold text-[#171717]">{m.title}</div>
+                                                <div className="mt-1.25 text-xs leading-[1.5] text-[#737373]">{m.desc}</div>
+                                            </Reveal>
+                                        ))}
+                                    </div>
+                                </Reveal>
+                                <Reveal className="flex flex-col gap-4.5">
+                                    <div className="rounded-[20px] border border-neutral-200 bg-white p-6.5 shadow-[0_20px_50px_rgba(0,0,0,.06)]">
+                                        <div className="flex items-center justify-between">
+                                            <span className="rounded-full bg-indigo-100 px-2.75 py-1.25 text-xs font-semibold text-indigo-700">
+                                                Kvíz · #178 · Top 1 000
+                                            </span>
+                                            <span className="text-[13px] text-[#a1a1a1]">Próbáld ki</span>
+                                        </div>
+                                        <h3 className="mt-4.5 mb-1 text-base font-medium text-[#737373]">
+                                            Mi a magyar jelentése ennek: <b className="text-[#171717]">between</b>?
+                                        </h3>
+                                        <div className="mt-4 grid grid-cols-2 gap-2.5">
+                                            {quizOptions.map((o) => {
+                                                const picked = quizPick === o.l;
+                                                let bg = '#fff';
+                                                let bd = '#e5e5e5';
+                                                let col = '#404040';
+                                                let Mark: React.ComponentType<{ size?: number }> | null = null;
+
+                                                if (answered) {
+                                                    if (o.correct) {
+                                                        bg = '#f0fdf4';
+                                                        bd = '#86efac';
+                                                        col = '#15803d';
+                                                        Mark = Check;
+                                                    } else if (picked) {
+                                                        bg = '#fef2f2';
+                                                        bd = '#fca5a5';
+                                                        col = '#b91c1c';
+                                                        Mark = X;
+                                                    }
+                                                }
+
+                                                return (
+                                                    <button
+                                                        key={o.l}
+                                                        onClick={() => setQuizPick(o.l)}
+                                                        className="flex items-center justify-between rounded-xl px-4 py-3.25 font-['Manrope'] text-[15px] font-semibold transition-all"
+                                                        style={{ background: bg, border: `1px solid ${bd}`, color: col }}
+                                                    >
+                                                        <span>{o.l}</span>
+                                                        {Mark && <Mark size={18} />}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                        <div
+                                            className="mt-3.5 min-h-5 text-sm font-semibold"
+                                            style={{ color: !answered ? 'transparent' : correct ? '#15803d' : '#b91c1c' }}
+                                        >
+                                            {answered
+                                                ? correct
+                                                    ? 'Helyes! A „between” jelentése: között.'
+                                                    : 'Nem talált — a helyes válasz: között.'
+                                                : ''}
+                                        </div>
+                                    </div>
+                                    <div className="rounded-[20px] border border-neutral-200 bg-white p-6.5 shadow-[0_20px_50px_rgba(0,0,0,.06)]">
+                                        <span className="inline-block rounded-full bg-indigo-100 px-2.75 py-1.25 text-xs font-semibold text-indigo-700">
+                                            Mondatkiegészítés
+                                        </span>
+                                        <p className="mt-4 text-base leading-[1.8] text-[#404040]">
+                                            The space{' '}
+                                            <span className="inline-block min-w-24 border-b-2 border-dashed border-indigo-600 text-center font-semibold text-indigo-600">
+                                                between
+                                            </span>{' '}
+                                            two cities lies a valley known for its remarkable landscape.
+                                        </p>
+                                        <div className="mt-3.5 inline-flex items-center gap-1.5 text-[13px] text-[#a1a1a1]">
+                                            <CheckCircle2 size={17} className="text-green-500" />
+                                            Írd be a hiányzó szót (cloze).
+                                        </div>
+                                    </div>
+                                </Reveal>
                             </div>
-                            <h2 className="text-[clamp(26px,3.6vw,44px)] leading-tight font-extrabold tracking-tight">
-                                Válaszd ki a hozzád illő csomagot
-                            </h2>
-                            <p className="mt-4 text-lg text-neutral-500 dark:text-neutral-400">
-                                Kezdd ingyen — kóstolj bele mindenbe, az AI-ba
-                                is —, és ha megtetszett, válts Próra a korlátlan
-                                használatért.
-                            </p>
-                        </div>
+                        </section>
 
-                        <div className="mx-auto mt-12 grid max-w-[620px] gap-5 sm:grid-cols-2">
-                            {[
-                                {
-                                    name: 'Ingyenes',
-                                    icon: null,
-                                    price: '0 Ft',
-                                    period: 'örökké',
-                                    tagline:
-                                        'Szólista, flashcard, kvíz, a Chrome-bővítmény és egy kis AI-kóstoló.',
-                                    featured: false,
-                                },
-                                {
-                                    name: 'Pro',
-                                    icon: 'auto_awesome',
-                                    price: '1 990 Ft',
-                                    period: '/ hó',
-                                    tagline:
-                                        'Korlátlan használat, a teljes AI-eszköztár és a legnagyobb keretek.',
-                                    featured: true,
-                                },
-                            ].map((plan) => (
-                                <div
-                                    key={plan.name}
-                                    className={`relative flex flex-col rounded-[20px] border bg-white p-6 text-left transition-all hover:-translate-y-1 hover:shadow-lg dark:bg-neutral-800 ${
-                                        plan.featured
-                                            ? 'border-2 border-violet-400 shadow-md dark:border-violet-500'
-                                            : 'border-neutral-200 dark:border-neutral-700'
-                                    }`}
-                                >
-                                    {plan.featured && (
-                                        <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                                            <span className="rounded-full bg-gradient-to-br from-violet-500 to-violet-400 px-3 py-1 text-[11px] font-bold whitespace-nowrap text-white">
-                                                Legnépszerűbb
+                        {/* AI */}
+                        <section
+                            id="ai"
+                            className="px-5 py-24"
+                            style={{ background: 'linear-gradient(180deg,#f9f5ff 0%,#f5f3ff 50%,#ede9fe 100%)' }}
+                        >
+                            <Reveal className="mx-auto mb-14 max-w-[760px] text-center">
+                                <span className="inline-block rounded-full bg-indigo-100 px-3.75 py-1.5 text-xs font-bold tracking-[1.2px] text-indigo-700">
+                                    AI-SEGÍTSÉG
+                                </span>
+                                <h2 className="mt-4.5 text-[clamp(30px,4vw,46px)] leading-[1.1] font-bold tracking-[-1px] text-[#171717]">
+                                    Az AI végzi a nehezét helyetted
+                                </h2>
+                                <p className="mx-auto mt-4 max-w-[560px] text-[17px] leading-[1.6] text-[#737373]">
+                                    Nem kell szótárazni és példamondatokat keresgélni — beépített AI segít a tanulás minden
+                                    lépésénél.
+                                </p>
+                            </Reveal>
+                            <div className="mx-auto grid max-w-[1120px] grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-5">
+                                {AI_CARDS.map((a) => (
+                                    <Reveal
+                                        key={a.title}
+                                        className="rounded-[18px] border border-neutral-200 bg-white p-6.5 shadow-[0_12px_34px_rgba(0,0,0,.05)] transition-all duration-250 hover:-translate-y-1.5 hover:shadow-[0_24px_50px_rgba(0,0,0,.12)]"
+                                    >
+                                        <div className="grid size-13 place-items-center rounded-2xl bg-gradient-to-br from-indigo-600 to-indigo-800 text-white">
+                                            <a.icon size={26} />
+                                        </div>
+                                        <h3 className="mt-4.5 text-[19px] font-semibold tracking-[-.3px] text-[#171717]">{a.title}</h3>
+                                        <p className="mt-2.5 text-sm leading-[1.6] text-[#737373]">{a.desc}</p>
+                                    </Reveal>
+                                ))}
+                            </div>
+                            <Reveal as="p" className="mx-auto mt-8 text-center text-sm text-[#a1a1a1]">
+                                Az ingyenes csomagban is kipróbálható; a teljes AI-eszköztár Pro-val korlátlan.
+                            </Reveal>
+                        </section>
+
+                        {/* CHROME EXTENSION */}
+                        <section
+                            id="bovitmeny"
+                            className="relative overflow-hidden px-5 py-24"
+                            style={{
+                                background:
+                                    'linear-gradient(180deg,#20276B 0%,#3a3688 22%,#6548AC 46%,#5566c4 66%,#4F8EEC 90%,#4F8EEC 100%)',
+                            }}
+                        >
+                            <div
+                                className="pointer-events-none absolute -top-25 -right-20 size-[420px] rounded-full blur-[20px]"
+                                style={{ background: 'radial-gradient(circle,rgba(79,70,229,.4),transparent 65%)' }}
+                            />
+                            <div className="relative mx-auto grid max-w-[1160px] grid-cols-[repeat(auto-fit,minmax(340px,1fr))] items-center gap-14">
+                                <Reveal>
+                                    <span className="inline-block rounded-full bg-white/10 px-3.75 py-1.5 text-xs font-bold tracking-[1.2px] text-indigo-200">
+                                        CHROME EXTENSION
+                                    </span>
+                                    <h2 className="mt-4.5 text-[clamp(28px,3.6vw,42px)] leading-[1.1] font-bold tracking-[-1px] text-white">
+                                        Tanuld a szavakat ott,
+                                        <br />
+                                        ahol találkozol velük
+                                    </h2>
+                                    <p className="mt-4 text-base leading-[1.65] text-white/70">
+                                        Híroldalon, YouTube-on, Redditen — keress rá az ismeretlen szavakra anélkül, hogy
+                                        elhagynád az oldalt. A popupban azonnal ott a jelentés és a státusz.
+                                    </p>
+                                    <div className="mt-6 grid gap-3">
+                                        {EXT_USAGE.map((u) => (
+                                            <div key={u.title} className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/[0.06] p-3.5">
+                                                <span className="grid size-8.5 flex-none place-items-center rounded-[9px] bg-indigo-500/30 text-indigo-200">
+                                                    <u.icon size={19} />
+                                                </span>
+                                                <div>
+                                                    <div className="text-sm font-semibold text-white">{u.title}</div>
+                                                    <div className="mt-0.5 text-[13px] leading-[1.5] text-white/62">{u.desc}</div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </Reveal>
+                                <Reveal>
+                                    <div className="overflow-hidden rounded-2xl bg-white shadow-[0_30px_70px_rgba(0,0,0,.4)]">
+                                        <div className="flex items-center gap-2.5 border-b border-neutral-200 bg-[#f5f5f5] px-3.5 py-3">
+                                            <span className="size-2.75 rounded-full bg-red-500" />
+                                            <span className="size-2.75 rounded-full bg-amber-500" />
+                                            <span className="size-2.75 rounded-full bg-green-500" />
+                                            <span className="ml-2 flex-1 rounded-lg border border-neutral-200 bg-white px-3 py-1.25 text-xs text-[#737373]">
+                                                en.wikipedia.org
                                             </span>
                                         </div>
-                                    )}
-                                    <div className="flex items-center gap-1.5">
-                                        <span className="text-sm font-bold text-neutral-500 dark:text-neutral-400">
-                                            {plan.name}
-                                        </span>
-                                        {plan.icon && (
-                                            <MI
-                                                n={plan.icon}
-                                                f
-                                                s={16}
-                                                style={
-                                                    {
-                                                        color: '#8b5cf6',
-                                                    } as React.CSSProperties
-                                                }
-                                            />
+                                        <div className="relative p-5.5">
+                                            <p className="text-[15px] leading-[1.8] text-[#404040]">
+                                                The space{' '}
+                                                <span className="rounded-[3px] border-b-2 border-indigo-600 bg-indigo-100 px-0.5 py-0.25 font-semibold text-indigo-700">
+                                                    between
+                                                </span>{' '}
+                                                two cities lies a valley known for its remarkable landscape and resilient
+                                                wildlife.
+                                            </p>
+                                            <div className="mt-4 w-62.5 overflow-hidden rounded-[14px] border border-neutral-200 bg-white shadow-[0_16px_40px_rgba(0,0,0,.16)]">
+                                                <div className="flex items-center justify-between border-b border-indigo-100 bg-indigo-50 px-4 py-3.5">
+                                                    <div>
+                                                        <div className="text-[18px] font-bold text-[#171717]">between</div>
+                                                        <div className="text-xs text-indigo-600">prep · #178</div>
+                                                    </div>
+                                                    <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700">
+                                                        Tanulom
+                                                    </span>
+                                                </div>
+                                                <div className="p-4">
+                                                    <div className="text-[15px] font-semibold text-[#171717]">között, -ek között</div>
+                                                    <div className="mt-1 text-[13px] text-[#737373]">in the middle of</div>
+                                                    <div className="mt-3.5 flex gap-2">
+                                                        <button className="flex-1 rounded-[9px] bg-indigo-700 py-2.25 font-['Manrope'] text-[13px] font-semibold text-white">
+                                                            Tudom
+                                                        </button>
+                                                        <button className="flex flex-1 items-center justify-center gap-1.25 rounded-[9px] border border-neutral-200 bg-white py-2.25 font-['Manrope'] text-[13px] font-semibold text-[#404040]">
+                                                            <Volume2 size={16} />
+                                                            Kiejtés
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="mt-5.5 rounded-2xl border border-white/10 bg-white/[0.06] p-5.5">
+                                        <div className="mb-3.5 text-sm font-semibold text-white">
+                                            Hogyan telepítsd? A tesztidőszak alatt fejlesztői módban:
+                                        </div>
+                                        <div className="flex flex-col gap-2.5">
+                                            {INSTALL_STEPS.map((s) => (
+                                                <div key={s.n} className="flex items-center gap-3">
+                                                    <span className="grid size-6.5 flex-none place-items-center rounded-full bg-indigo-500 text-[13px] font-bold text-white">
+                                                        {s.n}
+                                                    </span>
+                                                    <span className="text-sm text-white/82">
+                                                        {s.n === 2 ? (
+                                                            <>
+                                                                Nyisd meg: <ChromeExtensionsLink />
+                                                            </>
+                                                        ) : (
+                                                            s.text
+                                                        )}
+                                                    </span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        {auth.user ? (
+                                            <div className="mt-4 flex flex-col gap-2.25">
+                                                <a
+                                                    href="/downloads/topwords-extension.zip"
+                                                    download
+                                                    className="inline-flex items-center gap-2 rounded-xl bg-white px-4.5 py-2.75 text-sm font-bold text-indigo-800 shadow-md transition-all hover:-translate-y-0.5"
+                                                >
+                                                    <Download size={20} />
+                                                    Bővítmény letöltése (.zip)
+                                                </a>
+                                                <div className="flex flex-wrap gap-2.25">
+                                                    <a
+                                                        href="/downloads/topwords-player-mac.dmg"
+                                                        download
+                                                        className="inline-flex items-center gap-2 rounded-xl border border-white/25 bg-white/[0.08] px-4.5 py-2.75 text-sm font-semibold text-white transition-all hover:-translate-y-0.5 hover:bg-white/[0.18]"
+                                                    >
+                                                        <Download size={20} />
+                                                        Player – macOS (.dmg)
+                                                    </a>
+                                                    <a
+                                                        href="/downloads/topwords-player-win.exe"
+                                                        download
+                                                        className="inline-flex items-center gap-2 rounded-xl border border-white/25 bg-white/[0.08] px-4.5 py-2.75 text-sm font-semibold text-white transition-all hover:-translate-y-0.5 hover:bg-white/[0.18]"
+                                                    >
+                                                        <Download size={20} />
+                                                        Player – Windows (.exe)
+                                                    </a>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <Link
+                                                href={login()}
+                                                className="mt-4 inline-flex items-center gap-2 rounded-xl bg-white px-4.5 py-2.75 text-sm font-bold text-indigo-800 shadow-md transition-all hover:-translate-y-0.5"
+                                            >
+                                                Jelentkezz be a letöltéshez
+                                            </Link>
                                         )}
                                     </div>
-                                    <div className="mt-2 flex items-baseline gap-1.5">
-                                        <span className="text-[28px] leading-none font-extrabold tracking-tight">
-                                            {plan.price}
-                                        </span>
-                                        <span className="text-xs text-neutral-400 dark:text-neutral-500">
-                                            {plan.period}
-                                        </span>
+                                </Reveal>
+                            </div>
+                        </section>
+
+                        {/* ÁRAZÁS */}
+                        <section
+                            id="arazas"
+                            className="px-5 py-24"
+                            style={{ background: 'linear-gradient(180deg,#eef2ff 0%,#e9dff6 50%,#f5f3ff 100%)' }}
+                        >
+                            <Reveal className="mx-auto mb-14 max-w-[760px] text-center">
+                                <span className="inline-block rounded-full bg-indigo-100 px-3.75 py-1.5 text-xs font-bold tracking-[1.2px] text-indigo-700">
+                                    ÁRAZÁS
+                                </span>
+                                <h2 className="mt-4.5 text-[clamp(30px,4vw,46px)] leading-[1.1] font-bold tracking-[-1px] text-[#171717]">
+                                    Válaszd ki a hozzád illő csomagot
+                                </h2>
+                                <p className="mx-auto mt-4 max-w-[560px] text-[17px] leading-[1.6] text-[#737373]">
+                                    Kezdd ingyen — kóstolj bele mindenbe, az AI-ba is —, és ha megtetszett, válts Próra a
+                                    korlátlan használatért.
+                                </p>
+                            </Reveal>
+                            <div className="mx-auto grid max-w-[820px] grid-cols-[repeat(auto-fit,minmax(300px,1fr))] items-stretch gap-6">
+                                <Reveal className="flex flex-col rounded-[22px] border border-neutral-200 bg-white p-8 shadow-[0_18px_44px_rgba(49,46,129,.12)]">
+                                    <span className="text-sm font-semibold text-[#737373]">Ingyenes</span>
+                                    <div className="mt-3.5 mb-1 flex items-baseline gap-1.5">
+                                        <span className="text-[44px] font-bold tracking-tight text-[#171717]">0 Ft</span>
+                                        <span className="text-sm text-[#a1a1a1]">örökké</span>
                                     </div>
-                                    <p className="mt-4 text-sm leading-relaxed text-neutral-500 dark:text-neutral-400">
-                                        {plan.tagline}
+                                    <p className="mb-5 text-sm leading-[1.6] text-[#737373]">
+                                        Szólista, flashcard, kvíz, a Chrome-bővítmény és egy kis AI-kóstoló.
                                     </p>
-                                </div>
-                            ))}
-                        </div>
-
-                        <div className="mt-10 flex flex-col items-center gap-3">
-                            <Link href={pricing()}>
-                                <Button
-                                    size="lg"
-                                    className="gap-2 bg-gradient-to-br from-violet-500 to-violet-400 text-white hover:bg-violet-700"
-                                >
-                                    Csomagok összehasonlítása
-                                    <MI n="arrow_forward" s={20} />
-                                </Button>
-                            </Link>
-                            <p className="text-xs text-neutral-400 dark:text-neutral-500">
-                                Az előfizetés bármikor lemondható.
-                            </p>
-                        </div>
-                    </section>
-                )}
-
-                {/* ===================== CTA ===================== */}
-                {!auth.user && (
-                    <section className="relative overflow-hidden bg-gradient-to-br from-violet-600 to-violet-400">
-                        <div className="pointer-events-none absolute -top-20 left-1/4 size-96 rounded-full bg-white/15" />
-                        <div className="pointer-events-none absolute right-1/4 -bottom-16 size-80 rounded-full bg-white/10" />
-                        <div className="relative mx-auto max-w-[1200px] px-4 py-16 text-center sm:px-6 md:py-24">
-                            <h2 className="text-3xl font-extrabold tracking-tight text-white">
-                                Készen állsz elkezdeni?
-                            </h2>
-                            <p className="mx-auto mt-4 max-w-xl text-violet-200">
-                                Szólista, flashcard SRS, gyakorlási módok,
-                                AI-segítség, szövegelemző és Chrome-bővítmény —
-                                egy helyen, magyarul.
-                            </p>
-                            <div className="mt-8 flex flex-wrap justify-center gap-3">
-                                {canRegister && (
-                                    <Button
-                                        size="lg"
-                                        asChild
-                                        className="bg-white text-violet-700 hover:bg-violet-50"
-                                    >
+                                    <div className="flex flex-1 flex-col gap-2.75">
+                                        {FREE_PLAN.map((t) => (
+                                            <div key={t} className="flex items-center gap-2.5 text-sm text-[#404040]">
+                                                <Check size={19} className="text-green-500" />
+                                                {t}
+                                            </div>
+                                        ))}
+                                    </div>
+                                    {canRegister && !auth.user && (
                                         <Link
                                             href={register()}
-                                            className="flex items-center gap-2"
+                                            className="mt-6 w-full rounded-xl border border-neutral-300 py-3.5 text-center font-['Manrope'] text-[15px] font-semibold text-[#171717] transition-colors hover:bg-indigo-50"
                                         >
-                                            Regisztrálás{' '}
-                                            <MI n="arrow_forward" s={20} />
+                                            Kezdés ingyen
                                         </Link>
-                                    </Button>
-                                )}
-                                <Button
-                                    size="lg"
-                                    variant="outline"
-                                    asChild
-                                    className="border-white/40 text-white hover:bg-white/10 hover:text-white"
+                                    )}
+                                </Reveal>
+                                <Reveal
+                                    className="relative flex flex-col rounded-[22px] p-8 shadow-[0_26px_60px_rgba(32,39,107,.4)]"
+                                    style={{ background: 'linear-gradient(160deg,#20276B,#3a3688)' }}
                                 >
-                                    <Link href={login()}>Már van fiókom</Link>
-                                </Button>
+                                    <span className="text-sm font-semibold text-indigo-200">Pro</span>
+                                    <div className="mt-3.5 mb-1 flex items-baseline gap-1.5">
+                                        <span className="text-[44px] font-bold tracking-tight text-white">1 990 Ft</span>
+                                        <span className="text-sm text-white/60">/ hó</span>
+                                    </div>
+                                    <p className="mb-5 text-sm leading-[1.6] text-white/72">
+                                        Korlátlan használat, a teljes AI-eszköztár és a legnagyobb keretek.
+                                    </p>
+                                    <div className="flex flex-1 flex-col gap-2.75">
+                                        {PRO_PLAN.map((t) => (
+                                            <div key={t} className="flex items-center gap-2.5 text-sm text-indigo-100">
+                                                <Check size={19} className="text-indigo-300" />
+                                                {t}
+                                            </div>
+                                        ))}
+                                    </div>
+                                    {billingEnabled && (
+                                        <Link
+                                            href={pricingRoute()}
+                                            className="mt-6 w-full rounded-xl bg-gradient-to-br from-green-400 to-green-500 py-3.5 text-center font-['Manrope'] text-[15px] font-bold text-green-950 shadow-[0_12px_30px_rgba(34,197,94,.4)] transition-transform hover:-translate-y-0.5"
+                                        >
+                                            Váltás Pro-ra
+                                        </Link>
+                                    )}
+                                </Reveal>
                             </div>
-                        </div>
-                    </section>
+                            <p className="mx-auto mt-6 text-center text-[13px] text-[#6b6b76]">Az előfizetés bármikor lemondható.</p>
+                        </section>
+
+                        {/* CTA */}
+                        <section className="bg-white px-5 pt-10 pb-25">
+                            <Reveal
+                                className="relative mx-auto max-w-[1100px] overflow-hidden rounded-[32px] px-10 py-18 text-center"
+                                style={{ background: 'linear-gradient(135deg,#20276B,#3a3688)' }}
+                            >
+                                <div
+                                    className="pointer-events-none absolute -top-30 -left-15 size-90 rounded-full blur-[10px]"
+                                    style={{ background: 'radial-gradient(circle,rgba(79,70,229,.4),transparent 65%)' }}
+                                />
+                                <div
+                                    className="pointer-events-none absolute -right-10 -bottom-35 size-90 rounded-full blur-[10px]"
+                                    style={{ background: 'radial-gradient(circle,rgba(79,70,229,.35),transparent 65%)' }}
+                                />
+                                <h2 className="relative text-[clamp(30px,4.4vw,48px)] leading-[1.08] font-bold tracking-[-1px] text-white">
+                                    Készen állsz elkezdeni?
+                                </h2>
+                                <p className="relative mx-auto mt-4.5 max-w-[560px] text-[17px] leading-[1.6] text-white/78">
+                                    Szólista, flashcard SRS, gyakorlási módok, AI-segítség, szövegelemző és Chrome-bővítmény —
+                                    egy helyen, magyarul.
+                                </p>
+                                <div className="relative mt-8 flex flex-wrap justify-center gap-3.5">
+                                    {auth.user ? (
+                                        <Link
+                                            href={dashboard()}
+                                            className="inline-flex items-center gap-2.5 rounded-full bg-white px-7.5 py-3.75 font-['Manrope'] text-[15px] font-bold text-indigo-950 shadow-[0_12px_30px_rgba(0,0,0,.25)] transition-transform hover:-translate-y-0.5"
+                                        >
+                                            Irány az alkalmazás
+                                            <ArrowRight size={20} />
+                                        </Link>
+                                    ) : (
+                                        <>
+                                            {canRegister && (
+                                                <Link
+                                                    href={register()}
+                                                    className="inline-flex items-center gap-2.5 rounded-full bg-white px-7.5 py-3.75 font-['Manrope'] text-[15px] font-bold text-indigo-950 shadow-[0_12px_30px_rgba(0,0,0,.25)] transition-transform hover:-translate-y-0.5"
+                                                >
+                                                    Regisztrálás
+                                                    <ArrowRight size={20} />
+                                                </Link>
+                                            )}
+                                            <Link
+                                                href={login()}
+                                                className="rounded-full border border-white/25 bg-white/10 px-7 py-3.75 font-['Manrope'] text-[15px] font-medium text-white transition-colors hover:bg-white/[0.18]"
+                                            >
+                                                Már van fiókom
+                                            </Link>
+                                        </>
+                                    )}
+                                </div>
+                            </Reveal>
+                        </section>
+                    </>
                 )}
 
-                {/* ===================== FOOTER ===================== */}
-                <footer className="border-t border-neutral-200 dark:border-neutral-700">
-                    <div className="mx-auto flex max-w-[1200px] flex-wrap items-center justify-between gap-4 px-4 py-6 text-sm text-neutral-400 sm:px-6 dark:text-neutral-500">
-                        <div className="flex items-center gap-2 font-bold text-neutral-700 dark:text-neutral-300">
-                            <span className="flex size-6 items-center justify-center rounded-md bg-gradient-to-br from-violet-500 to-violet-400">
-                                <MI
-                                    n="menu_book"
-                                    s={15}
-                                    style={
-                                        { color: '#fff' } as React.CSSProperties
-                                    }
-                                />
+                {isVideos && (
+                    <>
+                        {/* TANANYAG OLDAL */}
+                        <section
+                            className="px-5 pt-14 pb-2"
+                            style={{ background: 'linear-gradient(180deg,#20276B 0%,#252a70 100%)' }}
+                        >
+                            <div className="mx-auto max-w-[1120px]">
+                                <div className="flex items-center justify-between gap-4 pb-4">
+                                    <button
+                                        onClick={goHome}
+                                        className="flex cursor-pointer items-center gap-2.5 text-[20px] font-bold tracking-[-.4px] text-white"
+                                    >
+                                        <span className="grid size-8.5 place-items-center rounded-[11px] bg-gradient-to-br from-indigo-500 to-indigo-700 shadow-[0_6px_18px_rgba(79,70,229,.5)]">
+                                            <Languages size={20} className="text-white" />
+                                        </span>
+                                        TopWords
+                                    </button>
+                                </div>
+                                <h1 className="text-[clamp(30px,4vw,44px)] leading-[1.1] font-bold tracking-[-1px] text-white">
+                                    Tananyag
+                                </h1>
+                                <p className="mt-3.5 max-w-[640px] text-base leading-[1.6] text-white/60">
+                                    Tanuld meg lépésről lépésre, hogyan használd a TopWordsot. Minden funkcióhoz külön videó.
+                                </p>
+                                <div className="mt-6.5 flex flex-wrap gap-2.5">
+                                    {VIDEO_CATS.map((label) => {
+                                        const count = label === 'Összes' ? VIDEO_RAW.length : VIDEO_RAW.filter((v) => v.cat === label).length;
+                                        const active = videoFilter === label;
+
+                                        return (
+                                            <button
+                                                key={label}
+                                                onClick={() => setVideoFilter(label)}
+                                                className="inline-flex items-center gap-2 rounded-full px-4 py-2.25 font-['Manrope'] text-sm font-semibold transition-all"
+                                                style={{
+                                                    border: active ? '1px solid transparent' : '1px solid rgba(255,255,255,.14)',
+                                                    background: active ? 'linear-gradient(135deg,#4ade80,#22c55e)' : 'rgba(255,255,255,.06)',
+                                                    color: active ? '#052e16' : 'rgba(255,255,255,.72)',
+                                                }}
+                                            >
+                                                {label}
+                                                <span
+                                                    className="rounded-full px-2 py-0.5 text-xs font-bold"
+                                                    style={{
+                                                        background: active ? 'rgba(5,46,22,.18)' : 'rgba(255,255,255,.1)',
+                                                        color: active ? '#052e16' : 'rgba(255,255,255,.65)',
+                                                    }}
+                                                >
+                                                    {count}
+                                                </span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </section>
+                        <section
+                            className="px-5 pt-8 pb-22.5"
+                            style={{ background: 'linear-gradient(180deg,#252a70 0%,#20255f 100%)' }}
+                        >
+                            <div className="mx-auto grid max-w-[1120px] grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-5.5">
+                                {filteredVideos.map((v) => (
+                                    <div
+                                        key={v.title}
+                                        className="cursor-pointer overflow-hidden rounded-2xl border border-white/10 bg-[#1e2364] transition-all duration-250 hover:-translate-y-1.5 hover:shadow-[0_24px_50px_rgba(0,0,0,.12)]"
+                                    >
+                                        <div className="relative grid h-42.5 place-items-center bg-[#181c58]">
+                                            <span className="absolute top-3 left-3 rounded-lg bg-white/[0.08] px-2.5 py-1 text-[11px] font-bold text-white">
+                                                {v.cat}
+                                            </span>
+                                            <div className="grid size-14.5 place-items-center rounded-full bg-white/92 shadow-[0_8px_22px_rgba(0,0,0,.3)]">
+                                                <Play size={30} className="text-[#171717]" />
+                                            </div>
+                                            <span className="absolute right-3 bottom-3 inline-flex items-center gap-1 rounded-md bg-black/55 px-2.25 py-0.75 text-xs font-semibold text-white">
+                                                <Clock size={14} />
+                                                {v.time}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-start gap-3 p-5">
+                                            <span className="grid size-6 flex-none place-items-center rounded-full bg-gradient-to-br from-indigo-500 to-indigo-700 text-xs font-bold text-white">
+                                                {v.num}
+                                            </span>
+                                            <div>
+                                                <h3 className="text-base font-semibold text-white">{v.title}</h3>
+                                                <p className="mt-1.5 text-[13px] leading-[1.5] text-white/50">{v.desc}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="mx-auto mt-11 max-w-[1120px] text-center">
+                                <a
+                                    href="#"
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        goHome();
+                                    }}
+                                    className="inline-flex items-center gap-2 text-[15px] font-semibold text-green-300"
+                                >
+                                    <ArrowRight size={19} className="rotate-180" />
+                                    Vissza a főoldalra
+                                </a>
+                            </div>
+                        </section>
+                    </>
+                )}
+
+                {/* FOOTER */}
+                <footer className="bg-[#171717] px-5 py-11">
+                    <div className="mx-auto flex max-w-[1100px] flex-wrap items-center justify-between gap-5">
+                        <div className="flex items-center gap-2.5 text-xl font-bold tracking-[-.4px] text-white">
+                            <span className="grid size-8.5 place-items-center rounded-[10px] bg-gradient-to-br from-indigo-600 to-indigo-800">
+                                <Languages size={20} className="text-white" />
                             </span>
                             TopWords
                         </div>
-                        <div className="flex flex-wrap items-center gap-4">
-                            <Link
-                                href={terms()}
-                                className="transition-colors hover:text-neutral-700 dark:hover:text-neutral-200"
-                            >
+                        <div className="flex gap-5.5 text-sm text-neutral-400">
+                            <Link href={terms()} className="text-inherit transition-colors hover:text-white">
                                 ÁSZF
                             </Link>
-                            <span>·</span>
-                            <Link
-                                href={privacy()}
-                                className="transition-colors hover:text-neutral-700 dark:hover:text-neutral-200"
-                            >
+                            <Link href={privacy()} className="text-inherit transition-colors hover:text-white">
                                 Adatkezelés
                             </Link>
-                            <span>·</span>
-                            <a
-                                href="https://codebarley.hu"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="transition-colors hover:text-neutral-700 dark:hover:text-neutral-200"
-                            >
-                                Készítette: codebarley.hu
+                        </div>
+                        <div className="text-[13px] text-neutral-500">
+                            Készítette:{' '}
+                            <a href="https://codebarley.hu" target="_blank" rel="noopener noreferrer" className="text-indigo-300 hover:text-indigo-200">
+                                codebarley.hu
                             </a>
                         </div>
                     </div>

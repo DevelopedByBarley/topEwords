@@ -52,6 +52,7 @@ export default function Login({
                                     tabIndex={1}
                                     autoComplete="email"
                                     placeholder="email@example.com"
+                                    className="rounded-xl focus-visible:border-indigo-400 focus-visible:ring-indigo-400/50"
                                 />
                                 <InputError message={errors.email} />
                             </div>
@@ -62,7 +63,7 @@ export default function Login({
                                     {canResetPassword && (
                                         <TextLink
                                             href={request()}
-                                            className="ml-auto text-sm"
+                                            className="ml-auto text-sm text-indigo-600 hover:text-indigo-700"
                                             tabIndex={5}
                                         >
                                             Elfelejtett jelszó?
@@ -76,6 +77,7 @@ export default function Login({
                                     tabIndex={2}
                                     autoComplete="current-password"
                                     placeholder="Jelszó"
+                                    className="rounded-xl focus-visible:border-indigo-400 focus-visible:ring-indigo-400/50"
                                 />
                                 <InputError message={errors.password} />
                             </div>
@@ -91,7 +93,7 @@ export default function Login({
 
                             <Button
                                 type="submit"
-                                className="w-full"
+                                className="w-full rounded-full bg-linear-to-br from-green-400 to-green-500 font-bold text-green-950 shadow-[0_4px_0_0_var(--color-green-600)] hover:brightness-105"
                                 tabIndex={4}
                                 disabled={processing}
                                 data-test="login-button"
@@ -104,7 +106,11 @@ export default function Login({
                         {canRegister && (
                             <div className="text-center text-sm text-muted-foreground">
                                 Még nincs fiókod?{' '}
-                                <TextLink href={register()} tabIndex={6}>
+                                <TextLink
+                                    href={register()}
+                                    tabIndex={6}
+                                    className="text-indigo-600 hover:text-indigo-700"
+                                >
                                     Regisztráció
                                 </TextLink>
                             </div>

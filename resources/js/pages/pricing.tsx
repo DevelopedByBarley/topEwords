@@ -241,8 +241,8 @@ export default function Pricing({
                                 href={home()}
                                 className="flex items-center gap-2.5"
                             >
-                                <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary">
-                                    <AppLogoIcon className="size-4.5 text-primary-foreground" />
+                                <div className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-linear-to-br from-indigo-600 to-indigo-800">
+                                    <AppLogoIcon className="size-4.5 text-white" />
                                 </div>
                                 <span className="text-sm font-semibold tracking-tight">
                                     TopWords
@@ -265,7 +265,10 @@ export default function Pricing({
                                             Bejelentkezés
                                         </Link>
                                         <Link href={register()}>
-                                            <Button size="sm">
+                                            <Button
+                                                size="sm"
+                                                className="rounded-full bg-linear-to-br from-green-400 to-green-500 font-bold text-green-950 shadow-[0_4px_0_0_var(--color-green-600)] hover:brightness-105"
+                                            >
                                                 Regisztráció
                                             </Button>
                                         </Link>
@@ -362,15 +365,15 @@ export default function Pricing({
                                 )}
 
                                 {isSubscribed && (
-                                    <div className="mb-8 rounded-xl border border-violet-200 bg-violet-50 px-6 py-4 text-center dark:border-violet-800 dark:bg-violet-950">
-                                        <p className="mb-2 text-sm font-medium text-violet-700 dark:text-violet-300">
+                                    <div className="mb-8 rounded-xl border border-indigo-200 bg-indigo-50 px-6 py-4 text-center dark:border-indigo-800 dark:bg-indigo-950">
+                                        <p className="mb-2 text-sm font-medium text-indigo-700 dark:text-indigo-300">
                                             <Crown className="mr-1.5 inline size-4" />
                                             Aktív Pro előfizetésed van – minden
                                             funkció elérhető.
                                         </p>
                                         <button
                                             onClick={handlePortal}
-                                            className="text-xs text-violet-600 underline hover:text-violet-800 dark:text-violet-400"
+                                            className="text-xs text-indigo-600 underline hover:text-indigo-800 dark:text-indigo-400"
                                         >
                                             Előfizetés kezelése →
                                         </button>
@@ -424,9 +427,9 @@ export default function Pricing({
                                     </div>
 
                                     {/* Pro */}
-                                    <div className="relative flex flex-col rounded-2xl border-2 border-violet-400 bg-card p-6 dark:border-violet-600">
+                                    <div className="relative flex flex-col rounded-2xl border-2 border-indigo-400 bg-card p-6 dark:border-indigo-600">
                                         <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                                            <span className="rounded-full bg-linear-to-br from-violet-500 to-violet-400 px-3 py-1 text-xs font-semibold whitespace-nowrap text-white">
+                                            <span className="rounded-full bg-linear-to-br from-indigo-500 to-indigo-400 px-3 py-1 text-xs font-semibold whitespace-nowrap text-white">
                                                 Legnépszerűbb
                                             </span>
                                         </div>
@@ -435,7 +438,7 @@ export default function Pricing({
                                                 <p className="text-sm font-medium text-muted-foreground">
                                                     Pro
                                                 </p>
-                                                <Sparkles className="size-3.5 text-violet-500" />
+                                                <Sparkles className="size-3.5 text-indigo-500" />
                                             </div>
                                             <p className="mt-1 text-3xl font-bold">
                                                 1 990 Ft
@@ -449,12 +452,12 @@ export default function Pricing({
                                                 <FeatureRow
                                                     key={f.label}
                                                     feature={f}
-                                                    checkClass="text-violet-400"
-                                                    valueClass="text-violet-600 dark:text-violet-400"
+                                                    checkClass="text-indigo-400"
+                                                    valueClass="text-indigo-600 dark:text-indigo-400"
                                                 />
                                             ))}
 
-                                            <li className="flex items-center gap-1.5 pt-2 text-xs font-semibold tracking-wide text-violet-600 uppercase dark:text-violet-400">
+                                            <li className="flex items-center gap-1.5 pt-2 text-xs font-semibold tracking-wide text-indigo-600 uppercase dark:text-indigo-400">
                                                 <Sparkles className="size-3.5" />
                                                 Teljes AI-eszköztár
                                             </li>
@@ -462,8 +465,8 @@ export default function Pricing({
                                                 <FeatureRow
                                                     key={f.label}
                                                     feature={f}
-                                                    checkClass="text-violet-500"
-                                                    valueClass="text-violet-600 dark:text-violet-400"
+                                                    checkClass="text-indigo-500"
+                                                    valueClass="text-indigo-600 dark:text-indigo-400"
                                                     emphasis
                                                 />
                                             ))}
@@ -471,7 +474,7 @@ export default function Pricing({
                                         {isSubscribed ? (
                                             <Button
                                                 variant="outline"
-                                                className="w-full border-violet-300 dark:border-violet-700"
+                                                className="w-full border-indigo-300 dark:border-indigo-700"
                                                 onClick={handlePortal}
                                             >
                                                 Előfizetés kezelése
@@ -482,7 +485,7 @@ export default function Pricing({
                                             </Button>
                                         ) : (
                                             <Button
-                                                className="w-full bg-linear-to-br from-violet-500 to-violet-400 text-white hover:bg-violet-700"
+                                                className="w-full rounded-full bg-linear-to-br from-green-400 to-green-500 font-bold text-green-950 shadow-[0_4px_0_0_var(--color-green-600)] hover:brightness-105"
                                                 onClick={handleCheckout}
                                                 disabled={!stripeConfigured}
                                             >

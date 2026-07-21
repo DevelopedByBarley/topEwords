@@ -171,15 +171,73 @@
     100% { opacity: 1; transform: translateY(0); }
 }
 
+/* Landing hero: lebegő mockup-kártyák + csillag-csillogás */
+@keyframes hero-float-a {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-14px); }
+}
+
+@keyframes hero-float-b {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-20px); }
+}
+
+@keyframes hero-float-c {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+}
+
+@keyframes hero-twinkle {
+    0%, 100% { opacity: 0.25; }
+    50% { opacity: 0.9; }
+}
+
+/* Landing: lassú lebegés a hero-glow foltoknak + pulzáló jelvény */
+@keyframes hero-float-slow-a {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    50% { transform: translateY(-16px); }
+}
+
+@keyframes hero-float-slow-b {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    50% { transform: translateY(-22px) rotate(6deg); }
+}
+
+@keyframes hero-pulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.08); opacity: 0.85; }
+}
+
+/* Landing: haladás-sávok kitöltő animációja belépéskor */
+@keyframes bar-grow {
+    from { transform: scaleX(0); }
+    to { transform: scaleX(1); }
+}
+
 @theme {
     --animate-streak-pop: streak-pop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
     --animate-streak-out: streak-out 0.35s ease-in forwards;
     --animate-streak-glow: streak-glow-pulse 1s ease-in-out infinite;
     --animate-hero-rise: hero-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+    --animate-hero-float-a: hero-float-a 6s ease-in-out infinite;
+    --animate-hero-float-b: hero-float-b 7s ease-in-out infinite 0.2s;
+    --animate-hero-float-c: hero-float-c 8s ease-in-out infinite 0.4s;
+    --animate-hero-twinkle: hero-twinkle 2.6s ease-in-out infinite;
+    --animate-hero-float-slow-a: hero-float-slow-a 11s ease-in-out infinite;
+    --animate-hero-float-slow-b: hero-float-slow-b 13s ease-in-out infinite 1s;
+    --animate-hero-pulse: hero-pulse 2.8s ease-in-out infinite;
+    --animate-bar-grow: bar-grow 1.2s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .animate-hero-rise {
+    .animate-hero-rise,
+    .animate-hero-float-a,
+    .animate-hero-float-b,
+    .animate-hero-float-c,
+    .animate-hero-twinkle,
+    .animate-hero-float-slow-a,
+    .animate-hero-float-slow-b,
+    .animate-hero-pulse {
         animation: none !important;
     }
 }

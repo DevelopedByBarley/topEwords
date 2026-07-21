@@ -47,6 +47,7 @@ export default function Register({
                                         defaultValue={invite}
                                         autoComplete="off"
                                         placeholder="Meghívókód"
+                                    className="rounded-xl focus-visible:border-indigo-400 focus-visible:ring-indigo-400/50"
                                     />
                                     <InputError message={errors.invite} />
                                 </div>
@@ -65,6 +66,7 @@ export default function Register({
                                     placeholder="Kiss János"
                                     value={accountName}
                                     onChange={(e) => setAccountName(e.target.value)}
+                                    className="rounded-xl focus-visible:border-indigo-400 focus-visible:ring-indigo-400/50"
                                 />
                                 <InputError message={errors.name} />
                             </div>
@@ -79,6 +81,7 @@ export default function Register({
                                     autoComplete="email"
                                     name="email"
                                     placeholder="email@example.com"
+                                className="rounded-xl focus-visible:border-indigo-400 focus-visible:ring-indigo-400/50"
                                 />
                                 <InputError message={errors.email} />
                             </div>
@@ -92,6 +95,7 @@ export default function Register({
                                     autoComplete="new-password"
                                     name="password"
                                     placeholder="Jelszó"
+                                    className="rounded-xl focus-visible:border-indigo-400 focus-visible:ring-indigo-400/50"
                                 />
                                 <InputError message={errors.password} />
                             </div>
@@ -105,6 +109,7 @@ export default function Register({
                                     autoComplete="new-password"
                                     name="password_confirmation"
                                     placeholder="Jelszó újra"
+                                    className="rounded-xl focus-visible:border-indigo-400 focus-visible:ring-indigo-400/50"
                                 />
                                 <InputError message={errors.password_confirmation} />
                             </div>
@@ -178,6 +183,7 @@ export default function Register({
                                                     name="billing_name"
                                                     placeholder={isCompany ? 'Példa Kft.' : 'Kiss János'}
                                                     autoComplete={isCompany ? 'organization' : 'name'}
+                                                    className="rounded-xl focus-visible:border-indigo-400 focus-visible:ring-indigo-400/50"
                                                 />
                                                 <InputError message={errors.billing_name} />
                                             </div>
@@ -190,6 +196,7 @@ export default function Register({
                                                     id="billing_tax_number"
                                                     name="billing_tax_number"
                                                     placeholder="12345678-1-01"
+                                                className="rounded-xl focus-visible:border-indigo-400 focus-visible:ring-indigo-400/50"
                                                 />
                                                 <InputError message={errors.billing_tax_number} />
                                             </div>
@@ -203,6 +210,7 @@ export default function Register({
                                                     name="billing_zip"
                                                     placeholder="1234"
                                                     autoComplete="postal-code"
+                                                    className="rounded-xl focus-visible:border-indigo-400 focus-visible:ring-indigo-400/50"
                                                 />
                                                 <InputError message={errors.billing_zip} />
                                             </div>
@@ -213,6 +221,7 @@ export default function Register({
                                                     name="billing_city"
                                                     placeholder="Budapest"
                                                     autoComplete="address-level2"
+                                                    className="rounded-xl focus-visible:border-indigo-400 focus-visible:ring-indigo-400/50"
                                                 />
                                                 <InputError message={errors.billing_city} />
                                             </div>
@@ -225,6 +234,7 @@ export default function Register({
                                                 name="billing_address"
                                                 placeholder="Kossuth Lajos utca 1."
                                                 autoComplete="street-address"
+                                                className="rounded-xl focus-visible:border-indigo-400 focus-visible:ring-indigo-400/50"
                                             />
                                             <InputError message={errors.billing_address} />
                                         </div>
@@ -234,7 +244,7 @@ export default function Register({
 
                             <Button
                                 type="submit"
-                                className="w-full"
+                                className="w-full rounded-full bg-linear-to-br from-green-400 to-green-500 font-bold text-green-950 shadow-[0_4px_0_0_var(--color-green-600)] hover:brightness-105"
                                 tabIndex={5}
                                 data-test="register-user-button"
                             >
@@ -245,7 +255,11 @@ export default function Register({
 
                         <div className="text-center text-sm text-muted-foreground">
                             Már van fiókod?{' '}
-                            <TextLink href={login()} tabIndex={7}>
+                            <TextLink
+                                href={login()}
+                                tabIndex={7}
+                                className="text-indigo-600 hover:text-indigo-700"
+                            >
                                 Bejelentkezés
                             </TextLink>
                         </div>
