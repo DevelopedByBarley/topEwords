@@ -348,7 +348,9 @@
       "Bash(node --input-type=module -e ' *)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://topewords.test/)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost/)",
-      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://topEwords.test)"
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://topEwords.test)",
+      "Bash(curl -s http://localhost:8000/)",
+      "Bash(curl -s -L http://localhost:8000/ -o /tmp/w.html -w \"%{http_code}\\\\n\")"
     ],
     "additionalDirectories": [
       "/private/tmp",

@@ -15,9 +15,7 @@ export default function Terms() {
                 <header className="border-b">
                     <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
                         <Link href={home()} className="flex items-center gap-2.5">
-                            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary">
-                                <AppLogoIcon className="size-4.5 text-primary-foreground" />
-                            </div>
+                            <AppLogoIcon className="size-11 rounded-lg" />
                             <span className="text-sm font-semibold tracking-tight">TopWords</span>
                         </Link>
                         <Link href={home()} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
@@ -155,9 +153,7 @@ export default function Terms() {
                 <footer className="border-t">
                     <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-6 text-sm text-muted-foreground">
                         <div className="flex items-center gap-2">
-                            <div className="flex h-6 w-6 items-center justify-center rounded bg-primary">
-                                <AppLogoIcon className="size-3.5 text-primary-foreground" />
-                            </div>
+                            <AppLogoIcon className="size-8 rounded-md" />
                             <span>TopWords</span>
                         </div>
                         <a

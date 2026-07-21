@@ -193,6 +193,37 @@ const SRS_EXPLAIN = [
     { label: 'Könnyű', bg: '#3b82f6', desc: 'Tovább vár, az ease faktor nő.' },
 ];
 
+const DEMO_DECK = [
+    {
+        rank: '#288 · Top 1 000 · melléknév',
+        word: 'important',
+        translation: 'fontos',
+        example: 'This is a very important decision.',
+        exampleHu: 'Ez egy nagyon fontos döntés.',
+    },
+    {
+        rank: '#178 · Top 1 000 · elöljáró',
+        word: 'between',
+        translation: 'között',
+        example: 'The space between two cities lies a valley.',
+        exampleHu: 'A két város közötti térben egy völgy fekszik.',
+    },
+    {
+        rank: '#215 · Top 1 000 · melléknév',
+        word: 'different',
+        translation: 'különböző',
+        example: 'They have completely different opinions.',
+        exampleHu: 'Teljesen különböző véleményük van.',
+    },
+    {
+        rank: '#305 · Top 1 000 · főnév',
+        word: 'government',
+        translation: 'kormány',
+        example: 'The government passed a new law.',
+        exampleHu: 'A kormány új törvényt fogadott el.',
+    },
+];
+
 const FLASH_CAPS = [
     { icon: Layers, title: 'Saját deck-ek', desc: 'Tetszőleges számú kártyacsomag különböző témákhoz.' },
     { icon: Route, title: 'Kétirányú kártyák', desc: 'Előlap→hátlap és vissza — külön értékelve.' },
@@ -366,6 +397,12 @@ export default function Welcome({
     const [page, setPage] = useState<'home' | 'videos'>('home');
     const [flipped, setFlipped] = useState(false);
     const [flipped2, setFlipped2] = useState(false);
+    const [deckIndex, setDeckIndex] = useState(0);
+    const demoCard = DEMO_DECK[deckIndex];
+    const rateCard = () => {
+        setFlipped2(false);
+        setDeckIndex((i) => (i + 1) % DEMO_DECK.length);
+    };
     const [quizPick, setQuizPick] = useState<string | null>(null);
     const [filter, setFilter] = useState<'Összes' | 'Tanulom' | 'Tudom'>('Összes');
     const [videoFilter, setVideoFilter] = useState('Összes');
@@ -590,10 +627,7 @@ export default function Welcome({
                                 onClick={goHome}
                                 className="flex min-w-0 shrink-0 cursor-pointer items-center gap-2.5 text-[18px] font-bold tracking-[-.4px] text-white sm:text-[22px]"
                             >
-                                <span className="grid size-8.5 shrink-0 place-items-center rounded-[11px] bg-gradient-to-br from-indigo-500 to-indigo-700 shadow-[0_6px_18px_rgba(79,70,229,.5)] sm:size-9.5">
-                                    <Languages size={20} className="text-white sm:hidden" />
-                                    <Languages size={22} className="hidden text-white sm:block" />
-                                </span>
+                                <img src="/logo.png" alt="TopWords" className="size-11 shrink-0 rounded-[13px] shadow-[0_6px_18px_rgba(79,70,229,.5)] sm:size-13" />
                                 <span className="truncate">TopWords</span>
                             </button>
                             <div className="hidden items-center gap-7.5 text-sm text-white/82 lg:flex">
@@ -622,7 +656,7 @@ export default function Welcome({
                                 {auth.user ? (
                                     <Link
                                         href={dashboard()}
-                                        className="rounded-full bg-white px-3.5 py-2 font-['Manrope'] text-xs font-semibold whitespace-nowrap text-indigo-950 shadow-[0_8px_22px_rgba(0,0,0,.22)] transition-transform hover:-translate-y-0.5 sm:px-5.5 sm:py-2.5 sm:text-sm"
+                                        className="rounded-full bg-white px-3.5 py-2 font-sans text-xs font-semibold whitespace-nowrap text-indigo-950 shadow-[0_8px_22px_rgba(0,0,0,.22)] transition-transform hover:-translate-y-0.5 sm:px-5.5 sm:py-2.5 sm:text-sm"
                                     >
                                         <span className="sm:hidden">Alkalmazás</span>
                                         <span className="hidden sm:inline">Irány az alkalmazás</span>
@@ -631,14 +665,14 @@ export default function Welcome({
                                     <>
                                         <Link
                                             href={login()}
-                                            className="hidden px-3 py-2.5 font-['Manrope'] text-sm font-medium text-white sm:inline"
+                                            className="hidden px-3 py-2.5 font-sans text-sm font-medium text-white sm:inline"
                                         >
                                             Belépés
                                         </Link>
                                         {canRegister && (
                                             <Link
                                                 href={register()}
-                                                className="rounded-full bg-white px-3.5 py-2 font-['Manrope'] text-xs font-semibold whitespace-nowrap text-indigo-950 shadow-[0_8px_22px_rgba(0,0,0,.22)] transition-transform hover:-translate-y-0.5 sm:px-5.5 sm:py-2.5 sm:text-sm"
+                                                className="rounded-full bg-white px-3.5 py-2 font-sans text-xs font-semibold whitespace-nowrap text-indigo-950 shadow-[0_8px_22px_rgba(0,0,0,.22)] transition-transform hover:-translate-y-0.5 sm:px-5.5 sm:py-2.5 sm:text-sm"
                                             >
                                                 Regisztráció
                                             </Link>
@@ -704,7 +738,7 @@ export default function Welcome({
                                 {auth.user ? (
                                     <Link
                                         href={wordsIndex()}
-                                        className="inline-flex items-center gap-2.5 rounded-full bg-gradient-to-br from-green-400 to-green-500 px-7 py-3.75 font-['Manrope'] text-[15px] font-bold text-green-950 shadow-[0_12px_30px_rgba(34,197,94,.45)] transition-transform hover:-translate-y-0.5"
+                                        className="inline-flex items-center gap-2.5 rounded-full bg-gradient-to-br from-green-400 to-green-500 px-7 py-3.75 font-sans text-[15px] font-bold text-green-950 shadow-[0_12px_30px_rgba(34,197,94,.45)] transition-transform hover:-translate-y-0.5"
                                     >
                                         Szavak böngészése
                                         <ArrowRight size={20} />
@@ -712,7 +746,7 @@ export default function Welcome({
                                 ) : (
                                     <Link
                                         href={register()}
-                                        className="inline-flex items-center gap-2.5 rounded-full bg-gradient-to-br from-green-400 to-green-500 px-7 py-3.75 font-['Manrope'] text-[15px] font-bold text-green-950 shadow-[0_12px_30px_rgba(34,197,94,.45)] transition-transform hover:-translate-y-0.5"
+                                        className="inline-flex items-center gap-2.5 rounded-full bg-gradient-to-br from-green-400 to-green-500 px-7 py-3.75 font-sans text-[15px] font-bold text-green-950 shadow-[0_12px_30px_rgba(34,197,94,.45)] transition-transform hover:-translate-y-0.5"
                                     >
                                         Regisztrálás ingyen
                                         <ArrowRight size={20} />
@@ -724,7 +758,7 @@ export default function Welcome({
                                         e.preventDefault();
                                         goToSection('flashcard');
                                     }}
-                                    className="inline-flex items-center gap-2.5 rounded-full border border-white/[0.22] bg-white/[0.08] px-6.5 py-3.75 font-['Manrope'] text-[15px] font-medium text-white backdrop-blur-md transition-colors hover:bg-white/[0.18]"
+                                    className="inline-flex items-center gap-2.5 rounded-full border border-white/[0.22] bg-white/[0.08] px-6.5 py-3.75 font-sans text-[15px] font-medium text-white backdrop-blur-md transition-colors hover:bg-white/[0.18]"
                                 >
                                     <Layers size={20} />
                                     Próbáld a flashcardot
@@ -997,7 +1031,7 @@ export default function Welcome({
                                             <div className="inline-flex gap-1.5 rounded-full border-[1.5px] border-indigo-200 bg-white p-1.5 shadow-[0_10px_26px_rgba(49,46,129,.14)]">
                                                 <button
                                                     onClick={() => setPopupMode('word')}
-                                                    className="inline-flex items-center gap-1.25 rounded-full px-3.5 py-2 font-['Manrope'] text-[13px] font-bold whitespace-nowrap transition-all sm:gap-1.75 sm:px-5 sm:py-2.75 sm:text-[15px]"
+                                                    className="inline-flex items-center gap-1.25 rounded-full px-3.5 py-2 font-sans text-[13px] font-bold whitespace-nowrap transition-all sm:gap-1.75 sm:px-5 sm:py-2.75 sm:text-[15px]"
                                                     style={{
                                                         background: popupMode === 'word' ? '#4338ca' : '#eef2ff',
                                                         color: popupMode === 'word' ? '#fff' : '#4338ca',
@@ -1010,7 +1044,7 @@ export default function Welcome({
                                                 </button>
                                                 <button
                                                     onClick={() => setPopupMode('phrase')}
-                                                    className="inline-flex items-center gap-1.25 rounded-full px-3.5 py-2 font-['Manrope'] text-[13px] font-bold whitespace-nowrap transition-all sm:gap-1.75 sm:px-5 sm:py-2.75 sm:text-[15px]"
+                                                    className="inline-flex items-center gap-1.25 rounded-full px-3.5 py-2 font-sans text-[13px] font-bold whitespace-nowrap transition-all sm:gap-1.75 sm:px-5 sm:py-2.75 sm:text-[15px]"
                                                     style={{
                                                         background: popupMode === 'phrase' ? '#4338ca' : '#eef2ff',
                                                         color: popupMode === 'phrase' ? '#fff' : '#4338ca',
@@ -1026,7 +1060,7 @@ export default function Welcome({
                                         </div>
 
                                         <div className="relative mx-auto max-w-[900px]">
-                                            <div className="relative aspect-[3/4] overflow-hidden rounded-[18px] bg-[#0b0b12] shadow-[0_30px_70px_rgba(0,0,0,.36)] sm:aspect-video">
+                                            <div className="relative aspect-[3/5] overflow-hidden rounded-[18px] bg-[#0b0b12] shadow-[0_30px_70px_rgba(0,0,0,.36)] sm:aspect-video">
                                                 <div className="absolute top-3.5 left-3.5 z-3 flex gap-2">
                                                     <span className="inline-flex items-center gap-1.25 rounded-lg bg-[#e50914] px-2.75 py-1.25 text-xs font-bold text-white">
                                                         <Film size={15} />
@@ -1320,7 +1354,7 @@ export default function Welcome({
                                             <button
                                                 key={t.label}
                                                 onClick={() => setFilter(t.label)}
-                                                className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.75 font-['Manrope'] text-[13px] font-semibold transition-all"
+                                                className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.75 font-sans text-[13px] font-semibold transition-all"
                                                 style={{
                                                     border: `1px solid ${filter === t.label ? '#4338ca' : '#e5e5e5'}`,
                                                     background: filter === t.label ? '#4338ca' : '#fff',
@@ -1408,7 +1442,7 @@ export default function Welcome({
                                                     <button
                                                         key={key}
                                                         onClick={() => setWord(selWord, key)}
-                                                        className="flex items-center justify-center gap-1.5 rounded-[11px] px-2.5 py-2.75 font-['Manrope'] text-[13px] font-semibold transition-all"
+                                                        className="flex items-center justify-center gap-1.5 rounded-[11px] px-2.5 py-2.75 font-sans text-[13px] font-semibold transition-all"
                                                         style={{
                                                             flex: full ? '1 1 100%' : '1 1 40%',
                                                             background: active ? m.bg : '#f4f4f5',
@@ -1434,7 +1468,7 @@ export default function Welcome({
                                                 ))}
                                             </div>
                                         </div>
-                                        <button className="flex w-full items-center justify-center gap-2 rounded-xl border-[1.5px] border-indigo-200 py-3.25 font-['Manrope'] text-sm font-semibold text-indigo-700 transition-colors hover:bg-indigo-50">
+                                        <button className="flex w-full items-center justify-center gap-2 rounded-xl border-[1.5px] border-indigo-200 py-3.25 font-sans text-sm font-semibold text-indigo-700 transition-colors hover:bg-indigo-50">
                                             <Sparkles size={18} />
                                             Szó infók (AI)
                                         </button>
@@ -1465,10 +1499,15 @@ export default function Welcome({
                                             <Layers size={20} className="text-indigo-700" />
                                             Angol alapszavak
                                         </div>
-                                        <span className="rounded-full bg-indigo-50 px-3 py-1.25 text-[13px] font-semibold text-indigo-700">1 / 40</span>
+                                        <span className="rounded-full bg-indigo-50 px-3 py-1.25 text-[13px] font-semibold text-indigo-700">
+                                            {deckIndex + 1} / {DEMO_DECK.length}
+                                        </span>
                                     </div>
                                     <div className="mt-3.5 h-1.5 overflow-hidden rounded-full bg-indigo-50">
-                                        <div className="h-full w-[2.5%] rounded-full bg-gradient-to-r from-indigo-600 to-indigo-800" />
+                                        <div
+                                            className="h-full rounded-full bg-gradient-to-r from-indigo-600 to-indigo-800 transition-all duration-500"
+                                            style={{ width: `${((deckIndex + 1) / DEMO_DECK.length) * 100}%` }}
+                                        />
                                     </div>
                                     <button
                                         onClick={() => setFlipped2((v) => !v)}
@@ -1487,9 +1526,9 @@ export default function Welcome({
                                                 style={{ backfaceVisibility: 'hidden' }}
                                             >
                                                 <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-indigo-700">
-                                                    #288 · Top 1 000 · melléknév
+                                                    {demoCard.rank}
                                                 </span>
-                                                <span className="text-[46px] font-bold tracking-tight text-[#171717]">important</span>
+                                                <span className="text-[46px] font-bold tracking-tight text-[#171717]">{demoCard.word}</span>
                                                 <span className="inline-flex items-center gap-1.25 text-xs text-indigo-500">
                                                     <MousePointerClick size={15} />
                                                     Kattints a megfordításhoz
@@ -1499,23 +1538,24 @@ export default function Welcome({
                                                 className="absolute inset-0 flex flex-col items-center justify-center gap-3.5 rounded-[18px] bg-gradient-to-br from-indigo-600 to-indigo-800 p-6 text-center shadow-[inset_0_0_0_1px_rgba(255,255,255,.12)]"
                                                 style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
                                             >
-                                                <span className="text-[42px] font-bold tracking-tight text-white">fontos</span>
-                                                <span className="text-sm leading-[1.55] text-indigo-100">
-                                                    „This is a very <b className="text-white">important</b> decision.”
-                                                </span>
-                                                <span className="text-sm text-indigo-200">Ez egy nagyon fontos döntés.</span>
+                                                <span className="text-[42px] font-bold tracking-tight text-white">{demoCard.translation}</span>
+                                                <span className="text-sm leading-[1.55] text-indigo-100">„{demoCard.example}”</span>
+                                                <span className="text-sm text-indigo-200">{demoCard.exampleHu}</span>
                                             </div>
                                         </div>
                                     </button>
                                     <div className="mt-3 text-center text-xs text-[#a1a1a1]">
-                                        Hogy ment? Értékeld — az algoritmus ütemezi a következő ismétlést.
+                                        {flipped2
+                                            ? 'Hogy ment? Értékeld — az algoritmus ütemezi a következő ismétlést.'
+                                            : 'Fordítsd meg a kártyát, majd értékeld, mennyire ment könnyen.'}
                                     </div>
                                     <div className="mt-3 grid grid-cols-4 gap-2.5">
                                         {RATE_DEFS.map((r) => (
                                             <button
                                                 key={r.label}
-                                                onClick={() => setFlipped2(false)}
-                                                className="flex flex-col items-center gap-0.5 rounded-xl py-3 transition-all hover:-translate-y-0.5"
+                                                onClick={rateCard}
+                                                disabled={!flipped2}
+                                                className="flex flex-col items-center gap-0.5 rounded-xl py-3 transition-all hover:-translate-y-0.5 disabled:pointer-events-none disabled:opacity-40"
                                                 style={{ border: `1px solid ${r.c}3d`, background: `${r.c}14`, color: r.c }}
                                             >
                                                 <span className="text-sm font-bold">{r.label}</span>
@@ -1623,7 +1663,7 @@ export default function Welcome({
                                                     <button
                                                         key={o.l}
                                                         onClick={() => setQuizPick(o.l)}
-                                                        className="flex items-center justify-between rounded-xl px-4 py-3.25 font-['Manrope'] text-[15px] font-semibold transition-all"
+                                                        className="flex items-center justify-between rounded-xl px-4 py-3.25 font-sans text-[15px] font-semibold transition-all"
                                                         style={{ background: bg, border: `1px solid ${bd}`, color: col }}
                                                     >
                                                         <span>{o.l}</span>
@@ -1774,10 +1814,10 @@ export default function Welcome({
                                                     <div className="text-[15px] font-semibold text-[#171717]">között, -ek között</div>
                                                     <div className="mt-1 text-[13px] text-[#737373]">in the middle of</div>
                                                     <div className="mt-3.5 flex gap-2">
-                                                        <button className="flex-1 rounded-[9px] bg-indigo-700 py-2.25 font-['Manrope'] text-[13px] font-semibold text-white">
+                                                        <button className="flex-1 rounded-[9px] bg-indigo-700 py-2.25 font-sans text-[13px] font-semibold text-white">
                                                             Tudom
                                                         </button>
-                                                        <button className="flex flex-1 items-center justify-center gap-1.25 rounded-[9px] border border-neutral-200 bg-white py-2.25 font-['Manrope'] text-[13px] font-semibold text-[#404040]">
+                                                        <button className="flex flex-1 items-center justify-center gap-1.25 rounded-[9px] border border-neutral-200 bg-white py-2.25 font-sans text-[13px] font-semibold text-[#404040]">
                                                             <Volume2 size={16} />
                                                             Kiejtés
                                                         </button>
@@ -1889,7 +1929,7 @@ export default function Welcome({
                                     {canRegister && !auth.user && (
                                         <Link
                                             href={register()}
-                                            className="mt-6 w-full rounded-xl border border-neutral-300 py-3.5 text-center font-['Manrope'] text-[15px] font-semibold text-[#171717] transition-colors hover:bg-indigo-50"
+                                            className="mt-6 w-full rounded-xl border border-neutral-300 py-3.5 text-center font-sans text-[15px] font-semibold text-[#171717] transition-colors hover:bg-indigo-50"
                                         >
                                             Kezdés ingyen
                                         </Link>
@@ -1918,7 +1958,7 @@ export default function Welcome({
                                     {billingEnabled && (
                                         <Link
                                             href={pricingRoute()}
-                                            className="mt-6 w-full rounded-xl bg-gradient-to-br from-green-400 to-green-500 py-3.5 text-center font-['Manrope'] text-[15px] font-bold text-green-950 shadow-[0_12px_30px_rgba(34,197,94,.4)] transition-transform hover:-translate-y-0.5"
+                                            className="mt-6 w-full rounded-xl bg-gradient-to-br from-green-400 to-green-500 py-3.5 text-center font-sans text-[15px] font-bold text-green-950 shadow-[0_12px_30px_rgba(34,197,94,.4)] transition-transform hover:-translate-y-0.5"
                                         >
                                             Váltás Pro-ra
                                         </Link>
@@ -1953,7 +1993,7 @@ export default function Welcome({
                                     {auth.user ? (
                                         <Link
                                             href={dashboard()}
-                                            className="inline-flex items-center gap-2.5 rounded-full bg-white px-7.5 py-3.75 font-['Manrope'] text-[15px] font-bold text-indigo-950 shadow-[0_12px_30px_rgba(0,0,0,.25)] transition-transform hover:-translate-y-0.5"
+                                            className="inline-flex items-center gap-2.5 rounded-full bg-white px-7.5 py-3.75 font-sans text-[15px] font-bold text-indigo-950 shadow-[0_12px_30px_rgba(0,0,0,.25)] transition-transform hover:-translate-y-0.5"
                                         >
                                             Irány az alkalmazás
                                             <ArrowRight size={20} />
@@ -1963,7 +2003,7 @@ export default function Welcome({
                                             {canRegister && (
                                                 <Link
                                                     href={register()}
-                                                    className="inline-flex items-center gap-2.5 rounded-full bg-white px-7.5 py-3.75 font-['Manrope'] text-[15px] font-bold text-indigo-950 shadow-[0_12px_30px_rgba(0,0,0,.25)] transition-transform hover:-translate-y-0.5"
+                                                    className="inline-flex items-center gap-2.5 rounded-full bg-white px-7.5 py-3.75 font-sans text-[15px] font-bold text-indigo-950 shadow-[0_12px_30px_rgba(0,0,0,.25)] transition-transform hover:-translate-y-0.5"
                                                 >
                                                     Regisztrálás
                                                     <ArrowRight size={20} />
@@ -1971,7 +2011,7 @@ export default function Welcome({
                                             )}
                                             <Link
                                                 href={login()}
-                                                className="rounded-full border border-white/25 bg-white/10 px-7 py-3.75 font-['Manrope'] text-[15px] font-medium text-white transition-colors hover:bg-white/[0.18]"
+                                                className="rounded-full border border-white/25 bg-white/10 px-7 py-3.75 font-sans text-[15px] font-medium text-white transition-colors hover:bg-white/[0.18]"
                                             >
                                                 Már van fiókom
                                             </Link>
@@ -1996,9 +2036,7 @@ export default function Welcome({
                                         onClick={goHome}
                                         className="flex cursor-pointer items-center gap-2.5 text-[20px] font-bold tracking-[-.4px] text-white"
                                     >
-                                        <span className="grid size-8.5 place-items-center rounded-[11px] bg-gradient-to-br from-indigo-500 to-indigo-700 shadow-[0_6px_18px_rgba(79,70,229,.5)]">
-                                            <Languages size={20} className="text-white" />
-                                        </span>
+                                        <img src="/logo.png" alt="TopWords" className="size-11 rounded-[13px] shadow-[0_6px_18px_rgba(79,70,229,.5)]" />
                                         TopWords
                                     </button>
                                 </div>
@@ -2017,7 +2055,7 @@ export default function Welcome({
                                             <button
                                                 key={label}
                                                 onClick={() => setVideoFilter(label)}
-                                                className="inline-flex items-center gap-2 rounded-full px-4 py-2.25 font-['Manrope'] text-sm font-semibold transition-all"
+                                                className="inline-flex items-center gap-2 rounded-full px-4 py-2.25 font-sans text-sm font-semibold transition-all"
                                                 style={{
                                                     border: active ? '1px solid transparent' : '1px solid rgba(255,255,255,.14)',
                                                     background: active ? 'linear-gradient(135deg,#4ade80,#22c55e)' : 'rgba(255,255,255,.06)',

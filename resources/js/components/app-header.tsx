@@ -88,7 +88,7 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
                                     Navigációs menü
                                 </SheetTitle>
                                 <SheetHeader className="flex justify-start text-left">
-                                    <AppLogoIcon className="h-6 w-6 text-black dark:text-white" />
+                                    <AppLogoIcon className="h-12 w-12 rounded-lg" />
                                 </SheetHeader>
                                 <div className="flex h-full flex-1 flex-col space-y-4 p-4">
                                     <div className="flex h-full flex-col justify-between text-sm">

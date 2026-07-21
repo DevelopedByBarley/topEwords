@@ -178,9 +178,7 @@ export default function AdminIndex({
                 {/* Header */}
                 <header className="border-b border-zinc-800/60 px-6 py-4">
                     <div className="mx-auto flex max-w-7xl items-center gap-3">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary shadow-lg shadow-primary/30">
-                            <AppLogoIcon className="size-4.5 text-primary-foreground" />
-                        </div>
+                        <AppLogoIcon className="size-11 rounded-lg shadow-lg shadow-primary/30" />
                         <div className="flex items-center gap-2">
                             <span className="font-semibold tracking-tight">
                                 TopWords

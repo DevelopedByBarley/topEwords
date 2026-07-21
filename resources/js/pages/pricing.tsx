@@ -241,9 +241,7 @@ export default function Pricing({
                                 href={home()}
                                 className="flex items-center gap-2.5"
                             >
-                                <div className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-linear-to-br from-indigo-600 to-indigo-800">
-                                    <AppLogoIcon className="size-4.5 text-white" />
-                                </div>
+                                <AppLogoIcon className="size-11 rounded-xl" />
                                 <span className="text-sm font-semibold tracking-tight">
                                     TopWords
                                 </span>

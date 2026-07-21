@@ -28,9 +28,7 @@ export default function AuthSplitLayout({
                     href={home()}
                     className="relative z-10 flex items-center gap-2 text-lg font-semibold"
                 >
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20">
-                        <AppLogoIcon className="size-6" />
-                    </div>
+                    <AppLogoIcon className="size-11 rounded-lg" />
                     {name}
                 </Link>
 
@@ -118,15 +116,7 @@ export default function AuthSplitLayout({
                         href={home()}
                         className="flex items-center justify-center gap-2 lg:hidden"
                     >
-                        <div
-                            className="flex h-9 w-9 items-center justify-center rounded-lg"
-                            style={{
-                                background:
-                                    'linear-gradient(160deg,#20276B,#3a3688)',
-                            }}
-                        >
-                            <AppLogoIcon className="size-6" />
-                        </div>
+                        <AppLogoIcon className="size-12 rounded-lg" />
                         <span className="text-lg font-semibold">{name}</span>
                     </Link>
 
