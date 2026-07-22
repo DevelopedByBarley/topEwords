@@ -371,7 +371,10 @@
       "Bash(base64 -i /tmp/logo-256.png -o /tmp/logo256_b64.txt)",
       "Bash(md5 \"/Applications/XAMPP/xamppfiles/htdocs/topEwords/topwords-player/dist/Topwords Player-0.0.1-arm64.dmg\" /Applications/XAMPP/xamppfiles/htdocs/topEwords/storage/app/private/downloads/topwords-player-mac.dmg)",
       "Bash(hdiutil imageinfo *)",
-      "Bash(hdiutil attach *)"
+      "Bash(hdiutil attach *)",
+      "Bash(xargs -I{} echo {})",
+      "Bash(xargs -I{} basename {})",
+      "Bash(node -e \"const icons = require\\('/Applications/XAMPP/xamppfiles/htdocs/topEwords/node_modules/lucide-react/dist/cjs/lucide-react.js'\\); console.log\\(typeof icons.Gauge, typeof icons.ShieldCheck, typeof icons.Ticket, typeof icons.Flag\\);\")"
     ],
     "additionalDirectories": [
       "/private/tmp",

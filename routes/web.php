@@ -49,6 +49,7 @@ Route::middleware(['auth', 'verified', 'can:admin'])->group(function () {
     Route::post('admin/free-month', [AdminController::class, 'grantFreeMonth'])->name('admin.free-month.grant');
     Route::post('admin/invites', [AdminController::class, 'storeInvite'])->name('admin.invites.store');
     Route::delete('admin/invites/{invite}', [AdminController::class, 'destroyInvite'])->name('admin.invites.destroy');
+    Route::patch('admin/reports/{report}', [AdminController::class, 'updateReportStatus'])->name('admin.reports.update-status');
 });
 
 // ── Desktop lejátszó összekötése ──────────────────────────────────────────────
@@ -88,3 +89,4 @@ require __DIR__.'/flashcards.php';
 require __DIR__.'/text-analysis.php';
 require __DIR__.'/extension.php';
 require __DIR__.'/settings.php';
+require __DIR__.'/report.php';

@@ -3,11 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\Invite;
+use App\Models\Report;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -84,6 +86,11 @@ class AdminController extends Controller
                 'used_by' => $i->users->pluck('email')->all(),
             ]);
 
+        $reports = Report::with(['user:id,name,email', 'word:id,word'])
+            ->latest()
+            ->limit(100)
+            ->get();
+
         return Inertia::render('admin/index', [
             'stats' => [
                 'totalUsers' => $totalUsers,
@@ -104,6 +111,7 @@ class AdminController extends Controller
             'accessUsers' => $accessUsers,
             'invites' => $invites,
             'inviteOnly' => (bool) config('registration.invite_only'),
+            'reports' => $reports,
         ]);
     }
 
@@ -183,5 +191,17 @@ class AdminController extends Controller
         $until = $user->trial_ends_at->timezone(config('app.timezone'))->isoFormat('YYYY. MM. DD.');
 
         return back()->with('success', "{$user->name} +1 hónap ingyen Prót kapott ({$until}-ig).");
+    }
+
+    public function updateReportStatus(Request $request, Report $report): RedirectResponse
+    {
+        $data = $request->validate([
+            'status' => ['required', Rule::in(Report::STATUSES)],
+        ]);
+
+        $report->status = $data['status'];
+        $report->save();
+
+        return back()->with('success', 'Bejelentés állapota frissítve.');
     }
 }

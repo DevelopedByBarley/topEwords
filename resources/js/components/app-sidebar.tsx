@@ -2,6 +2,7 @@ import { Link, usePage } from '@inertiajs/react';
 import {
     BookOpen,
     Download,
+    Flag,
     FolderOpen,
     Globe,
     LayoutGrid,
@@ -36,6 +37,7 @@ import { index as achievementsIndex } from '@/routes/achievements';
 import { index as downloadsIndex } from '@/routes/downloads';
 import { index as flashcardsIndex } from '@/routes/flashcards';
 import { index as irregularVerbsIndex } from '@/routes/irregular-verbs';
+import { index as reportIndex } from '@/routes/report';
 import { show as textAnalysisShow } from '@/routes/text-analysis';
 import { cloze as wordsCloze, practice as wordsPractice } from '@/routes/words';
 import { index as wordsIndex, quiz as wordsQuiz } from '@/routes/words';
@@ -136,6 +138,11 @@ const navGroups: { label?: string; items: NavItem[] }[] = [
                 title: 'Letöltések',
                 href: downloadsIndex(),
                 icon: Download,
+            },
+            {
+                title: 'Hibabejelentés',
+                href: reportIndex(),
+                icon: Flag,
             },
         ],
     },

@@ -1,9 +1,10 @@
-import { Head, Link, router, usePage } from '@inertiajs/react';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import {
     ArrowLeftRight,
     BookMarked,
     CheckCheck,
     Clock,
+    Flag,
     FolderOpen,
     FolderPlus,
     Info,
@@ -35,6 +36,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import { FilterChip, FilterGroup } from '@/components/words/filter-chip';
 import ImportanceStars from '@/components/words/importance-stars';
 import PracticeModal from '@/components/words/practice-modal';
@@ -71,6 +73,7 @@ import { index as flashcardsIndex } from '@/routes/flashcards';
 import { importMethod as importFromWord } from '@/routes/flashcards/cards';
 import { destroy, store, update } from '@/routes/folders';
 import { update as folderWordUpdate } from '@/routes/folders/words';
+import { store as storeReport } from '@/routes/report';
 import {
     importance as wordImportance,
     index,
@@ -196,6 +199,8 @@ export default function WordsIndex({
     const [customFilter, setCustomFilter] = useState<'all' | 'custom'>('all');
     const [practiceModalWord, setPracticeModalWord] =
         useState<PracticeWord | null>(null);
+    const [reportWordId, setReportWordId] = useState<number | null>(null);
+    const reportForm = useForm({ description: '' });
 
     const { auth } = usePage<{
         auth: {
@@ -2431,6 +2436,21 @@ export default function WordsIndex({
                                     </div>
                                 )}
 
+                                {/* Hibás adat jelentése */}
+                                <div className="flex flex-col gap-3 border-t pt-4">
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="w-full text-muted-foreground"
+                                        onClick={() =>
+                                            setReportWordId(selectedWord.id)
+                                        }
+                                    >
+                                        <Flag className="size-3.5" />
+                                        Hibás adat jelentése
+                                    </Button>
+                                </div>
+
                                 {/* Admin szerkesztés */}
                                 {isAdmin && (
                                     <div className="flex flex-col gap-3 border-t pt-4">
@@ -2458,6 +2478,77 @@ export default function WordsIndex({
                             </div>
                         </>
                     )}
+                </DialogContent>
+            </Dialog>
+            {/* Hibás szóadat jelentése modal */}
+            <Dialog
+                open={reportWordId !== null}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        setReportWordId(null);
+                        reportForm.reset();
+                        reportForm.clearErrors();
+                    }
+                }}
+            >
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Hibás adat jelentése</DialogTitle>
+                    </DialogHeader>
+                    <form
+                        onSubmit={(e) => {
+                            e.preventDefault();
+                            if (reportWordId === null) {
+                                return;
+                            }
+                            router.post(
+                                storeReport().url,
+                                {
+                                    category: 'word_data',
+                                    word_id: reportWordId,
+                                    description: reportForm.data.description,
+                                },
+                                {
+                                    preserveScroll: true,
+                                    onSuccess: () => {
+                                        reportForm.reset();
+                                        setReportWordId(null);
+                                    },
+                                    onError: (errors) =>
+                                        reportForm.setError(
+                                            errors as Record<string, string>,
+                                        ),
+                                },
+                            );
+                        }}
+                        className="flex flex-col gap-3"
+                    >
+                        <Textarea
+                            value={reportForm.data.description}
+                            onChange={(e) =>
+                                reportForm.setData(
+                                    'description',
+                                    e.target.value,
+                                )
+                            }
+                            maxLength={2000}
+                            rows={4}
+                            placeholder="Mi hibás ennél a szónál?"
+                            required
+                        />
+                        {reportForm.errors.description && (
+                            <p className="text-sm text-destructive">
+                                {reportForm.errors.description}
+                            </p>
+                        )}
+                        <Button
+                            type="submit"
+                            disabled={reportForm.processing}
+                            className="self-start"
+                        >
+                            {reportForm.processing ? 'Küldés...' : 'Küldés'}
+                        </Button>
+                    </form>
                 </DialogContent>
             </Dialog>
             {/* Admin word edit modal */}
