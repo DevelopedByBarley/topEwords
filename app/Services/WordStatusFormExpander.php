@@ -14,10 +14,19 @@ namespace App\Services;
  */
 class WordStatusFormExpander
 {
-    /** @var array<int, string> A words/user_custom_words táblák ragozott-alak oszlopai. */
+    /**
+     * A words/user_custom_words táblák ragozott- és képzett-alak oszlopai.
+     *
+     * Az extra_forms a lemmatizáláskor eldobott, de a felhasználó által beírt
+     * eredeti alakokat tárolja (pl. a "successful" lemmához a "successfully"
+     * határozószót), hogy a szó-felismerés minden felületen megtalálja őket.
+     *
+     * @var array<int, string>
+     */
     public const FORM_COLUMNS = [
         'form_base', 'verb_past', 'verb_past_participle', 'verb_present_participle',
         'verb_third_person', 'noun_plural', 'adj_comparative', 'adj_superlative',
+        'extra_forms',
     ];
 
     /**

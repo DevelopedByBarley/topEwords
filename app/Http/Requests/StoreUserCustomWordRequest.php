@@ -44,6 +44,7 @@ class StoreUserCustomWordRequest extends FormRequest
             'noun_plural' => ['nullable', 'string', 'max:100'],
             'adj_comparative' => ['nullable', 'string', 'max:100'],
             'adj_superlative' => ['nullable', 'string', 'max:100'],
+            'extra_forms' => ['nullable', 'string', 'max:255'],
         ];
     }
 

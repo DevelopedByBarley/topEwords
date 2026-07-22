@@ -429,7 +429,7 @@ class TextAnalysisController extends Controller
      */
     private function matchByForms(array $tokens, callable $queryFactory, array $select): Collection
     {
-        $forms = ['word', 'form_base', 'verb_past', 'verb_past_participle', 'verb_present_participle', 'verb_third_person', 'noun_plural', 'adj_comparative', 'adj_superlative'];
+        $forms = ['word', ...WordStatusFormExpander::FORM_COLUMNS];
 
         // 1500 token × 9 oszlop = 13 500 kötés / lekérdezés — bőven a limit alatt.
         $results = collect();
@@ -496,7 +496,7 @@ class TextAnalysisController extends Controller
         $customWords = $this->matchByForms(
             $uniqueTokens,
             fn () => UserCustomWord::where('user_id', $user->id),
-            ['id', 'word', 'status', 'form_base', 'verb_past', 'verb_past_participle', 'verb_present_participle', 'verb_third_person', 'noun_plural', 'adj_comparative', 'adj_superlative']
+            ['id', 'word', 'status', ...WordStatusFormExpander::FORM_COLUMNS]
         );
 
         $tokenStatuses = [];
@@ -517,18 +517,13 @@ class TextAnalysisController extends Controller
 
             // Az oszlopok '/'-szeparált alternatívákat tartalmazhatnak
             // ("got/gotten") — a token-térképbe változatonként kell kulcsolni.
+            $columnValues = array_map(
+                fn (string $column) => $customWord->{$column},
+                WordStatusFormExpander::FORM_COLUMNS,
+            );
+
             foreach (
-                WordFormVariants::splitAll([
-                    $customWord->word,
-                    $customWord->form_base,
-                    $customWord->verb_past,
-                    $customWord->verb_past_participle,
-                    $customWord->verb_present_participle,
-                    $customWord->verb_third_person,
-                    $customWord->noun_plural,
-                    $customWord->adj_comparative,
-                    $customWord->adj_superlative,
-                ]) as $form
+                WordFormVariants::splitAll([$customWord->word, ...$columnValues]) as $form
             ) {
                 $formToCustomWord[mb_strtolower($form)] ??= $customWord;
             }

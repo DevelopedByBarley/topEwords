@@ -595,6 +595,12 @@ export default function WordsIndex({
         return {
             ...prev,
             word: wordOverride ?? prev.word,
+            // Lemmára váltáskor (pl. „successfully" → „successful") a beírt eredeti
+            // alakot külön elmentjük, hogy a szó-felismerés később arra is találjon.
+            extra_forms:
+                wordOverride && wordOverride !== prev.word
+                    ? prev.word
+                    : prev.extra_forms,
             meaning_hu: data.meaning_hu || prev.meaning_hu,
             extra_meanings: data.extra_meanings || prev.extra_meanings,
             synonyms: data.synonyms || prev.synonyms,
@@ -761,6 +767,7 @@ export default function WordsIndex({
         payload.noun_plural = customWordForm.noun_plural.trim() || null;
         payload.adj_comparative = customWordForm.adj_comparative.trim() || null;
         payload.adj_superlative = customWordForm.adj_superlative.trim() || null;
+        payload.extra_forms = customWordForm.extra_forms.trim() || null;
 
         router.post(storeCustomWord(), payload, {
             preserveScroll: true,

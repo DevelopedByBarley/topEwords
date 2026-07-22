@@ -649,3 +649,82 @@ test('L1: a verified user can still write via the extension endpoints', function
         ->assertSuccessful()
         ->assertJson(['ok' => true]);
 });
+
+// --- extra_forms: a lemmatizáláskor eldobott beírt alak felismerése ---
+// A felhasználó „successfully"-t vitt fel; az AI a „successful" lemmára váltott,
+// és a beírt eredeti alakot az extra_forms-ba mentettük. A szó-felismerésnek
+// (lookup / statuses / search) a beírt „successfully"-re is találnia kell.
+
+test('add-word stores the original inflected form in extra_forms', function () {
+    $this->actingAs($this->user)
+        ->postJson(route('extension.add-word'), [
+            'word' => 'successful',
+            'meaning_hu' => 'sikeres',
+            'extra_forms' => 'successfully',
+        ])
+        ->assertSuccessful()
+        ->assertJson(['ok' => true, 'word' => 'successful']);
+
+    expect($this->user->customWords()->where('word', 'successful')->value('extra_forms'))
+        ->toBe('successfully');
+});
+
+test('add-word normalizes extra_forms: lowercased, deduped, lemma dropped', function () {
+    $this->actingAs($this->user)
+        ->postJson(route('extension.add-word'), [
+            'word' => 'successful',
+            'meaning_hu' => 'sikeres',
+            // A lemma önmaga és a duplikátum kiesik, a maradék kisbetűs lesz.
+            'extra_forms' => 'SUCCESSFUL/Successfully/successfully',
+        ])
+        ->assertSuccessful();
+
+    expect($this->user->customWords()->where('word', 'successful')->value('extra_forms'))
+        ->toBe('successfully');
+});
+
+test('lookup matches a custom word by its extra_forms', function () {
+    $this->user->customWords()->create([
+        'word' => 'successful',
+        'meaning_hu' => 'sikeres',
+        'status' => 'known',
+        'extra_forms' => 'successfully',
+    ]);
+
+    $this->actingAs($this->user)
+        ->getJson(route('extension.lookup', ['word' => 'successfully']))
+        ->assertSuccessful()
+        ->assertJson(['found' => true, 'word' => 'successful', 'is_custom' => true, 'status' => 'known']);
+});
+
+test('statuses maps an extra_form to the word status', function () {
+    $this->user->customWords()->create([
+        'word' => 'successful',
+        'meaning_hu' => 'sikeres',
+        'status' => 'known',
+        'extra_forms' => 'successfully',
+    ]);
+
+    $this->actingAs($this->user)
+        ->getJson(route('extension.statuses'))
+        ->assertSuccessful()
+        ->assertJson(['statuses' => [
+            'successful' => 'known',
+            'successfully' => 'known',
+        ]]);
+});
+
+test('search finds a custom word by its extra_forms', function () {
+    $this->user->customWords()->create([
+        'word' => 'successful',
+        'meaning_hu' => 'sikeres',
+        'extra_forms' => 'successfully',
+    ]);
+
+    $results = $this->actingAs($this->user)
+        ->getJson(route('extension.search', ['q' => 'successfully']))
+        ->assertSuccessful()
+        ->json('results');
+
+    expect(collect($results)->pluck('word'))->toContain('successful');
+});

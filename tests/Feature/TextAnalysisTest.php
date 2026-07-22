@@ -93,6 +93,21 @@ test('apostrophe custom words get their status in the token map', function () {
         ->assertJsonPath('tokenStatuses.can\'t', 'learning');
 });
 
+test('custom word extra_forms are recognized in the token map', function () {
+    // A „successfully"-t „successful" lemma alatt vettük fel, a beírt alakot az
+    // extra_forms őrzi — a szövegelemzésnek mindkét alakra színeznie kell.
+    $this->user->customWords()->create([
+        'word' => 'successful',
+        'status' => 'known',
+        'extra_forms' => 'successfully',
+    ]);
+
+    $this->postJson(route('text-analysis.analyze'), ['text' => 'a successful and successfully done task'])
+        ->assertOk()
+        ->assertJsonPath('tokenStatuses.successful', 'known')
+        ->assertJsonPath('tokenStatuses.successfully', 'known');
+});
+
 test('curly apostrophe in text matches a straight-apostrophe custom word', function () {
     $this->user->customWords()->create(['word' => "we'll", 'status' => 'known']);
 

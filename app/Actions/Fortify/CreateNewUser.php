@@ -70,6 +70,8 @@ class CreateNewUser implements CreatesNewUsers
                 'billing_zip' => $input['billing_zip'] ?? null,
                 'billing_city' => $input['billing_city'] ?? null,
                 'billing_address' => $input['billing_address'] ?? null,
+                'billing_phone' => $input['billing_phone'] ?? null,
+                'billing_company_registration_number' => $input['billing_company_registration_number'] ?? null,
             ], fn ($v) => filled($v));
 
             $user = User::create([

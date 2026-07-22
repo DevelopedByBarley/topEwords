@@ -82,7 +82,7 @@ class WordFormMapService
         // id szerint növekvő: szóalak-ütközésnél (két szó azonos ragozott alakja)
         // determinisztikusan a kisebb id-jű — korábban felvett — szó nyer.
         Word::query()
-            ->select(['id', 'word', 'rank', 'meaning_hu', 'form_base', 'verb_past', 'verb_past_participle', 'verb_present_participle', 'verb_third_person', 'noun_plural', 'adj_comparative', 'adj_superlative'])
+            ->select(['id', 'word', 'rank', 'meaning_hu', ...WordStatusFormExpander::FORM_COLUMNS])
             ->orderBy('id')
             ->chunkById(2000, function ($chunk) use (&$forms, &$words): void {
                 foreach ($chunk as $word) {
@@ -94,18 +94,13 @@ class WordFormMapService
 
                     // Az oszlopok '/'-szeparált alternatívákat tartalmazhatnak
                     // ("got/gotten") — a térképbe változatonként kell kulcsolni.
+                    $columnValues = array_map(
+                        fn (string $column) => $word->{$column},
+                        WordStatusFormExpander::FORM_COLUMNS,
+                    );
+
                     foreach (
-                        WordFormVariants::splitAll([
-                            $word->word,
-                            $word->form_base,
-                            $word->verb_past,
-                            $word->verb_past_participle,
-                            $word->verb_present_participle,
-                            $word->verb_third_person,
-                            $word->noun_plural,
-                            $word->adj_comparative,
-                            $word->adj_superlative,
-                        ]) as $form
+                        WordFormVariants::splitAll([$word->word, ...$columnValues]) as $form
                     ) {
                         $forms[mb_strtolower($form)] ??= $word->id;
                     }

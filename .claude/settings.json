@@ -374,7 +374,17 @@
       "Bash(hdiutil attach *)",
       "Bash(xargs -I{} echo {})",
       "Bash(xargs -I{} basename {})",
-      "Bash(node -e \"const icons = require\\('/Applications/XAMPP/xamppfiles/htdocs/topEwords/node_modules/lucide-react/dist/cjs/lucide-react.js'\\); console.log\\(typeof icons.Gauge, typeof icons.ShieldCheck, typeof icons.Ticket, typeof icons.Flag\\);\")"
+      "Bash(node -e \"const icons = require\\('/Applications/XAMPP/xamppfiles/htdocs/topEwords/node_modules/lucide-react/dist/cjs/lucide-react.js'\\); console.log\\(typeof icons.Gauge, typeof icons.ShieldCheck, typeof icons.Ticket, typeof icons.Flag\\);\")",
+      "Bash(grep -n 'form_base\\\\|verb_past\\\\|noun_plural\\\\|adj_comp\\\\|adj_super\\\\|verb_third\\\\|verb_present\\\\|normalized_from_input\\\\|base_form\\\\|$table->string\\\\|word\\\\b' database/migrations/2026_04_07_134611_create_user_custom_words_table.php)",
+      "Bash(grep -rn \"customWords\\(\\)->create\\\\|UserCustomWord::create\\\\|->create\\(\\\\$\" app/Http/Controllers/UserCustomWordController.php app/Http/Controllers/TextAnalysisController.php app/Http/Controllers/WordController.php)",
+      "Bash(php -d memory_limit=512M vendor/bin/pest --compact --filter=\"WordFormMapService|Extension|UserCustomWord|TextAnalysis|PlayerWordActions\")",
+      "Bash(php -d memory_limit=512M vendor/bin/pest --compact --filter=\"Extension|TextAnalysis|WordFormMapService|UserCustomWord\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d.get\\('scripts',{}\\), indent=2\\)\\)\")",
+      "Bash(node -e \"for \\(const f of ['chrome-extension/background.js','chrome-extension/src/page-highlight.js','chrome-extension/src/search-modal.js','topwords-player/src/renderer.js','topwords-player/src/main.js']\\) { try { new Function\\(require\\('fs'\\).readFileSync\\(f,'utf8'\\)\\); console.log\\('OK', f\\); } catch\\(e\\){ console.log\\('SYNTAX ERR', f, e.message\\); } }\")",
+      "Bash(zip -r topwords-extension-1.22.zip manifest.json background.js src/shared.js src/styles.js src/tokenizer.js src/lookup-popup.js src/search-modal.js src/flashcard-modal.js src/page-highlight.js src/youtube.js src/netflix.js popup.html popup.css popup.js icon16.png icon48.png icon128.png)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('version:', d.get\\('version'\\)\\); print\\('scripts:', json.dumps\\(d.get\\('scripts',{}\\), indent=2\\)\\)\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('version:', d.get\\('version'\\)\\); print\\('scripts:', json.dumps\\(d.get\\('scripts',{}\\), indent=2\\)\\); print\\('build:', json.dumps\\(d.get\\('build',{}\\).get\\('productName'\\) if d.get\\('build'\\) else None\\)\\)\")",
+      "Bash(grep -iE \"\\\\.exe$|setup\")"
     ],
     "additionalDirectories": [
       "/private/tmp",

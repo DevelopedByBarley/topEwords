@@ -226,7 +226,7 @@ class WordController extends Controller
                 'id', 'word', 'meaning_hu', 'extra_meanings', 'synonyms', 'part_of_speech',
                 'example_en', 'example_hu', 'status', 'importance', 'form_base', 'verb_past',
                 'verb_past_participle', 'verb_present_participle', 'verb_third_person',
-                'is_irregular', 'noun_plural', 'adj_comparative', 'adj_superlative',
+                'is_irregular', 'noun_plural', 'adj_comparative', 'adj_superlative', 'extra_forms',
             ]);
     }
 

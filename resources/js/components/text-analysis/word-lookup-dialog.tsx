@@ -273,6 +273,12 @@ export default function WordLookupDialog({
             const body: Record<string, unknown> = {
                 word: baseFormOverride ?? lookupResult.word,
             };
+
+            // Ha az AI lemmára váltott (pl. „successfully" → „successful"), a beírt
+            // eredeti alakot külön elmentjük, hogy a szó-felismerés arra is találjon.
+            if (baseFormOverride && baseFormOverride !== lookupResult.word) {
+                body.extra_forms = lookupResult.word;
+            }
             (Object.keys(customWordForm) as (keyof CustomWordForm)[]).forEach(
                 (k) => {
                     const v = customWordForm[k];

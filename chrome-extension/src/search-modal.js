@@ -557,6 +557,12 @@ function showSearchDetail(data) {
                             const original = data.word;
                             data.word = resp.base_form;
 
+                            // A beírt eredeti alak (pl. „successfully") a lemmán
+                            // („successful") kívül esik minden ragozási oszlopon,
+                            // ezért külön elmentjük, hogy a szó-felismerés később
+                            // erre az alakra is találjon.
+                            data.extraForm = original;
+
                             const label =
                                 detail.querySelector('#add-word-label');
 
@@ -688,6 +694,7 @@ function showSearchDetail(data) {
                     null,
                 status: addStatus,
                 importance: addImportance,
+                extra_forms: data.extraForm || null,
             };
 
             // Minden kitöltött alak-mezőt elküldünk, a szófajtól függetlenül.

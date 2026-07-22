@@ -55,6 +55,7 @@ class UpdateUserCustomWordRequest extends FormRequest
             'noun_plural' => ['nullable', 'string', 'max:100'],
             'adj_comparative' => ['nullable', 'string', 'max:100'],
             'adj_superlative' => ['nullable', 'string', 'max:100'],
+            'extra_forms' => ['nullable', 'string', 'max:255'],
             'status' => ['nullable', 'in:known,learning,saved,pronunciation,practice'],
             'importance' => ['nullable', 'integer', 'min:1', 'max:5'],
         ];

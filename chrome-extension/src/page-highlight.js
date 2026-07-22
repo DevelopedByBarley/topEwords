@@ -123,6 +123,9 @@ function applyHighlights() {
     nodes.forEach(highlightTextNode);
 
     document.addEventListener('click', handleHlClick, { capture: true });
+    document.addEventListener('mousedown', handleHlMouseDown, { capture: true });
+    document.addEventListener('mouseup', handleHlMouseUp, { capture: true });
+    document.addEventListener('dblclick', handleHlDblClick, { capture: true });
 }
 
 /** Kiemelő span az élő oldalhoz. Háttérszín kiemelés, mint egy szövegkiemelő toll. */
@@ -203,6 +206,9 @@ function highlightTextNode(node) {
 
 function removeHighlights() {
     document.removeEventListener('click', handleHlClick, { capture: true });
+    document.removeEventListener('mousedown', handleHlMouseDown, { capture: true });
+    document.removeEventListener('mouseup', handleHlMouseUp, { capture: true });
+    document.removeEventListener('dblclick', handleHlDblClick, { capture: true });
     const parents = new Set();
     document.querySelectorAll('[data-tw-hl]').forEach((span) => {
         const parent = span.parentNode;
@@ -218,26 +224,158 @@ function removeHighlights() {
     parents.forEach((p) => p.normalize());
 }
 
-function handleHlClick(e) {
-    // Csak valódi kattintásra nyílik popup — szintetikus eseménnyel ne.
+// ── Kiemelt szó gyorsgesztusai ─────────────────────────────────────────────────
+//
+// A kiemelt szón a felhasználó a popup megnyitása nélkül is állíthat státuszt:
+//   • dupla-klikk  → „Tudom" (known)
+//   • hosszú-nyomás (500 ms) → „Később" (saved)
+//   • sima (egyszeri, rövid) klikk → a szokásos szó-popup
+//
+// A sima klikk popupját késleltetve nyitjuk, hogy egy közvetlenül utána érkező
+// dupla-klikk elnyomhassa (különben a popup felvillanna). A hosszú-nyomás a
+// mousedown-timerrel dől el, és elnyeli a rákövetkező click-et.
+
+const LONG_PRESS_MS = 500;
+const CLICK_DELAY_MS = 260; // > a rendszer dblclick-ablaka, hogy a dbl megelőzze
+const QUICK_STATUS = { dbl: 'known', long: 'saved' };
+
+let hlPendingClick = null; // { timer, word, rect }
+let hlLongPress = null; // { timer, span, fired }
+
+/** A kiemelt szó spanja, ha az esemény azon (vagy leszármazottján) történt. */
+function hlSpanFromEvent(e) {
     if (!e.isTrusted) {
-        return;
+        return null;
     }
 
     const span = e.target?.closest?.('[data-tw-hl]');
+
+    if (!span || e.target?.closest?.('a, button, [role="button"], [role="link"]')) {
+        return null;
+    }
+
+    return span;
+}
+
+function cancelPendingClick() {
+    if (hlPendingClick) {
+        clearTimeout(hlPendingClick.timer);
+        hlPendingClick = null;
+    }
+}
+
+function cancelLongPress() {
+    if (hlLongPress) {
+        clearTimeout(hlLongPress.timer);
+        hlLongPress = null;
+    }
+}
+
+function handleHlMouseDown(e) {
+    const span = hlSpanFromEvent(e);
+
+    if (!span || e.button !== 0) {
+        return;
+    }
+
+    cancelLongPress();
+    const state = { span, fired: false };
+    state.timer = setTimeout(() => {
+        state.fired = true;
+        // A hosszú-nyomás státuszt állít; a rákövetkező click-et elnyeljük.
+        quickStatusOnSpan(span, QUICK_STATUS.long);
+    }, LONG_PRESS_MS);
+    hlLongPress = state;
+}
+
+function handleHlMouseUp() {
+    // A tényleges státusz-állítás a timerben / dblclick-ben történik; itt csak a
+    // le nem járt hosszú-nyomás timert töröljük (rövid kattintás volt).
+    cancelLongPress();
+}
+
+function handleHlDblClick(e) {
+    const span = hlSpanFromEvent(e);
 
     if (!span) {
         return;
     }
 
-    if (e.target?.closest?.('a, button, [role="button"], [role="link"]')) {
+    e.preventDefault();
+    e.stopPropagation();
+    // A dupla-klikk „Tudom"-ot állít — a késleltetett sima-klikk popup elmarad.
+    cancelPendingClick();
+    quickStatusOnSpan(span, QUICK_STATUS.dbl);
+}
+
+function handleHlClick(e) {
+    const span = hlSpanFromEvent(e);
+
+    if (!span) {
         return;
     }
 
     e.preventDefault();
     e.stopPropagation();
+
+    // Ha épp hosszú-nyomás zajlott le ezen a nyomáson, a click a gesztus
+    // „elengedése" — ne nyisson popupot.
+    if (hlLongPress?.fired) {
+        cancelLongPress();
+
+        return;
+    }
+
+    // A popupot késleltetjük: ha rögtön dupla-klikk jön, azt fenn elnyomjuk.
+    cancelPendingClick();
     const rect = span.getBoundingClientRect();
-    showPopup(span.textContent, rect);
+    const word = span.textContent;
+    hlPendingClick = {
+        word,
+        rect,
+        timer: setTimeout(() => {
+            hlPendingClick = null;
+            showPopup(word, rect);
+        }, CLICK_DELAY_MS),
+    };
+}
+
+/**
+ * Gyors státusz-állítás a kiemelt szóra (dupla-klikk / hosszú-nyomás). A háttér
+ * egy körben elvégzi a lookupot és a státusz-állítást (toggle-szemantika), majd
+ * frissítjük a kiemeléseket. Ismeretlen / nem menthető szónál röviden jelezzük.
+ */
+function quickStatusOnSpan(span, status) {
+    const word = span.textContent;
+    const rect = span.getBoundingClientRect();
+
+    // Azonnali vizuális visszajelzés a gesztusról (a szerver válaszáig).
+    flashSpan(span, STATUS_COLORS[status]);
+
+    sendMsg({ type: 'QUICK_STATUS', word, status }, (resp) => {
+        if (resp?.ok) {
+            refreshVocabHighlights();
+
+            return;
+        }
+
+        // Ismeretlen szó / hiba: nyíljon a szokásos popup, hogy a felhasználó
+        // felvehesse / kezelhesse a szót (ne „némuljon el" a gesztus).
+        showPopup(word, rect);
+    });
+}
+
+/** Rövid keret-villanás a spanon, a gesztus visszaigazolásaként. */
+function flashSpan(span, color) {
+    if (!color) {
+        return;
+    }
+
+    const prev = span.style.outline;
+    span.style.outline = `2px solid ${color}`;
+    setTimeout(() => {
+        span.style.outline = prev;
+    }, 400);
 }
 
 function toggleHighlight() {

@@ -234,6 +234,50 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         return true; // keep channel open for async response
     }
 
+    // Gyors státusz-állítás a kiemelt szóról, a popup megnyitása nélkül (dupla-
+    // klikk / hosszú-nyomás gyorsbillentyűk). Egy körben: lookup a szóra, majd a
+    // talált szó státuszának állítása a toggle-szemantikával (ha már a kért
+    // státuszban van, levesszük). Ismeretlen szónál nem csinálunk semmit.
+    if (msg.type === 'QUICK_STATUS') {
+        fetchJson(
+            `${APP_URL}/extension/lookup?word=${encodeURIComponent(msg.word)}`,
+        ).then((look) => {
+            if (!look || !look.found || !look.id) {
+                sendResponse({ ok: false, error: look?.error ?? 'not_found' });
+
+                return;
+            }
+
+            // A kért státuszt küldjük; a toggle-t (azonos státusz újraküldése =
+            // levétel) a szerver végzi, ugyanúgy, mint a popup gombjainál.
+            const url = look.is_custom
+                ? `${APP_URL}/custom-words/${look.id}/status`
+                : `${APP_URL}/words/${look.id}/status`;
+
+            fetchJson(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': look.csrf,
+                },
+                body: JSON.stringify({ status: msg.status }),
+            }).then(async (data) => {
+                if (!data || data.error) {
+                    sendResponse({ ok: false, error: data?.error });
+
+                    return;
+                }
+
+                await patchStatusCache(data.forms, data.status ?? null);
+                refreshBadge();
+
+                sendResponse({ ok: true, status: data.status ?? null });
+            });
+        });
+
+        return true;
+    }
+
     if (msg.type === 'ADD_WORD') {
         fetchJson(`${APP_URL}/extension/add-word`, {
             method: 'POST',
@@ -258,6 +302,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                 noun_plural: msg.noun_plural,
                 adj_comparative: msg.adj_comparative,
                 adj_superlative: msg.adj_superlative,
+                extra_forms: msg.extra_forms,
                 status: msg.status,
                 importance: msg.importance,
             }),

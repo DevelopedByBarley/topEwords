@@ -86,8 +86,11 @@ test('registration accepts a company with a valid tax number', function () {
         ->and($user->billing_type)->toBe('company')
         // S-L2: a regisztrációkor megadott (és validált) billing_country tényleg elmentődik —
         // korábban a CreateNewUser mentendő mezőiből kimaradt, és némán elveszett, majd a NAV-
-        // számla partner-payloadja csendben 'HU'-ra esett volna vissza.
-        ->and($user->billing_country)->toBe('HU');
+        // számla partner-payloadja csendben 'HU'-ra esett volna vissza. Ugyanez a hibaosztály
+        // ismétlődött meg a billing_phone / billing_company_registration_number mezőknél is.
+        ->and($user->billing_country)->toBe('HU')
+        ->and($user->billing_company_registration_number)->toBe('01-09-999999')
+        ->and($user->billing_phone)->toBe('+36301234567');
 });
 
 test('unverified users are redirected away from protected routes', function () {

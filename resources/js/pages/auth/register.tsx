@@ -47,7 +47,7 @@ export default function Register({
                                         defaultValue={invite}
                                         autoComplete="off"
                                         placeholder="Meghívókód"
-                                    className="rounded-xl focus-visible:border-indigo-400 focus-visible:ring-indigo-400/50"
+                                        className="rounded-xl focus-visible:border-indigo-400 focus-visible:ring-indigo-400/50"
                                     />
                                     <InputError message={errors.invite} />
                                 </div>
@@ -65,7 +65,9 @@ export default function Register({
                                     name="name"
                                     placeholder="Kiss János"
                                     value={accountName}
-                                    onChange={(e) => setAccountName(e.target.value)}
+                                    onChange={(e) =>
+                                        setAccountName(e.target.value)
+                                    }
                                     className="rounded-xl focus-visible:border-indigo-400 focus-visible:ring-indigo-400/50"
                                 />
                                 <InputError message={errors.name} />
@@ -81,7 +83,7 @@ export default function Register({
                                     autoComplete="email"
                                     name="email"
                                     placeholder="email@example.com"
-                                className="rounded-xl focus-visible:border-indigo-400 focus-visible:ring-indigo-400/50"
+                                    className="rounded-xl focus-visible:border-indigo-400 focus-visible:ring-indigo-400/50"
                                 />
                                 <InputError message={errors.email} />
                             </div>
@@ -101,7 +103,9 @@ export default function Register({
                             </div>
 
                             <div className="grid gap-2">
-                                <Label htmlFor="password_confirmation">Megerősítés</Label>
+                                <Label htmlFor="password_confirmation">
+                                    Megerősítés
+                                </Label>
                                 <PasswordInput
                                     id="password_confirmation"
                                     required
@@ -111,11 +115,14 @@ export default function Register({
                                     placeholder="Jelszó újra"
                                     className="rounded-xl focus-visible:border-indigo-400 focus-visible:ring-indigo-400/50"
                                 />
-                                <InputError message={errors.password_confirmation} />
+                                <InputError
+                                    message={errors.password_confirmation}
+                                />
                             </div>
 
                             <p className="text-xs text-muted-foreground">
-                                Min. 12 karakter, nagy- és kisbetű, szám és speciális karakter (pl. !@#$%).
+                                Min. 12 karakter, nagy- és kisbetű, szám és
+                                speciális karakter (pl. !@#$%).
                             </p>
 
                             <div className="rounded-lg border border-border">
@@ -134,11 +141,15 @@ export default function Register({
                                 </button>
 
                                 {billingOpen && (
-                                    <div className="space-y-3 border-t border-border px-4 pb-4 pt-3">
+                                    <div className="space-y-3 border-t border-border px-4 pt-3 pb-4">
                                         <input
                                             type="hidden"
                                             name="billing_type"
-                                            value={isCompany ? 'company' : 'individual'}
+                                            value={
+                                                isCompany
+                                                    ? 'company'
+                                                    : 'individual'
+                                            }
                                         />
                                         <input
                                             type="hidden"
@@ -152,7 +163,11 @@ export default function Register({
                                                     type="checkbox"
                                                     className="rounded border-border"
                                                     checked={sameAsAccount}
-                                                    onChange={(e) => setSameAsAccount(e.target.checked)}
+                                                    onChange={(e) =>
+                                                        setSameAsAccount(
+                                                            e.target.checked,
+                                                        )
+                                                    }
                                                 />
                                                 Megegyezik a fióknévvel
                                             </label>
@@ -161,7 +176,11 @@ export default function Register({
                                                     type="checkbox"
                                                     className="rounded border-border"
                                                     checked={isCompany}
-                                                    onChange={(e) => setIsCompany(e.target.checked)}
+                                                    onChange={(e) =>
+                                                        setIsCompany(
+                                                            e.target.checked,
+                                                        )
+                                                    }
                                                 />
                                                 Cég vagyok
                                             </label>
@@ -176,35 +195,76 @@ export default function Register({
                                         ) : (
                                             <div className="grid gap-2">
                                                 <Label htmlFor="billing_name">
-                                                    {isCompany ? 'Cégnév' : 'Számlázási név'}
+                                                    {isCompany
+                                                        ? 'Cégnév'
+                                                        : 'Számlázási név'}
                                                 </Label>
                                                 <Input
                                                     id="billing_name"
                                                     name="billing_name"
-                                                    placeholder={isCompany ? 'Példa Kft.' : 'Kiss János'}
-                                                    autoComplete={isCompany ? 'organization' : 'name'}
+                                                    placeholder={
+                                                        isCompany
+                                                            ? 'Példa Kft.'
+                                                            : 'Kiss János'
+                                                    }
+                                                    autoComplete={
+                                                        isCompany
+                                                            ? 'organization'
+                                                            : 'name'
+                                                    }
                                                     className="rounded-xl focus-visible:border-indigo-400 focus-visible:ring-indigo-400/50"
                                                 />
-                                                <InputError message={errors.billing_name} />
+                                                <InputError
+                                                    message={
+                                                        errors.billing_name
+                                                    }
+                                                />
                                             </div>
                                         )}
 
                                         {isCompany && (
-                                            <div className="grid gap-2">
-                                                <Label htmlFor="billing_tax_number">Adószám</Label>
-                                                <Input
-                                                    id="billing_tax_number"
-                                                    name="billing_tax_number"
-                                                    placeholder="12345678-1-01"
-                                                className="rounded-xl focus-visible:border-indigo-400 focus-visible:ring-indigo-400/50"
-                                                />
-                                                <InputError message={errors.billing_tax_number} />
-                                            </div>
+                                            <>
+                                                <div className="grid gap-2">
+                                                    <Label htmlFor="billing_tax_number">
+                                                        Adószám
+                                                    </Label>
+                                                    <Input
+                                                        id="billing_tax_number"
+                                                        name="billing_tax_number"
+                                                        placeholder="12345678-1-01"
+                                                        className="rounded-xl focus-visible:border-indigo-400 focus-visible:ring-indigo-400/50"
+                                                    />
+                                                    <InputError
+                                                        message={
+                                                            errors.billing_tax_number
+                                                        }
+                                                    />
+                                                </div>
+
+                                                <div className="grid gap-2">
+                                                    <Label htmlFor="billing_company_registration_number">
+                                                        Cégjegyzékszám
+                                                    </Label>
+                                                    <Input
+                                                        id="billing_company_registration_number"
+                                                        name="billing_company_registration_number"
+                                                        placeholder="01-09-999999"
+                                                        className="rounded-xl focus-visible:border-indigo-400 focus-visible:ring-indigo-400/50"
+                                                    />
+                                                    <InputError
+                                                        message={
+                                                            errors.billing_company_registration_number
+                                                        }
+                                                    />
+                                                </div>
+                                            </>
                                         )}
 
                                         <div className="grid grid-cols-3 gap-3">
                                             <div className="col-span-1 grid gap-2">
-                                                <Label htmlFor="billing_zip">Irányítószám</Label>
+                                                <Label htmlFor="billing_zip">
+                                                    Irányítószám
+                                                </Label>
                                                 <Input
                                                     id="billing_zip"
                                                     name="billing_zip"
@@ -212,10 +272,14 @@ export default function Register({
                                                     autoComplete="postal-code"
                                                     className="rounded-xl focus-visible:border-indigo-400 focus-visible:ring-indigo-400/50"
                                                 />
-                                                <InputError message={errors.billing_zip} />
+                                                <InputError
+                                                    message={errors.billing_zip}
+                                                />
                                             </div>
                                             <div className="col-span-2 grid gap-2">
-                                                <Label htmlFor="billing_city">Város</Label>
+                                                <Label htmlFor="billing_city">
+                                                    Város
+                                                </Label>
                                                 <Input
                                                     id="billing_city"
                                                     name="billing_city"
@@ -223,12 +287,18 @@ export default function Register({
                                                     autoComplete="address-level2"
                                                     className="rounded-xl focus-visible:border-indigo-400 focus-visible:ring-indigo-400/50"
                                                 />
-                                                <InputError message={errors.billing_city} />
+                                                <InputError
+                                                    message={
+                                                        errors.billing_city
+                                                    }
+                                                />
                                             </div>
                                         </div>
 
                                         <div className="grid gap-2">
-                                            <Label htmlFor="billing_address">Utca, házszám</Label>
+                                            <Label htmlFor="billing_address">
+                                                Utca, házszám
+                                            </Label>
                                             <Input
                                                 id="billing_address"
                                                 name="billing_address"
@@ -236,7 +306,25 @@ export default function Register({
                                                 autoComplete="street-address"
                                                 className="rounded-xl focus-visible:border-indigo-400 focus-visible:ring-indigo-400/50"
                                             />
-                                            <InputError message={errors.billing_address} />
+                                            <InputError
+                                                message={errors.billing_address}
+                                            />
+                                        </div>
+
+                                        <div className="grid gap-2">
+                                            <Label htmlFor="billing_phone">
+                                                Telefonszám
+                                            </Label>
+                                            <Input
+                                                id="billing_phone"
+                                                name="billing_phone"
+                                                placeholder="+36301234567"
+                                                autoComplete="tel"
+                                                className="rounded-xl focus-visible:border-indigo-400 focus-visible:ring-indigo-400/50"
+                                            />
+                                            <InputError
+                                                message={errors.billing_phone}
+                                            />
                                         </div>
                                     </div>
                                 )}
