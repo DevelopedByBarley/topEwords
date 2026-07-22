@@ -46,6 +46,7 @@ import {
     register,
     terms,
 } from '@/routes';
+import { show as showDownload } from '@/routes/downloads';
 import { index as wordsIndex } from '@/routes/words';
 
 type Status = 'Tudom' | 'Tanulom' | 'Később' | 'Kiejtés' | 'Gyakorlásra';
@@ -294,7 +295,7 @@ const FREE_PLAN = [
     '10 000 szavas szólista',
     'Flashcard SRS, saját deck-ek',
     'Kvíz és mondatkiegészítés',
-    'Chrome-bővítmény',
+    'Chrome-bővítmény, napi kerettel',
     'AI-kóstoló havi kerettel',
 ];
 
@@ -1851,7 +1852,7 @@ export default function Welcome({
                                         {auth.user ? (
                                             <div className="mt-4 flex flex-col gap-2.25">
                                                 <a
-                                                    href="/downloads/topwords-extension.zip"
+                                                    href={showDownload('extension').url}
                                                     download
                                                     className="inline-flex items-center gap-2 rounded-xl bg-white px-4.5 py-2.75 text-sm font-bold text-indigo-800 shadow-md transition-all hover:-translate-y-0.5"
                                                 >
@@ -1860,7 +1861,7 @@ export default function Welcome({
                                                 </a>
                                                 <div className="flex flex-wrap gap-2.25">
                                                     <a
-                                                        href="/downloads/topwords-player-mac.dmg"
+                                                        href={showDownload('player-mac').url}
                                                         download
                                                         className="inline-flex items-center gap-2 rounded-xl border border-white/25 bg-white/[0.08] px-4.5 py-2.75 text-sm font-semibold text-white transition-all hover:-translate-y-0.5 hover:bg-white/[0.18]"
                                                     >
@@ -1868,7 +1869,7 @@ export default function Welcome({
                                                         Player – macOS (.dmg)
                                                     </a>
                                                     <a
-                                                        href="/downloads/topwords-player-win.exe"
+                                                        href={showDownload('player-win').url}
                                                         download
                                                         className="inline-flex items-center gap-2 rounded-xl border border-white/25 bg-white/[0.08] px-4.5 py-2.75 text-sm font-semibold text-white transition-all hover:-translate-y-0.5 hover:bg-white/[0.18]"
                                                     >

@@ -7,13 +7,17 @@ import {
     ChevronLeft,
     ChevronRight,
     Circle,
+    Download,
     Keyboard,
     Layers,
+    Link2,
     Menu,
     Monitor,
+    MonitorPlay,
     Moon,
     MousePointerClick,
     PencilLine,
+    Play,
     Plus,
     Repeat,
     RotateCw,
@@ -28,6 +32,7 @@ import { useState } from 'react';
 import { STATUS_CONFIG } from '@/components/words/types';
 import type { Appearance } from '@/hooks/use-appearance';
 import { useAppearance } from '@/hooks/use-appearance';
+import { show as showDownload } from '@/routes/downloads';
 import { complete as onboardingComplete } from '@/routes/onboarding';
 
 interface Word {
@@ -260,6 +265,46 @@ function ExtensionVisual() {
     );
 }
 
+function PlayerVisual() {
+    const subtitleWords = [
+        { t: 'The' },
+        { t: 'crew' },
+        { t: 'finally', status: 'learning' },
+        { t: 'reached' },
+        { t: 'the' },
+        { t: 'summit.', status: 'saved' },
+    ];
+
+    return (
+        <div className="rounded-2xl border bg-muted/30 p-4">
+            <div className="relative mx-auto mb-3 flex aspect-video max-w-sm items-center justify-center overflow-hidden rounded-2xl border bg-slate-900">
+                <div className="flex size-12 items-center justify-center rounded-full bg-white/15">
+                    <Play className="ml-0.5 size-5 fill-white text-white" />
+                </div>
+                <div className="absolute bottom-2 left-0 right-0 px-2 text-center text-xs font-medium text-white">
+                    {subtitleWords.map((w, i) => (
+                        <span key={i}>
+                            {w.status ? (
+                                <span
+                                    className={`rounded px-1 ${statusEntry(w.status).pillActive}`}
+                                >
+                                    {w.t}
+                                </span>
+                            ) : (
+                                w.t
+                            )}{' '}
+                        </span>
+                    ))}
+                </div>
+            </div>
+            <div className="flex items-center justify-center gap-2 text-xs font-medium text-muted-foreground">
+                <MonitorPlay className="size-4 text-primary" />
+                Mac & Windows asztali app
+            </div>
+        </div>
+    );
+}
+
 const FEATURE_SLIDES = [
     {
         id: 'vocab',
@@ -363,6 +408,25 @@ const FEATURE_SLIDES = [
                 Icon: Youtube,
                 title: 'YouTube és Netflix feliratok',
                 desc: 'Elemezd a videók és sorozatok feliratát, és nézd meg, mennyit értenél belőle a szókincseddel.',
+            },
+        ],
+    },
+    {
+        id: 'player',
+        title: 'Nézz filmeket a saját tempódban',
+        subtitle:
+            'A topwords Player asztali app helyi videókhoz — a felirat szavai a státuszaid szerint színeződnek.',
+        Visual: PlayerVisual,
+        features: [
+            {
+                Icon: MonitorPlay,
+                title: 'Mac & Windows asztali app',
+                desc: 'Játssz le bármilyen helyi videófájlt úgy, hogy a felirat szavai a szólistád státuszai szerint kiszínezve jelennek meg.',
+            },
+            {
+                Icon: Link2,
+                title: 'Gyors párosítás',
+                desc: 'A lejátszóban megjelenő kóddal kötheted össze a fiókodat — jelszó soha nem kerül a lejátszóba, a párosítás a Beállításokban hagyható jóvá.',
             },
         ],
     },
@@ -758,6 +822,27 @@ export default function Onboarding({
                                             ),
                                         )}
                                     </div>
+
+                                    {slide.id === 'player' && (
+                                        <div className="mb-6 flex flex-wrap justify-center gap-2.5">
+                                            <a
+                                                href={showDownload('player-mac').url}
+                                                download
+                                                className="inline-flex items-center gap-2 rounded-xl border px-4.5 py-2.75 text-sm font-semibold transition-colors hover:bg-accent"
+                                            >
+                                                <Download className="size-4" />
+                                                Player – macOS (.dmg)
+                                            </a>
+                                            <a
+                                                href={showDownload('player-win').url}
+                                                download
+                                                className="inline-flex items-center gap-2 rounded-xl border px-4.5 py-2.75 text-sm font-semibold transition-colors hover:bg-accent"
+                                            >
+                                                <Download className="size-4" />
+                                                Player – Windows (.exe)
+                                            </a>
+                                        </div>
+                                    )}
 
                                     <div className="flex gap-3">
                                         <button

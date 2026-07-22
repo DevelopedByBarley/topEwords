@@ -110,6 +110,13 @@ export default function OnboardingTour() {
                             'Telepítsd a Chrome bővítményt, és bármely weboldalon egyetlen kattintással vagy a Ctrl+Shift+F (Mac: ⌘⇧F) gyorsbillentyűvel kereshetsz szavakat. Azonnal látod a fordítást, a státuszt, és közvetlenül a böngészőből adhatod hozzá a szót a szótárhoz. Tökéletes olvasáshoz és böngészés közbeni tanuláshoz!',
                     },
                 },
+                {
+                    popover: {
+                        title: '🖥️ topwords Player',
+                        description:
+                            'Töltsd le az asztali lejátszót (Mac és Windows), és nézz helyi videófájlokat úgy, hogy a felirat szavai a szólista-státuszaid szerint színeződnek. A Beállítások → Lejátszó összekötése oldalon egy kóddal párosíthatod a fiókodat.',
+                    },
+                },
         ];
 
         const steps = allSteps.filter(

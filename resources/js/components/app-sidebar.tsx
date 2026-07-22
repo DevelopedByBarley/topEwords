@@ -1,6 +1,7 @@
 import { Link, usePage } from '@inertiajs/react';
 import {
     BookOpen,
+    Download,
     FolderOpen,
     Globe,
     LayoutGrid,
@@ -9,7 +10,6 @@ import {
     Medal,
     NotebookPen,
     PenLine,
-    Puzzle,
     ScanText,
     Shuffle,
     Sparkles,
@@ -31,9 +31,9 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { useCurrentUrl } from '@/hooks/use-current-url';
-import { useExtensionInstalled } from '@/hooks/use-extension-installed';
 import { dashboard } from '@/routes';
 import { index as achievementsIndex } from '@/routes/achievements';
+import { index as downloadsIndex } from '@/routes/downloads';
 import { index as flashcardsIndex } from '@/routes/flashcards';
 import { index as irregularVerbsIndex } from '@/routes/irregular-verbs';
 import { show as textAnalysisShow } from '@/routes/text-analysis';
@@ -132,6 +132,11 @@ const navGroups: { label?: string; items: NavItem[] }[] = [
                 href: '/handbook',
                 icon: BookOpen,
             },
+            {
+                title: 'Letöltések',
+                href: downloadsIndex(),
+                icon: Download,
+            },
         ],
     },
 ];
@@ -148,7 +153,6 @@ export function AppSidebar() {
     const { url, props } = usePage() as any;
     const { isCurrentUrl } = useCurrentUrl();
     const isAdmin: boolean = (props as any)?.auth?.isAdmin ?? false;
-    const extensionInstalled = useExtensionInstalled();
     const isOnWordsPage =
         url.startsWith(wordsIndex.url()) &&
         !url.startsWith(wordsQuiz.url()) &&
@@ -279,28 +283,6 @@ export function AppSidebar() {
                     label={navGroups[3].label}
                     items={navGroups[3].items}
                 />
-
-                {extensionInstalled === false && (
-                    <SidebarGroup className="hidden px-2 py-0 pb-2 md:block">
-                        <SidebarMenu>
-                            <SidebarMenuItem>
-                                <SidebarMenuButton
-                                    asChild
-                                    tooltip={{
-                                        children: 'Bővítmény telepítése',
-                                    }}
-                                    className="text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700 dark:text-indigo-400 dark:hover:bg-indigo-950/20 dark:hover:text-indigo-300"
-                                >
-                                    <Link href="/handbook#extension">
-                                        <Puzzle className="animate-pulse" />
-                                        <span>Bővítmény telepítése</span>
-                                        <span className="ml-auto size-2 animate-pulse rounded-full bg-indigo-500 group-data-[collapsible=icon]:hidden" />
-                                    </Link>
-                                </SidebarMenuButton>
-                            </SidebarMenuItem>
-                        </SidebarMenu>
-                    </SidebarGroup>
-                )}
             </SidebarContent>
 
             <SidebarFooter>

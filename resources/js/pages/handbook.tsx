@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import ChromeExtensionsLink from '@/components/chrome-extensions-link';
+import { show as showDownload } from '@/routes/downloads';
 
 const sections = [
     { id: 'attekintes', label: 'Áttekintés', icon: LayoutGrid },
@@ -1409,11 +1410,23 @@ export default function Handbook() {
                                 — így a szótanulás beépül a mindennapi
                                 böngészésedbe:
                             </P>
+                            <InfoBox type="info">
+                                A bővítmény telepítése és használata (keresés,
+                                fordítás, felirat-kiemelés, YouTube/Netflix
+                                átirat) mindenkinek elérhető, Ingyenes
+                                csomaggal is. Csak a{' '}
+                                <strong>
+                                    bővítményből indított írások
+                                </strong>{' '}
+                                (új szó/flashcard felvétele, státusz
+                                módosítása) esnek közös napi keretbe Ingyenes
+                                csomagnál — Pro csomaggal ez is korlátlan.
+                            </InfoBox>
                             <div className="rounded-2xl border-2 border-indigo-200 bg-linear-to-br from-indigo-50 to-blue-50/80 p-5 dark:border-indigo-800/60 dark:from-indigo-950/30 dark:to-blue-950/10">
                                 <div className="mb-4 flex items-center gap-2">
                                     <Star className="size-4 text-indigo-600 dark:text-indigo-400" />
                                     <span className="text-sm font-bold tracking-wide text-indigo-700 uppercase dark:text-indigo-300">
-                                        Prémium funkciók
+                                        Bővített funkciók
                                     </span>
                                 </div>
                                 <div className="grid gap-4 sm:grid-cols-2">
@@ -1423,7 +1436,6 @@ export default function Handbook() {
                                                 <Youtube className="size-4" />
                                             </div>
                                             <span className="font-semibold">YouTube</span>
-                                            <PremiumBadge />
                                         </div>
                                         <P>
                                             Videók nézése közben a feliratokat
@@ -1474,7 +1486,6 @@ export default function Handbook() {
                                                 <Tv2 className="size-4" />
                                             </div>
                                             <span className="font-semibold">Netflix</span>
-                                            <PremiumBadge />
                                         </div>
                                         <P>
                                             Netflix-nézés közben a feliratokat
@@ -1563,7 +1574,7 @@ export default function Handbook() {
                                     <div className="relative inline-flex">
                                         <span className="pointer-events-none absolute inset-0 animate-ping rounded-lg bg-primary opacity-40" />
                                         <a
-                                            href="/downloads/topwords-extension.zip"
+                                            href={showDownload('extension').url}
                                             download
                                             className="relative inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
                                         >
@@ -1801,6 +1812,46 @@ export default function Handbook() {
                                 Chrome bővítmény YouTube/Netflix-élményéhez
                                 hasonlóan, de helyi videófájlokra.
                             </P>
+
+                            <div className="mb-4 flex flex-wrap gap-2">
+                                <a
+                                    href={showDownload('player-mac').url}
+                                    download
+                                    className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+                                >
+                                    <Download className="size-4" />
+                                    Player letöltése – macOS (.dmg)
+                                </a>
+                                <a
+                                    href={showDownload('player-win').url}
+                                    download
+                                    className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+                                >
+                                    <Download className="size-4" />
+                                    Player letöltése – Windows (.exe)
+                                </a>
+                            </div>
+
+                            <Sub title="Első megnyitás macOS-en">
+                                <P>
+                                    A béta időszak alatt a lejátszó még nincs
+                                    hitelesítve az Apple által (nincs
+                                    Developer ID aláírás), ezért macOS
+                                    letöltés után figyelmeztetést mutat.
+                                </P>
+                                <InfoBox type="info">
+                                    Nyisd meg a{' '}
+                                    <strong>
+                                        Rendszerbeállítások → Adatvédelem és
+                                        biztonság
+                                    </strong>{' '}
+                                    oldalt, görgess le a „Biztonság" részhez,
+                                    és a Topwords Player üzenete mellett
+                                    kattints a{' '}
+                                    <strong>„Megnyitás mindenképp"</strong>{' '}
+                                    gombra.
+                                </InfoBox>
+                            </Sub>
 
                             <Sub title="Fiók összekötése">
                                 <Steps

@@ -3,6 +3,7 @@
 use App\Http\Controllers\AchievementController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DownloadController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\PlayerPairingController;
 use App\Http\Controllers\PricingController;
@@ -58,6 +59,14 @@ Route::middleware(['auth', 'verified', 'can:admin'])->group(function () {
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('player/connect', [PlayerPairingController::class, 'connect'])->name('player.connect');
     Route::post('player/connect', [PlayerPairingController::class, 'approve'])->name('player.approve')->middleware('throttle:10,1,player-approve');
+});
+
+// ── Letöltések (bővítmény, desktop lejátszó) ──────────────────────────────────
+// Auth mögé zárva: a fájlok a private diskről jönnek, nincs publikus URL-jük.
+
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::inertia('downloads', 'downloads')->name('downloads.index');
+    Route::get('downloads/{file}', [DownloadController::class, 'show'])->name('downloads.show')->middleware('throttle:20,1,downloads');
 });
 
 // ── Onboarding, dashboard, eredmények ─────────────────────────────────────────

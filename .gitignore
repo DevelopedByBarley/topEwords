@@ -33,9 +33,9 @@ yarn-error.log
 
 # Chrome extension build artifacts
 chrome-extension/*.zip
-# Player desktop builds (100+ MB each) — served from public/downloads on the
-# VPS, uploaded out-of-band, never committed to the repo.
-public/downloads/topwords-player-*.dmg
-public/downloads/topwords-player-*.exe
+# Player desktop builds (100+ MB each) — served from an auth-gated route via
+# storage/app/private/downloads on the VPS, uploaded out-of-band, never committed to the repo.
+storage/app/private/downloads/topwords-player-*.dmg
+storage/app/private/downloads/topwords-player-*.exe
 backup
 claude-memory
