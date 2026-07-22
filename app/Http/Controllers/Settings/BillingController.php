@@ -16,7 +16,8 @@ class BillingController extends Controller
         return Inertia::render('settings/billing', [
             'billingData' => $request->user()->only([
                 'billing_name', 'billing_tax_number', 'billing_country',
-                'billing_zip', 'billing_city', 'billing_address', 'billing_type',
+                'billing_zip', 'billing_city', 'billing_address', 'billing_phone',
+                'billing_company_registration_number', 'billing_type',
             ]),
         ]);
     }
@@ -30,6 +31,7 @@ class BillingController extends Controller
         // a DB-ben. Explicit nullázzuk, hogy régi cégadat ne ragadjon a fiókon.
         if (($data['billing_type'] ?? null) === 'individual') {
             $data['billing_tax_number'] = null;
+            $data['billing_company_registration_number'] = null;
         }
 
         $request->user()->fill($data)->save();

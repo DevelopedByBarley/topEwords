@@ -412,10 +412,23 @@ test('hasBillingDetails requires a tax number for company billing', function () 
     $company = User::factory()->withBilling()->create([
         'billing_type' => 'company',
         'billing_tax_number' => null,
+        'billing_company_registration_number' => '01-09-999999',
     ]);
     expect($company->hasBillingDetails())->toBeFalse();
 
     $company->billing_tax_number = '12345678-1-01';
+    expect($company->hasBillingDetails())->toBeTrue();
+});
+
+test('hasBillingDetails requires a company registration number for company billing', function () {
+    $company = User::factory()->withBilling()->create([
+        'billing_type' => 'company',
+        'billing_tax_number' => '12345678-1-01',
+        'billing_company_registration_number' => null,
+    ]);
+    expect($company->hasBillingDetails())->toBeFalse();
+
+    $company->billing_company_registration_number = '01-09-999999';
     expect($company->hasBillingDetails())->toBeTrue();
 });
 

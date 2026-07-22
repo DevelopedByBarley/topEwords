@@ -1060,7 +1060,7 @@ export default function Welcome({
                                         </div>
 
                                         <div className="relative mx-auto max-w-[900px]">
-                                            <div className="relative aspect-[3/5] overflow-hidden rounded-[18px] bg-[#0b0b12] shadow-[0_30px_70px_rgba(0,0,0,.36)] sm:aspect-video">
+                                            <div className="relative aspect-[3/6] overflow-hidden rounded-[18px] bg-[#0b0b12] shadow-[0_30px_70px_rgba(0,0,0,.36)] sm:aspect-video">
                                                 <div className="absolute top-3.5 left-3.5 z-3 flex gap-2">
                                                     <span className="inline-flex items-center gap-1.25 rounded-lg bg-[#e50914] px-2.75 py-1.25 text-xs font-bold text-white">
                                                         <Film size={15} />

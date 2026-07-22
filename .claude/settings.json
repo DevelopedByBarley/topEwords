@@ -350,7 +350,8 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost/)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://topEwords.test)",
       "Bash(curl -s http://localhost:8000/)",
-      "Bash(curl -s -L http://localhost:8000/ -o /tmp/w.html -w \"%{http_code}\\\\n\")"
+      "Bash(curl -s -L http://localhost:8000/ -o /tmp/w.html -w \"%{http_code}\\\\n\")",
+      "Bash(git -C /Applications/XAMPP/xamppfiles/htdocs/topEwords log -1 --format=%ad -- CLAUDE.md)"
     ],
     "additionalDirectories": [
       "/private/tmp",

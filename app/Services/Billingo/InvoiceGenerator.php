@@ -256,9 +256,17 @@ class InvoiceGenerator
             'emails' => [$user->email],
         ];
 
-        // Adószám csak cégnél kötelező/értelmes — magánszemélynél nem küldjük.
+        if ($user->billing_phone) {
+            $payload['phone'] = $user->billing_phone;
+        }
+
+        // Adószám és cégjegyzékszám csak cégnél kötelező/értelmes — magánszemélynél nem küldjük.
         if ($user->billing_type === 'company' && $user->billing_tax_number) {
             $payload['taxcode'] = $user->billing_tax_number;
+        }
+
+        if ($user->billing_type === 'company' && $user->billing_company_registration_number) {
+            $payload['registration_number'] = $user->billing_company_registration_number;
         }
 
         return $payload;

@@ -21,6 +21,8 @@ test('billing details can be updated', function () {
             'billing_zip' => '1234',
             'billing_city' => 'Budapest',
             'billing_address' => 'Kossuth Lajos utca 1.',
+            'billing_phone' => '+36301234567',
+            'billing_company_registration_number' => '01-09-999999',
             'billing_type' => 'company',
         ])
         ->assertSessionHasNoErrors()
@@ -34,13 +36,15 @@ test('billing details can be updated', function () {
         ->and($user->billing_zip)->toBe('1234')
         ->and($user->billing_city)->toBe('Budapest')
         ->and($user->billing_address)->toBe('Kossuth Lajos utca 1.')
+        ->and($user->billing_phone)->toBe('+36301234567')
+        ->and($user->billing_company_registration_number)->toBe('01-09-999999')
         ->and($user->billing_type)->toBe('company');
 });
 
 test('billing update requires the fields the checkout gatekeeper checks', function () {
     $user = User::factory()->create();
 
-    // Csak country + type — a hasBillingDetails() által vizsgált 4 mező hiányzik.
+    // Csak country + type — a hasBillingDetails() által vizsgált mezők hiányoznak.
     // A korábbi viselkedés ezt hibátlanul elmentette, így a checkout kapuőr
     // visszadobta a usert ide (kijuthatatlan hurok). Most validációs hibát kell adnia.
     $this->actingAs($user)
@@ -53,6 +57,7 @@ test('billing update requires the fields the checkout gatekeeper checks', functi
             'billing_zip',
             'billing_city',
             'billing_address',
+            'billing_phone',
         ]);
 
     expect($user->refresh()->hasBillingDetails())->toBeFalse();
@@ -68,13 +73,33 @@ test('company billing requires a tax number', function () {
             'billing_zip' => '1234',
             'billing_city' => 'Budapest',
             'billing_address' => 'Kossuth Lajos utca 1.',
+            'billing_phone' => '+36301234567',
+            'billing_company_registration_number' => '01-09-999999',
             'billing_type' => 'company',
             // billing_tax_number szándékosan hiányzik
         ])
         ->assertSessionHasErrors('billing_tax_number');
 });
 
-test('individual billing does not require a tax number', function () {
+test('company billing requires a company registration number', function () {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->put(route('billing.update'), [
+            'billing_name' => 'Példa Kft.',
+            'billing_tax_number' => '12345678-1-01',
+            'billing_country' => 'HU',
+            'billing_zip' => '1234',
+            'billing_city' => 'Budapest',
+            'billing_address' => 'Kossuth Lajos utca 1.',
+            'billing_phone' => '+36301234567',
+            'billing_type' => 'company',
+            // billing_company_registration_number szándékosan hiányzik
+        ])
+        ->assertSessionHasErrors('billing_company_registration_number');
+});
+
+test('individual billing does not require a tax number or company registration number', function () {
     $user = User::factory()->create();
 
     $this->actingAs($user)
@@ -84,19 +109,21 @@ test('individual billing does not require a tax number', function () {
             'billing_zip' => '1234',
             'billing_city' => 'Budapest',
             'billing_address' => 'Kossuth Lajos utca 1.',
+            'billing_phone' => '+36301234567',
             'billing_type' => 'individual',
         ])
         ->assertSessionHasNoErrors();
 });
 
-test('switching from company to individual clears the stored tax number', function () {
+test('switching from company to individual clears the stored tax number and registration number', function () {
     $user = User::factory()->create([
         'billing_type' => 'company',
         'billing_tax_number' => '12345678-1-01',
+        'billing_company_registration_number' => '01-09-999999',
     ]);
 
-    // Egyénire váltva a company-only adószámmező a UI-ban unmountol, így be sem
-    // érkezik — a régi adószámnak mégsem szabad a fiókon ragadnia.
+    // Egyénire váltva a company-only mezők a UI-ban unmountolnak, így be sem
+    // érkeznek — a régi adatoknak mégsem szabad a fiókon ragadniuk.
     $this->actingAs($user)
         ->put(route('billing.update'), [
             'billing_name' => 'Kiss János',
@@ -104,11 +131,13 @@ test('switching from company to individual clears the stored tax number', functi
             'billing_zip' => '1234',
             'billing_city' => 'Budapest',
             'billing_address' => 'Kossuth Lajos utca 1.',
+            'billing_phone' => '+36301234567',
             'billing_type' => 'individual',
         ])
         ->assertSessionHasNoErrors();
 
     expect($user->refresh()->billing_tax_number)->toBeNull()
+        ->and($user->billing_company_registration_number)->toBeNull()
         ->and($user->billing_type)->toBe('individual');
 });
 
@@ -123,9 +152,29 @@ test('a malformed tax number is rejected', function () {
             'billing_zip' => '1234',
             'billing_city' => 'Budapest',
             'billing_address' => 'Kossuth Lajos utca 1.',
+            'billing_phone' => '+36301234567',
+            'billing_company_registration_number' => '01-09-999999',
             'billing_type' => 'company',
         ])
         ->assertSessionHasErrors('billing_tax_number');
+});
+
+test('a malformed company registration number is rejected', function () {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->put(route('billing.update'), [
+            'billing_name' => 'Példa Kft.',
+            'billing_tax_number' => '12345678-1-01',
+            'billing_country' => 'HU',
+            'billing_zip' => '1234',
+            'billing_city' => 'Budapest',
+            'billing_address' => 'Kossuth Lajos utca 1.',
+            'billing_phone' => '+36301234567',
+            'billing_company_registration_number' => '999999', // hibás formátum
+            'billing_type' => 'company',
+        ])
+        ->assertSessionHasErrors('billing_company_registration_number');
 });
 
 test('an individual may not submit a tax number', function () {
@@ -140,9 +189,27 @@ test('an individual may not submit a tax number', function () {
             'billing_zip' => '1234',
             'billing_city' => 'Budapest',
             'billing_address' => 'Kossuth Lajos utca 1.',
+            'billing_phone' => '+36301234567',
             'billing_type' => 'individual',
         ])
         ->assertSessionHasErrors('billing_tax_number');
+});
+
+test('an individual may not submit a company registration number', function () {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->put(route('billing.update'), [
+            'billing_name' => 'Kiss János',
+            'billing_company_registration_number' => '01-09-999999',
+            'billing_country' => 'HU',
+            'billing_zip' => '1234',
+            'billing_city' => 'Budapest',
+            'billing_address' => 'Kossuth Lajos utca 1.',
+            'billing_phone' => '+36301234567',
+            'billing_type' => 'individual',
+        ])
+        ->assertSessionHasErrors('billing_company_registration_number');
 });
 
 test('a non-numeric zip is rejected', function () {
@@ -155,9 +222,41 @@ test('a non-numeric zip is rejected', function () {
             'billing_zip' => '12A4',
             'billing_city' => 'Budapest',
             'billing_address' => 'Kossuth Lajos utca 1.',
+            'billing_phone' => '+36301234567',
             'billing_type' => 'individual',
         ])
         ->assertSessionHasErrors('billing_zip');
+});
+
+test('a missing phone number is rejected', function () {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->put(route('billing.update'), [
+            'billing_name' => 'Kiss János',
+            'billing_country' => 'HU',
+            'billing_zip' => '1234',
+            'billing_city' => 'Budapest',
+            'billing_address' => 'Kossuth Lajos utca 1.',
+            'billing_type' => 'individual',
+        ])
+        ->assertSessionHasErrors('billing_phone');
+});
+
+test('a malformed phone number is rejected', function () {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->put(route('billing.update'), [
+            'billing_name' => 'Kiss János',
+            'billing_country' => 'HU',
+            'billing_zip' => '1234',
+            'billing_city' => 'Budapest',
+            'billing_address' => 'Kossuth Lajos utca 1.',
+            'billing_phone' => 'nem-telefonszám!!',
+            'billing_type' => 'individual',
+        ])
+        ->assertSessionHasErrors('billing_phone');
 });
 
 test('control characters in billing name are rejected', function () {
@@ -170,6 +269,7 @@ test('control characters in billing name are rejected', function () {
             'billing_zip' => '1234',
             'billing_city' => 'Budapest',
             'billing_address' => 'Kossuth Lajos utca 1.',
+            'billing_phone' => '+36301234567',
             'billing_type' => 'individual',
         ])
         ->assertSessionHasErrors('billing_name');
@@ -185,6 +285,7 @@ test('an unsupported country code is rejected', function () {
             'billing_zip' => '1234',
             'billing_city' => 'Budapest',
             'billing_address' => 'Fő utca 1.',
+            'billing_phone' => '+36301234567',
             'billing_type' => 'individual',
         ])
         ->assertSessionHasErrors('billing_country');
@@ -200,6 +301,7 @@ test('the country code is normalized to uppercase', function () {
             'billing_zip' => '1234',
             'billing_city' => 'Budapest',
             'billing_address' => 'Fő utca 1.',
+            'billing_phone' => '+36301234567',
             'billing_type' => 'individual',
         ])
         ->assertSessionHasNoErrors();
@@ -217,6 +319,7 @@ test('saved billing details satisfy the checkout gatekeeper (no redirect loop)',
             'billing_zip' => '1234',
             'billing_city' => 'Budapest',
             'billing_address' => 'Kossuth Lajos utca 1.',
+            'billing_phone' => '+36301234567',
             'billing_type' => 'individual',
         ])
         ->assertSessionHasNoErrors()

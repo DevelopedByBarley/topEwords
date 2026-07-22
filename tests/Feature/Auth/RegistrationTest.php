@@ -70,10 +70,12 @@ test('registration accepts a company with a valid tax number', function () {
         'password_confirmation' => 'password',
         'billing_type' => 'company',
         'billing_tax_number' => '12345678-1-01',
+        'billing_company_registration_number' => '01-09-999999',
         'billing_country' => 'HU',
         'billing_zip' => '1234',
         'billing_city' => 'Budapest',
         'billing_address' => 'Fő utca 1.',
+        'billing_phone' => '+36301234567',
     ]);
 
     $response->assertSessionHasNoErrors();

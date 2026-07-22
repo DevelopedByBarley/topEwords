@@ -20,6 +20,8 @@ import {
     Download,
     Tv2,
     Youtube,
+    MonitorPlay,
+    CreditCard,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import ChromeExtensionsLink from '@/components/chrome-extensions-link';
@@ -38,6 +40,8 @@ const sections = [
     { id: 'irregular', label: 'Rendhagyó igék', icon: GitBranch },
     { id: 'teljesitmenyek', label: 'Teljesítmények', icon: Award },
     { id: 'extension', label: 'Chrome bővítmény', icon: Chrome },
+    { id: 'player', label: 'Desktop lejátszó', icon: MonitorPlay },
+    { id: 'elofizetes', label: 'Előfizetés & számlázás', icon: CreditCard },
 ];
 
 function Section({
@@ -392,6 +396,11 @@ export default function Handbook() {
                                         icon: Chrome,
                                         title: 'Chrome bővítmény',
                                         desc: 'Azonnali fordítás bármely weboldalon',
+                                    },
+                                    {
+                                        icon: MonitorPlay,
+                                        title: 'Desktop lejátszó',
+                                        desc: 'Videók felirat-kiemeléssel a szólistád szerint',
                                     },
                                 ]}
                             />
@@ -1776,6 +1785,120 @@ export default function Handbook() {
                                 Chrome 88+ és Chromium alapú böngészőkben (Edge,
                                 Brave, Arc) is működik.
                             </InfoBox>
+                        </Section>
+
+                        {/* ── Desktop lejátszó ── */}
+                        <Section
+                            id="player"
+                            title="Desktop lejátszó (topwords Player)"
+                            icon={MonitorPlay}
+                        >
+                            <P>
+                                A topwords Player egy külön asztali alkalmazás
+                                (Mac és Windows), amellyel videókat játszhatsz
+                                le úgy, hogy a feliratok szavai a saját
+                                szólistád státuszai szerint színeződnek — a
+                                Chrome bővítmény YouTube/Netflix-élményéhez
+                                hasonlóan, de helyi videófájlokra.
+                            </P>
+
+                            <Sub title="Fiók összekötése">
+                                <Steps
+                                    items={[
+                                        'Nyisd meg a topwords Playert — a program felkínál egy párosító kódot.',
+                                        'A lejátszó megnyitja a rendszer-böngésződet ezen az oldalon (Beállítások → Lejátszó összekötése).',
+                                        'Írd be kézzel a lejátszóban látott kódot, majd kattints az "Összekötés jóváhagyása" gombra.',
+                                        'A jóváhagyás után a lejátszó pár másodpercen belül automatikusan bejelentkezik.',
+                                    ]}
+                                />
+                                <InfoBox type="warning">
+                                    Csak a <strong>saját lejátszódban</strong>{' '}
+                                    megjelenő kódot írd be. A kódot szándékosan
+                                    nem lehet linkkel előre kitölteni, hogy egy
+                                    kapott linkkel senki ne tudjon idegen
+                                    párosítást jóváhagyatni — a jóváhagyás
+                                    mindig a te bejelentkezett munkameneteddel
+                                    történik, jelszó soha nem kerül a lejátszóba.
+                                </InfoBox>
+                            </Sub>
+
+                            <Sub title="Mit tud a lejátszó?">
+                                <Ul
+                                    items={[
+                                        'Feliratos videók lejátszása, a szavak a szólista-státuszaid szerint kiszínezve (zöld/kék/narancs/lila/piros)',
+                                        'A párosítási token 90 napig érvényes — ezután újra össze kell kötni a fiókodat',
+                                        'A jelentés és a státuszkezelés a lejátszóból ugyanúgy elérhető, mint a bővítményben',
+                                    ]}
+                                />
+                            </Sub>
+                        </Section>
+
+                        {/* ── Előfizetés & számlázás ── */}
+                        <Section
+                            id="elofizetes"
+                            title="Előfizetés & számlázás"
+                            icon={CreditCard}
+                        >
+                            <P>
+                                A TopWords ingyenes és Prémium csomagban
+                                érhető el. Az ingyenes csomag korlátozott napi
+                                és havi keretekkel (kevesebb flashcard/szólista,
+                                alacsonyabb napi szövegelemzési és AI-keret),
+                                Prémiummal ezek a korlátok feloldódnak, és a
+                                teljes AI-funkcionalitás elérhetővé válik.
+                            </P>
+
+                            <Sub title="Előfizetés kezelése">
+                                <P>
+                                    A <strong>Beállítások → Előfizetés</strong>{' '}
+                                    oldalon látod az aktuális csomagodat, az
+                                    AI-kereted felhasználását és a fizetési
+                                    módodat.
+                                </P>
+                                <Table
+                                    headers={['Művelet', 'Mit csinál?']}
+                                    rows={[
+                                        [
+                                            'Váltás Prémiumra',
+                                            'Átirányít az árazási oldalra, ahol kiválaszthatod az előfizetést',
+                                        ],
+                                        [
+                                            'Számlák & kártyaadatok',
+                                            'Megnyitja a Stripe ügyfélportált — itt módosíthatod a kártyaadatokat és tekintheted meg a korábbi terheléseket',
+                                        ],
+                                        [
+                                            'Előfizetés lemondása',
+                                            'A már kifizetett időszak végéig minden funkció megmarad, utána automatikusan az ingyenes csomagra vált — a kártyát nem terheljük meg újra',
+                                        ],
+                                        [
+                                            'Lemondás visszavonása',
+                                            'A lejárat előtt bármikor visszavonható, ekkor az előfizetés a szokásos módon megújul tovább',
+                                        ],
+                                    ]}
+                                />
+                                <InfoBox type="warning">
+                                    Ha egy terhelés sikertelen (pl. lejárt
+                                    kártya), a prémium hozzáférés átmenetileg
+                                    szünetel. A Stripe automatikusan
+                                    újrapróbálja a terhelést — a{' '}
+                                    <strong>Kártya frissítése</strong> gombbal
+                                    tudod soron kívül rendezni, ezután a
+                                    hozzáférés azonnal visszaáll.
+                                </InfoBox>
+                            </Sub>
+
+                            <Sub title="Számlázási adatok és NAV-számlák">
+                                <P>
+                                    A <strong>Beállítások → Számlázási adatok
+                                    </strong>{' '}
+                                    oldalon adhatod meg, hogy magánszemélyként
+                                    vagy cégként szeretnél számlázni (cégnél az
+                                    adószám kötelező). Minden sikeres fizetés
+                                    után automatikusan NAV-kompatibilis számla
+                                    készül, amit az Előfizetés oldalon PDF-ként
+                                    letölthetsz.
+                                </P>
+                            </Sub>
                         </Section>
                     </div>
                 </div>

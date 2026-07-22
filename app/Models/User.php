@@ -27,7 +27,7 @@ use Laravel\Sanctum\PersonalAccessToken;
 // invite_id, stripe_*, ai_credit*, terms_accepted_at, billingo_partner_id) are intentionally NOT fillable — they are
 // set explicitly server-side (admin actions, registration via forceFill, Cashier, checkout) so no
 // request payload can grant itself paid access or forge consent via mass assignment.
-#[Fillable(['name', 'email', 'password', 'streak', 'last_activity_date', 'quiz_completions', 'text_analyses', 'onboarding_completed_at', 'billing_name', 'billing_tax_number', 'billing_country', 'billing_zip', 'billing_city', 'billing_address', 'billing_type'])]
+#[Fillable(['name', 'email', 'password', 'streak', 'last_activity_date', 'quiz_completions', 'text_analyses', 'onboarding_completed_at', 'billing_name', 'billing_tax_number', 'billing_country', 'billing_zip', 'billing_city', 'billing_address', 'billing_phone', 'billing_company_registration_number', 'billing_type'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable implements MustVerifyEmail
 {
@@ -251,13 +251,18 @@ class User extends Authenticatable implements MustVerifyEmail
             && filled($this->billing_zip)
             && filled($this->billing_city)
             && filled($this->billing_address)
+            && filled($this->billing_phone)
             && filled($this->billing_type);
 
         if (! $hasCore) {
             return false;
         }
 
-        return $this->billing_type !== 'company' || filled($this->billing_tax_number);
+        if ($this->billing_type !== 'company') {
+            return true;
+        }
+
+        return filled($this->billing_tax_number) && filled($this->billing_company_registration_number);
     }
 
     /**

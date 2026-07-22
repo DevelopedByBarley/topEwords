@@ -51,6 +51,16 @@ trait BillingValidationRules
             'billing_zip' => [$presence, 'string', 'regex:/^\d{4,10}$/'],
             'billing_city' => [$presence, 'string', 'max:255', $noControlChars],
             'billing_address' => [$presence, 'string', 'max:255', $noControlChars],
+            'billing_phone' => [$presence, 'string', 'max:30', 'regex:/^\+?[\d\s()-]{6,30}$/'],
+            // Cégjegyzékszám ugyanúgy csak cégnél kötelező/megengedett, mint az adószám.
+            // Magyar formátum: 01-09-999999 (megyekód-nyilvántartási forma-cégsorszám).
+            'billing_company_registration_number' => [
+                'nullable',
+                'required_if:billing_type,company',
+                'prohibited_if:billing_type,individual',
+                'string',
+                'regex:/^\d{2}-\d{2}-\d{6}$/',
+            ],
             'billing_type' => [$presence, Rule::in(['individual', 'company'])],
         ];
     }
@@ -71,6 +81,10 @@ trait BillingValidationRules
             'billing_name.regex' => 'A számlázási név nem tartalmazhat sortörést vagy vezérlőkaraktert.',
             'billing_city.regex' => 'A város nem tartalmazhat sortörést vagy vezérlőkaraktert.',
             'billing_address.regex' => 'A cím nem tartalmazhat sortörést vagy vezérlőkaraktert.',
+            'billing_phone.regex' => 'A telefonszám formátuma érvénytelen.',
+            'billing_company_registration_number.regex' => 'A cégjegyzékszám formátuma érvénytelen (helyes: 01-09-999999).',
+            'billing_company_registration_number.prohibited_if' => 'Magánszemélyként nem adhatsz meg cégjegyzékszámot.',
+            'billing_company_registration_number.required_if' => 'Cégként a cégjegyzékszám megadása kötelező.',
         ];
     }
 }

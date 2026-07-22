@@ -18,6 +18,8 @@ interface Props {
         billing_zip: string | null;
         billing_city: string | null;
         billing_address: string | null;
+        billing_phone: string | null;
+        billing_company_registration_number: string | null;
         billing_type: BillingType;
     };
 }
@@ -102,25 +104,51 @@ export default function Billing({ billingData }: Props) {
                             </div>
 
                             {billingType === 'company' && (
-                                <div className="grid gap-2">
-                                    <Label htmlFor="billing_tax_number">
-                                        Adószám
-                                    </Label>
-                                    <Input
-                                        id="billing_tax_number"
-                                        name="billing_tax_number"
-                                        required
-                                        className="mt-1 block w-full"
-                                        defaultValue={
-                                            billingData.billing_tax_number ?? ''
-                                        }
-                                        placeholder="pl. 12345678-1-01"
-                                    />
-                                    <InputError
-                                        className="mt-2"
-                                        message={errors.billing_tax_number}
-                                    />
-                                </div>
+                                <>
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="billing_tax_number">
+                                            Adószám
+                                        </Label>
+                                        <Input
+                                            id="billing_tax_number"
+                                            name="billing_tax_number"
+                                            required
+                                            className="mt-1 block w-full"
+                                            defaultValue={
+                                                billingData.billing_tax_number ??
+                                                ''
+                                            }
+                                            placeholder="pl. 12345678-1-01"
+                                        />
+                                        <InputError
+                                            className="mt-2"
+                                            message={errors.billing_tax_number}
+                                        />
+                                    </div>
+
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="billing_company_registration_number">
+                                            Cégjegyzékszám
+                                        </Label>
+                                        <Input
+                                            id="billing_company_registration_number"
+                                            name="billing_company_registration_number"
+                                            required
+                                            className="mt-1 block w-full"
+                                            defaultValue={
+                                                billingData.billing_company_registration_number ??
+                                                ''
+                                            }
+                                            placeholder="pl. 01-09-999999"
+                                        />
+                                        <InputError
+                                            className="mt-2"
+                                            message={
+                                                errors.billing_company_registration_number
+                                            }
+                                        />
+                                    </div>
+                                </>
                             )}
 
                             <div className="grid grid-cols-3 gap-4">
@@ -183,6 +211,27 @@ export default function Billing({ billingData }: Props) {
                                 <InputError
                                     className="mt-2"
                                     message={errors.billing_address}
+                                />
+                            </div>
+
+                            <div className="grid gap-2">
+                                <Label htmlFor="billing_phone">
+                                    Telefonszám
+                                </Label>
+                                <Input
+                                    id="billing_phone"
+                                    name="billing_phone"
+                                    required
+                                    className="mt-1 block w-full"
+                                    defaultValue={
+                                        billingData.billing_phone ?? ''
+                                    }
+                                    placeholder="pl. +36301234567"
+                                    autoComplete="tel"
+                                />
+                                <InputError
+                                    className="mt-2"
+                                    message={errors.billing_phone}
                                 />
                             </div>
 

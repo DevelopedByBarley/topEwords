@@ -90,6 +90,7 @@ class UserFactory extends Factory
             'billing_city' => fake()->city(),
             'billing_address' => fake()->streetAddress(),
             'billing_country' => 'HU',
+            'billing_phone' => '+36301234567',
             'billing_type' => 'individual',
         ]);
     }
