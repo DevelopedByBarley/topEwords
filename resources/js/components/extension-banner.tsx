@@ -3,8 +3,8 @@ import { BookOpen, Check, Download, Puzzle, X } from 'lucide-react';
 import { useState } from 'react';
 import ChromeExtensionsLink from '@/components/chrome-extensions-link';
 import { useExtensionInstalled } from '@/hooks/use-extension-installed';
+import { show as showDownload } from '@/routes/downloads';
 
-const DOWNLOAD_URL = '/downloads/topwords-extension.zip';
 const DISMISS_KEY = 'topwords_ext_banner_dismissed';
 
 export function ExtensionBanner() {
@@ -99,7 +99,7 @@ export function ExtensionBanner() {
 
             <div className="mt-4 flex flex-wrap items-center gap-2">
                 <a
-                    href={DOWNLOAD_URL}
+                    href={showDownload('extension').url}
                     download
                     className="inline-flex items-center gap-2 rounded-full bg-linear-to-br from-green-400 to-green-500 px-4 py-2 text-sm font-bold text-green-950 shadow-[0_4px_0_0_var(--color-green-600)] transition-all hover:brightness-105 active:translate-y-0.75"
                 >
