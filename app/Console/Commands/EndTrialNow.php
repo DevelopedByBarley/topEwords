@@ -6,11 +6,14 @@ use App\Models\User;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
+use Illuminate\Console\ConfirmableTrait;
 
-#[Signature('billing:end-trial {email : A felhasználó e-mail címe}')]
+#[Signature('billing:end-trial {email : A felhasználó e-mail címe} {--force : Megerősítés nélkül fut éles környezetben is}')]
 #[Description('A megadott felhasználó próbaidejét azonnal lejáratja a Stripe-on (teszteléshez), így a valódi terhelés és a Billingo-számla rögtön lefut — nem kell kivárni a trial végét.')]
 class EndTrialNow extends Command
 {
+    use ConfirmableTrait;
+
     public function handle(): int
     {
         $email = (string) $this->argument('email');
@@ -33,6 +36,13 @@ class EndTrialNow extends Command
         if (! $subscription->onTrial()) {
             $this->warn('Az előfizetés nincs próbaidőben – nincs mit lejáratni.');
 
+            return self::FAILURE;
+        }
+
+        // Élesben ez VALÓDI kártyaterhelést indít, ezért az elgépelt e-mail ellen
+        // a megerősítés az érintett felhasználót is kiírja (P7-L3). A guard
+        // szándékosan a fenti feloldás UTÁN fut, hogy legyen mit megmutatni.
+        if (! $this->confirmToProceed("Éles terhelés indul: {$user->email} ({$subscription->stripe_id})")) {
             return self::FAILURE;
         }
 

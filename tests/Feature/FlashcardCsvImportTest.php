@@ -57,6 +57,41 @@ test('CSV import is rejected when it would exceed the plan card budget', functio
     expect($deck->flashcards()->count())->toBe(49);
 });
 
+test('CSV import normalizes Windows-1252 encoded fields to UTF-8', function () {
+    $user = User::factory()->create();
+    $deck = FlashcardDeck::create(['user_id' => $user->id, 'name' => 'Deck']);
+
+    // "kávé,köszönöm" Windows-1252 (cp1252) kódolással, UTF-8 BOM nélkül. Az
+    // ő/ű nem létezik cp1252-ben, ezért csak a lefedett ékezeteket használjuk.
+    $csv = UploadedFile::fake()->createWithContent(
+        'cards.csv',
+        "k\xe1v\xe9,k\xf6sz\xf6n\xf6m\n"
+    );
+
+    $this->actingAs($user)
+        ->post(route('flashcards.csv.import', $deck), ['csv_file' => $csv])
+        ->assertRedirect(route('flashcards.show', $deck));
+
+    $card = $deck->flashcards()->first();
+    expect($card->front)->toContain('kávé');
+    expect($card->back)->toContain('köszönöm');
+});
+
+test('CSV import leaves already-UTF-8 fields untouched', function () {
+    $user = User::factory()->create();
+    $deck = FlashcardDeck::create(['user_id' => $user->id, 'name' => 'Deck']);
+
+    $csv = UploadedFile::fake()->createWithContent('cards.csv', "kávé,étkező\n");
+
+    $this->actingAs($user)
+        ->post(route('flashcards.csv.import', $deck), ['csv_file' => $csv])
+        ->assertRedirect(route('flashcards.show', $deck));
+
+    $card = $deck->flashcards()->first();
+    expect($card->front)->toContain('kávé');
+    expect($card->back)->toContain('étkező');
+});
+
 test('user cannot import into another users deck', function () {
     $owner = User::factory()->create();
     $other = User::factory()->create();

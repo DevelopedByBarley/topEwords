@@ -1013,7 +1013,11 @@ class TextAnalysisController extends Controller
             return $limited;
         }
 
-        $word = $this->sanitizeWordForPrompt($request->string('word')->trim()->value());
+        // A `->lower()` a cache-kulcs-paritás miatt kötelező: az AiCacheService a
+        // kulcsot mindig `Str::lower($word)`-ből építi, így kisbetűsítés nélkül a
+        // "March" (hónap) válasza a `flashcard:march:…` sorba kerülne, és egy
+        // későbbi "march" (menetel) kérés a hónap-tartalmat kapná vissza (CACHE-1).
+        $word = $this->sanitizeWordForPrompt($request->string('word')->trim()->lower()->value());
 
         if ($word === null) {
             return response()->json(['error' => 'Érvénytelen szó.'], 422);
@@ -1294,7 +1298,9 @@ PROMPT;
             return $limited;
         }
 
-        $word = $this->sanitizeWordForPrompt($request->string('word')->trim()->value());
+        // Kisbetűsítés a cache-kulcs-paritásért, ugyanazon okból, mint a
+        // flashcard/lookup ágon (CACHE-1).
+        $word = $this->sanitizeWordForPrompt($request->string('word')->trim()->lower()->value());
 
         if ($word === null) {
             return response()->json(['error' => 'Érvénytelen szó.'], 422);

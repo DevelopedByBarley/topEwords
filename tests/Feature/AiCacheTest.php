@@ -215,6 +215,44 @@ test('egy nem létező szóra a flashcard nem cache-elődik, és jelzi a hibát'
     expect(AiWordCache::count())->toBe(0);
 });
 
+test('a flashcard a kisbetűsített szót küldi a Gemininek, így a cache-kulcs és a prompt nem térhet el', function () {
+    // CACHE-1: a cache-kulcs mindig Str::lower()-t használ. Ha a prompt megőrizné a
+    // nagybetűt, a "March" (hónap) válasza a flashcard:march sorba kerülne, és egy
+    // későbbi "march" (menetel) kérés a hónap-tartalmat kapná vissza.
+    fakeGeminiOnce([
+        'is_real_word' => true,
+        'cloze_sentences' => [['sentence' => 'They _____ on.', 'hints' => ['menetel']]],
+        'answer_options' => ['menetel'],
+        'word_forms' => ['base' => 'march'],
+    ]);
+    $user = User::factory()->create(['ai_access' => true]);
+
+    $this->actingAs($user)->getJson(route('text-analysis.gemini-flashcard', ['word' => 'March']))->assertSuccessful();
+
+    Http::assertSent(function ($request) {
+        $prompt = $request['contents'][0]['parts'][0]['text'] ?? '';
+
+        return str_contains($prompt, '"march"') && ! str_contains($prompt, '"March"');
+    });
+
+    expect(AiWordCache::where('cache_key', 'flashcard:march:en:v3')->exists())->toBeTrue();
+});
+
+test('a word insight a kisbetűsített szót küldi a Gemininek', function () {
+    fakeGeminiOnce(['is_real_word' => true, 'areas' => [], 'register_hu' => 'neutral', 'tip_hu' => 'tipp']);
+    $user = User::factory()->create(['ai_access' => true]);
+
+    $this->actingAs($user)->getJson(route('text-analysis.word-insight', ['word' => 'Polish']))->assertSuccessful();
+
+    Http::assertSent(function ($request) {
+        $prompt = $request['contents'][0]['parts'][0]['text'] ?? '';
+
+        return str_contains($prompt, '"polish"') && ! str_contains($prompt, '"Polish"');
+    });
+
+    expect(AiWordCache::where('cache_key', 'insight:polish:en:v2')->exists())->toBeTrue();
+});
+
 test('az ai:cache:clear parancs feladat szerint törli a sorokat', function () {
     AiWordCache::create(['cache_key' => 'lookup:dog:en:v1', 'task' => 'lookup', 'word' => 'dog', 'prompt_version' => 1, 'model' => 'gemini-2.5-flash-lite', 'response' => ['meaning_hu' => 'kutya']]);
     AiWordCache::create(['cache_key' => 'insight:dog:en:v1', 'task' => 'insight', 'word' => 'dog', 'prompt_version' => 1, 'model' => 'gemini-2.5-flash-lite', 'response' => ['tip_hu' => 'x']]);

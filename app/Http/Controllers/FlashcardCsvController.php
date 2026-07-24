@@ -57,8 +57,8 @@ class FlashcardCsvController extends Controller
                 continue;
             }
 
-            $front = trim($row[0]);
-            $back = trim($row[1]);
+            $front = trim($this->normalizeEncoding($row[0]));
+            $back = trim($this->normalizeEncoding($row[1]));
 
             if ($front === '' && $back === '') {
                 $skipped++;
@@ -147,6 +147,20 @@ class FlashcardCsvController extends Controller
             'Content-Type' => 'text/csv; charset=UTF-8',
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
         ]);
+    }
+
+    /**
+     * Excel Windows-en gyakran Windows-1252 (cp1252) kódolással exportál CSV-t
+     * UTF-8 BOM nélkül; enélkül az ékezetes karakterek (á, ő, ü…) torzulnának
+     * (CSV-2 audit-lelet).
+     */
+    private function normalizeEncoding(string $field): string
+    {
+        if (mb_check_encoding($field, 'UTF-8')) {
+            return $field;
+        }
+
+        return mb_convert_encoding($field, 'UTF-8', 'Windows-1252');
     }
 
     private function textToHtml(string $text): string

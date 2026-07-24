@@ -5,14 +5,25 @@ namespace App\Console\Commands;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
+use Illuminate\Console\ConfirmableTrait;
 use Illuminate\Support\Facades\DB;
 
-#[Signature('words:fix-levels')]
+/**
+ * A parancs a teljes `words` tábla `level` oszlopát átírja, ezért éles
+ * környezetben megerősítést kér (P7-L3). Automatizált futtatáshoz `--force`.
+ */
+#[Signature('words:fix-levels {--force : Megerősítés nélkül fut éles környezetben is}')]
 #[Description('Set the correct level for all words based on their rank')]
 class FixWordLevels extends Command
 {
-    public function handle(): void
+    use ConfirmableTrait;
+
+    public function handle(): int
     {
+        if (! $this->confirmToProceed()) {
+            return self::FAILURE;
+        }
+
         $updated = DB::update('
             UPDATE words SET level =
                 CASE
@@ -26,5 +37,7 @@ class FixWordLevels extends Command
         ');
 
         $this->info("Updated {$updated} words.");
+
+        return self::SUCCESS;
     }
 }

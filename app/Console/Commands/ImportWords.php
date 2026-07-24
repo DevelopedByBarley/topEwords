@@ -6,16 +6,28 @@ use App\Models\Word;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
+use Illuminate\Console\ConfirmableTrait;
 
-#[Signature('words:import')]
+/**
+ * A parancs a `words` tábla rank/level oszlopait tömegesen felülírja egy külső
+ * listából, ezért éles környezetben megerősítést kér (P7-L3). Automatizált
+ * futtatáshoz `--force`.
+ */
+#[Signature('words:import {--force : Megerősítés nélkül fut éles környezetben is}')]
 #[Description('Import the top 10,000 most common English words')]
 class ImportWords extends Command
 {
+    use ConfirmableTrait;
+
     /**
      * Execute the console command.
      */
     public function handle(): int
     {
+        if (! $this->confirmToProceed()) {
+            return self::FAILURE;
+        }
+
         $url = 'https://raw.githubusercontent.com/first20hours/google-10000-english/master/google-10000-english-no-swears.txt';
 
         $this->info('Downloading word list...');

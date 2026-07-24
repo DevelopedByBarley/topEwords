@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\AiWordCache;
 use App\Models\User;
 
 test('ismeretlen e-mailnél hibával lép ki', function () {
@@ -32,4 +33,61 @@ test('próbaidőn kívüli előfizetésnél nincs mit lejáratni', function () {
     $this->artisan('billing:end-trial', ['email' => $user->email])
         ->expectsOutputToContain('nincs próbaidőben')
         ->assertExitCode(1);
+});
+
+/**
+ * P7-L3: a manuális destruktív parancsok éles környezetben megerősítést kérnek.
+ * A `confirmToProceed` az `environment() === 'production'` ágon aktiválódik, ezért
+ * a teszt átmenetileg production-re állítja a környezetet.
+ */
+test('éles környezetben a cache-törlés megerősítés nélkül nem fut le', function () {
+    AiWordCache::create([
+        'cache_key' => 'lookup:dog:en:v1',
+        'task' => 'lookup',
+        'word' => 'dog',
+        'prompt_version' => 1,
+        'model' => 'gemini-2.5-flash-lite',
+        'response' => ['meaning_hu' => 'kutya'],
+    ]);
+
+    app()->detectEnvironment(fn () => 'production');
+
+    $this->artisan('ai:cache:clear')
+        ->expectsConfirmation('Are you sure you want to run this command?', 'no')
+        ->assertExitCode(1);
+
+    // A megszakított parancs egyetlen sort sem törölt.
+    expect(AiWordCache::count())->toBe(1);
+});
+
+test('éles környezetben a --force megerősítés nélkül lefuttatja a cache-törlést', function () {
+    AiWordCache::create([
+        'cache_key' => 'lookup:dog:en:v1',
+        'task' => 'lookup',
+        'word' => 'dog',
+        'prompt_version' => 1,
+        'model' => 'gemini-2.5-flash-lite',
+        'response' => ['meaning_hu' => 'kutya'],
+    ]);
+
+    app()->detectEnvironment(fn () => 'production');
+
+    $this->artisan('ai:cache:clear', ['--force' => true])->assertExitCode(0);
+
+    expect(AiWordCache::count())->toBe(0);
+});
+
+test('teszt/local környezetben a parancs megerősítés nélkül fut', function () {
+    AiWordCache::create([
+        'cache_key' => 'lookup:dog:en:v1',
+        'task' => 'lookup',
+        'word' => 'dog',
+        'prompt_version' => 1,
+        'model' => 'gemini-2.5-flash-lite',
+        'response' => ['meaning_hu' => 'kutya'],
+    ]);
+
+    $this->artisan('ai:cache:clear')->assertExitCode(0);
+
+    expect(AiWordCache::count())->toBe(0);
 });

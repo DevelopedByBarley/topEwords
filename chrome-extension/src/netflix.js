@@ -101,20 +101,14 @@ function ensureNfxBar() {
     `;
 
     const bar = shadow.getElementById('bar');
-    // Shift+kattintásnál ne induljon natív szövegkijelölés.
-    bar.addEventListener('mousedown', (e) => {
-        if (e.shiftKey) {
-            e.preventDefault();
-        }
-    });
-    bar.addEventListener('click', (e) => {
-        // Csak valódi kattintásra reagálunk — lásd youtube.js: az `open` shadow
-        // DOM miatt az oldal JS-e szintetikus eseménnyel kiválthatná a kezelőt.
-        if (!e.isTrusted) {
-            return;
-        }
-
-        handleNfxWordClick(e.target.closest('.tw-word'), e.shiftKey);
+    // Ugyanaz a gesztus-készlet, mint a YouTube-feliraton (sima klikk = popup,
+    // dupla-klikk = „Tudom", hosszú-nyomás = „Később"); a gyors-státusz a közös
+    // quickStatusOnCaptionWord-öt hívja (youtube.js), a Shift-kijelölést a
+    // click-ág engedi át a handleNfxWordClick-nek.
+    attachCaptionWordGestures(bar, {
+        wordSpanFromEvent: (e) => e.target?.closest?.('.tw-word') ?? null,
+        onWordClick: (span, e) => handleNfxWordClick(span, e.shiftKey),
+        onQuickStatus: quickStatusOnCaptionWord,
     });
 
     player.appendChild(nfxBarHost);

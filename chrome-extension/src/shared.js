@@ -170,6 +170,168 @@ function paintStars(container, value) {
     });
 }
 
+// ── Felirat-szó gyorsgesztusai ────────────────────────────────────────────────
+//
+// A felirat-sávok (YouTube, Netflix) és az átirat-panel szavain a popup megnyitása
+// nélkül is állítható státusz, ugyanazzal a gesztus-készlettel, mint a weboldal-
+// kiemelésen (page-highlight.js) és a lejátszóban:
+//   • dupla-klikk  → „Tudom" (known)
+//   • hosszú-nyomás (500 ms) → „Később" (saved)
+//   • sima (rövid) klikk → a szokásos szó-popup
+//
+// A sima klikk popupját késleltetve nyitjuk, hogy egy közvetlenül utána érkező
+// dupla-klikk elnyomhassa (különben a popup felvillanna); a hosszú-nyomás a
+// mousedown-timerrel dől el, és elnyeli a rákövetkező click-et. A tényleges
+// státusz-állítást a háttér QUICK_STATUS ága végzi (lookup + toggle), majd a
+// hívó a refreshVocabHighlights-tal újrarajzolja a feliratot.
+
+const CAPTION_LONG_PRESS_MS = 500;
+const CAPTION_CLICK_DELAY_MS = 260; // > a rendszer dblclick-ablaka, hogy a dbl megelőzze
+const CAPTION_QUICK_STATUS = { dbl: 'known', long: 'saved' };
+
+/**
+ * Felirat-gesztusok bekötése egy gyökér-elemre (felirat-sáv vagy panel-body).
+ * A hívó megadja, hogyan találja meg a kattintott szó-spanját (wordSpanFromEvent),
+ * mit tegyen sima kattintásra (onWordClick — pl. popup + pause + TTS), és mit a
+ * gyors-státusz sikeres/utáni frissítésnél (onQuickStatus).
+ *
+ * A Shift-kattintás (kijelölés-építés) NEM gyorsgesztus — azt a hívó onWordClick-je
+ * kezeli, ide azt átengedjük.
+ *
+ * @param {HTMLElement} root
+ * @param {{
+ *   wordSpanFromEvent: (e: Event) => HTMLElement|null,
+ *   onWordClick: (span: HTMLElement, e: MouseEvent) => void,
+ *   onQuickStatus: (word: string, status: string, span: HTMLElement) => void,
+ * }} handlers
+ */
+function attachCaptionWordGestures(root, { wordSpanFromEvent, onWordClick, onQuickStatus }) {
+    let pendingClick = null; // { timer }
+    let longPress = null; // { span, fired }
+
+    const cancelPendingClick = () => {
+        if (pendingClick) {
+            clearTimeout(pendingClick.timer);
+            pendingClick = null;
+        }
+    };
+
+    const cancelLongPress = () => {
+        if (longPress) {
+            clearTimeout(longPress.timer);
+            longPress = null;
+        }
+    };
+
+    /** Gyors státusz-állítás a spanra + azonnali szín-villanás visszajelzésként. */
+    const quickStatus = (span, status) => {
+        const word = span.dataset.ytWord?.replace(/^'|'$/g, '') ?? span.textContent ?? '';
+
+        if (!word) {
+            return;
+        }
+
+        const color = STATUS_COLORS[status];
+
+        if (color) {
+            const prev = span.style.outline;
+            span.style.outline = `2px solid ${color}`;
+            setTimeout(() => {
+                span.style.outline = prev;
+            }, 400);
+        }
+
+        onQuickStatus(word, status, span);
+    };
+
+    root.addEventListener('mousedown', (e) => {
+        // Shift+kattintásnál ne induljon natív szövegkijelölés (a hívó kijelölést épít).
+        if (e.shiftKey) {
+            e.preventDefault();
+
+            return;
+        }
+
+        const span = wordSpanFromEvent(e);
+
+        if (!span || e.button !== 0) {
+            return;
+        }
+
+        cancelLongPress();
+        const state = { span, fired: false };
+        state.timer = setTimeout(() => {
+            state.fired = true;
+            // A késleltetett sima-klikk popup elmarad; a hosszú-nyomás státuszt állít.
+            cancelPendingClick();
+            quickStatus(span, CAPTION_QUICK_STATUS.long);
+        }, CAPTION_LONG_PRESS_MS);
+        longPress = state;
+    });
+
+    root.addEventListener('mouseup', () => {
+        // A státusz-állítás a timerben / dblclick-ben történik; itt csak a le nem járt
+        // hosszú-nyomás timert töröljük (rövid kattintás volt).
+        cancelLongPress();
+    });
+
+    root.addEventListener('dblclick', (e) => {
+        const span = wordSpanFromEvent(e);
+
+        if (!span) {
+            return;
+        }
+
+        e.preventDefault();
+        e.stopPropagation();
+        // A dupla-klikk „Tudom"-ot állít — a késleltetett sima-klikk popup elmarad.
+        cancelPendingClick();
+        quickStatus(span, CAPTION_QUICK_STATUS.dbl);
+    });
+
+    root.addEventListener('click', (e) => {
+        // A sáv/panel `open` shadow DOM-ban van, így az oldal JS-e szintetikus
+        // MouseEvent-tel kéretlen popupot tudna kiváltani — csak valódi kattintásra
+        // reagálunk (ugyanaz a guard, mint a lookup-popup.js / page-highlight.js-ben).
+        if (!e.isTrusted) {
+            return;
+        }
+
+        const span = wordSpanFromEvent(e);
+
+        if (!span) {
+            // Nem szó-span (pl. panel-sorra kattintás a seek-hez): a hívó dolga.
+            onWordClick(null, e);
+
+            return;
+        }
+
+        // Shift (kijelölés-építés) azonnal a hívóhoz megy, nem gyorsgesztus.
+        if (e.shiftKey) {
+            onWordClick(span, e);
+
+            return;
+        }
+
+        // Ha épp hosszú-nyomás zajlott le ezen a nyomáson, a click a gesztus
+        // „elengedése" — ne nyisson popupot.
+        if (longPress?.fired) {
+            cancelLongPress();
+
+            return;
+        }
+
+        // A popupot késleltetjük: ha rögtön dupla-klikk jön, azt fenn elnyomjuk.
+        cancelPendingClick();
+        pendingClick = {
+            timer: setTimeout(() => {
+                pendingClick = null;
+                onWordClick(span, e);
+            }, CAPTION_CLICK_DELAY_MS),
+        };
+    });
+}
+
 // ── Szókincs-frissítési hookok ────────────────────────────────────────────────
 //
 // A modulok (page-highlight, youtube, netflix) ide regisztrálják a saját

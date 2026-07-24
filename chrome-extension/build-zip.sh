@@ -44,12 +44,13 @@ rm -f "$OUT"
 # -X: extra attribútumok (pl. macOS .DS_Store, resource fork) kihagyása
 zip -X "$OUT" "${FILES[@]}"
 
-# Stabil nevű másolat a publikus letöltéshez (a landing oldal innen kínálja).
-PUBLIC_DIR="../public/downloads"
-mkdir -p "$PUBLIC_DIR"
-cp "$OUT" "$PUBLIC_DIR/topwords-extension.zip"
+# Stabil nevű másolat a letöltéshez. A fájl a PRIVÁT diskre megy: a
+# DownloadController streameli hitelesítés után, a public/ alól nem elérhető.
+DOWNLOAD_DIR="../storage/app/private/downloads"
+mkdir -p "$DOWNLOAD_DIR"
+cp "$OUT" "$DOWNLOAD_DIR/topwords-extension.zip"
 
 echo ""
 echo "Kész: $(pwd)/$OUT"
-echo "Publikus letöltés: $(cd "$PUBLIC_DIR" && pwd)/topwords-extension.zip"
+echo "Letöltés (privát disk): $(cd "$DOWNLOAD_DIR" && pwd)/topwords-extension.zip"
 echo "Töltsd fel a CWS-zip-et ($OUT) a Chrome Web Store Developer Dashboardon."

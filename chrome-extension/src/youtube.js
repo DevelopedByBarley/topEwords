@@ -260,22 +260,13 @@ function ensureYtBar() {
     `;
 
     const bar = shadow.getElementById('bar');
-    // Shift+kattintásnál ne induljon natív szövegkijelölés.
-    bar.addEventListener('mousedown', (e) => {
-        if (e.shiftKey) {
-            e.preventDefault();
-        }
-    });
-    bar.addEventListener('click', (e) => {
-        // Csak valódi kattintásra reagálunk — a sáv `open` shadow DOM-ban van,
-        // így az oldal JS-e szintetikus MouseEvent-tel kéretlen popupot, TTS-t
-        // és videó-pause-t tudna kiváltani. Ugyanaz a guard, mint a
-        // lookup-popup.js / page-highlight.js kezelőiben.
-        if (!e.isTrusted) {
-            return;
-        }
-
-        handleYtWordClick(e.target.closest('.tw-word'), e.shiftKey);
+    // A sima klikk (popup), a dupla-klikk („Tudom") és a hosszú-nyomás („Később")
+    // gesztusait a közös felirat-kezelő köti be; a Shift-kijelölést a click-ág
+    // engedi át a handleYtWordClick-nek.
+    attachCaptionWordGestures(bar, {
+        wordSpanFromEvent: (e) => e.target?.closest?.('.tw-word') ?? null,
+        onWordClick: (span, e) => handleYtWordClick(span, e.shiftKey),
+        onQuickStatus: quickStatusOnCaptionWord,
     });
 
     player.appendChild(ytBarHost);
@@ -323,6 +314,31 @@ function ytWordsToHtml(text) {
     });
 
     return html;
+}
+
+/**
+ * Gyors státusz-állítás egy felirat-szóra (dupla-klikk = „Tudom", hosszú-nyomás =
+ * „Később"). A háttér egy körben lookupol és állít (toggle-szemantika), majd
+ * frissítjük a felirat-kiemeléseket. A gesztus NEM állítja meg a videót és nem
+ * ejt ki (a nézést nem szakítja meg); ismeretlen szónál a szokásos popup nyílik,
+ * hogy fel lehessen venni. Közös a YouTube- és Netflix-felirattal.
+ *
+ * @param {string} word
+ * @param {string} status
+ * @param {HTMLElement} span
+ */
+function quickStatusOnCaptionWord(word, status, span) {
+    sendMsg({ type: 'QUICK_STATUS', word, status }, (resp) => {
+        if (resp?.ok) {
+            refreshVocabHighlights();
+
+            return;
+        }
+
+        // Ismeretlen / nem menthető szó: nyíljon a szokásos popup, hogy a
+        // felhasználó felvehesse — a gesztus ne „némuljon el".
+        showPopup(word, span.getBoundingClientRect(), true);
+    });
 }
 
 /** Egy felirat-szóra kattintás: videó megállítása, kiejtés, popup. */
@@ -741,26 +757,25 @@ function ensureYtPanel() {
     shadow.getElementById('close').addEventListener('click', toggleYtPanel);
 
     const body = shadow.getElementById('body');
-    // Shift+kattintásnál ne induljon natív szövegkijelölés.
-    body.addEventListener('mousedown', (e) => {
-        if (e.shiftKey) {
-            e.preventDefault();
-        }
-    });
-    body.addEventListener('click', (e) => {
-        const wordSpan = e.target.closest('.tw-word');
+    // Ugyanaz a gesztus-készlet, mint a felirat-sávon (sima klikk = popup, dupla =
+    // „Tudom", hosszú-nyomás = „Később"). Ha nem szó-spanra esett a klikk, az
+    // onWordClick null-spannal fut, és ilyenkor a sor-seeket kezeljük.
+    attachCaptionWordGestures(body, {
+        wordSpanFromEvent: (e) => e.target?.closest?.('.tw-word') ?? null,
+        onWordClick: (span, e) => {
+            if (span) {
+                handleYtWordClick(span, e.shiftKey);
 
-        if (wordSpan) {
-            handleYtWordClick(wordSpan, e.shiftKey);
+                return;
+            }
 
-            return;
-        }
+            const row = e.target?.closest?.('.seg');
 
-        const row = e.target.closest('.seg');
-
-        if (row) {
-            seekYtTo(Number(row.dataset.t));
-        }
+            if (row) {
+                seekYtTo(Number(row.dataset.t));
+            }
+        },
+        onQuickStatus: quickStatusOnCaptionWord,
     });
     body.addEventListener('scroll', () => {
         ytPanelLastUserScroll = Date.now();
@@ -779,12 +794,52 @@ function seekYtTo(t) {
     }
 }
 
-function setYtPanelMessage(html) {
+/**
+ * A panel üzenetét SZÖVEGKÉNT írja ki (textContent), így a hívó által átadott
+ * érték soha nem értelmeződik markupként (XSS-2). Korábban nyers `${html}`-t
+ * interpolált, ami a hívók fegyelmezettségén múlott; a linket igénylő egyetlen
+ * eset a setYtPanelMessageWithLink()-et használja.
+ */
+function setYtPanelMessage(text) {
     const body = ytPanelHost?.shadowRoot?.getElementById('body');
 
-    if (body) {
-        body.innerHTML = `<div class="msg">${html}</div>`;
+    if (!body) {
+        return;
     }
+
+    const msg = document.createElement('div');
+
+    msg.className = 'msg';
+    msg.textContent = text;
+    body.replaceChildren(msg);
+}
+
+/**
+ * Üzenet egyetlen beágyazott linkkel. A href és a linkszöveg külön paraméter, és
+ * DOM-API-val (nem string-interpolációval) kerül a panelbe, így markup-injektálás
+ * szerkezetileg kizárt.
+ */
+function setYtPanelMessageWithLink(before, href, linkText, after) {
+    const body = ytPanelHost?.shadowRoot?.getElementById('body');
+
+    if (!body) {
+        return;
+    }
+
+    const msg = document.createElement('div');
+
+    msg.className = 'msg';
+    msg.append(before);
+
+    const link = document.createElement('a');
+
+    link.href = href;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.textContent = linkText;
+    msg.append(link, after);
+
+    body.replaceChildren(msg);
 }
 
 function renderYtPanelSegments() {
@@ -936,9 +991,7 @@ function enableYtPanel() {
             }
 
             if (resp.error === 'unauthenticated') {
-                setYtPanelMessage(
-                    `Jelentkezz be a <a href="${APP_URL}" target="_blank">TopWords</a>-be.`,
-                );
+                setYtPanelMessageWithLink('Jelentkezz be a ', APP_URL, 'TopWords', '-be.');
 
                 return;
             }
