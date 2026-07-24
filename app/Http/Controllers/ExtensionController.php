@@ -204,6 +204,11 @@ class ExtensionController extends Controller
             'id' => $custom->id,
             'word' => $custom->word,
             'meaning_hu' => $custom->meaning_hu,
+            // A felvett szó ÖSSZES felszíni alakja (ragozott alakok + extra_forms),
+            // hogy a token-alapú kliens a felvitel után azonnal, teljes térkép-
+            // újratöltés nélkül kiemelhesse a képernyőn látszó — akár ragozott vagy
+            // képzett — alakot is (a webes/extension kliens a teljes térképet frissíti).
+            'forms' => $this->statusFormsFor($custom),
             'csrf' => $this->csrfTokenIfSession($request),
         ]);
     }

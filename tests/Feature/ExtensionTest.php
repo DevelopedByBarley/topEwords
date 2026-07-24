@@ -149,6 +149,25 @@ test('add-word creates a custom word', function () {
     expect($this->user->customWords()->where('word', 'serendipity')->exists())->toBeTrue();
 });
 
+test('add-word returns every surface form so the client can highlight inflections at once', function () {
+    // A token-alapú kliens (player) a felvitel után a válasz `forms` mezőjéből
+    // színezi a képernyőn látszó alakot — a ragozott és a lemmatizáláskor mentett
+    // eredeti alaknak (extra_forms) is köztük kell lennie, különben csak a puszta
+    // alapszó válna zöldre, a beírt „successfully" nem.
+    $forms = $this->actingAs($this->user)
+        ->postJson(route('extension.add-word'), [
+            'word' => 'successful',
+            'meaning_hu' => 'sikeres',
+            'part_of_speech' => 'adj',
+            'adj_comparative' => 'more successful',
+            'extra_forms' => 'successfully',
+        ])
+        ->assertSuccessful()
+        ->json('forms');
+
+    expect($forms)->toContain('successful')->toContain('successfully');
+});
+
 test('add-word stores the chosen status and importance', function () {
     $this->actingAs($this->user)
         ->postJson(route('extension.add-word'), [
