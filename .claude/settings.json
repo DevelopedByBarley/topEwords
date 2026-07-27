@@ -402,7 +402,21 @@
       "Bash(unzip -p topwords-extension-1.24.zip icon128.png)",
       "Bash(unzip -p storage/app/private/downloads/topwords-extension.zip manifest.json)",
       "Bash(unzip -t topwords-extension.zip)",
-      "Bash(php -d memory_limit=512M vendor/bin/pest --compact tests/Feature/ExtensionTest.php tests/Feature/AiCacheTest.php tests/Feature/EndTrialNowTest.php tests/Feature/FlashcardCsvImportTest.php tests/Feature/PlayerWordActionsTest.php)"
+      "Bash(php -d memory_limit=512M vendor/bin/pest --compact tests/Feature/ExtensionTest.php tests/Feature/AiCacheTest.php tests/Feature/EndTrialNowTest.php tests/Feature/FlashcardCsvImportTest.php tests/Feature/PlayerWordActionsTest.php)",
+      "Bash(php -r '$r=json_decode\\(stream_get_contents\\(STDIN\\),true\\); echo count\\($r\\).\" routes total\\\\n\"; foreach\\($r as $x\\){ echo str_pad\\($x[\"method\"],10\\).\" \".str_pad\\($x[\"uri\"],45\\).\" | \".\\($x[\"middleware\"]?implode\\(\",\",array_slice\\(is_array\\($x[\"middleware\"]\\)?$x[\"middleware\"]:[$x[\"middleware\"]],0,6\\)\\):\"\"\\).\"\\\\n\"; }')",
+      "Bash(mkdir -p last_audit/reaudit-phase1-2026-07-24 && echo \"created\")",
+      "Bash(grep -nA8 \"'guards'\")",
+      "Bash(php -r '$c=json_decode\\(file_get_contents\\(\"/Applications/XAMPP/xamppfiles/htdocs/topEwords/composer.json\"\\),true\\); echo \"require-dev has boost: \"; var_export\\(isset\\($c[\"require-dev\"][\"laravel/boost\"]\\)\\); echo \"\\\\nrequire has boost: \"; var_export\\(isset\\($c[\"require\"][\"laravel/boost\"]\\)\\); echo \"\\\\n\";')",
+      "Bash(grep -vE \"^\\\\s*//|^\\\\s*\\\\*|^\\\\s*/\\\\*|^\\\\s*$\")",
+      "Bash(grep -n 'function update\\\\|function status\\\\|function importance\\\\|function destroy\\\\|$request->user\\(\\)\\\\|customWord->user\\\\|authorize\\\\|->user_id\\\\|UserCustomWord $\\\\|find\\(' /Applications/XAMPP/xamppfiles/htdocs/topEwords/app/Http/Controllers/UserCustomWordController.php)",
+      "Bash(awk -F'|' 'NR>1 {mw=$2; gsub\\(/^[ \\\\t]+|[ \\\\t]+$/,\"\",mw\\); method=$1; if \\(mw==\"\" \\) print \"EMPTY-MW: \"$0}' /Users/barley/.claude/projects/-Applications-XAMPP-xamppfiles-htdocs-topEwords/00aa4fcb-d4c5-4d7e-9bc9-9176ab92cb94/tool-results/bnw3wz7c1.txt)",
+      "Bash(php -r '$d=json_decode\\(file_get_contents\\(\"php://stdin\"\\),true\\); foreach\\($d as $r\\){ echo $r[\"method\"].\" \".$r[\"uri\"].\"\\\\n MW: \".implode\\(\", \",$r[\"middleware\"]\\).\"\\\\n\"; }')",
+      "Bash(python3 -c \"import sys,json; [print\\(r['method'],r['uri'],'|',r['middleware']\\) for r in json.load\\(sys.stdin\\)]\")",
+      "Bash(mkdir -p \"/Applications/XAMPP/xamppfiles/htdocs/topEwords/last_audit/reaudit-phase2-2026-07-24\" *)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); [print\\(p['name'],p['version']\\) for p in d['packages'] if p['name']=='laravel/cashier']\")",
+      "Bash(python3 -m json.tool)",
+      "Bash(sort -t: -k1 -n)",
+      "Bash(php -r '$r=json_decode\\(file_get_contents\\(\"php://stdin\"\\),true\\); foreach\\($r as $x\\){ if\\(strpos\\($x[\"uri\"],\"stripe/\"\\)===0\\){ echo $x[\"method\"].\" \".$x[\"uri\"].\" => \".$x[\"action\"].\" [\".implode\\(\",\",$x[\"middleware\"]??[]\\).\"]\\\\n\"; }}')"
     ],
     "additionalDirectories": [
       "/private/tmp",
