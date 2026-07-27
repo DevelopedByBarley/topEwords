@@ -43,7 +43,6 @@ Route::middleware(['auth', 'verified', EnsureOnboardingComplete::class])->group(
     // visszakommentelni, és a hozzájuk tartozó Wayfinder-akciókat újragenerálni.
     //
     // Route::get('words/practice', [WordController::class, 'practice'])->name('words.practice');
-    // Route::post('words/practice/check', [TextAnalysisController::class, 'practiceCheck'])->name('words.practice.check')->middleware('throttle:30,1,words-practice');
     // Route::get('words/cloze', [ClozeController::class, 'index'])->name('words.cloze')->middleware('throttle:60,1,words-play');
     // Route::post('words/cloze/complete', [ClozeController::class, 'complete'])->name('words.cloze.complete')->middleware('throttle:30,1,words-cloze');
     // Route::get('words/quiz', [WordController::class, 'quiz'])->name('words.quiz')->middleware('throttle:60,1,words-play');
@@ -52,6 +51,13 @@ Route::middleware(['auth', 'verified', EnsureOnboardingComplete::class])->group(
 
     // Marad: a szövegelemző mondat-ellenőrzője nem gyakorlási felület.
     Route::post('words/sentence-check', [TextAnalysisController::class, 'sentenceCheck'])->name('words.sentence-check')->middleware('throttle:30,1,ta-ai');
+
+    // Marad: a KÜLÖNÁLLÓ words/practice OLDAL kivezetve, de ez a végpont NEM
+    // csak azé volt — a szólista soraiba (PracticeModal) és a flashcard-oldal
+    // szabad-írás dobozába is be van építve, és mindkettő ÉLŐ felület. A hívók
+    // hardcode-olt fetch('/words/practice/check')-et használnak, nem Wayfindert,
+    // ezért a route kikommentelése némán 404-et okozott mindkét helyen.
+    Route::post('words/practice/check', [TextAnalysisController::class, 'practiceCheck'])->name('words.practice.check')->middleware('throttle:30,1,words-practice');
 
     // Szó-mappák
     Route::post('folders', [FolderController::class, 'store'])->name('folders.store');
