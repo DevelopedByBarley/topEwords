@@ -108,9 +108,32 @@ class FortifyServiceProvider extends ServiceProvider
     }
 
     /**
-     * Attach throttle middleware to Fortify's registration and password-reset
-     * routes, which Fortify itself registers without any rate limiting.
-     * Done after booting so the routes are already registered.
+     * Attach throttle middleware to Fortify's registration, password-reset and
+     * password-confirmation routes, which Fortify itself registers without any
+     * rate limiting. Done after booting so the routes are already registered.
+     *
+     * Why `password.confirm.store` uses an inline `throttle:6,1,...` instead of
+     * the named `password-request` limiter used by its neighbours: that limiter
+     * keys purely on the IP (see `configureRateLimiting`), which is correct for
+     * the guest-facing reset routes but wrong here. This route sits behind
+     * `auth`, so an IP-keyed bucket would let one user's six wrong guesses lock
+     * out every other user behind the same NAT/office IP — trading a password
+     * oracle for a denial-of-service on legitimate users. The inline form
+     * matches what `ThrottleRequests::resolveRequestSignature()` does for
+     * authenticated requests: it keys on the user id, so the limit is per
+     * account and NAT neighbours are unaffected.
+     *
+     * The 6/minute budget and the `password-update` naming mirror the existing
+     * `PUT settings/password` route (routes/settings.php:26) — the closest
+     * analogue in the codebase: also authenticated, also verifying a password
+     * (`current_password`). Reusing that bucket name is deliberate: both routes
+     * are password-verification oracles for the same account, so they SHOULD
+     * share one budget rather than each offering an independent 6 guesses.
+     *
+     * Rejected alternative: adding a new named limiter (e.g. `password-confirm`)
+     * to `configureRateLimiting()`. It would have been a third pattern for the
+     * same problem, and a separate bucket would hand an attacker 12 guesses per
+     * minute across the two endpoints instead of 6.
      */
     private function configureRouteThrottling(): void
     {
@@ -119,6 +142,7 @@ class FortifyServiceProvider extends ServiceProvider
                 'register.store' => 'throttle:register',
                 'password.email' => 'throttle:password-request',
                 'password.update' => 'throttle:password-request',
+                'password.confirm.store' => 'throttle:6,1,password-update',
             ];
 
             foreach (Route::getRoutes() as $route) {
