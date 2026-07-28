@@ -37,7 +37,6 @@ function initHighlight() {
                 'load',
                 () => {
                     if (highlightEnabled && hlWordMap) {
-                        removeHighlights();
                         applyHighlights();
                     }
                 },
@@ -71,48 +70,52 @@ function loadAndApplyHighlights(attempt = 0) {
     });
 }
 
-function applyHighlights() {
-    if (!hlWordMap?.size) {
+/** Igaz, ha a szövegcsomópont kiemelhető (nem beviteli mező, link, már kiemelt szó…). */
+function isHighlightableTextNode(node) {
+    const el = node.parentElement;
+
+    if (!el) {
+        return false;
+    }
+
+    if ('twHl' in el.dataset) {
+        return false;
+    }
+
+    if (el.isContentEditable) {
+        return false;
+    }
+
+    if (SKIP_TAGS.has(el.tagName)) {
+        return false;
+    }
+
+    return !el.closest(
+        'a, button, [role="button"], [role="link"], [role="combobox"], [role="search"], [role="listbox"], [role="option"], [role="navigation"], ytd-searchbox, ytd-masthead, #search-form',
+    );
+}
+
+/** Egy részfa (vagy egyetlen szövegcsomópont) kiemelése. */
+function highlightWithin(root) {
+    if (root.nodeType === Node.TEXT_NODE) {
+        if (isHighlightableTextNode(root)) {
+            highlightTextNode(root);
+        }
+
         return;
     }
 
-    removeHighlights();
+    if (root.nodeType !== Node.ELEMENT_NODE) {
+        return;
+    }
 
-    const walker = document.createTreeWalker(
-        document.body,
-        NodeFilter.SHOW_TEXT,
-        {
-            acceptNode(node) {
-                const el = node.parentElement;
-
-                if (!el) {
-                    return NodeFilter.FILTER_REJECT;
-                }
-
-                if ('twHl' in el.dataset) {
-                    return NodeFilter.FILTER_REJECT;
-                }
-
-                if (el.isContentEditable) {
-                    return NodeFilter.FILTER_REJECT;
-                }
-
-                if (SKIP_TAGS.has(el.tagName)) {
-                    return NodeFilter.FILTER_REJECT;
-                }
-
-                if (
-                    el.closest(
-                        'a, button, [role="button"], [role="link"], [role="combobox"], [role="search"], [role="listbox"], [role="option"], [role="navigation"], ytd-searchbox, ytd-masthead, #search-form',
-                    )
-                ) {
-                    return NodeFilter.FILTER_REJECT;
-                }
-
-                return NodeFilter.FILTER_ACCEPT;
-            },
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+        acceptNode(node) {
+            return isHighlightableTextNode(node)
+                ? NodeFilter.FILTER_ACCEPT
+                : NodeFilter.FILTER_REJECT;
         },
-    );
+    });
 
     const nodes = [];
 
@@ -121,11 +124,125 @@ function applyHighlights() {
     }
 
     nodes.forEach(highlightTextNode);
+}
+
+function applyHighlights() {
+    if (!hlWordMap?.size) {
+        return;
+    }
+
+    hlApplying = true;
+    removeHighlights();
+    highlightWithin(document.body);
+    hlApplying = false;
+    // A saját DOM-írásaink rekordjait eldobjuk, hogy ne indítsanak új kört.
+    hlObserver?.takeRecords();
 
     document.addEventListener('click', handleHlClick, { capture: true });
     document.addEventListener('mousedown', handleHlMouseDown, { capture: true });
     document.addEventListener('mouseup', handleHlMouseUp, { capture: true });
     document.addEventListener('dblclick', handleHlDblClick, { capture: true });
+
+    startHlObserver();
+}
+
+// ── Utólag érkező szöveg kiemelése ────────────────────────────────────────────
+//
+// SPA-oldalakon (pl. Next.js-alapú hírportálok) a linkre kattintás nem tölti újra
+// a lapot, így a content script sem fut le újra: az újrarajzolt DOM kiemelés
+// nélkül maradna, és csak a kapcsoló ki/be nyomása hozná vissza. Ugyanez a
+// helyzet a hidratálással és a lusta betöltésű (végtelen görgetés) tartalommal.
+// Ezért egy MutationObserverrel figyeljük az új szöveget, és csak az újonnan
+// beszúrt részfákat emeljük ki — teljes újrarajzolás nélkül.
+
+const HL_RESCAN_DEBOUNCE_MS = 400;
+
+let hlObserver = null;
+let hlApplying = false; // saját írásaink alatt igaz — ilyenkor nem reagálunk
+let hlRescanTimer = null;
+const hlPendingRoots = new Set();
+
+/** Igaz, ha a beszúrt csomópontban van kiemelendő szöveg (és nem a mi spanunk). */
+function hasHighlightableText(node) {
+    if (node.nodeType === Node.TEXT_NODE) {
+        return /\S/.test(node.textContent ?? '');
+    }
+
+    if (node.nodeType !== Node.ELEMENT_NODE) {
+        return false;
+    }
+
+    if ('twHl' in node.dataset) {
+        return false;
+    }
+
+    return /\S/.test(node.textContent ?? '');
+}
+
+function startHlObserver() {
+    if (hlObserver) {
+        return;
+    }
+
+    hlObserver = new MutationObserver((records) => {
+        if (!extAlive()) {
+            stopHlObserver();
+
+            return;
+        }
+
+        if (hlApplying || !highlightEnabled || !hlWordMap?.size) {
+            return;
+        }
+
+        records.forEach((record) => {
+            record.addedNodes.forEach((node) => {
+                if (hasHighlightableText(node)) {
+                    hlPendingRoots.add(node);
+                }
+            });
+        });
+
+        if (!hlPendingRoots.size) {
+            return;
+        }
+
+        // Debounce: a keretrendszerek egy renderelés alatt sok mutációt küldenek.
+        clearTimeout(hlRescanTimer);
+        hlRescanTimer = setTimeout(flushHlRescan, HL_RESCAN_DEBOUNCE_MS);
+    });
+
+    hlObserver.observe(document.body, { childList: true, subtree: true });
+}
+
+function stopHlObserver() {
+    hlObserver?.disconnect();
+    hlObserver = null;
+    clearTimeout(hlRescanTimer);
+    hlRescanTimer = null;
+    hlPendingRoots.clear();
+}
+
+function flushHlRescan() {
+    hlRescanTimer = null;
+
+    const roots = [...hlPendingRoots];
+    hlPendingRoots.clear();
+
+    if (!highlightEnabled || !hlWordMap?.size) {
+        return;
+    }
+
+    hlApplying = true;
+    roots.forEach((root) => {
+        // A közben eltávolított (pl. lecserélt) részfákkal nincs teendő. Egymásba
+        // ágyazott gyökereknél a külső menet is leválaszthat, ezért itt ellenőrizzük.
+        if (root.isConnected) {
+            highlightWithin(root);
+        }
+    });
+    hlApplying = false;
+    hlObserver?.takeRecords();
 }
 
 /** Kiemelő span az élő oldalhoz. Háttérszín kiemelés, mint egy szövegkiemelő toll. */
@@ -385,6 +502,7 @@ function toggleHighlight() {
     if (highlightEnabled) {
         loadAndApplyHighlights();
     } else {
+        stopHlObserver();
         hlWordMap = null;
         removeHighlights();
     }
@@ -441,7 +559,6 @@ registerVocabRefreshHook({
     isActive: () => !!hlWordMap,
     apply(map) {
         hlWordMap = map;
-        removeHighlights();
         applyHighlights();
     },
 });

@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "TopWords",
-    "version": "1.25",
+    "version": "1.26",
     "description": "English word lookup on any page and on YouTube/Netflix subtitles, with optional AI explanations and vocabulary progress tracking.",
     "homepage_url": "https://topwords.eu",
     "minimum_chrome_version": "110",
