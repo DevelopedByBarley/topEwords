@@ -19,6 +19,15 @@ const STATUS_COLORS = {
     practice: '#f43f5e',
 };
 
+// Egységes AI-tájékoztató (AI-kitöltés a keresőben, AI-flashcard a modálban).
+// Az AI-funkciók a topwords.eu szerverén keresztül külső szolgáltatót (Google
+// Gemini) hívnak, a válasz pedig tévedhet — ezt a felhasználónak ott kell látnia,
+// ahol a generált tartalom megjelenik, a részletes jogi szöveg pedig az ÁSZF-ben van.
+const AI_DISCLAIMER_HTML =
+    'A tartalmat külső AI-szolgáltató (Google Gemini) generálta. Az AI tévedhet — ' +
+    'mentés előtt ellenőrizd. A TopWords a generált tartalom helyességéért ' +
+    `felelősséget nem vállal. <a href="${APP_URL}/terms" target="_blank" rel="noopener noreferrer">ÁSZF</a>`;
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function speakWord(word) {
@@ -245,6 +254,14 @@ function attachCaptionWordGestures(root, { wordSpanFromEvent, onWordClick, onQui
     };
 
     root.addEventListener('mousedown', (e) => {
+        // A sáv/panel `open` shadow DOM-ban van, így az oldal JS-e szintetikus
+        // egéreseménnyel kéretlen státusz-írást válthatna ki a hosszú-nyomás
+        // ágon — csak valódi felhasználói nyomásra indulunk (ugyanaz a guard,
+        // mint lent a click-ágon és a page-highlight.js-ben).
+        if (!e.isTrusted) {
+            return;
+        }
+
         // Shift+kattintásnál ne induljon natív szövegkijelölés (a hívó kijelölést épít).
         if (e.shiftKey) {
             e.preventDefault();
@@ -276,6 +293,11 @@ function attachCaptionWordGestures(root, { wordSpanFromEvent, onWordClick, onQui
     });
 
     root.addEventListener('dblclick', (e) => {
+        // Szintetikus dupla-klikk sem állíthat státuszt (lásd a mousedown-guardot).
+        if (!e.isTrusted) {
+            return;
+        }
+
         const span = wordSpanFromEvent(e);
 
         if (!span) {

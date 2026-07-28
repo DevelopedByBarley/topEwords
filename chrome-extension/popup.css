@@ -299,3 +299,34 @@ kbd {
     font-weight: 600;
     color: #475569;
 }
+
+.legal {
+    padding: 10px 14px 12px;
+    border-top: 1px solid #f1f5f9;
+    background: #f8fafc;
+}
+
+.legal-ai {
+    font-size: 10px;
+    line-height: 1.5;
+    color: #64748b;
+}
+
+.legal-links {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 6px;
+    font-size: 10px;
+    color: #cbd5e1;
+}
+
+.legal-links a {
+    color: #64748b;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.legal-links a:hover {
+    color: #334155;
+}

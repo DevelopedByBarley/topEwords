@@ -610,6 +610,20 @@ const SEARCH_CSS = `
 
     .upgrade-hint:hover { background: #f3e8ff; border-color: #d8b4fe; }
 
+    /* AI-tájékoztató: az AI-kitöltés külső szolgáltatót hív, és tévedhet. */
+    .ai-note {
+        margin: 8px 0 0;
+        padding: 7px 9px;
+        font-size: 11px;
+        line-height: 1.45;
+        color: #6b7280;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+    }
+
+    .ai-note a { color: #6366f1; text-decoration: underline; text-underline-offset: 2px; }
+
     .detail-tts-btn {
         display: inline-flex;
         align-items: center;
@@ -750,6 +764,20 @@ const FC_MODAL_CSS = `
     .fc-ai:disabled { opacity: 0.6; cursor: default; }
 
     .fc-feedback { font-size: 13px; font-weight: 500; }
+
+    /* AI-tájékoztató: az AI-kártya külső szolgáltatótól jön, és tévedhet. */
+    .fc-ai-note {
+        margin-top: 10px;
+        padding: 8px 10px;
+        font-size: 11px;
+        line-height: 1.45;
+        color: #6b7280;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+    }
+
+    .fc-ai-note a { color: #6366f1; text-decoration: underline; text-underline-offset: 2px; }
 
     .fc-empty { font-size: 14px; color: #475569; margin-bottom: 8px; }
     .fc-empty-link { font-size: 13px; color: #6366f1; text-decoration: underline; text-underline-offset: 2px; }

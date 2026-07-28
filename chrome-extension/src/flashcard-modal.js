@@ -162,6 +162,7 @@ function flashcardFormHtml(data, info) {
                 </div>
             </div>
             <button data-fc-manual class="fc-manual">↩ Kézi szerkesztés</button>
+            <div class="fc-ai-note">✨ ${AI_DISCLAIMER_HTML}</div>
         </div>
 
         <div class="fc-row">

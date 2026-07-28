@@ -397,6 +397,7 @@ function showSearchDetail(data) {
                     További alakok (más szófaj)
                 </button>
             </div>
+            ${searchIsAdmin || searchHasAi ? `<div class="ai-note">✨ ${AI_DISCLAIMER_HTML}</div>` : ''}
             <div style="margin-top:10px">
                 <div class="meta-label">Státusz</div>
                 <div class="detail-statuses" id="add-statuses">${statusBtnsHtml('known')}</div>
