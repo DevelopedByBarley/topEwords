@@ -12,7 +12,6 @@ import {
     FileSearch,
     Film,
     Flame,
-    HelpCircle,
     Keyboard,
     Languages,
     Layers,
@@ -22,7 +21,6 @@ import {
     Mic,
     MousePointerClick,
     NotebookPen,
-    PenTool,
     Play,
     Puzzle,
     Route,
@@ -305,28 +303,20 @@ const FLASH_CAPS = [
     },
 ];
 
-const PRACTICE_MODES = [
-    {
-        icon: HelpCircle,
-        title: 'Kvíz',
-        desc: '4 válaszos teszt, szűrhető státusz, nehézség és mappa szerint.',
-    },
-    {
-        icon: Edit,
-        title: 'Mondatkiegészítés',
-        desc: 'írd be a hiányzó szót a példamondatba (cloze).',
-    },
-    {
-        icon: PenTool,
-        title: 'Szabad írás',
-        desc: 'írj a célszavakkal, az AI ellenőrzi a szóhasználatot és a grammatikát.',
-    },
-    {
-        icon: Route,
-        title: 'Rendhagyó igék',
-        desc: 'gyakorold a Past Simple és Past Participle alakokat.',
-    },
-];
+/*
+ * KIVEZETVE (2026-07-28) — a "Gyakorlási módok" szekcióval együtt.
+ * Mind a négy mód (kvíz, cloze, szabad írás, rendhagyó igék) route-ja ki van
+ * kommentelve a routes/words.php-ban, tehát a landing nem hirdetheti őket.
+ * A funkciók visszahozásakor ez a tömb és a hozzá tartozó szekció együtt
+ * kapcsolható vissza.
+ *
+ * const PRACTICE_MODES = [
+ *     { icon: HelpCircle, title: 'Kvíz', desc: '4 válaszos teszt, szűrhető státusz, nehézség és mappa szerint.' },
+ *     { icon: Edit, title: 'Mondatkiegészítés', desc: 'írd be a hiányzó szót a példamondatba (cloze).' },
+ *     { icon: PenTool, title: 'Szabad írás', desc: 'írj a célszavakkal, az AI ellenőrzi a szóhasználatot és a grammatikát.' },
+ *     { icon: Route, title: 'Rendhagyó igék', desc: 'gyakorold a Past Simple és Past Participle alakokat.' },
+ * ];
+ */
 
 const ANALYZE_BULLETS = [
     {
@@ -342,12 +332,12 @@ const ANALYZE_BULLETS = [
     {
         icon: Sparkles,
         title: 'Közvetlen AI-kitöltés',
-        desc: 'a lejátszóból és a bővítményből is — egyenesen a webappba',
+        desc: 'a bővítményből egyenesen a webappba',
     },
     {
         icon: FileSearch,
         title: 'YouTube & Netflix',
-        desc: 'elemezd a feliratokat, vagy nézz filmet a saját offline lejátszóval',
+        desc: 'elemezd a feliratokat, és lásd, hány szót értesz belőlük',
     },
 ];
 
@@ -359,8 +349,8 @@ const AI_CARDS = [
     },
     {
         icon: Check,
-        title: 'Szabad írás ellenőrzése',
-        desc: 'Írj szabadon a célszavakkal, és az AI visszajelez a szóhasználatról és a grammatikáról.',
+        title: 'Mondat-ellenőrzés',
+        desc: 'Írj egy mondatot a szóval, és az AI visszajelez a szóhasználatról és a grammatikáról.',
     },
     {
         icon: NotebookPen,
@@ -374,7 +364,6 @@ const VIDEO_CATS = [
     'Kezdő lépések',
     'Szólista',
     'Flashcard',
-    'Kvíz',
     'Szövegelemzés',
     'Extension',
     'Tesztelőknek',
@@ -430,16 +419,10 @@ const VIDEO_RAW = [
         desc: 'Kártyacsomag importálása és exportálása CSV-fájlból.',
     },
     {
-        cat: 'Kvíz',
-        title: 'Kvíz és mondatkiegészítés',
-        time: '4:42',
-        desc: 'A gyakorlási módok beállítása a szólistád alapján.',
-    },
-    {
         cat: 'Szövegelemzés',
         title: 'Szöveg, YouTube és Netflix elemzése',
         time: '7:12',
-        desc: 'Feliratelemzés, offline lejátszó és az érthetőség százalék.',
+        desc: 'Feliratelemzés és az érthetőség százalék.',
     },
     {
         cat: 'Extension',
@@ -501,7 +484,6 @@ const INSTALL_STEPS = [
 const FREE_PLAN = [
     '10 000 szavas szólista',
     'Flashcard SRS, saját deck-ek',
-    'Kvíz és mondatkiegészítés',
     'Chrome-bővítmény, napi kerettel',
     'AI-kóstoló havi kerettel',
 ];
@@ -509,7 +491,7 @@ const FREE_PLAN = [
 const PRO_PLAN = [
     'Minden az Ingyenesből',
     'Korlátlan AI szó-kitöltés',
-    'AI szabad írás ellenőrzés',
+    'AI mondat-ellenőrzés',
     'Könyv- és YouTube-elemzés',
     'Legnagyobb keretek, prioritás',
 ];
@@ -519,7 +501,8 @@ const SIDE_NAV_DEFS = [
     { id: 'szovegelemzes', label: 'Szövegelemzés', icon: FileSearch },
     { id: 'szolista', label: 'Szólista', icon: List },
     { id: 'flashcard', label: 'Flashcard', icon: Layers },
-    { id: 'gyakorlas', label: 'Gyakorlás', icon: HelpCircle },
+    // Kivezetve a "Gyakorlási módok" szekcióval együtt (2026-07-28):
+    // { id: 'gyakorlas', label: 'Gyakorlás', icon: HelpCircle },
     { id: 'ai', label: 'AI', icon: Sparkles },
     { id: 'bovitmeny', label: 'Bővítmény', icon: Puzzle },
     { id: 'arazas', label: 'Árazás', icon: SlidersHorizontal },
@@ -618,7 +601,8 @@ export default function Welcome({
         setFlipped2(false);
         setDeckIndex((i) => (i + 1) % DEMO_DECK.length);
     };
-    const [quizPick, setQuizPick] = useState<string | null>(null);
+    // Kivezetve a "Gyakorlási módok" szekcióval (2026-07-28):
+    // const [quizPick, setQuizPick] = useState<string | null>(null);
     const [filter, setFilter] = useState<'Összes' | 'Tanulom' | 'Tudom'>(
         'Összes',
     );
@@ -662,7 +646,7 @@ export default function Welcome({
             'szovegelemzes',
             'szolista',
             'flashcard',
-            'gyakorlas',
+            // 'gyakorlas' — kivezetve (2026-07-28), a szekció nincs a DOM-ban
             'ai',
             'bovitmeny',
             'arazas',
@@ -748,14 +732,17 @@ export default function Welcome({
         'Gyakorlásra',
     ];
 
-    const answered = quizPick != null;
-    const quizOptions = [
-        { l: 'között', correct: true },
-        { l: 'felett', correct: false },
-        { l: 'mellett', correct: false },
-        { l: 'mögött', correct: false },
-    ];
-    const correct = quizPick === 'között';
+    /*
+     * Kivezetve a "Gyakorlási módok" szekcióval (2026-07-28):
+     * const answered = quizPick != null;
+     * const quizOptions = [
+     *     { l: 'között', correct: true },
+     *     { l: 'felett', correct: false },
+     *     { l: 'mellett', correct: false },
+     *     { l: 'mögött', correct: false },
+     * ];
+     * const correct = quizPick === 'között';
+     */
 
     const progressRef = useCountUp(41, '%');
     const wordCountRef = useCountUp(4187);
@@ -799,7 +786,7 @@ export default function Welcome({
                 <meta
                     head-key="description"
                     name="description"
-                    content="Tanuld meg a 10 000 leggyakoribb angol szót. Szólista, flashcard SRS, kvíz, mondatkiegészítés, szabad írás és rendhagyó igék, AI-segítséggel, szövegelemzővel és Chrome-bővítménnyel – egy helyen, magyarul."
+                    content="Tanuld meg a 10 000 leggyakoribb angol szót. Szólista, flashcard SRS, szövegelemző és Chrome-bővítmény, AI-segítséggel – egy helyen, magyarul."
                 />
                 <meta
                     head-key="og:title"
@@ -809,7 +796,7 @@ export default function Welcome({
                 <meta
                     head-key="og:description"
                     property="og:description"
-                    content="Tanuld a 10 000 leggyakoribb angol szót flashcard SRS-sel, kvízzel, mondatkiegészítéssel, AI-alapú szabad írással és szövegelemzővel. Jelöld amit tudsz, és kövesd a haladásodat."
+                    content="Tanuld a 10 000 leggyakoribb angol szót flashcard SRS-sel és szövegelemzővel. Jelöld amit tudsz, és kövesd a haladásodat."
                 />
                 <meta
                     head-key="og:url"
@@ -993,26 +980,26 @@ export default function Welcome({
                         {/* hero copy */}
                         <div className="relative z-4 mx-auto mt-14 max-w-[840px] text-center">
                             <div className="ts-hero-badge inline-flex items-center gap-2 rounded-full border border-white/[0.18] bg-white/10 px-4 py-1.75 text-[13px] font-medium text-indigo-200 backdrop-blur-md">
-                                <Sparkles size={16} />
-                                Tanulj angolul okosan — magyarul
+                                <Languages size={16} />
+                                Magyar jelentés, magyar példamondat
                             </div>
                             <h1 className="mt-6.5 text-[clamp(42px,6.6vw,80px)] leading-[1.02] font-extrabold tracking-[-1.5px] text-white">
-                                10 000 angol szó,
+                                Tudd meg, hány szót
                                 <br />
-                                egy helyen
+                                ismersz már
                             </h1>
                             <p className="mx-auto mt-5.5 max-w-[600px] text-[17px] leading-[1.65] text-white/78">
-                                Saját bővíthető szótár 10 000 kezdő szóval.
-                                Szólista nyomon követéssel, flashcard SRS-sel,
-                                kvízzel, mondatkiegészítéssel, AI-alapú szabad
-                                írással, szövegelemzővel és Chrome-bővítménnyel
-                                — minden egy helyen.
+                                Illessz be egy cikket, videót vagy könyvet, és
+                                megmutatjuk, a benne lévő szavak hány százalékát
+                                ismered. Amit nem, azt egy kattintással beteszed
+                                a saját tanulólistádba — a 10 000 leggyakoribb
+                                angol szóra építve.
                             </p>
                             <div className="mt-8.5 flex flex-wrap justify-center gap-3.5">
                                 {auth.user ? (
                                     <Link
                                         href={wordsIndex()}
-                                        className="inline-flex items-center gap-2.5 rounded-full bg-gradient-to-br from-green-400 to-green-500 px-7 py-3.75 font-sans text-[15px] font-bold text-green-950 shadow-[0_12px_30px_rgba(34,197,94,.45)] transition-transform hover:-translate-y-0.5"
+                                        className="inline-flex items-center gap-2.5 rounded-full bg-gradient-to-br from-green-400 to-green-500 px-7 py-3.75 font-sans text-[15px] font-bold text-green-950 shadow-[0_8px_22px_rgba(34,197,94,.3)] transition-transform hover:-translate-y-0.5"
                                     >
                                         Szavak böngészése
                                         <ArrowRight size={20} />
@@ -1020,7 +1007,7 @@ export default function Welcome({
                                 ) : (
                                     <Link
                                         href={register()}
-                                        className="inline-flex items-center gap-2.5 rounded-full bg-gradient-to-br from-green-400 to-green-500 px-7 py-3.75 font-sans text-[15px] font-bold text-green-950 shadow-[0_12px_30px_rgba(34,197,94,.45)] transition-transform hover:-translate-y-0.5"
+                                        className="inline-flex items-center gap-2.5 rounded-full bg-gradient-to-br from-green-400 to-green-500 px-7 py-3.75 font-sans text-[15px] font-bold text-green-950 shadow-[0_8px_22px_rgba(34,197,94,.3)] transition-transform hover:-translate-y-0.5"
                                     >
                                         Regisztrálás ingyen
                                         <ArrowRight size={20} />
@@ -1038,19 +1025,24 @@ export default function Welcome({
                                     Próbáld a flashcardot
                                 </a>
                             </div>
-                            <div className="mt-6.5 flex flex-wrap justify-center gap-5.5 text-[13px] text-white/62">
+                            {/*
+                             * Tényállítások, nem ígéretek: mindhárom ellenőrizhető a terméken.
+                             * A korábbi "Gyors tanulás" kikerült — mérhetetlen marketing-töltelék,
+                             * és pont az ilyen üres superlatívusz teszi generikussá a heroet.
+                             */}
+                            <div className="mt-6.5 flex flex-wrap justify-center gap-x-5.5 gap-y-2 text-[13px] text-white/62">
                                 {[
                                     'Nincs hirdetés',
                                     'Ingyenes regisztráció',
-                                    'Gyors tanulás',
+                                    'Bankkártya nélkül',
                                 ].map((item) => (
                                     <span
                                         key={item}
                                         className="inline-flex items-center gap-1.5"
                                     >
-                                        <CheckCircle2
-                                            size={17}
-                                            className="text-green-300"
+                                        <Check
+                                            size={15}
+                                            className="text-white/45"
                                         />
                                         {item}
                                     </span>
@@ -1067,25 +1059,31 @@ export default function Welcome({
                                         'linear-gradient(to bottom,rgba(255,255,255,0) 0,#ffffff 90px)',
                                 }}
                             />
+                            {/*
+                             * A három fényfolt marad, mert funkciója van: kiemeli a mockup-kártyákat
+                             * a sötét háttérből. Az opacitásuk viszont .5/.46/.4-ről lejjebb ment —
+                             * azon a szinten már önálló "lebegő gradiens-labdának" látszottak,
+                             * ami a generált heroök tipikus dísze. Így halo marad, nem dekoráció.
+                             */}
                             <div
                                 className="pointer-events-none absolute top-6 -left-[4%] -z-10 size-[420px] animate-hero-float-slow-a rounded-full blur-[80px]"
                                 style={{
                                     background:
-                                        'radial-gradient(circle,rgba(255,255,255,.5),transparent 70%)',
+                                        'radial-gradient(circle,rgba(255,255,255,.28),transparent 70%)',
                                 }}
                             />
                             <div
                                 className="pointer-events-none absolute -top-9 -right-[5%] -z-10 size-[400px] animate-hero-float-slow-b rounded-full blur-[74px]"
                                 style={{
                                     background:
-                                        'radial-gradient(circle,rgba(255,255,255,.46),transparent 70%)',
+                                        'radial-gradient(circle,rgba(255,255,255,.24),transparent 70%)',
                                 }}
                             />
                             <div
                                 className="pointer-events-none absolute top-63 right-[4%] -z-10 size-[260px] animate-hero-float-c rounded-full blur-[60px]"
                                 style={{
                                     background:
-                                        'radial-gradient(circle,rgba(255,255,255,.4),transparent 72%)',
+                                        'radial-gradient(circle,rgba(255,255,255,.2),transparent 72%)',
                                 }}
                             />
 
@@ -1284,61 +1282,66 @@ export default function Welcome({
                             id="funkciok"
                             className="relative -mt-35 bg-white px-5 pt-24 pb-25"
                         >
+                            {/*
+                             * A szekció-cím korábban "Minden, ami kell a hatékony tanuláshoz" volt:
+                             * olyan mondat, ami bármelyik konkurens oldalán is állna. Helyette a
+                             * tényleges munkamenetet írja le, mert az különbözteti meg a terméket.
+                             */}
                             <Reveal className="mx-auto mb-15 max-w-[780px] text-center">
                                 <span className="inline-block rounded-full bg-indigo-100 px-3.75 py-1.5 text-xs font-bold tracking-[1.2px] text-indigo-700">
                                     FUNKCIÓK
                                 </span>
                                 <h2 className="mt-5 text-[clamp(32px,4.4vw,50px)] leading-[1.08] font-bold tracking-[-1.2px] text-[#171717]">
-                                    Minden, ami kell a
+                                    Szótár, szövegelemző
                                     <br />
-                                    hatékony tanuláshoz
+                                    és flashcard — egyben
                                 </h2>
                                 <p className="mx-auto mt-4.5 max-w-[560px] text-[17px] leading-[1.6] text-[#737373]">
-                                    Válaszd a számodra legjobb módszert — vagy
-                                    használd mindegyiket egyszerre.
+                                    Ugyanaz a szókészlet mindenhol: amit a
+                                    szövegelemzőben megjelölsz, azt a
+                                    flashcardokban gyakorlod.
                                 </p>
                             </Reveal>
-                            <div className="mx-auto grid max-w-[1200px] grid-cols-[repeat(auto-fit,minmax(250px,1fr))] gap-5">
+                            {/*
+                             * Nyolc kártya volt itt `auto-fit` ráccsal, ami a sor végén árva
+                             * kártyákat hagyott. Most hat, fix 3x2 rácsban: nincs csonka sor,
+                             * és nem kell mesterséges kiemelés sem a hierarchiához.
+                             *
+                             * A "Gyakorlási módok" kártya KIKERÜLT: kvízt, mondatkiegészítést és
+                             * szabad írást hirdetett, amik kivezetett funkciók (routes/words.php
+                             * ki van kommentelve) — nem hirdethetünk el nem érhető funkciót.
+                             */}
+                            <div className="mx-auto grid max-w-[1100px] grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
                                 {[
                                     {
-                                        icon: List,
-                                        title: 'Szólista & nyomon követés',
-                                        desc: 'Böngészd a 10 000 leggyakoribb szót, jelöld a tudásodat és szervezd mappákba.',
+                                        icon: FileSearch,
+                                        title: 'Szövegelemzés',
+                                        desc: 'Cikk, webcím, YouTube-felirat vagy egész könyv — megmutatja, hány szót ismersz belőle.',
                                     },
                                     {
                                         icon: Layers,
                                         title: 'Flashcard SRS',
-                                        desc: 'Saját kártyacsomag intelligens ismétlési algoritmussal — pontosan akkor mutatja, amikor el akarnád felejteni.',
+                                        desc: 'Az ismeretlen szavakból kártya lesz, és akkor jön vissza, amikor kezdenéd elfelejteni.',
                                     },
                                     {
-                                        icon: HelpCircle,
-                                        title: 'Gyakorlási módok',
-                                        desc: 'Kvíz, mondatkiegészítés, AI-alapú szabad írás és rendhagyó igék — több módszer ugyanahhoz a szókincshez.',
-                                    },
-                                    {
-                                        icon: FileSearch,
-                                        title: 'Szövegelemzés',
-                                        desc: 'Elemezz bármilyen szöveget, webcímet, YouTube-feliratot vagy egész könyvet — látod hány szót ismersz belőle.',
-                                    },
-                                    {
-                                        icon: Sparkles,
-                                        title: 'AI-segítség',
-                                        desc: 'AI tölti ki a szó jelentését és példamondatait, ellenőrzi a szabad írásod, és gyárt kész flashcardot.',
+                                        icon: List,
+                                        title: 'Szólista',
+                                        desc: 'A 10 000 leggyakoribb angol szó gyakorisági sorrendben, saját tudás-jelöléssel.',
                                     },
                                     {
                                         icon: Puzzle,
-                                        title: 'Chrome Puzzle',
-                                        desc: 'Bármely weboldalon dupla kattintással vagy Option+W-vel azonnal keresés — popupban a jelentés.',
+                                        title: 'Chrome-bővítmény',
+                                        desc: 'Bármely oldalon dupla kattintás a szóra — a jelentés popupban, mentés egy gombbal.',
                                     },
                                     {
                                         icon: Bookmark,
                                         title: 'Saját szavak',
-                                        desc: 'Ha a top 10k-ban nem szerepel a szó, add hozzá saját szóként — ugyanúgy viselkedik, mint a többi.',
+                                        desc: 'Ami nincs a top 10 000-ben, felveheted — ugyanúgy viselkedik, mint a többi.',
                                     },
                                     {
-                                        icon: Star,
-                                        title: 'Haladás & teljesítmények',
-                                        desc: 'Napi sorozat (streak), haladás-sávok és feloldható teljesítmények motiválnak a folytatásra.',
+                                        icon: Languages,
+                                        title: 'Végig magyarul',
+                                        desc: 'Magyar jelentés, magyar példamondat, magyar felület — nem tükörfordított angol app.',
                                     },
                                 ].map((f, i) => {
                                     const active = hoveredFeature === i;
@@ -1346,7 +1349,7 @@ export default function Welcome({
                                     return (
                                         <Reveal
                                             key={f.title}
-                                            className="relative overflow-hidden rounded-[18px] border border-neutral-200 bg-white p-6.5 shadow-[0_6px_20px_rgba(0,0,0,.04)] transition-all duration-500 ease-out hover:-translate-y-1.5"
+                                            className="relative overflow-hidden rounded-[18px] border border-neutral-200 bg-white p-6.5 transition-all duration-500 ease-out hover:-translate-y-1.5"
                                             style={
                                                 active
                                                     ? {
@@ -1374,10 +1377,8 @@ export default function Welcome({
                                                         active
                                                             ? {
                                                                   background:
-                                                                      'linear-gradient(135deg,#4ade80,#22c55e)',
-                                                                  color: '#052e16',
-                                                                  boxShadow:
-                                                                      '0 8px 20px rgba(34,197,94,.4)',
+                                                                      'rgba(255,255,255,.14)',
+                                                                  color: '#fff',
                                                               }
                                                             : {
                                                                   background:
@@ -1439,12 +1440,8 @@ export default function Welcome({
                                         <b className="text-[#404040]">
                                             Netflix
                                         </b>{' '}
-                                        feliratait. Sőt: a saját, letölthető
-                                        lejátszónkkal{' '}
-                                        <b className="text-[#404040]">
-                                            offline
-                                        </b>{' '}
-                                        is nézhetsz filmet, tanulás közben.
+                                        feliratait. Minden elemzés megmutatja, a
+                                        szöveg hány százalékát érted.
                                     </p>
                                 </Reveal>
 
@@ -1544,10 +1541,13 @@ export default function Welcome({
                                                         YouTube
                                                     </span>
                                                 </div>
-                                                <span className="absolute top-3.5 right-3.5 z-3 inline-flex items-center gap-1.25 rounded-full bg-green-500/92 px-2.75 py-1.25 text-xs font-bold text-white">
-                                                    <Download size={15} />
-                                                    Offline
-                                                </span>
+                                                {/*
+                                                 * Offline lejátszó kivezetve a főoldalról (2026-07-28):
+                                                 * <span className="absolute top-3.5 right-3.5 z-3 inline-flex items-center gap-1.25 rounded-full bg-green-500/92 px-2.75 py-1.25 text-xs font-bold text-white">
+                                                 *     <Download size={15} />
+                                                 *     Offline
+                                                 * </span>
+                                                 */}
                                                 <div
                                                     className="absolute inset-0"
                                                     style={{
@@ -1763,22 +1763,21 @@ export default function Welcome({
                                             )}
                                         </div>
 
-                                        <div className="mt-4 flex items-center justify-center gap-2">
-                                            <LayoutGrid
-                                                size={18}
-                                                className="text-indigo-700"
-                                            />
-                                            <span className="text-[13px] font-medium text-[#525252]">
-                                                Saját TopWords lejátszó — macOS
-                                                &amp; Windows
-                                            </span>
-                                        </div>
+                                        {/*
+                                         * Offline lejátszó kivezetve a főoldalról (2026-07-28):
+                                         * <div className="mt-4 flex items-center justify-center gap-2">
+                                         *     <LayoutGrid size={18} className="text-indigo-700" />
+                                         *     <span className="text-[13px] font-medium text-[#525252]">
+                                         *         Saját TopWords lejátszó — macOS &amp; Windows
+                                         *     </span>
+                                         * </div>
+                                         */}
                                     </div>
 
                                     <div className="ts-textrow mt-7.5 grid grid-cols-1 items-center gap-8 lg:grid-cols-[1.15fr_1fr] lg:gap-10">
                                         <div>
                                             <span className="inline-flex items-center gap-1.5 rounded-full border border-indigo-100 bg-white px-3 py-1.25 text-xs font-bold tracking-[.6px] text-indigo-700">
-                                                STREAMING &amp; OFFLINE
+                                                FELIRATELEMZÉS
                                             </span>
                                             <h3 className="mt-3.5 text-[clamp(24px,3vw,32px)] leading-[1.15] font-bold tracking-[-.5px] text-[#171717]">
                                                 Nézz YouTube-ot és Netflixet —{' '}
@@ -1788,17 +1787,10 @@ export default function Welcome({
                                             </h3>
                                             <p className="mt-3 text-base leading-[1.65] text-[#525252]">
                                                 Elemezd a feliratokat, és lásd
-                                                élőben, hány szót értesz — vagy
-                                                töltsd le a{' '}
-                                                <b className="text-[#171717]">
-                                                    saját lejátszónkat
-                                                </b>
-                                                , és nézz filmet, sorozatot akár{' '}
-                                                <b className="text-[#171717]">
-                                                    offline
-                                                </b>
-                                                , a szavak menet közbeni
-                                                kiemelésével.
+                                                élőben, hány szót értesz. Az
+                                                ismeretlen szavak egy
+                                                kattintással a tanulólistádba
+                                                kerülnek.
                                             </p>
                                             <div className="mt-4.5 flex flex-wrap gap-2.5">
                                                 <span className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-[13px] font-semibold text-[#171717]">
@@ -1815,17 +1807,20 @@ export default function Welcome({
                                                     />
                                                     Netflix
                                                 </span>
-                                                <span className="inline-flex items-center gap-1.5 rounded-full border border-green-200 bg-green-50 px-3.5 py-2 text-[13px] font-semibold text-green-700">
-                                                    <Download size={17} />
-                                                    Offline lejátszó
-                                                </span>
+                                                {/*
+                                                 * Offline lejátszó kivezetve a főoldalról (2026-07-28):
+                                                 * <span className="inline-flex items-center gap-1.5 rounded-full border border-green-200 bg-green-50 px-3.5 py-2 text-[13px] font-semibold text-green-700">
+                                                 *     <Download size={17} />
+                                                 *     Offline lejátszó
+                                                 * </span>
+                                                 */}
                                             </div>
                                         </div>
                                         <div className="flex flex-col gap-2.75">
                                             {[
                                                 'YouTube- és Netflix-feliratok elemzése egy kattintással',
                                                 'Szavak kiemelése lejátszás közben — Tudom · Tanulom · Ismeretlen',
-                                                'Töltsd le a saját lejátszót, és nézd offline is',
+                                                'Az ismeretlen szavak egy kattintással a listádba kerülnek',
                                             ].map((t) => (
                                                 <div
                                                     key={t}
@@ -2356,7 +2351,19 @@ export default function Welcome({
                             </div>
                         </section>
 
-                        {/* GYAKORLÁSI MÓDOK */}
+                        {/*
+                         * GYAKORLÁSI MÓDOK — KIVEZETVE (2026-07-28)
+                         *
+                         * A szekció kvízt, mondatkiegészítést (cloze), AI-alapú szabad írást és
+                         * rendhagyó igéket hirdetett — mind a négy funkció ki van vezetve, a
+                         * route-jaik a routes/words.php-ban ki vannak kommentelve. A landing
+                         * tehát olyat kínált, ami a regisztráció után nem érhető el.
+                         *
+                         * Kikommentelve és nem törölve, mert a funkciók visszahozása tervben van;
+                         * a szekció akkor a route-okkal együtt visszakapcsolható. A hozzá tartozó
+                         * PRACTICE_MODES tömb és a 'gyakorlas' nav-bejegyzés ugyanígy kikommentelve.
+                         */}
+                        {/*
                         <section
                             id="gyakorlas"
                             className="px-5 py-24"
@@ -2501,6 +2508,7 @@ export default function Welcome({
                                 </Reveal>
                             </div>
                         </section>
+                        */}
 
                         {/* AI */}
                         <section
@@ -2702,32 +2710,22 @@ export default function Welcome({
                                                     <Download size={20} />
                                                     Bővítmény letöltése (.zip)
                                                 </a>
-                                                <div className="flex flex-wrap gap-2.25">
-                                                    <a
-                                                        href={
-                                                            showDownload(
-                                                                'player-mac',
-                                                            ).url
-                                                        }
-                                                        download
-                                                        className="inline-flex items-center gap-2 rounded-xl border border-white/25 bg-white/[0.08] px-4.5 py-2.75 text-sm font-semibold text-white transition-all hover:-translate-y-0.5 hover:bg-white/[0.18]"
-                                                    >
-                                                        <Download size={20} />
-                                                        Player – macOS (.dmg)
-                                                    </a>
-                                                    <a
-                                                        href={
-                                                            showDownload(
-                                                                'player-win',
-                                                            ).url
-                                                        }
-                                                        download
-                                                        className="inline-flex items-center gap-2 rounded-xl border border-white/25 bg-white/[0.08] px-4.5 py-2.75 text-sm font-semibold text-white transition-all hover:-translate-y-0.5 hover:bg-white/[0.18]"
-                                                    >
-                                                        <Download size={20} />
-                                                        Player – Windows (.exe)
-                                                    </a>
-                                                </div>
+                                                {/*
+                                                 * Offline lejátszó letöltő gombjai kivezetve a
+                                                 * főoldalról (2026-07-28). A DownloadController
+                                                 * 'player-mac' / 'player-win' slugjai ÉLNEK — csak a
+                                                 * landingről nem hirdetjük őket. Visszakapcsoláshoz
+                                                 * ez a blokk elég.
+                                                 *
+                                                 * <div className="flex flex-wrap gap-2.25">
+                                                 *     <a href={showDownload('player-mac').url} download className="...">
+                                                 *         <Download size={20} /> Player – macOS (.dmg)
+                                                 *     </a>
+                                                 *     <a href={showDownload('player-win').url} download className="...">
+                                                 *         <Download size={20} /> Player – Windows (.exe)
+                                                 *     </a>
+                                                 * </div>
+                                                 */}
                                             </div>
                                         ) : (
                                             <Link
@@ -2778,7 +2776,7 @@ export default function Welcome({
                                         </span>
                                     </div>
                                     <p className="mb-5 text-sm leading-[1.6] text-[#737373]">
-                                        Szólista, flashcard, kvíz, a
+                                        Szólista, flashcard, szövegelemző, a
                                         Chrome-bővítmény és egy kis AI-kóstoló.
                                     </p>
                                     <div className="flex flex-1 flex-col gap-2.75">
@@ -2843,7 +2841,7 @@ export default function Welcome({
                                     {billingEnabled && (
                                         <Link
                                             href={pricingRoute()}
-                                            className="mt-6 w-full rounded-xl bg-gradient-to-br from-green-400 to-green-500 py-3.5 text-center font-sans text-[15px] font-bold text-green-950 shadow-[0_12px_30px_rgba(34,197,94,.4)] transition-transform hover:-translate-y-0.5"
+                                            className="mt-6 w-full rounded-xl bg-gradient-to-br from-green-400 to-green-500 py-3.5 text-center font-sans text-[15px] font-bold text-green-950 shadow-[0_8px_22px_rgba(34,197,94,.28)] transition-transform hover:-translate-y-0.5"
                                         >
                                             Váltás Pro-ra
                                         </Link>
