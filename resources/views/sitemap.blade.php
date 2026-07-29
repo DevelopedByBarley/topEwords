@@ -6,6 +6,21 @@
         <priority>1.0</priority>
     </url>
     <url>
+        <loc>https://topwords.eu/pricing</loc>
+        <changefreq>monthly</changefreq>
+        <priority>0.8</priority>
+    </url>
+    <url>
+        <loc>https://topwords.eu/handbook</loc>
+        <changefreq>monthly</changefreq>
+        <priority>0.6</priority>
+    </url>
+    <url>
+        <loc>https://topwords.eu/guide</loc>
+        <changefreq>monthly</changefreq>
+        <priority>0.5</priority>
+    </url>
+    <url>
         <loc>https://topwords.eu/terms</loc>
         <changefreq>yearly</changefreq>
         <priority>0.2</priority>

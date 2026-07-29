@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button';
 import {
     Dialog,
     DialogContent,
+    DialogDescription,
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
@@ -532,7 +533,7 @@ export default function FlashcardStudy({
                         <h2 className="text-2xl font-bold">Szuper!</h2>
                         <p className="mt-1 text-muted-foreground">
                             {queue.length === 0
-                                ? 'Nincs esedékes kártya ebben a deckben.'
+                                ? 'Nincs esedékes kártya ebben a pakliban.'
                                 : `${queue.length} kártyát átnéztél.`}
                         </p>
                     </div>
@@ -540,7 +541,7 @@ export default function FlashcardStudy({
                         <Link href={show(deck.id)}>
                             <Button variant="outline">
                                 <ArrowLeft className="mr-2 size-4" />
-                                Vissza a deckhez
+                                Vissza a paklihoz
                             </Button>
                         </Link>
                         {history.length > 0 && (
@@ -566,7 +567,9 @@ export default function FlashcardStudy({
         <>
             <Head title={`Tanulás · ${deck.name}`} />
 
-            <div className="mx-auto flex min-h-[80vh] max-w-2xl min-w-90 flex-col px-4 pb-20 md:py-6 xl:min-w-2xl">
+            {/* Nincs `min-w`: a 360 px-es alsó korlát 320 px-es kijelzőn
+                vízszintes görgetést okozott a tanulás közben. */}
+            <div className="mx-auto flex min-h-[80vh] w-full max-w-2xl flex-col px-4 pb-20 md:py-6">
                 {/* Header */}
                 <div className="mb-6 flex items-center justify-between">
                     <Link
@@ -797,14 +800,18 @@ export default function FlashcardStudy({
             {/* Card info dialog */}
             {current && (
                 <Dialog open={showInfo} onOpenChange={setShowInfo}>
-                    <DialogContent className="max-h-[85vh] w-[calc(100vw-2rem)] overflow-y-auto sm:max-w-xs">
-                        <DialogHeader>
+                    <DialogContent className="flex max-h-[85dvh] w-[calc(100vw-2rem)] flex-col sm:max-w-sm">
+                        <DialogHeader className="pr-8">
                             <DialogTitle className="text-base">
                                 Kártya statisztika
                             </DialogTitle>
+                            <DialogDescription className="sr-only">
+                                Az épp tanult kártya SRS-adatai és a gombokhoz
+                                tartozó következő intervallumok.
+                            </DialogDescription>
                         </DialogHeader>
 
-                        <div className="space-y-4 pt-1">
+                        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pt-1">
                             {/* Current state */}
                             <div>
                                 <p className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
@@ -997,7 +1004,7 @@ export default function FlashcardStudy({
 
 FlashcardStudy.layout = (props: { deck: Deck }) => ({
     breadcrumbs: [
-        { title: 'Flashcard decks', href: index() },
+        { title: 'Flashcards', href: index() },
         { title: props.deck.name, href: show(props.deck.id) },
         { title: 'Tanulás', href: '#' },
     ],

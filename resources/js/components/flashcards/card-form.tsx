@@ -222,7 +222,7 @@ export default function CardForm({
                     )}
 
                     {/* Front + Back editors */}
-                    <div className="grid gap-4 sm:grid-cols-2 py-5">
+                    <div className="grid gap-4 py-5 sm:grid-cols-2">
                         <div className="space-y-2">
                             <div className="flex items-center justify-between">
                                 <Label className="text-sm font-semibold">

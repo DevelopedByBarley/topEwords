@@ -9,6 +9,7 @@ use App\Models\Flashcard;
 use App\Models\FlashcardDeck;
 use App\Services\AchievementService;
 use App\Services\FlashcardSrsService;
+use Carbon\Carbon;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -65,6 +66,22 @@ class FlashcardDeckController extends Controller
 
                 return $dueCounts;
             }),
+            // Paklinként a legközelebbi jövőbeni esedékesség, hogy a kártya a
+            // „nincs most esedékes" helyett azt írja ki, mikor érdemes
+            // visszajönni. Ugyanabban a deferred körben megy, mint a dueCounts.
+            'nextDueAt' => Inertia::defer(fn () => DB::table('flashcard_reviews')
+                ->join('flashcards', 'flashcards.id', '=', 'flashcard_reviews.flashcard_id')
+                ->whereIn('flashcards.deck_id', $deckIds)
+                ->where('flashcard_reviews.due_at', '>', now())
+                ->groupBy('flashcards.deck_id')
+                ->selectRaw('flashcards.deck_id, MIN(flashcard_reviews.due_at) as next_due_at')
+                ->pluck('next_due_at', 'deck_id')
+                // ISO8601 offszettel: a nyers DB-stringet ("2026-07-30 06:15:00")
+                // a böngésző helyi időként értelmezné, ami UTC alkalmazás-időzóna
+                // mellett a nyári offszettel a múltba tolná az esedékességet.
+                ->map(fn ($dueAt) => Carbon::parse($dueAt)->toIso8601String())
+                ->all()
+            ),
         ]);
     }
 
@@ -119,6 +136,12 @@ class FlashcardDeckController extends Controller
         $effectiveSettings = $deck->deckSettings ?? $request->user()->flashcardSettings ?? $srs->defaultSettings();
         $dueCounts = $srs->countDueCards($deck->id, $effectiveSettings);
 
+        $nextDueAt = DB::table('flashcard_reviews')
+            ->join('flashcards', 'flashcards.id', '=', 'flashcard_reviews.flashcard_id')
+            ->where('flashcards.deck_id', $deck->id)
+            ->where('flashcard_reviews.due_at', '>', now())
+            ->min('flashcard_reviews.due_at');
+
         return Inertia::render('flashcards/show', [
             'deck' => $deck,
             'flashcards' => Inertia::defer(function () use ($deck) {
@@ -168,11 +191,9 @@ class FlashcardDeckController extends Controller
             }),
             'newDueCount' => $dueCounts['new'],
             'reviewDueCount' => $dueCounts['review'],
-            'nextDueAt' => DB::table('flashcard_reviews')
-                ->join('flashcards', 'flashcards.id', '=', 'flashcard_reviews.flashcard_id')
-                ->where('flashcards.deck_id', $deck->id)
-                ->where('flashcard_reviews.due_at', '>', now())
-                ->min('flashcard_reviews.due_at'),
+            // ISO8601 offszettel — nyers DB-stringként a kliens helyi időként
+            // olvasná, és a visszaszámláló az offszettel elcsúszna.
+            'nextDueAt' => $nextDueAt === null ? null : Carbon::parse($nextDueAt)->toIso8601String(),
             'uncalibratedCount' => $deck->flashcards()
                 ->uncalibrated()
                 ->selectRaw(
@@ -198,7 +219,9 @@ class FlashcardDeckController extends Controller
 
         $deck->update($request->validated());
 
-        return to_route('flashcards.show', $deck);
+        // `back()`, hogy az átnevezés a pakli-listáról is helyben végezzen —
+        // a pakli oldaláról indítva ez ugyanúgy a pakli oldalára tér vissza.
+        return back();
     }
 
     public function updateSettings(UpdateFlashcardDeckSettingsRequest $request, FlashcardDeck $deck): RedirectResponse

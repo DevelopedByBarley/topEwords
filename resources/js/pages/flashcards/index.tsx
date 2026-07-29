@@ -1,35 +1,15 @@
-import { Head, Link, router, useForm } from '@inertiajs/react';
-import {
-    BookOpen,
-    FolderOpen,
-    FolderPlus,
-    Pencil,
-    Plus,
-    Settings2,
-    Sparkles,
-    Trash2,
-    X,
-} from 'lucide-react';
-import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
+import { Head, router } from '@inertiajs/react';
+import { BookOpen, Plus, Search, Settings2, X } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import DeckCard from '@/components/flashcards/deck-card';
+import DeckFormDialog from '@/components/flashcards/deck-form-dialog';
+import FolderManagerDialog from '@/components/flashcards/folder-manager-dialog';
+import { formatDue } from '@/components/flashcards/types';
+import type { DeckFolder, DeckSummary } from '@/components/flashcards/types';
+import ConfirmDialog from '@/components/ui/confirm-dialog';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
-import { destroy, index, show, store, study } from '@/routes/flashcards';
+import { destroy, index } from '@/routes/flashcards';
 import {
     destroy as destroyFolder,
     store as storeFolder,
@@ -37,29 +17,21 @@ import {
 } from '@/routes/flashcards/folders';
 import { update as updateFolderDeck } from '@/routes/flashcards/folders/decks';
 
-type Deck = {
-    id: number;
-    name: string;
-    description: string | null;
-    flashcards_count: number;
-};
-
-type Folder = {
-    id: number;
-    name: string;
-    decks_count: number;
-};
+/** Ennyi pakli fölött a keresőmező többet segít, mint amennyi helyet elvesz. */
+const SEARCH_THRESHOLD = 8;
 
 export default function FlashcardsIndex({
     decks,
     folders,
     deckFolderIds,
     dueCounts,
+    nextDueAt,
 }: {
-    decks: Deck[];
-    folders: Folder[];
+    decks: DeckSummary[];
+    folders: DeckFolder[];
     deckFolderIds: Record<number, number[]>;
     dueCounts: Record<number, number> | undefined;
+    nextDueAt: Record<number, string> | undefined;
 }) {
     const [activeFolderId, setActiveFolderId] = useState<number | null>(() => {
         if (typeof window === 'undefined') {
@@ -77,6 +49,15 @@ export default function FlashcardsIndex({
         return folders.find((f) => f.id === id) ? id : null;
     });
 
+    // Egyszer vett időbélyeg: a relatív esedékesség-szövegek ("3 óra múlva")
+    // ebből számolnak, hogy a render tiszta maradjon.
+    const [now] = useState(() => Date.now());
+    const [search, setSearch] = useState('');
+    const [deckDialogOpen, setDeckDialogOpen] = useState(false);
+    const [editingDeck, setEditingDeck] = useState<DeckSummary | null>(null);
+    const [showFolderManager, setShowFolderManager] = useState(false);
+    const [deletingDeck, setDeletingDeck] = useState<DeckSummary | null>(null);
+
     const setFolder = (id: number | null) => {
         const params = new URLSearchParams(window.location.search);
 
@@ -93,41 +74,50 @@ export default function FlashcardsIndex({
         setActiveFolderId(id);
     };
 
-    const [showNewDeckDialog, setShowNewDeckDialog] = useState(false);
-    const [showFolderManagerDialog, setShowFolderManagerDialog] =
-        useState(false);
-    const [newFolderName, setNewFolderName] = useState('');
-    const [showNewFolderInput, setShowNewFolderInput] = useState(false);
-    const [editFolderId, setEditFolderId] = useState<number | null>(null);
-    const [editFolderName, setEditFolderName] = useState('');
-    const [folderPopoverDeckId, setFolderPopoverDeckId] = useState<
-        number | null
-    >(null);
+    const displayedDecks = useMemo(() => {
+        const q = search.trim().toLowerCase();
 
-    const newDeckForm = useForm({ name: '', description: '', folder_id: '' });
+        return decks.filter((d) => {
+            if (
+                activeFolderId !== null &&
+                !(deckFolderIds[d.id] ?? []).includes(activeFolderId)
+            ) {
+                return false;
+            }
 
-    const openNewDeckDialog = () => {
-        newDeckForm.setData(
-            'folder_id',
-            activeFolderId !== null ? String(activeFolderId) : '',
-        );
-        setShowNewDeckDialog(true);
-    };
+            return q === '' || d.name.toLowerCase().includes(q);
+        });
+    }, [decks, deckFolderIds, activeFolderId, search]);
 
-    const displayedDecks =
-        activeFolderId !== null
-            ? decks.filter((d) =>
-                  (deckFolderIds[d.id] ?? []).includes(activeFolderId),
-              )
-            : decks;
-
-    function handleCreateFolder() {
-        const name = newFolderName.trim();
-
-        if (!name) {
-            return;
+    /** Az összesített „mennyi vár rám ma” — a hero fő üzenete. */
+    const dueSummary = useMemo(() => {
+        if (!dueCounts) {
+            return null;
         }
 
+        const entries = Object.values(dueCounts).filter((n) => n > 0);
+        // Ha ma nincs mit tanulni, a legközelebbi esedékesség az egyetlen
+        // használható üzenet — abból tudja a felhasználó, mikor jöjjön vissza.
+        const upcoming = Object.values(nextDueAt ?? {}).sort();
+
+        return {
+            cards: entries.reduce((sum, n) => sum + n, 0),
+            decks: entries.length,
+            earliestNext: upcoming[0] ?? null,
+        };
+    }, [dueCounts, nextDueAt]);
+
+    function openNewDeckDialog() {
+        setEditingDeck(null);
+        setDeckDialogOpen(true);
+    }
+
+    function openRenameDialog(deck: DeckSummary) {
+        setEditingDeck(deck);
+        setDeckDialogOpen(true);
+    }
+
+    function handleCreateFolder(name: string) {
         router.post(
             storeFolder(),
             { name },
@@ -135,23 +125,11 @@ export default function FlashcardsIndex({
                 preserveScroll: true,
                 preserveState: true,
                 only: ['folders', 'deckFolderIds'],
-                onSuccess: () => {
-                    setNewFolderName('');
-                    setShowNewFolderInput(false);
-                },
             },
         );
     }
 
-    function handleDeleteFolder(folderId: number, folderName: string) {
-        if (
-            !confirm(
-                `Törlöd a „${folderName}" mappát? A bennük lévő deckek megmaradnak.`,
-            )
-        ) {
-            return;
-        }
-
+    function handleDeleteFolder(folderId: number) {
         router.delete(destroyFolder(folderId), {
             preserveScroll: true,
             preserveState: true,
@@ -165,21 +143,13 @@ export default function FlashcardsIndex({
     }
 
     function handleRenameFolder(folderId: number, name: string) {
-        if (!name.trim()) {
-            return;
-        }
-
         router.patch(
             updateFolder(folderId),
-            { name: name.trim() },
+            { name },
             {
                 preserveScroll: true,
                 preserveState: true,
                 only: ['folders'],
-                onSuccess: () => {
-                    setEditFolderId(null);
-                    setEditFolderName('');
-                },
             },
         );
     }
@@ -203,553 +173,260 @@ export default function FlashcardsIndex({
         );
     }
 
-    function handleSubmitNewDeck(e: React.FormEvent) {
-        e.preventDefault();
-        newDeckForm.submit(store(), {
-            onSuccess: () => {
-                setShowNewDeckDialog(false);
-                newDeckForm.reset();
-            },
-        });
-    }
-
-    function DeckCard({ deck }: { deck: Deck }) {
-        return (
-            <div className="flex flex-col overflow-hidden rounded-3xl bg-card shadow-sm transition-shadow hover:shadow-md">
-                <Link
-                    href={show({ deck: deck.id })}
-                    className="block flex-1 p-5"
-                >
-                    <div className="mb-2 flex items-start justify-between gap-2">
-                        <h3 className="line-clamp-1 leading-tight font-semibold">
-                            {deck.name}
-                        </h3>
-                        <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground tabular-nums">
-                            {deck.flashcards_count}
-                        </span>
-                    </div>
-                    {deck.description && (
-                        <p className="line-clamp-2 text-sm leading-relaxed text-muted-foreground">
-                            {deck.description}
-                        </p>
-                    )}
-                </Link>
-
-                <div className="flex items-center gap-1.5 border-t bg-muted/30 px-3 py-2.5">
-                    {(dueCounts?.[deck.id] ?? 0) > 0 ? (
-                        <Link
-                            href={study({ deck: deck.id })}
-                            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-linear-to-br from-indigo-600 to-indigo-800 px-3 py-2 text-xs font-semibold text-white transition-colors hover:brightness-105"
-                        >
-                            <Sparkles className="size-3.5" />
-                            Tanulás
-                        </Link>
-                    ) : (
-                        <span className="flex-1" />
-                    )}
-
-                    {folders.length > 0 && (
-                        <div className="relative">
-                            <button
-                                onClick={(e) => {
-                                    e.preventDefault();
-                                    setFolderPopoverDeckId(
-                                        folderPopoverDeckId === deck.id
-                                            ? null
-                                            : deck.id,
-                                    );
-                                }}
-                                className="rounded-lg border border-border bg-background px-3 py-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                                title="Mappa"
-                            >
-                                <FolderOpen className="size-4" />
-                            </button>
-                            {folderPopoverDeckId === deck.id && (
-                                <div className="absolute right-0 bottom-full z-50 mb-1 w-48 overflow-hidden rounded-md border bg-popover shadow-md">
-                                    {folders.map((f) => {
-                                        const inFolder = (
-                                            deckFolderIds[deck.id] ?? []
-                                        ).includes(f.id);
-
-                                        return (
-                                            <button
-                                                key={f.id}
-                                                onClick={(e) => {
-                                                    e.preventDefault();
-                                                    handleToggleDeckFolder(
-                                                        deck.id,
-                                                        f.id,
-                                                        !inFolder,
-                                                    );
-                                                }}
-                                                className={`flex w-full items-center gap-2 px-3 py-2.5 text-sm transition-colors hover:bg-accent active:bg-accent ${inFolder ? 'font-medium text-primary' : 'text-foreground'}`}
-                                            >
-                                                <FolderOpen className="size-3.5 shrink-0" />
-                                                <span className="flex-1 truncate text-left">
-                                                    {f.name}
-                                                </span>
-                                                {inFolder && (
-                                                    <span className="text-xs">
-                                                        ✓
-                                                    </span>
-                                                )}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    <button
-                        onClick={() => {
-                            if (!confirm(`Törlöd a "${deck.name}" decket?`)) {
-                                return;
-                            }
-
-                            router.delete(destroy({ deck: deck.id }));
-                        }}
-                        className="rounded-lg border border-border bg-background px-3 py-2 text-muted-foreground transition-colors hover:border-destructive/50 hover:bg-destructive/10 hover:text-destructive"
-                        title="Deck törlése"
-                    >
-                        <Trash2 className="size-4" />
-                    </button>
-                </div>
-            </div>
-        );
-    }
-
     return (
         <>
-            <Head title="Flashcard decks" />
+            <Head title="Flashcard paklik" />
 
-            {folderPopoverDeckId !== null && (
-                <div
-                    className="fixed inset-0 z-40"
-                    onClick={() => setFolderPopoverDeckId(null)}
-                />
-            )}
-
-            <div className="space-y-6 px-4 py-6">
+            <div className="mx-auto flex h-full w-full max-w-[2000px] flex-1 flex-col gap-6 p-4 md:p-6 xl:px-10 2xl:px-16">
                 {/* Hero */}
                 <div
                     className="relative overflow-hidden rounded-3xl p-6 md:p-8"
-                    style={{ background: 'linear-gradient(135deg,#4338CA,#4F8EEC)' }}
+                    style={{
+                        background: 'linear-gradient(135deg,#4338CA,#4F8EEC)',
+                    }}
                 >
-                    <div className="pointer-events-none absolute -top-14 -right-14 size-56 rounded-full bg-white/15" />
-                    <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                        <div className="flex flex-col gap-1">
+                    <div className="pointer-events-none absolute -top-16 -right-16 size-64 rounded-full bg-white/15 blur-2xl" />
+                    <div className="relative flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+                        <div className="max-w-xl">
                             <h1 className="text-2xl font-bold tracking-tight text-white md:text-3xl">
                                 Flashcard paklik
                             </h1>
-                            <p className="text-sm text-white/85">
+                            <p className="mt-1.5 text-sm text-white/85 md:text-base">
                                 Kezeld a kártyagyűjteményeidet, és tanulj
                                 időzített ismétléssel.
                             </p>
-                        </div>
-                        <div className="flex items-center gap-2 sm:shrink-0">
-                            {folders.length > 0 && (
+                            <div className="mt-5 flex flex-wrap items-center gap-2">
                                 <button
-                                    onClick={() =>
-                                        setShowFolderManagerDialog(true)
-                                    }
-                                    className="inline-flex items-center gap-1.5 rounded-xl bg-white/20 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-white/30"
+                                    type="button"
+                                    onClick={openNewDeckDialog}
+                                    className="inline-flex cursor-pointer items-center gap-1.5 rounded-full bg-linear-to-br from-green-400 to-green-500 px-6 py-3 text-sm font-bold text-green-950 shadow-[0_4px_0_0_var(--color-green-600)] transition-all hover:brightness-105 active:translate-y-0.75"
+                                >
+                                    <Plus className="size-4" />
+                                    Új pakli
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowFolderManager(true)}
+                                    className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-white/20 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-white/30"
                                 >
                                     <Settings2 className="size-4" />
-                                    <span className="hidden sm:inline">
-                                        Mappák
-                                    </span>
+                                    Mappák
                                 </button>
-                            )}
-                            <button
-                                onClick={openNewDeckDialog}
-                                className="inline-flex items-center gap-1.5 rounded-full bg-linear-to-br from-green-400 to-green-500 px-5 py-2.5 text-sm font-bold text-green-950 shadow-[0_4px_0_0_var(--color-green-600)] transition-all hover:brightness-105 active:translate-y-0.75"
-                            >
-                                <Plus className="size-4" />
-                                Új pakli
-                            </button>
+                            </div>
                         </div>
+
+                        {decks.length > 0 && (
+                            <div className="flex shrink-0 flex-col items-center gap-0.5 rounded-2xl bg-white/15 px-5 py-4 text-center ring-1 ring-white/20 backdrop-blur-sm">
+                                {dueSummary === null ? (
+                                    <>
+                                        <span className="h-10 w-16 animate-pulse rounded bg-white/25" />
+                                        <span className="mt-1 h-3 w-24 animate-pulse rounded bg-white/20" />
+                                    </>
+                                ) : (
+                                    <>
+                                        <span className="text-4xl font-bold text-white tabular-nums">
+                                            {dueSummary.cards.toLocaleString()}
+                                        </span>
+                                        <span className="text-xs text-white/75">
+                                            {dueSummary.cards > 0
+                                                ? `esedékes kártya ${dueSummary.decks} pakliban`
+                                                : dueSummary.earliestNext
+                                                  ? `következő kártya ${formatDue(dueSummary.earliestNext, 'review', now)}`
+                                                  : 'esedékes kártya'}
+                                        </span>
+                                    </>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
 
-                {/* New deck dialog */}
-                <Dialog
-                    open={showNewDeckDialog}
-                    onOpenChange={(open) => {
-                        setShowNewDeckDialog(open);
-
-                        if (!open) {
-                            newDeckForm.reset();
-                        }
-                    }}
-                >
-                    <DialogContent className="sm:max-w-md">
-                        <DialogHeader>
-                            <DialogTitle>Új deck létrehozása</DialogTitle>
-                        </DialogHeader>
-                        <form
-                            onSubmit={handleSubmitNewDeck}
-                            className="space-y-4 pt-1"
-                        >
-                            <div className="grid gap-1.5">
-                                <Label htmlFor="name">Deck neve</Label>
-                                <Input
-                                    id="name"
-                                    name="name"
-                                    placeholder="pl. Üzleti angol"
-                                    autoComplete="off"
-                                    autoFocus
-                                    value={newDeckForm.data.name}
-                                    onChange={(e) =>
-                                        newDeckForm.setData(
-                                            'name',
-                                            e.target.value,
-                                        )
-                                    }
-                                />
-                                {newDeckForm.errors.name && (
-                                    <p className="text-xs text-destructive">
-                                        {newDeckForm.errors.name}
-                                    </p>
-                                )}
-                            </div>
-                            <div className="grid gap-1.5">
-                                <Label htmlFor="description">
-                                    Leírás (opcionális)
-                                </Label>
-                                <Textarea
-                                    id="description"
-                                    name="description"
-                                    placeholder="Rövid leírás, témakör..."
-                                    className="min-h-20 resize-none"
-                                    value={newDeckForm.data.description}
-                                    onChange={(e) =>
-                                        newDeckForm.setData(
-                                            'description',
-                                            e.target.value,
-                                        )
-                                    }
-                                />
-                            </div>
-                            {folders.length > 0 && (
-                                <div className="grid gap-1.5">
-                                    <Label>Mappa (opcionális)</Label>
-                                    <Select
-                                        value={
-                                            newDeckForm.data.folder_id || 'none'
-                                        }
-                                        onValueChange={(v) =>
-                                            newDeckForm.setData(
-                                                'folder_id',
-                                                v === 'none' ? '' : v,
-                                            )
-                                        }
-                                    >
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Nincs mappában" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="none">
-                                                Nincs mappában
-                                            </SelectItem>
-                                            {folders.map((f) => (
-                                                <SelectItem
-                                                    key={f.id}
-                                                    value={String(f.id)}
-                                                >
-                                                    <FolderOpen className="mr-1.5 inline-block size-3.5" />
-                                                    {f.name}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            )}
-                            <div className="flex gap-2 pt-1">
-                                <Button
-                                    type="submit"
-                                    disabled={newDeckForm.processing}
-                                    className="flex-1"
-                                >
-                                    Létrehozás
-                                </Button>
-                                <Button
+                {/* Mappa-szűrő + kereső — csak ha van mit szűrni; a mappák
+                    létrehozása a hero „Mappák" gombján érhető el. */}
+                {(folders.length > 0 || decks.length > SEARCH_THRESHOLD) && (
+                    <div className="flex flex-wrap items-center gap-2">
+                        {folders.length > 0 && (
+                            <>
+                                <button
                                     type="button"
-                                    variant="outline"
-                                    onClick={() => setShowNewDeckDialog(false)}
+                                    onClick={() => setFolder(null)}
+                                    aria-pressed={activeFolderId === null}
+                                    className={cn(
+                                        'inline-flex cursor-pointer items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-colors',
+                                        activeFolderId === null
+                                            ? 'bg-linear-to-br from-indigo-600 to-indigo-800 text-white'
+                                            : 'bg-muted text-muted-foreground hover:bg-accent hover:text-foreground',
+                                    )}
                                 >
-                                    Mégse
-                                </Button>
-                            </div>
-                        </form>
-                    </DialogContent>
-                </Dialog>
+                                    Összes
+                                    <span className="text-xs tabular-nums opacity-70">
+                                        {decks.length}
+                                    </span>
+                                </button>
 
-                {/* Folder manager dialog */}
-                <Dialog
-                    open={showFolderManagerDialog}
-                    onOpenChange={(open) => {
-                        setShowFolderManagerDialog(open);
-
-                        if (!open) {
-                            setShowNewFolderInput(false);
-                            setNewFolderName('');
-                            setEditFolderId(null);
-                            setEditFolderName('');
-                        }
-                    }}
-                >
-                    <DialogContent className="sm:max-w-sm">
-                        <DialogHeader>
-                            <DialogTitle>Mappák kezelése</DialogTitle>
-                        </DialogHeader>
-                        <div className="space-y-1 pt-1">
-                            {folders.map((folder) =>
-                                editFolderId === folder.id ? (
-                                    <form
+                                {folders.map((folder) => (
+                                    <button
                                         key={folder.id}
-                                        onSubmit={(e) => {
-                                            e.preventDefault();
-                                            handleRenameFolder(
-                                                folder.id,
-                                                editFolderName,
-                                            );
-                                        }}
-                                        className="flex items-center gap-2 px-1 py-1"
+                                        type="button"
+                                        onClick={() => setFolder(folder.id)}
+                                        aria-pressed={
+                                            activeFolderId === folder.id
+                                        }
+                                        className={cn(
+                                            'inline-flex cursor-pointer items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-colors',
+                                            activeFolderId === folder.id
+                                                ? 'bg-linear-to-br from-indigo-600 to-indigo-800 text-white'
+                                                : 'bg-muted text-muted-foreground hover:bg-accent hover:text-foreground',
+                                        )}
                                     >
-                                        <Input
-                                            autoFocus
-                                            value={editFolderName}
-                                            onChange={(e) =>
-                                                setEditFolderName(
-                                                    e.target.value,
-                                                )
-                                            }
-                                            onKeyDown={(e) => {
-                                                if (e.key === 'Escape') {
-                                                    setEditFolderId(null);
-                                                }
-                                            }}
-                                            className="h-8 flex-1"
-                                        />
-                                        <Button
-                                            type="submit"
-                                            size="sm"
-                                            className="h-8 px-3"
-                                            disabled={!editFolderName.trim()}
-                                        >
-                                            Mentés
-                                        </Button>
-                                        <Button
-                                            type="button"
-                                            size="sm"
-                                            variant="ghost"
-                                            className="size-8 p-0"
-                                            onClick={() =>
-                                                setEditFolderId(null)
-                                            }
-                                        >
-                                            <X className="size-3.5" />
-                                        </Button>
-                                    </form>
-                                ) : (
-                                    <div
-                                        key={folder.id}
-                                        className="flex items-center gap-2 rounded-lg px-2 py-2 hover:bg-muted/50"
-                                    >
-                                        <FolderOpen className="size-4 shrink-0 text-muted-foreground" />
-                                        <span className="flex-1 truncate text-sm font-medium">
-                                            {folder.name}
-                                        </span>
-                                        <span className="text-xs text-muted-foreground tabular-nums">
+                                        {folder.name}
+                                        <span className="text-xs tabular-nums opacity-70">
                                             {folder.decks_count}
                                         </span>
-                                        <button
-                                            onClick={() => {
-                                                setEditFolderId(folder.id);
-                                                setEditFolderName(folder.name);
-                                            }}
-                                            className="rounded p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                                            title="Átnevezés"
-                                        >
-                                            <Pencil className="size-3.5" />
-                                        </button>
-                                        <button
-                                            onClick={() =>
-                                                handleDeleteFolder(
-                                                    folder.id,
-                                                    folder.name,
-                                                )
-                                            }
-                                            className="rounded p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-                                            title="Törlés"
-                                        >
-                                            <Trash2 className="size-3.5" />
-                                        </button>
-                                    </div>
-                                ),
-                            )}
+                                    </button>
+                                ))}
+                            </>
+                        )}
 
-                            {folders.length === 0 && !showNewFolderInput && (
-                                <p className="py-4 text-center text-sm text-muted-foreground">
-                                    Még nincs mappád.
-                                </p>
-                            )}
-
-                            {showNewFolderInput ? (
-                                <form
-                                    onSubmit={(e) => {
-                                        e.preventDefault();
-                                        handleCreateFolder();
-                                    }}
-                                    className="flex items-center gap-2 px-1 pt-2"
-                                >
-                                    <Input
-                                        autoFocus
-                                        value={newFolderName}
-                                        onChange={(e) =>
-                                            setNewFolderName(e.target.value)
-                                        }
-                                        placeholder="Mappa neve..."
-                                        className="h-8 flex-1"
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Escape') {
-                                                setShowNewFolderInput(false);
-                                                setNewFolderName('');
-                                            }
-                                        }}
-                                    />
-                                    <Button
-                                        type="submit"
-                                        size="sm"
-                                        className="h-8 px-3"
-                                        disabled={!newFolderName.trim()}
-                                    >
-                                        Létrehozás
-                                    </Button>
-                                    <Button
+                        {decks.length > SEARCH_THRESHOLD && (
+                            <div className="relative ms-auto w-full sm:w-64">
+                                <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" />
+                                <Input
+                                    type="search"
+                                    value={search}
+                                    onChange={(e) => setSearch(e.target.value)}
+                                    placeholder="Pakli keresése..."
+                                    className="h-9 rounded-full border-0 bg-muted pr-9 pl-10"
+                                />
+                                {search && (
+                                    <button
                                         type="button"
-                                        size="sm"
-                                        variant="ghost"
-                                        className="size-8 p-0"
-                                        onClick={() => {
-                                            setShowNewFolderInput(false);
-                                            setNewFolderName('');
-                                        }}
+                                        onClick={() => setSearch('')}
+                                        aria-label="Keresés törlése"
+                                        className="absolute top-1/2 right-3 -translate-y-1/2 cursor-pointer text-muted-foreground hover:text-foreground"
                                     >
-                                        <X className="size-3.5" />
-                                    </Button>
-                                </form>
-                            ) : (
-                                <button
-                                    onClick={() => setShowNewFolderInput(true)}
-                                    className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed px-3 py-2 text-sm text-muted-foreground transition-colors hover:border-border hover:text-foreground"
-                                >
-                                    <FolderPlus className="size-3.5" />
-                                    Új mappa
-                                </button>
-                            )}
-                        </div>
-                    </DialogContent>
-                </Dialog>
-
-                {/* Folder filter chips */}
-                <div className="flex flex-wrap items-center gap-2">
-                    {folders.length > 0 && (
-                        <button
-                            onClick={() => setFolder(null)}
-                            className={cn(
-                                'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-colors',
-                                activeFolderId === null
-                                    ? 'bg-linear-to-br from-indigo-600 to-indigo-800 text-white'
-                                    : 'bg-muted text-muted-foreground hover:bg-accent hover:text-foreground',
-                            )}
-                        >
-                            Összes
-                            <span
-                                className={cn(
-                                    'text-xs tabular-nums',
-                                    activeFolderId === null
-                                        ? 'opacity-80'
-                                        : 'opacity-60',
+                                        <X className="size-4" />
+                                    </button>
                                 )}
-                            >
-                                {decks.length}
-                            </span>
-                        </button>
-                    )}
+                            </div>
+                        )}
+                    </div>
+                )}
 
-                    {folders.map((folder) => (
-                        <button
-                            key={folder.id}
-                            onClick={() => setFolder(folder.id)}
-                            className={cn(
-                                'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-colors',
-                                activeFolderId === folder.id
-                                    ? 'bg-linear-to-br from-indigo-600 to-indigo-800 text-white'
-                                    : 'bg-muted text-muted-foreground hover:bg-accent hover:text-foreground',
-                            )}
-                        >
-                            {folder.name}
-                            <span
-                                className={cn(
-                                    'text-xs tabular-nums',
-                                    activeFolderId === folder.id
-                                        ? 'opacity-80'
-                                        : 'opacity-60',
-                                )}
-                            >
-                                {folder.decks_count}
-                            </span>
-                        </button>
-                    ))}
-
-                    {folders.length === 0 && (
-                        <button
-                            onClick={() => setShowFolderManagerDialog(true)}
-                            className="inline-flex items-center gap-1.5 rounded-full border border-dashed px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:border-border hover:text-foreground"
-                        >
-                            <FolderPlus className="size-3.5" />
-                            Új mappa
-                        </button>
-                    )}
-                </div>
-
-                {/* Deck grid */}
+                {/* Pakli-rács */}
                 {decks.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-16 text-center text-muted-foreground">
-                        <BookOpen className="mb-4 size-12 opacity-30" />
-                        <p className="text-sm">Még nincs egy decked sem.</p>
+                    <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed py-16 text-center">
+                        <BookOpen className="mb-4 size-12 text-muted-foreground opacity-30" />
+                        <p className="text-sm font-medium">
+                            Még nincs egy paklid sem.
+                        </p>
+                        <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+                            A pakli kártyák gyűjteménye — kézzel is felvehetsz
+                            kártyát, de a szólistából és CSV-ből is
+                            importálhatsz.
+                        </p>
                         <button
+                            type="button"
                             onClick={openNewDeckDialog}
-                            className="mt-3 text-sm text-primary underline underline-offset-2 hover:no-underline"
+                            className="mt-4 inline-flex cursor-pointer items-center gap-1.5 rounded-full bg-linear-to-br from-green-400 to-green-500 px-5 py-2.5 text-sm font-bold text-green-950 shadow-[0_4px_0_0_var(--color-green-600)] transition-all hover:brightness-105 active:translate-y-0.75"
                         >
-                            Hozz létre egy decket →
+                            <Plus className="size-4" />
+                            Első pakli létrehozása
                         </button>
                     </div>
                 ) : displayedDecks.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-16 text-center text-muted-foreground">
-                        <BookOpen className="mb-4 size-12 opacity-30" />
-                        <p className="text-sm">Nincs deck ebben a mappában.</p>
+                    <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed py-16 text-center">
+                        <BookOpen className="mb-4 size-12 text-muted-foreground opacity-30" />
+                        <p className="text-sm text-muted-foreground">
+                            {search
+                                ? `Nincs találat erre: „${search}"`
+                                : 'Nincs pakli ebben a mappában.'}
+                        </p>
                         <button
-                            onClick={openNewDeckDialog}
-                            className="mt-3 text-sm text-primary underline underline-offset-2 hover:no-underline"
+                            type="button"
+                            onClick={() => {
+                                setSearch('');
+                                setFolder(null);
+                            }}
+                            className="mt-3 cursor-pointer text-sm text-primary underline underline-offset-2 hover:no-underline"
                         >
-                            Hozz létre egy decket →
+                            Szűrők törlése
                         </button>
                     </div>
                 ) : (
-                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
                         {displayedDecks.map((deck) => (
-                            <DeckCard key={deck.id} deck={deck} />
+                            <DeckCard
+                                key={deck.id}
+                                deck={deck}
+                                dueCount={dueCounts?.[deck.id]}
+                                nextDueAt={nextDueAt?.[deck.id]}
+                                now={now}
+                                folders={folders}
+                                folderIds={deckFolderIds[deck.id] ?? []}
+                                onToggleFolder={(folderId, inFolder) =>
+                                    handleToggleDeckFolder(
+                                        deck.id,
+                                        folderId,
+                                        inFolder,
+                                    )
+                                }
+                                onRename={openRenameDialog}
+                                onDelete={setDeletingDeck}
+                            />
                         ))}
                     </div>
                 )}
             </div>
+
+            <DeckFormDialog
+                open={deckDialogOpen}
+                onOpenChange={setDeckDialogOpen}
+                deck={editingDeck}
+                folders={folders}
+                defaultFolderId={activeFolderId}
+            />
+
+            <FolderManagerDialog
+                open={showFolderManager}
+                onOpenChange={setShowFolderManager}
+                folders={folders}
+                onCreate={handleCreateFolder}
+                onRename={handleRenameFolder}
+                onDelete={handleDeleteFolder}
+            />
+
+            <ConfirmDialog
+                open={deletingDeck !== null}
+                onOpenChange={(open) => !open && setDeletingDeck(null)}
+                title="Pakli törlése"
+                destructive
+                confirmLabel="Igen, törlöm"
+                description={
+                    <>
+                        A(z){' '}
+                        <strong className="text-foreground">
+                            {deletingDeck?.name}
+                        </strong>{' '}
+                        pakli és a benne lévő{' '}
+                        <strong className="text-foreground">
+                            {deletingDeck?.flashcards_count.toLocaleString()}{' '}
+                            kártya
+                        </strong>{' '}
+                        a tanulási előzményekkel együtt véglegesen törlődik. Ez
+                        nem vonható vissza.
+                    </>
+                }
+                onConfirm={() => {
+                    if (deletingDeck) {
+                        router.delete(destroy({ deck: deletingDeck.id }));
+                    }
+                }}
+            />
         </>
     );
 }
 
 FlashcardsIndex.layout = {
-    breadcrumbs: [{ title: 'Flashcard decks', href: index() }],
+    breadcrumbs: [{ title: 'Flashcards', href: index() }],
 };

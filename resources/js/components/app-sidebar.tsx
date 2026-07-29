@@ -65,7 +65,10 @@ const navGroups: { label?: string; items: NavItem[] }[] = [
     {
         items: [
             {
-                title: 'Dashboard',
+                // A menüpont neve megegyezik az oldal címével („Haladás”), a
+                // vegyes tartalmú csoport pedig „Továbbiak” lett — korábban két
+                // különböző dolgot hívtunk ugyanúgy.
+                title: 'Haladás',
                 href: dashboard(),
                 icon: LayoutGrid,
                 tourId: 'tour-dashboard',
@@ -125,7 +128,7 @@ const navGroups: { label?: string; items: NavItem[] }[] = [
         ],
     },
     {
-        label: 'Haladás',
+        label: 'Továbbiak',
         items: [
             {
                 title: 'Teljesítmények',

@@ -54,8 +54,10 @@
         <link rel="icon" href="/favicon.svg" type="image/svg+xml">
         <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 
+        {{-- A Manrope-ot a főoldal betűkészlete kéri (`font-['Manrope',…]`); enélkül
+             a teljes landing némán a system-ui-ra esett vissza. --}}
         <link rel="preconnect" href="https://fonts.bunny.net">
-        <link href="https://fonts.bunny.net/css?family=space-grotesk:400,500,600,700" rel="stylesheet" />
+        <link href="https://fonts.bunny.net/css?family=manrope:400,500,600,700,800|space-grotesk:400,500,600,700&display=swap" rel="stylesheet" />
 
         @if(request()->is('/'))
         @verbatim

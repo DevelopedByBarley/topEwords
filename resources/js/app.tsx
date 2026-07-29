@@ -10,11 +10,15 @@ const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
 createInertiaApp({
     title: (title) => (title ? `${title} - ${appName}` : appName),
+    // Keret nélkül renderelt oldalak: a publikus felület (a kézikönyv is,
+    // mert az vendégként és bejelentkezve más keretet kap — lásd
+    // `pages/handbook.tsx`) és az admin.
     layout: (name) => {
         switch (true) {
             case name === 'welcome':
             case name === 'pricing':
             case name === 'guide':
+            case name === 'handbook':
             case name === 'onboarding/index':
             case name.startsWith('legal/'):
             case name.startsWith('admin/'):

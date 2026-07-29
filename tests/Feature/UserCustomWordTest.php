@@ -424,3 +424,25 @@ test('guests cannot access custom words routes', function () {
     $this->post(route('custom-words.store'), ['word' => 'test', 'status' => 'learning'])
         ->assertRedirect(route('login'));
 });
+
+test('words page carries the custom source filter so the dashboard link can preselect it', function () {
+    UserCustomWord::create([
+        'user_id' => $this->user->id,
+        'word' => 'ephemeral',
+        'meaning_hu' => 'illékony',
+        'status' => 'learning',
+    ]);
+
+    $this->get(route('words.index', ['source' => 'custom']))
+        ->assertInertia(fn ($page) => $page
+            ->component('words/index')
+            ->where('filters.source', 'custom')
+            ->has('customWords', 1)
+        );
+});
+
+test('words page rejects an unknown source filter value', function () {
+    // Csak a 'custom' érvényes; bármi más a teljes listát jelenti.
+    $this->get(route('words.index', ['source' => 'kacsa']))
+        ->assertInertia(fn ($page) => $page->where('filters.source', ''));
+});

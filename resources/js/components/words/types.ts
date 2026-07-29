@@ -1,6 +1,12 @@
 import { BookMarked, CheckCheck, Clock, Mic, PenLine } from 'lucide-react';
 
-export type WordStatus = 'known' | 'learning' | 'saved' | 'pronunciation' | 'practice' | null;
+export type WordStatus =
+    | 'known'
+    | 'learning'
+    | 'saved'
+    | 'pronunciation'
+    | 'practice'
+    | null;
 
 export interface Word {
     id: number;
@@ -71,13 +77,25 @@ export type WordFormData = {
 };
 
 export const EMPTY_WORD_FORM: WordFormData = {
-    word: '', meaning_hu: '', extra_meanings: '', synonyms: '',
-    part_of_speech: '', example_en: '', example_hu: '',
-    form_base: '', verb_past: '', verb_past_participle: '',
-    verb_present_participle: '', verb_third_person: '',
-    is_irregular: false, noun_plural: '', adj_comparative: '', adj_superlative: '',
+    word: '',
+    meaning_hu: '',
+    extra_meanings: '',
+    synonyms: '',
+    part_of_speech: '',
+    example_en: '',
+    example_hu: '',
+    form_base: '',
+    verb_past: '',
+    verb_past_participle: '',
+    verb_present_participle: '',
+    verb_third_person: '',
+    is_irregular: false,
+    noun_plural: '',
+    adj_comparative: '',
+    adj_superlative: '',
     extra_forms: '',
-    status: null, importance: null,
+    status: null,
+    importance: null,
 };
 
 export function wordToFormData(w: Word | CustomWord): WordFormData {
@@ -136,53 +154,76 @@ export interface StatusConfigEntry {
     rowText: string;
     filterActive: string;
     filterHover: string;
+    /** A haladás-kártya statisztika-csempéjének gyűrűje, ha rá van szűrve. */
+    tileRing: string;
 }
 
 export const STATUS_CONFIG: StatusConfigEntry[] = [
     {
-        value: 'known', label: 'Tudom', icon: CheckCheck,
-        pillActive: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400',
+        value: 'known',
+        label: 'Tudom',
+        icon: CheckCheck,
+        pillActive:
+            'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400',
         pillHover: 'hover:bg-green-100 hover:text-green-700',
         rowBg: 'bg-green-50 dark:bg-green-950/20',
         rowText: 'text-green-700 decoration-green-400 dark:text-green-400',
         filterActive: 'bg-green-600 hover:bg-green-700',
         filterHover: 'hover:border-green-500 hover:text-green-700',
+        tileRing: 'ring-green-500',
     },
     {
-        value: 'learning', label: 'Tanulom', icon: Clock,
-        pillActive: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400',
+        value: 'learning',
+        label: 'Tanulom',
+        icon: Clock,
+        pillActive:
+            'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400',
         pillHover: 'hover:bg-blue-100 hover:text-blue-700',
         rowBg: 'bg-blue-50 dark:bg-blue-950/20',
         rowText: 'text-blue-700 decoration-blue-400 dark:text-blue-400',
         filterActive: 'bg-blue-600 hover:bg-blue-700',
         filterHover: 'hover:border-blue-500 hover:text-blue-700',
+        tileRing: 'ring-blue-500',
     },
     {
-        value: 'saved', label: 'Később', icon: BookMarked,
-        pillActive: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400',
+        value: 'saved',
+        label: 'Később',
+        icon: BookMarked,
+        pillActive:
+            'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400',
         pillHover: 'hover:bg-orange-100 hover:text-orange-700',
         rowBg: 'bg-orange-50 dark:bg-orange-950/20',
         rowText: 'text-orange-700 decoration-orange-400 dark:text-orange-400',
         filterActive: 'bg-orange-500 hover:bg-orange-600',
         filterHover: 'hover:border-orange-500 hover:text-orange-700',
+        tileRing: 'ring-orange-500',
     },
     {
-        value: 'pronunciation', label: 'Kiejtés', icon: Mic,
-        pillActive: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-400',
+        value: 'pronunciation',
+        label: 'Kiejtés',
+        icon: Mic,
+        pillActive:
+            'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-400',
         pillHover: 'hover:bg-violet-100 hover:text-violet-700',
         rowBg: 'bg-violet-50 dark:bg-violet-950/20',
         rowText: 'text-violet-700 decoration-violet-400 dark:text-violet-400',
-        filterActive: 'bg-gradient-to-br from-violet-500 to-violet-400 hover:bg-violet-700',
+        filterActive:
+            'bg-gradient-to-br from-violet-500 to-violet-400 hover:bg-violet-700',
         filterHover: 'hover:border-violet-500 hover:text-violet-700',
+        tileRing: 'ring-violet-500',
     },
     {
-        value: 'practice', label: 'Gyakorlásra', icon: PenLine,
-        pillActive: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-400',
+        value: 'practice',
+        label: 'Gyakorlásra',
+        icon: PenLine,
+        pillActive:
+            'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-400',
         pillHover: 'hover:bg-rose-100 hover:text-rose-700',
         rowBg: 'bg-rose-50 dark:bg-rose-950/20',
         rowText: 'text-rose-700 decoration-rose-400 dark:text-rose-400',
         filterActive: 'bg-rose-600 hover:bg-rose-700',
         filterHover: 'hover:border-rose-500 hover:text-rose-700',
+        tileRing: 'ring-rose-500',
     },
 ];
 
@@ -191,13 +232,16 @@ export function statusRowBg(status: WordStatus): string {
 }
 
 export function statusRowText(status: WordStatus): string {
-    return STATUS_CONFIG.find((s) => s.value === status)?.rowText ?? 'decoration-muted-foreground/40';
+    return (
+        STATUS_CONFIG.find((s) => s.value === status)?.rowText ??
+        'decoration-muted-foreground/40'
+    );
 }
 
 export function speak(word: string): void {
     if (!window.speechSynthesis) {
-return;
-}
+        return;
+    }
 
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(word);

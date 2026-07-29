@@ -6,6 +6,7 @@ use App\Models\FlashcardReview;
 use App\Models\FlashcardSetting;
 use App\Models\User;
 use App\Services\FlashcardSrsService;
+use Carbon\Carbon;
 use Illuminate\Http\UploadedFile;
 use Inertia\Inertia;
 use Tests\TestCase;
@@ -27,6 +28,70 @@ function loadDueCounts(TestCase $test): array
         'X-Inertia-Partial-Data' => 'dueCounts',
     ])->json('props.dueCounts');
 }
+
+test('the deck list exposes the next due timestamp per deck', function () {
+    $user = User::factory()->create();
+    $deck = FlashcardDeck::create(['user_id' => $user->id, 'name' => 'Scheduled Deck']);
+    $card = Flashcard::create(['deck_id' => $deck->id, 'front' => 'A', 'back' => 'B', 'direction' => 'front_to_back']);
+
+    // Két jövőbeni esedékesség — a korábbinak kell megjelennie.
+    FlashcardReview::create([
+        'flashcard_id' => $card->id, 'direction' => 'front_to_back',
+        'state' => 'review', 'due_at' => now()->addDays(3),
+    ]);
+    $other = Flashcard::create(['deck_id' => $deck->id, 'front' => 'C', 'back' => 'D', 'direction' => 'front_to_back']);
+    FlashcardReview::create([
+        'flashcard_id' => $other->id, 'direction' => 'front_to_back',
+        'state' => 'review', 'due_at' => now()->addHours(5),
+    ]);
+
+    $test = $this->actingAs($user);
+    $test->get(route('flashcards.index'))->assertOk();
+
+    $nextDueAt = $test->get(route('flashcards.index'), [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => Inertia::getVersion(),
+        'X-Inertia-Partial-Component' => 'flashcards/index',
+        'X-Inertia-Partial-Data' => 'nextDueAt',
+    ])->json('props.nextDueAt');
+
+    // Offszettel jelölt ISO8601 kell: a nyers DB-stringet ("2026-07-30 06:15:00")
+    // a böngésző helyi időként olvasná, és UTC alkalmazás-időzóna mellett a
+    // nyári offszet a jövőbeni esedékességet is a múltba tolná.
+    expect($nextDueAt[$deck->id])
+        ->toMatch('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/')
+        ->and(Carbon::parse($nextDueAt[$deck->id])->diffInHours(now(), true))->toBeLessThan(6);
+});
+
+test('the deck page exposes the next due timestamp as offset-aware ISO8601', function () {
+    $user = User::factory()->create();
+    $deck = FlashcardDeck::create(['user_id' => $user->id, 'name' => 'Scheduled Deck']);
+    $card = Flashcard::create(['deck_id' => $deck->id, 'front' => 'A', 'back' => 'B', 'direction' => 'front_to_back']);
+    FlashcardReview::create([
+        'flashcard_id' => $card->id, 'direction' => 'front_to_back',
+        'state' => 'review', 'due_at' => now()->addHours(2),
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('flashcards.show', $deck))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->where(
+            'nextDueAt',
+            fn ($value) => (bool) preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/', $value),
+        ));
+});
+
+test('the deck page reports a null next due date when nothing is scheduled', function () {
+    $user = User::factory()->create();
+    $deck = FlashcardDeck::create(['user_id' => $user->id, 'name' => 'Fresh Deck']);
+    Flashcard::create(['deck_id' => $deck->id, 'front' => 'A', 'back' => 'B', 'direction' => 'front_to_back']);
+
+    // Carbon::parse(null) a mostani időt adná — a null-ágnak külön kell futnia.
+    $this->actingAs($user)
+        ->get(route('flashcards.show', $deck))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->where('nextDueAt', null));
+});
 
 test('due count excludes uncalibrated imported cards', function () {
     $user = User::factory()->create();
@@ -299,6 +364,38 @@ test('user can delete own deck', function () {
         ->assertRedirect(route('flashcards.index'));
 
     expect(FlashcardDeck::find($deck->id))->toBeNull();
+});
+
+test('user can rename their own deck without leaving the current page', function () {
+    $user = User::factory()->create();
+    $deck = FlashcardDeck::create(['user_id' => $user->id, 'name' => 'Old name', 'description' => 'Old description']);
+
+    // A pakli-listáról indított átnevezésnek helyben kell maradnia, ezért a
+    // kontroller `back()`-kel válaszol, nem a pakli oldalára irányít.
+    $this->actingAs($user)
+        ->from(route('flashcards.index'))
+        ->patch(route('flashcards.update', $deck), [
+            'name' => 'New name',
+            'description' => 'New description',
+        ])
+        ->assertRedirect(route('flashcards.index'));
+
+    $deck->refresh();
+
+    expect($deck->name)->toBe('New name')
+        ->and($deck->description)->toBe('New description');
+});
+
+test('user cannot rename someone elses deck', function () {
+    $owner = User::factory()->create();
+    $other = User::factory()->create();
+    $deck = FlashcardDeck::create(['user_id' => $owner->id, 'name' => 'Owned']);
+
+    $this->actingAs($other)
+        ->patch(route('flashcards.update', $deck), ['name' => 'Hijacked'])
+        ->assertForbidden();
+
+    expect($deck->fresh()->name)->toBe('Owned');
 });
 
 // --- Card CRUD ---

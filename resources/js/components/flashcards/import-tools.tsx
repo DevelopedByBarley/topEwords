@@ -1,21 +1,17 @@
-import { FileUp, Import, Info, Loader2, Search } from 'lucide-react';
-import React, { useCallback, useRef, useState } from 'react';
+import { FileUp, Import, Loader2, Search } from 'lucide-react';
+import { useCallback, useRef, useState } from 'react';
 import { DIRECTION_OPTIONS } from '@/components/flashcards/types';
 import type { Deck, WordResult } from '@/components/flashcards/types';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
     DialogContent,
+    DialogDescription,
+    DialogFooter,
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import {
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
-} from '@/components/ui/tooltip';
 import { importMethod as csvImport } from '@/routes/flashcards/csv';
 import { search as searchWords } from '@/routes/words';
 
@@ -103,12 +99,17 @@ export function CsvImport({ deck }: { deck: Deck }) {
                     }
                 }}
             >
-                <DialogContent>
-                    <DialogHeader>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader className="pr-8">
                         <DialogTitle>CSV import beállítások</DialogTitle>
+                        <DialogDescription>
+                            Két oszlop kell: előlap, hátlap — vesszővel
+                            elválasztva, fejléc nélkül. Egyszerre legfeljebb 5
+                            000 sor importálható.
+                        </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-2">
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-sm font-medium">
                             Melyik irányban szeretnéd tanulni a kártyákat?
                         </p>
                         <div className="mt-1 grid gap-2">
@@ -132,7 +133,7 @@ export function CsvImport({ deck }: { deck: Deck }) {
                             ))}
                         </div>
                     </div>
-                    <div className="mt-2 flex justify-end gap-3">
+                    <DialogFooter className="mt-2">
                         <Button variant="outline" onClick={handleCancel}>
                             Mégse
                         </Button>
@@ -140,43 +141,45 @@ export function CsvImport({ deck }: { deck: Deck }) {
                             <FileUp className="mr-1 size-4" />
                             Importálás
                         </Button>
-                    </div>
+                    </DialogFooter>
                 </DialogContent>
             </Dialog>
         </>
     );
 }
 
+/**
+ * Szó felvétele kártyaként. A kereső saját dialógusban lakik: a művelet-sávban
+ * egy mindig nyitott beviteli mező vitte a helyet, és a „kiválaszt, majd
+ * importál" két lépéséből itt egy kattintás lett.
+ */
 export function WordSearchImport({
     onImport,
 }: {
     onImport: (word: WordResult) => void;
 }) {
+    const [open, setOpen] = useState(false);
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<WordResult[]>([]);
-    const [selected, setSelected] = useState<WordResult | null>(null);
-    const [open, setOpen] = useState(false);
     const [searching, setSearching] = useState(false);
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const handleSearch = useCallback((value: string) => {
         setQuery(value);
-        setSelected(null);
 
         if (debounceRef.current) {
             clearTimeout(debounceRef.current);
         }
 
-        if (value.length < 2) {
+        if (value.trim().length < 2) {
             setResults([]);
-            setOpen(false);
+            setSearching(false);
 
             return;
         }
 
+        setSearching(true);
         debounceRef.current = setTimeout(async () => {
-            setSearching(true);
-
             try {
                 const res = await fetch(
                     searchWords({ query: { q: value } }).url,
@@ -186,92 +189,101 @@ export function WordSearchImport({
                 );
                 const data: WordResult[] = await res.json();
                 setResults(data);
-                setOpen(data.length > 0);
             } finally {
                 setSearching(false);
             }
         }, 250);
     }, []);
 
-    const handleSelect = (word: WordResult) => {
-        setSelected(word);
-        setQuery(word.word);
+    function handlePick(word: WordResult) {
         setOpen(false);
-    };
-
-    const handleImport = () => {
-        if (!selected) {
-            return;
-        }
-
-        onImport(selected);
-        setSelected(null);
         setQuery('');
         setResults([]);
-    };
+        onImport(word);
+    }
 
     return (
-        <div className="flex flex-wrap items-center gap-2">
-            <div className="relative">
-                <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                    value={query}
-                    onChange={(e) => handleSearch(e.target.value)}
-                    onFocus={() => results.length > 0 && setOpen(true)}
-                    onBlur={() => setTimeout(() => setOpen(false), 150)}
-                    placeholder="Szó keresése..."
-                    className="h-9 w-36 pl-8 sm:w-56"
-                />
-                {open && (
-                    <div className="absolute top-full left-0 z-50 mt-1 w-72 overflow-hidden rounded-md border bg-popover shadow-md">
-                        {searching && (
-                            <div className="px-3 py-2 text-xs text-muted-foreground">
-                                Keresés...
-                            </div>
-                        )}
-                        {results.map((word) => (
-                            <button
-                                key={`${word.is_custom ? 'c' : 'w'}-${word.id}`}
-                                onMouseDown={() => handleSelect(word)}
-                                className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm transition-colors hover:bg-accent"
-                            >
-                                <span className="font-medium">{word.word}</span>
-                                {word.is_custom && (
-                                    <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
-                                        saját
-                                    </span>
-                                )}
-                                {word.meaning_hu && (
-                                    <span className="truncate text-xs text-muted-foreground">
-                                        {word.meaning_hu}
-                                    </span>
-                                )}
-                            </button>
-                        ))}
-                    </div>
-                )}
-            </div>
-            <Button
-                size="sm"
-                variant="outline"
-                disabled={!selected}
-                onClick={handleImport}
-            >
+        <>
+            <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
                 <Import className="mr-1 size-4" />
-                Importálás
+                Szó importálása
             </Button>
-            <TooltipProvider>
-                <Tooltip>
-                    <TooltipTrigger asChild>
-                        <Info className="size-4 shrink-0 cursor-help text-muted-foreground" />
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom">
-                        Keres a TopWords szótárban és a saját szavaid között.
-                        <br />
-                        Importálás után azonnal szerkesztheted a kártyát.
-                    </TooltipContent>
-                </Tooltip>
-            </TooltipProvider>
-        </div>
+
+            <Dialog
+                open={open}
+                onOpenChange={(next) => {
+                    setOpen(next);
+
+                    if (!next) {
+                        setQuery('');
+                        setResults([]);
+                    }
+                }}
+            >
+                <DialogContent className="flex max-h-[90dvh] flex-col sm:max-w-md">
+                    <DialogHeader className="pr-8">
+                        <DialogTitle>Szó importálása kártyaként</DialogTitle>
+                        <DialogDescription>
+                            Keres a TopWords szótárban és a saját szavaid
+                            között. Importálás után azonnal megnyílik a kártya
+                            szerkesztője.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="relative">
+                        <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                            autoFocus
+                            value={query}
+                            onChange={(e) => handleSearch(e.target.value)}
+                            placeholder="Szó keresése..."
+                            className="pl-9"
+                            aria-label="Szó keresése"
+                        />
+                    </div>
+
+                    <div className="min-h-0 flex-1 overflow-y-auto">
+                        {searching && (
+                            <p className="flex items-center gap-2 px-1 py-3 text-sm text-muted-foreground">
+                                <Loader2 className="size-3.5 animate-spin" />
+                                Keresés...
+                            </p>
+                        )}
+
+                        {!searching &&
+                            query.trim().length >= 2 &&
+                            results.length === 0 && (
+                                <p className="px-1 py-3 text-sm text-muted-foreground">
+                                    Nincs találat erre: „{query.trim()}"
+                                </p>
+                            )}
+
+                        {!searching &&
+                            results.map((word) => (
+                                <button
+                                    key={`${word.is_custom ? 'c' : 'w'}-${word.id}`}
+                                    type="button"
+                                    onClick={() => handlePick(word)}
+                                    className="flex w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors hover:bg-accent"
+                                >
+                                    <span className="font-medium">
+                                        {word.word}
+                                    </span>
+                                    {word.is_custom && (
+                                        <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                                            saját
+                                        </span>
+                                    )}
+                                    {word.meaning_hu && (
+                                        <span className="truncate text-xs text-muted-foreground">
+                                            {word.meaning_hu}
+                                        </span>
+                                    )}
+                                </button>
+                            ))}
+                    </div>
+                </DialogContent>
+            </Dialog>
+        </>
     );
 }

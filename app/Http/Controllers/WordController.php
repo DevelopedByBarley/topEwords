@@ -33,6 +33,10 @@ class WordController extends Controller
         $statusFilter = $request->string('status')->trim()->lower()->value();
         $importanceFilter = $request->integer('importance') ?: null;
         $folderId = $request->integer('folder') ?: null;
+        // A forrás-szűrés a kliensen történik (a saját szavak külön propban
+        // érkeznek), a szerver csak visszaadja az érvényes értéket, hogy a
+        // nézet URL-ből visszaállítható és megosztható legyen.
+        $source = $request->string('source')->trim()->lower()->value() === 'custom' ? 'custom' : '';
         $perPage = in_array((int) $request->input('per_page'), self::ALLOWED_PER_PAGE)
             ? (int) $request->input('per_page')
             : self::DEFAULT_PER_PAGE;
@@ -126,7 +130,7 @@ class WordController extends Controller
 
         return Inertia::render('words/index', [
             'words' => $getWords,
-            'filters' => ['search' => $search, 'letter' => $letter, 'level' => $level, 'status' => $statusFilter, 'importance' => $importanceFilter, 'folder' => $folderId, 'per_page' => $perPage],
+            'filters' => ['search' => $search, 'letter' => $letter, 'level' => $level, 'status' => $statusFilter, 'importance' => $importanceFilter, 'folder' => $folderId, 'source' => $source, 'per_page' => $perPage],
             'stats' => function () use ($pivot) {
                 $statusCounts = $pivot()->selectRaw('status, COUNT(*) as cnt')->groupBy('status')->pluck('cnt', 'status');
 

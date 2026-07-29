@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import {
     Dialog,
     DialogContent,
+    DialogDescription,
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
@@ -27,48 +28,64 @@ export default function MoveConfirmDialog({
 
     return (
         <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-            <DialogContent className="max-w-sm">
-                <DialogHeader>
+            <DialogContent className="sm:max-w-sm">
+                <DialogHeader className="pr-8">
                     <DialogTitle className="flex items-center gap-2">
                         <MoveRight className="size-4 text-primary" />
                         Kártya áthelyezése
                     </DialogTitle>
+                    <DialogDescription asChild>
+                        <p>
+                            Biztosan áthelyezed a(z){' '}
+                            <strong className="text-foreground">{label}</strong>{' '}
+                            ide:{' '}
+                            <strong className="text-foreground">
+                                {targetDeckName}
+                            </strong>
+                            ?
+                        </p>
+                    </DialogDescription>
                 </DialogHeader>
 
-                <p className="text-sm text-muted-foreground">
-                    Biztosan áthelyezed a(z) <strong className="text-foreground">{label}</strong>{' '}
-                    ide: <strong className="text-foreground">{targetDeckName}</strong>?
+                <p className="mt-1 text-sm font-medium">
+                    Mi legyen a tanulási haladással?
                 </p>
 
-                <p className="text-sm font-medium mt-1">Mi legyen a tanulási haladással?</p>
-
-                <div className="flex flex-col gap-2 mt-1">
+                <div className="mt-1 flex flex-col gap-2">
                     <button
                         type="button"
                         onClick={() => onConfirm(false)}
-                        className="flex items-start gap-3 rounded-xl border border-border bg-muted/40 px-4 py-3 text-left transition-colors hover:bg-muted/70 hover:border-primary/40"
+                        className="flex items-start gap-3 rounded-xl border border-border bg-muted/40 px-4 py-3 text-left transition-colors hover:border-primary/40 hover:bg-muted/70"
                     >
-                        <Shield className="size-4 mt-0.5 shrink-0 text-green-600" />
+                        <Shield className="mt-0.5 size-4 shrink-0 text-green-600" />
                         <div>
-                            <div className="text-sm font-medium">Haladás megőrzése</div>
-                            <div className="text-xs text-muted-foreground mt-0.5">Az SRS állapot és ismétlési ütemterv megmarad</div>
+                            <div className="text-sm font-medium">
+                                Haladás megőrzése
+                            </div>
+                            <div className="mt-0.5 text-xs text-muted-foreground">
+                                Az SRS állapot és ismétlési ütemterv megmarad
+                            </div>
                         </div>
                     </button>
 
                     <button
                         type="button"
                         onClick={() => onConfirm(true)}
-                        className="flex items-start gap-3 rounded-xl border border-border bg-muted/40 px-4 py-3 text-left transition-colors hover:bg-muted/70 hover:border-destructive/40"
+                        className="flex items-start gap-3 rounded-xl border border-border bg-muted/40 px-4 py-3 text-left transition-colors hover:border-destructive/40 hover:bg-muted/70"
                     >
-                        <RotateCcw className="size-4 mt-0.5 shrink-0 text-destructive" />
+                        <RotateCcw className="mt-0.5 size-4 shrink-0 text-destructive" />
                         <div>
-                            <div className="text-sm font-medium">Haladás törlése</div>
-                            <div className="text-xs text-muted-foreground mt-0.5">A kártya újként jelenik meg az új pakliban</div>
+                            <div className="text-sm font-medium">
+                                Haladás törlése
+                            </div>
+                            <div className="mt-0.5 text-xs text-muted-foreground">
+                                A kártya újként jelenik meg az új pakliban
+                            </div>
                         </div>
                     </button>
                 </div>
 
-                <div className="flex justify-end mt-2">
+                <div className="mt-2 flex justify-end">
                     <Button variant="ghost" size="sm" onClick={onClose}>
                         Mégse
                     </Button>

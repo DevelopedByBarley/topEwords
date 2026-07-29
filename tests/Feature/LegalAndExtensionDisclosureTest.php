@@ -7,9 +7,19 @@
  * megnevezése, 132 karakteres store-leírás), ezért véletlen törlésük ne
  * csendben, hanem piros teszttel derüljön ki.
  */
+/**
+ * A jogi oldal forrása egyetlen szóközökre normalizált sorként.
+ *
+ * A JSX-ben a prettier tetszőleges ponton tördel, így a több szavas horgonyok
+ * ("intelligenciát (AI) használ") formázáskor kettétörnek, és a teszt a szöveg
+ * VÁLTOZATLANSÁGA mellett is elhasal. A whitespace összevonásával a horgonyok a
+ * tényleges tartalmat őrzik, nem a sortöréseket.
+ */
 function legalPage(string $name): string
 {
-    return file_get_contents(resource_path("js/pages/legal/{$name}.tsx"));
+    $source = file_get_contents(resource_path("js/pages/legal/{$name}.tsx"));
+
+    return preg_replace('/\s+/u', ' ', $source);
 }
 
 function extensionFile(string $path): string

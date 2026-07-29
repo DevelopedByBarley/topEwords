@@ -386,7 +386,7 @@ export default function FlashcardCalibrate({
                         <Link href={show(deck.id)}>
                             <Button variant="outline">
                                 <ArrowLeft className="mr-2 size-4" />
-                                Vissza a deckhez
+                                Vissza a paklihoz
                             </Button>
                         </Link>
                         {totalRemaining > cards.length && (
@@ -659,7 +659,7 @@ export default function FlashcardCalibrate({
 
 FlashcardCalibrate.layout = (props: { deck: Deck }) => ({
     breadcrumbs: [
-        { title: 'Flashcard decks', href: index() },
+        { title: 'Flashcards', href: index() },
         { title: props.deck.name, href: show({ deck: props.deck.id }) },
         { title: 'Kalibráció', href: '#' },
     ],

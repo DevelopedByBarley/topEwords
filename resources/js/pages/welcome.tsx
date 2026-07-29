@@ -7,7 +7,6 @@ import {
     Check,
     CheckCircle2,
     Chrome,
-    Clock,
     Download,
     Edit,
     FileSearch,
@@ -36,16 +35,11 @@ import {
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import BetaBanner from '@/components/beta-banner';
+import { PublicFooter } from '@/components/public/public-footer';
+import { PublicHeader } from '@/components/public/public-header';
 // A letöltő blokkal együtt kivezetve (2026-07-29):
 // import ChromeExtensionsLink from '@/components/chrome-extensions-link';
-import {
-    dashboard,
-    login,
-    pricing as pricingRoute,
-    privacy,
-    register,
-    terms,
-} from '@/routes';
+import { dashboard, login, pricing as pricingRoute, register } from '@/routes';
 // import { show as showDownload } from '@/routes/downloads';
 import { index as wordsIndex } from '@/routes/words';
 
@@ -361,96 +355,13 @@ const AI_CARDS = [
     },
 ];
 
-const VIDEO_CATS = [
-    'Összes',
-    'Kezdő lépések',
-    'Szólista',
-    'Flashcard',
-    'Szövegelemzés',
-    'Extension',
-    'Tesztelőknek',
-];
-
-const VIDEO_RAW = [
-    {
-        cat: 'Kezdő lépések',
-        title: 'Első lépések a TopWordsban',
-        time: '3:20',
-        desc: 'Regisztráció, a kezdőképernyő és a haladás-sáv értelmezése.',
-    },
-    {
-        cat: 'Kezdő lépések',
-        title: 'A dashboard értelmezése',
-        time: '2:45',
-        desc: 'A haladás-sávok, streak és napi statisztikák olvasása.',
-    },
-    {
-        cat: 'Szólista',
-        title: 'A 10 000 szó böngészése',
-        time: '4:05',
-        desc: 'Hogyan lapozz a frekvencialistában és keress rá szavakra.',
-    },
-    {
-        cat: 'Szólista',
-        title: 'Szavak státuszozása',
-        time: '5:12',
-        desc: 'Tudom / Tanulom / Később jelölése egy kattintással.',
-    },
-    {
-        cat: 'Szólista',
-        title: 'Mappák és szűrők',
-        time: '3:48',
-        desc: 'Témák szerinti rendezés és szűrés nehézség szerint.',
-    },
-    {
-        cat: 'Flashcard',
-        title: 'Első flashcard deck létrehozása',
-        time: '6:30',
-        desc: 'Kártyacsomag indítása és kártyák hozzáadása a listából.',
-    },
-    {
-        cat: 'Flashcard',
-        title: 'Kétirányú kártyák és keverés',
-        time: '4:50',
-        desc: 'Előlap→hátlap és vissza, bekapcsolható kártyakeverés.',
-    },
-    {
-        cat: 'Flashcard',
-        title: 'CSV import és export',
-        time: '3:15',
-        desc: 'Kártyacsomag importálása és exportálása CSV-fájlból.',
-    },
-    {
-        cat: 'Szövegelemzés',
-        title: 'Szöveg, YouTube és Netflix elemzése',
-        time: '7:12',
-        desc: 'Feliratelemzés és az érthetőség százalék.',
-    },
-    {
-        cat: 'Extension',
-        title: 'A Chrome-bővítmény telepítése',
-        time: '4:18',
-        desc: 'Fejlesztői módú telepítés lépésről lépésre.',
-    },
-    {
-        cat: 'Extension',
-        title: 'Extension használata weboldalakon',
-        time: '3:55',
-        desc: 'Dupla kattintás, Option+W és a jobb-kattintás menü.',
-    },
-    {
-        cat: 'Tesztelőknek',
-        title: 'Hogyan jelentsd a hibákat',
-        time: '3:05',
-        desc: 'A hibajelentés menete és mire érdemes figyelni tesztelés közben.',
-    },
-    {
-        cat: 'Tesztelőknek',
-        title: 'Visszajelzés küldése a fejlesztőknek',
-        time: '2:30',
-        desc: 'Ötletek és javaslatok eljuttatása közvetlenül a csapatnak.',
-    },
-].map((v, i) => ({ ...v, num: i + 1 }));
+/*
+ * A tananyag-videók listája NEM itt él, hanem a `/guide` oldalon
+ * (`pages/guide.tsx`). Korábban a főoldal egy `page === 'videos'` state-tel
+ * saját, párhuzamos Tananyag-oldalt rajzolt egy MÁSIK videólistából — annak
+ * nem volt URL-je, a Vissza gomb kilépett az oldalról, és a két lista már el
+ * is csúszott egymástól. A főoldal fejléce most a `/guide`-ra mutat.
+ */
 
 const EXT_USAGE = [
     {
@@ -596,7 +507,6 @@ export default function Welcome({
 }) {
     const { auth, billingEnabled, extensionStoreUrl } = usePage().props;
 
-    const [page, setPage] = useState<'home' | 'videos'>('home');
     const [flipped, setFlipped] = useState(false);
     const [flipped2, setFlipped2] = useState(false);
     const [deckIndex, setDeckIndex] = useState(0);
@@ -610,38 +520,22 @@ export default function Welcome({
     const [filter, setFilter] = useState<'Összes' | 'Tanulom' | 'Tudom'>(
         'Összes',
     );
-    const [videoFilter, setVideoFilter] = useState('Összes');
     const [activeSection, setActiveSection] = useState('funkciok');
     const [showSideNav, setShowSideNav] = useState(false);
     const [selWord, setSelWord] = useState(0);
     const [popupMode, setPopupMode] = useState<'word' | 'phrase'>('word');
-    const [mobileOpen, setMobileOpen] = useState(false);
     const [words, setWords] = useState<WordEntry[]>(INITIAL_WORDS);
     const [hoveredFeature, setHoveredFeature] = useState(0);
 
-    const isHome = page !== 'videos';
-    const isVideos = page === 'videos';
-
-    const goHome = () => setPage('home');
-    const goVideos = (e?: React.MouseEvent) => {
-        e?.preventDefault();
-        setPage('videos');
-        window.scrollTo(0, 0);
-    };
-
     const goToSection = (id: string) => {
-        goHome();
-        setMobileOpen(false);
-        requestAnimationFrame(() => {
-            const el = document.getElementById(id);
+        const el = document.getElementById(id);
 
-            if (el) {
-                window.scrollTo({
-                    top: el.getBoundingClientRect().top + window.scrollY - 90,
-                    behavior: 'smooth',
-                });
-            }
-        });
+        if (el) {
+            window.scrollTo({
+                top: el.getBoundingClientRect().top + window.scrollY - 90,
+                behavior: 'smooth',
+            });
+        }
     };
 
     useEffect(() => {
@@ -773,17 +667,6 @@ export default function Welcome({
         return () => io.disconnect();
     }, []);
 
-    const filteredVideos = VIDEO_RAW.filter(
-        (v) => videoFilter === 'Összes' || v.cat === videoFilter,
-    );
-
-    const navLinks: [string, string][] = [
-        ['Funkciók', 'funkciok'],
-        ['Szólista', 'szolista'],
-        ['Flashcard', 'flashcard'],
-        ['Árazás', 'arazas'],
-    ];
-
     return (
         <>
             <Head title="Top 10 000 angol szó – Tanuld meg a legfontosabb szavakat">
@@ -812,23 +695,38 @@ export default function Welcome({
             <div className="overflow-x-hidden bg-[#fafafa] font-['Manrope',system-ui,sans-serif] text-[#262626] antialiased">
                 <BetaBanner />
 
-                {/* side nav */}
-                <div
+                <a
+                    href="#main"
+                    className="sr-only rounded-b-lg bg-white px-4 py-2 text-sm font-medium text-indigo-900 underline focus:not-sr-only focus:absolute focus:top-0 focus:left-4 focus:z-100"
+                >
+                    Ugrás a tartalomra
+                </a>
+
+                {/*
+                 * Szekció-navigáció. Korábban `<div onClick>` volt: egérrel
+                 * működött, billentyűzettel elérhetetlen volt. Most gomb, és
+                 * a rejtett állapotban `inert`, hogy a tabolás se akadjon el
+                 * a láthatatlan ikonokon.
+                 */}
+                <nav
+                    aria-label="Szekciók"
+                    inert={!showSideNav}
                     className="fixed top-1/2 right-[22px] z-50 hidden -translate-y-1/2 flex-col gap-1.5 rounded-full border border-[#ececf2] bg-white/90 p-2 shadow-[0_18px_44px_rgba(0,0,0,.12)] backdrop-blur-[10px] transition-opacity duration-300 lg:flex"
-                    style={{
-                        opacity: isHome && showSideNav ? 1 : 0,
-                        pointerEvents: isHome && showSideNav ? 'auto' : 'none',
-                    }}
+                    style={{ opacity: showSideNav ? 1 : 0 }}
                 >
                     {SIDE_NAV_DEFS.map((n) => {
                         const active = activeSection === n.id;
                         const Icon = n.icon;
 
                         return (
-                            <div
+                            <button
                                 key={n.id}
+                                type="button"
                                 onClick={() => goToSection(n.id)}
-                                className="flex cursor-pointer p-1"
+                                aria-label={n.label}
+                                aria-current={active ? 'true' : undefined}
+                                title={n.label}
+                                className="flex cursor-pointer p-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-700"
                             >
                                 <span
                                     className="grid size-10 flex-none place-items-center rounded-full transition-all duration-250"
@@ -836,7 +734,7 @@ export default function Welcome({
                                         background: active
                                             ? '#4338ca'
                                             : 'transparent',
-                                        color: active ? '#fff' : '#b4b4bb',
+                                        color: active ? '#fff' : '#6b6b78',
                                         boxShadow: active
                                             ? '0 8px 18px rgba(67,56,202,.35)'
                                             : 'none',
@@ -844,443 +742,348 @@ export default function Welcome({
                                 >
                                     <Icon size={22} />
                                 </span>
-                            </div>
+                            </button>
                         );
                     })}
-                </div>
+                </nav>
 
-                {isHome && (
-                    <section
-                        className="relative overflow-hidden px-5 pb-[200px]"
-                        style={{
-                            background:
-                                'linear-gradient(180deg,#20276B 0%,#3a3688 14%,#6548AC 30%,#5566c4 44%,#4F8EEC 66%,#4F8EEC 100%)',
-                        }}
-                    >
-                        <div
-                            className="pointer-events-none absolute -top-35 left-1/2 size-[900px] -translate-x-1/2 rounded-full blur-[30px]"
+                <div className="relative">
+                    {/*
+                     * A fejléc a gradiens-hero fölött lebeg, de a DOM-ban a
+                     * `main` előtt áll — így a landmark-sorrend helyes marad,
+                     * és az ugrólink a tartalomra visz, nem a navigációra.
+                     */}
+                    <div className="absolute inset-x-0 top-0 z-20">
+                        <PublicHeader variant="transparent" />
+                    </div>
+
+                    <main id="main">
+                        <section
+                            className="relative overflow-hidden px-5 pt-22 pb-[200px]"
                             style={{
                                 background:
-                                    'radial-gradient(circle,rgba(79,70,229,.45),transparent 62%)',
+                                    'linear-gradient(180deg,#20276B 0%,#3a3688 14%,#6548AC 30%,#5566c4 44%,#4F8EEC 66%,#4F8EEC 100%)',
                             }}
-                        />
-                        <div
-                            className="pointer-events-none absolute top-[340px] -left-30 size-[420px] rounded-full blur-[20px]"
-                            style={{
-                                background:
-                                    'radial-gradient(circle,rgba(79,70,229,.28),transparent 65%)',
-                            }}
-                        />
+                        >
+                            <div
+                                className="pointer-events-none absolute -top-35 left-1/2 size-[900px] -translate-x-1/2 rounded-full blur-[30px]"
+                                style={{
+                                    background:
+                                        'radial-gradient(circle,rgba(79,70,229,.45),transparent 62%)',
+                                }}
+                            />
+                            <div
+                                className="pointer-events-none absolute top-[340px] -left-30 size-[420px] rounded-full blur-[20px]"
+                                style={{
+                                    background:
+                                        'radial-gradient(circle,rgba(79,70,229,.28),transparent 65%)',
+                                }}
+                            />
 
-                        {/* nav */}
-                        <nav className="relative z-5 mx-auto flex max-w-[1200px] items-center justify-between gap-3 py-6.5">
-                            <button
-                                onClick={goHome}
-                                className="flex min-w-0 shrink-0 cursor-pointer items-center gap-2.5 text-[18px] font-bold tracking-[-.4px] text-white sm:text-[22px]"
-                            >
-                                <img
-                                    src="/logo.png"
-                                    alt="TopWords"
-                                    className="size-11 shrink-0 rounded-[13px] shadow-[0_6px_18px_rgba(79,70,229,.5)] sm:size-13"
-                                />
-                                <span className="truncate">TopWords</span>
-                            </button>
-                            <div className="hidden items-center gap-7.5 text-sm text-white/82 lg:flex">
-                                {navLinks.map(([label, id]) => (
-                                    <a
-                                        key={id}
-                                        href={`#${id}`}
-                                        onClick={(e) => {
-                                            e.preventDefault();
-                                            goToSection(id);
-                                        }}
-                                        className="text-inherit transition-colors hover:text-white"
-                                    >
-                                        {label}
-                                    </a>
-                                ))}
-                                <a
-                                    href="#tananyag"
-                                    onClick={goVideos}
-                                    className="text-inherit transition-colors hover:text-white"
-                                >
-                                    Tananyag
-                                </a>
-                            </div>
-                            <div className="flex shrink-0 items-center gap-2 sm:gap-3.5">
-                                {auth.user ? (
-                                    <Link
-                                        href={dashboard()}
-                                        className="rounded-full bg-white px-3.5 py-2 font-sans text-xs font-semibold whitespace-nowrap text-indigo-950 shadow-[0_8px_22px_rgba(0,0,0,.22)] transition-transform hover:-translate-y-0.5 sm:px-5.5 sm:py-2.5 sm:text-sm"
-                                    >
-                                        <span className="sm:hidden">
-                                            Alkalmazás
-                                        </span>
-                                        <span className="hidden sm:inline">
-                                            Irány az alkalmazás
-                                        </span>
-                                    </Link>
-                                ) : (
-                                    <>
+                            {/* hero copy */}
+                            <div className="relative z-4 mx-auto mt-14 max-w-[840px] text-center">
+                                <div className="ts-hero-badge inline-flex items-center gap-2 rounded-full border border-white/[0.18] bg-white/10 px-4 py-1.75 text-[13px] font-medium text-indigo-200 backdrop-blur-md">
+                                    <Languages size={16} />
+                                    Magyar jelentés, magyar példamondat
+                                </div>
+                                <h1 className="mt-6.5 text-[clamp(42px,6.6vw,80px)] leading-[1.02] font-extrabold tracking-[-1.5px] text-white">
+                                    Tudd meg, hány szót
+                                    <br />
+                                    ismersz már
+                                </h1>
+                                <p className="mx-auto mt-5.5 max-w-[600px] text-[17px] leading-[1.65] text-white/78">
+                                    Illessz be egy cikket, videót vagy könyvet,
+                                    és megmutatjuk, a benne lévő szavak hány
+                                    százalékát ismered. Amit nem, azt egy
+                                    kattintással beteszed a saját tanulólistádba
+                                    — a 10 000 leggyakoribb angol szóra építve.
+                                </p>
+                                <div className="mt-8.5 flex flex-wrap justify-center gap-3.5">
+                                    {auth.user ? (
                                         <Link
-                                            href={login()}
-                                            className="hidden px-3 py-2.5 font-sans text-sm font-medium text-white sm:inline"
+                                            href={wordsIndex()}
+                                            className="inline-flex items-center gap-2.5 rounded-full bg-gradient-to-br from-green-400 to-green-500 px-7 py-3.75 font-sans text-[15px] font-bold text-green-950 shadow-[0_8px_22px_rgba(34,197,94,.3)] transition-transform hover:-translate-y-0.5"
                                         >
-                                            Belépés
+                                            Szavak böngészése
+                                            <ArrowRight size={20} />
                                         </Link>
-                                        {canRegister && (
-                                            <Link
-                                                href={register()}
-                                                className="rounded-full bg-white px-3.5 py-2 font-sans text-xs font-semibold whitespace-nowrap text-indigo-950 shadow-[0_8px_22px_rgba(0,0,0,.22)] transition-transform hover:-translate-y-0.5 sm:px-5.5 sm:py-2.5 sm:text-sm"
-                                            >
-                                                Regisztráció
-                                            </Link>
-                                        )}
-                                    </>
-                                )}
-                                <button
-                                    onClick={() => setMobileOpen((v) => !v)}
-                                    className="flex size-9 shrink-0 items-center justify-center rounded-full text-white/80 hover:bg-white/10 lg:hidden"
-                                    aria-label="Menü"
-                                >
-                                    {mobileOpen ? (
-                                        <X size={20} />
                                     ) : (
-                                        <Menu size={20} />
+                                        <Link
+                                            href={register()}
+                                            className="inline-flex items-center gap-2.5 rounded-full bg-gradient-to-br from-green-400 to-green-500 px-7 py-3.75 font-sans text-[15px] font-bold text-green-950 shadow-[0_8px_22px_rgba(34,197,94,.3)] transition-transform hover:-translate-y-0.5"
+                                        >
+                                            Regisztrálás ingyen
+                                            <ArrowRight size={20} />
+                                        </Link>
                                     )}
-                                </button>
-                            </div>
-                        </nav>
-
-                        {mobileOpen && (
-                            <div className="relative z-10 mx-auto flex max-w-[1200px] flex-col gap-1 pb-4 lg:hidden">
-                                {navLinks.map(([label, id]) => (
                                     <a
-                                        key={id}
-                                        href={`#${id}`}
+                                        href="#flashcard"
                                         onClick={(e) => {
                                             e.preventDefault();
-                                            setMobileOpen(false);
-                                            goToSection(id);
+                                            goToSection('flashcard');
                                         }}
-                                        className="rounded-lg px-3 py-2.5 text-sm font-medium text-white/85 hover:bg-white/10"
+                                        className="inline-flex items-center gap-2.5 rounded-full border border-white/[0.22] bg-white/[0.08] px-6.5 py-3.75 font-sans text-[15px] font-medium text-white backdrop-blur-md transition-colors hover:bg-white/[0.18]"
                                     >
-                                        {label}
+                                        <Layers size={20} />
+                                        Próbáld a flashcardot
                                     </a>
-                                ))}
-                                <a
-                                    href="#tananyag"
-                                    onClick={(e) => {
-                                        setMobileOpen(false);
-                                        goVideos(e);
-                                    }}
-                                    className="rounded-lg px-3 py-2.5 text-sm font-medium text-white/85 hover:bg-white/10"
-                                >
-                                    Tananyag
-                                </a>
-                            </div>
-                        )}
-
-                        {/* hero copy */}
-                        <div className="relative z-4 mx-auto mt-14 max-w-[840px] text-center">
-                            <div className="ts-hero-badge inline-flex items-center gap-2 rounded-full border border-white/[0.18] bg-white/10 px-4 py-1.75 text-[13px] font-medium text-indigo-200 backdrop-blur-md">
-                                <Languages size={16} />
-                                Magyar jelentés, magyar példamondat
-                            </div>
-                            <h1 className="mt-6.5 text-[clamp(42px,6.6vw,80px)] leading-[1.02] font-extrabold tracking-[-1.5px] text-white">
-                                Tudd meg, hány szót
-                                <br />
-                                ismersz már
-                            </h1>
-                            <p className="mx-auto mt-5.5 max-w-[600px] text-[17px] leading-[1.65] text-white/78">
-                                Illessz be egy cikket, videót vagy könyvet, és
-                                megmutatjuk, a benne lévő szavak hány százalékát
-                                ismered. Amit nem, azt egy kattintással beteszed
-                                a saját tanulólistádba — a 10 000 leggyakoribb
-                                angol szóra építve.
-                            </p>
-                            <div className="mt-8.5 flex flex-wrap justify-center gap-3.5">
-                                {auth.user ? (
-                                    <Link
-                                        href={wordsIndex()}
-                                        className="inline-flex items-center gap-2.5 rounded-full bg-gradient-to-br from-green-400 to-green-500 px-7 py-3.75 font-sans text-[15px] font-bold text-green-950 shadow-[0_8px_22px_rgba(34,197,94,.3)] transition-transform hover:-translate-y-0.5"
-                                    >
-                                        Szavak böngészése
-                                        <ArrowRight size={20} />
-                                    </Link>
-                                ) : (
-                                    <Link
-                                        href={register()}
-                                        className="inline-flex items-center gap-2.5 rounded-full bg-gradient-to-br from-green-400 to-green-500 px-7 py-3.75 font-sans text-[15px] font-bold text-green-950 shadow-[0_8px_22px_rgba(34,197,94,.3)] transition-transform hover:-translate-y-0.5"
-                                    >
-                                        Regisztrálás ingyen
-                                        <ArrowRight size={20} />
-                                    </Link>
-                                )}
-                                <a
-                                    href="#flashcard"
-                                    onClick={(e) => {
-                                        e.preventDefault();
-                                        goToSection('flashcard');
-                                    }}
-                                    className="inline-flex items-center gap-2.5 rounded-full border border-white/[0.22] bg-white/[0.08] px-6.5 py-3.75 font-sans text-[15px] font-medium text-white backdrop-blur-md transition-colors hover:bg-white/[0.18]"
-                                >
-                                    <Layers size={20} />
-                                    Próbáld a flashcardot
-                                </a>
-                            </div>
-                            {/*
-                             * Tényállítások, nem ígéretek: mindhárom ellenőrizhető a terméken.
-                             * A korábbi "Gyors tanulás" kikerült — mérhetetlen marketing-töltelék,
-                             * és pont az ilyen üres superlatívusz teszi generikussá a heroet.
-                             */}
-                            <div className="mt-6.5 flex flex-wrap justify-center gap-x-5.5 gap-y-2 text-[13px] text-white/62">
-                                {[
-                                    'Nincs hirdetés',
-                                    'Ingyenes regisztráció',
-                                    'Bankkártya nélkül',
-                                ].map((item) => (
-                                    <span
-                                        key={item}
-                                        className="inline-flex items-center gap-1.5"
-                                    >
-                                        <Check
-                                            size={15}
-                                            className="text-white/45"
-                                        />
-                                        {item}
-                                    </span>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* floating mockup cluster */}
-                        <div className="relative z-3 mx-auto mt-16 flex max-w-[1060px] flex-wrap items-center justify-center gap-6">
-                            <div
-                                className="pointer-events-none absolute top-[46%] bottom-[-320px] left-1/2 -z-10 w-screen -translate-x-1/2"
-                                style={{
-                                    background:
-                                        'linear-gradient(to bottom,rgba(255,255,255,0) 0,#ffffff 90px)',
-                                }}
-                            />
-                            {/*
-                             * A három fényfolt marad, mert funkciója van: kiemeli a mockup-kártyákat
-                             * a sötét háttérből. Az opacitásuk viszont .5/.46/.4-ről lejjebb ment —
-                             * azon a szinten már önálló "lebegő gradiens-labdának" látszottak,
-                             * ami a generált heroök tipikus dísze. Így halo marad, nem dekoráció.
-                             */}
-                            <div
-                                className="pointer-events-none absolute top-6 -left-[4%] -z-10 size-[420px] animate-hero-float-slow-a rounded-full blur-[80px]"
-                                style={{
-                                    background:
-                                        'radial-gradient(circle,rgba(255,255,255,.28),transparent 70%)',
-                                }}
-                            />
-                            <div
-                                className="pointer-events-none absolute -top-9 -right-[5%] -z-10 size-[400px] animate-hero-float-slow-b rounded-full blur-[74px]"
-                                style={{
-                                    background:
-                                        'radial-gradient(circle,rgba(255,255,255,.24),transparent 70%)',
-                                }}
-                            />
-                            <div
-                                className="pointer-events-none absolute top-63 right-[4%] -z-10 size-[260px] animate-hero-float-c rounded-full blur-[60px]"
-                                style={{
-                                    background:
-                                        'radial-gradient(circle,rgba(255,255,255,.2),transparent 72%)',
-                                }}
-                            />
-
-                            {/* progress card */}
-                            <div className="animate-hero-float-a">
-                                <div className="w-[280px] rounded-[22px] bg-white p-5.5 shadow-[0_26px_60px_rgba(0,0,0,.28)]">
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-[13px] font-semibold text-[#737373]">
-                                            Haladásod
-                                        </span>
-                                        <span className="inline-flex items-center gap-1.25 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700">
-                                            <Flame size={15} />7 nap
-                                        </span>
-                                    </div>
-                                    <div className="mt-3.5 flex items-baseline gap-2">
+                                </div>
+                                {/*
+                                 * Tényállítások, nem ígéretek: mindhárom ellenőrizhető a terméken.
+                                 * A korábbi "Gyors tanulás" kikerült — mérhetetlen marketing-töltelék,
+                                 * és pont az ilyen üres superlatívusz teszi generikussá a heroet.
+                                 */}
+                                <div className="mt-6.5 flex flex-wrap justify-center gap-x-5.5 gap-y-2 text-[13px] text-white/62">
+                                    {[
+                                        'Nincs hirdetés',
+                                        'Ingyenes regisztráció',
+                                        'Bankkártya nélkül',
+                                    ].map((item) => (
                                         <span
-                                            ref={progressRef}
-                                            className="text-[42px] font-bold tracking-tight text-[#171717]"
+                                            key={item}
+                                            className="inline-flex items-center gap-1.5"
                                         >
-                                            41%
-                                        </span>
-                                        <span className="text-[13px] text-[#a1a1a1]">
-                                            teljesítve
-                                        </span>
-                                    </div>
-                                    <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-indigo-100">
-                                        <div
-                                            ref={barRef}
-                                            className="h-full origin-left [transform:scaleX(0)] rounded-full bg-gradient-to-r from-indigo-600 to-indigo-800"
-                                            style={{ width: '41%' }}
-                                        />
-                                    </div>
-                                    <div className="mt-3 text-[13px] text-[#737373]">
-                                        <span ref={wordCountRef}>4 187</span> /
-                                        10 000 szó megtanulva
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* flashcard */}
-                            <div className="animate-hero-float-b">
-                                <div className="w-[320px] rounded-[26px] bg-white p-5 shadow-[0_40px_70px_-20px_rgba(49,46,129,.35)]">
-                                    <div className="flex items-center justify-center">
-                                        <span className="rounded-full bg-[#f5f5f5] px-3.5 py-1.5 text-xs font-semibold text-[#525252]">
-                                            Deck: Angol alapszavak · 1/40
-                                        </span>
-                                    </div>
-                                    <button
-                                        onClick={() => setFlipped((v) => !v)}
-                                        className="mt-4 h-[186px] w-full cursor-pointer"
-                                        style={{ perspective: 1200 }}
-                                    >
-                                        <div
-                                            className="relative size-full transition-transform duration-600 ease-[cubic-bezier(.4,.2,.2,1)]"
-                                            style={{
-                                                transformStyle: 'preserve-3d',
-                                                transform: flipped
-                                                    ? 'rotateY(180deg)'
-                                                    : 'rotateY(0deg)',
-                                            }}
-                                        >
-                                            <div
-                                                className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-[18px] border border-indigo-200 bg-gradient-to-br from-indigo-50 to-indigo-100"
-                                                style={{
-                                                    backfaceVisibility:
-                                                        'hidden',
-                                                }}
-                                            >
-                                                <span className="text-xs font-semibold tracking-wide text-indigo-600">
-                                                    #178 · Top 1 000 · prep
-                                                </span>
-                                                <span className="text-[38px] font-bold tracking-tight text-[#171717]">
-                                                    between
-                                                </span>
-                                                <span className="inline-flex items-center gap-1.25 text-xs text-[#a1a1a1]">
-                                                    <MousePointerClick
-                                                        size={15}
-                                                    />
-                                                    Kattints a megfordításhoz
-                                                </span>
-                                            </div>
-                                            <div
-                                                className="absolute inset-0 flex flex-col items-center justify-center gap-2.5 rounded-[18px] bg-gradient-to-br from-indigo-700 to-indigo-800 p-4 text-center"
-                                                style={{
-                                                    backfaceVisibility:
-                                                        'hidden',
-                                                    transform:
-                                                        'rotateY(180deg)',
-                                                }}
-                                            >
-                                                <span className="text-[34px] font-bold tracking-tight text-white">
-                                                    között
-                                                </span>
-                                                <span className="text-[13px] leading-relaxed text-indigo-200">
-                                                    „The space{' '}
-                                                    <b className="text-white">
-                                                        between
-                                                    </b>{' '}
-                                                    two cities lies a valley.”
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </button>
-                                    <div className="mt-4 grid grid-cols-4 gap-2">
-                                        {RATE_DEFS.map((r) => (
-                                            <button
-                                                key={r.label}
-                                                onClick={() =>
-                                                    setFlipped(false)
-                                                }
-                                                className="flex flex-col items-center gap-0.25 rounded-[10px] py-2 transition-transform hover:-translate-y-0.5"
-                                                style={{
-                                                    border: `1px solid ${r.c}33`,
-                                                    background: `${r.c}14`,
-                                                    color: r.c,
-                                                }}
-                                            >
-                                                <span className="text-xs font-semibold">
-                                                    {r.label}
-                                                </span>
-                                                <span className="text-[10px] opacity-70">
-                                                    {r.time}
-                                                </span>
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* analyzer preview */}
-                            <div className="animate-hero-float-c">
-                                <div className="w-[250px] rounded-[22px] border border-white/[0.28] bg-indigo-800/55 p-5.5 shadow-[0_26px_60px_rgba(49,46,129,.35)] backdrop-blur-[14px]">
-                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-green-300/20 px-3 py-1.25 text-xs font-semibold text-green-200">
-                                        <FileSearch size={15} />
-                                        Szövegelemzés
-                                    </span>
-                                    <div className="mt-4 flex items-center gap-3.5">
-                                        <div className="relative size-16">
-                                            <div
-                                                className="absolute inset-0 rounded-full"
-                                                style={{
-                                                    background:
-                                                        'conic-gradient(#4ade80 0 87%,rgba(255,255,255,.15) 87%)',
-                                                }}
+                                            <Check
+                                                size={15}
+                                                className="text-white/45"
                                             />
-                                            <div className="absolute inset-[7px] grid place-items-center rounded-full bg-indigo-950 text-[15px] font-bold text-white">
-                                                <span ref={analyzePctRef}>
-                                                    87%
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <div className="text-sm font-semibold text-white">
-                                                érthetőség
-                                            </div>
-                                            <div className="text-xs text-white/60">
-                                                <span ref={analyzeCountRef}>
-                                                    312
-                                                </span>{' '}
-                                                / 358 szó
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="mt-4 text-xs leading-[1.7] text-white/80">
-                                        The space{' '}
-                                        <span className="rounded-[3px] bg-green-500 px-[3px] text-green-950">
-                                            between
-                                        </span>{' '}
-                                        two{' '}
-                                        <span className="rounded-[3px] bg-blue-500 px-[3px] text-white">
-                                            cities
-                                        </span>{' '}
-                                        lies a{' '}
-                                        <span className="rounded-[3px] bg-red-500 px-[3px] text-white">
-                                            valley
+                                            {item}
                                         </span>
-                                        .
-                                    </div>
+                                    ))}
                                 </div>
                             </div>
 
-                            <div className="ts-hero-badge pointer-events-none absolute -top-3.5 right-[6%] -rotate-[8deg] animate-hero-float-slow-a rounded-full bg-white px-4 py-2 text-xs font-bold text-indigo-700 shadow-[0_10px_26px_rgba(0,0,0,.2)]">
-                                10 000 SZÓ
-                            </div>
-                            <div className="ts-hero-badge pointer-events-none absolute bottom-2 left-[4%] rotate-[-7deg] animate-hero-pulse rounded-full bg-[#171717] px-4 py-2 text-xs font-bold text-white shadow-[0_10px_26px_rgba(0,0,0,.28)]">
-                                SRS ISMÉTLÉS
-                            </div>
-                        </div>
-                    </section>
-                )}
+                            {/* floating mockup cluster */}
+                            <div className="relative z-3 mx-auto mt-16 flex max-w-[1060px] flex-wrap items-center justify-center gap-6">
+                                <div
+                                    className="pointer-events-none absolute top-[46%] bottom-[-320px] left-1/2 -z-10 w-screen -translate-x-1/2"
+                                    style={{
+                                        background:
+                                            'linear-gradient(to bottom,rgba(255,255,255,0) 0,#ffffff 90px)',
+                                    }}
+                                />
+                                {/*
+                                 * A három fényfolt marad, mert funkciója van: kiemeli a mockup-kártyákat
+                                 * a sötét háttérből. Az opacitásuk viszont .5/.46/.4-ről lejjebb ment —
+                                 * azon a szinten már önálló "lebegő gradiens-labdának" látszottak,
+                                 * ami a generált heroök tipikus dísze. Így halo marad, nem dekoráció.
+                                 */}
+                                <div
+                                    className="pointer-events-none absolute top-6 -left-[4%] -z-10 size-[420px] animate-hero-float-slow-a rounded-full blur-[80px]"
+                                    style={{
+                                        background:
+                                            'radial-gradient(circle,rgba(255,255,255,.28),transparent 70%)',
+                                    }}
+                                />
+                                <div
+                                    className="pointer-events-none absolute -top-9 -right-[5%] -z-10 size-[400px] animate-hero-float-slow-b rounded-full blur-[74px]"
+                                    style={{
+                                        background:
+                                            'radial-gradient(circle,rgba(255,255,255,.24),transparent 70%)',
+                                    }}
+                                />
+                                <div
+                                    className="pointer-events-none absolute top-63 right-[4%] -z-10 size-[260px] animate-hero-float-c rounded-full blur-[60px]"
+                                    style={{
+                                        background:
+                                            'radial-gradient(circle,rgba(255,255,255,.2),transparent 72%)',
+                                    }}
+                                />
 
-                {isHome && (
-                    <>
+                                {/* progress card */}
+                                <div className="animate-hero-float-a">
+                                    <div className="w-[280px] rounded-[22px] bg-white p-5.5 shadow-[0_26px_60px_rgba(0,0,0,.28)]">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-[13px] font-semibold text-[#737373]">
+                                                Haladásod
+                                            </span>
+                                            <span className="inline-flex items-center gap-1.25 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700">
+                                                <Flame size={15} />7 nap
+                                            </span>
+                                        </div>
+                                        <div className="mt-3.5 flex items-baseline gap-2">
+                                            <span
+                                                ref={progressRef}
+                                                className="text-[42px] font-bold tracking-tight text-[#171717]"
+                                            >
+                                                41%
+                                            </span>
+                                            <span className="text-[13px] text-[#a1a1a1]">
+                                                teljesítve
+                                            </span>
+                                        </div>
+                                        <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-indigo-100">
+                                            <div
+                                                ref={barRef}
+                                                className="h-full origin-left [transform:scaleX(0)] rounded-full bg-gradient-to-r from-indigo-600 to-indigo-800"
+                                                style={{ width: '41%' }}
+                                            />
+                                        </div>
+                                        <div className="mt-3 text-[13px] text-[#737373]">
+                                            <span ref={wordCountRef}>
+                                                4 187
+                                            </span>{' '}
+                                            / 10 000 szó megtanulva
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* flashcard */}
+                                <div className="animate-hero-float-b">
+                                    <div className="w-[320px] rounded-[26px] bg-white p-5 shadow-[0_40px_70px_-20px_rgba(49,46,129,.35)]">
+                                        <div className="flex items-center justify-center">
+                                            <span className="rounded-full bg-[#f5f5f5] px-3.5 py-1.5 text-xs font-semibold text-[#525252]">
+                                                Deck: Angol alapszavak · 1/40
+                                            </span>
+                                        </div>
+                                        <button
+                                            onClick={() =>
+                                                setFlipped((v) => !v)
+                                            }
+                                            className="mt-4 h-[186px] w-full cursor-pointer"
+                                            style={{ perspective: 1200 }}
+                                        >
+                                            <div
+                                                className="relative size-full transition-transform duration-600 ease-[cubic-bezier(.4,.2,.2,1)]"
+                                                style={{
+                                                    transformStyle:
+                                                        'preserve-3d',
+                                                    transform: flipped
+                                                        ? 'rotateY(180deg)'
+                                                        : 'rotateY(0deg)',
+                                                }}
+                                            >
+                                                <div
+                                                    className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-[18px] border border-indigo-200 bg-gradient-to-br from-indigo-50 to-indigo-100"
+                                                    style={{
+                                                        backfaceVisibility:
+                                                            'hidden',
+                                                    }}
+                                                >
+                                                    <span className="text-xs font-semibold tracking-wide text-indigo-600">
+                                                        #178 · Top 1 000 · prep
+                                                    </span>
+                                                    <span className="text-[38px] font-bold tracking-tight text-[#171717]">
+                                                        between
+                                                    </span>
+                                                    <span className="inline-flex items-center gap-1.25 text-xs text-[#a1a1a1]">
+                                                        <MousePointerClick
+                                                            size={15}
+                                                        />
+                                                        Kattints a
+                                                        megfordításhoz
+                                                    </span>
+                                                </div>
+                                                <div
+                                                    className="absolute inset-0 flex flex-col items-center justify-center gap-2.5 rounded-[18px] bg-gradient-to-br from-indigo-700 to-indigo-800 p-4 text-center"
+                                                    style={{
+                                                        backfaceVisibility:
+                                                            'hidden',
+                                                        transform:
+                                                            'rotateY(180deg)',
+                                                    }}
+                                                >
+                                                    <span className="text-[34px] font-bold tracking-tight text-white">
+                                                        között
+                                                    </span>
+                                                    <span className="text-[13px] leading-relaxed text-indigo-200">
+                                                        „The space{' '}
+                                                        <b className="text-white">
+                                                            between
+                                                        </b>{' '}
+                                                        two cities lies a
+                                                        valley.”
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </button>
+                                        <div className="mt-4 grid grid-cols-4 gap-2">
+                                            {RATE_DEFS.map((r) => (
+                                                <button
+                                                    key={r.label}
+                                                    onClick={() =>
+                                                        setFlipped(false)
+                                                    }
+                                                    className="flex flex-col items-center gap-0.25 rounded-[10px] py-2 transition-transform hover:-translate-y-0.5"
+                                                    style={{
+                                                        border: `1px solid ${r.c}33`,
+                                                        background: `${r.c}14`,
+                                                        color: r.c,
+                                                    }}
+                                                >
+                                                    <span className="text-xs font-semibold">
+                                                        {r.label}
+                                                    </span>
+                                                    <span className="text-[10px] opacity-70">
+                                                        {r.time}
+                                                    </span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* analyzer preview */}
+                                <div className="animate-hero-float-c">
+                                    <div className="w-[250px] rounded-[22px] border border-white/[0.28] bg-indigo-800/55 p-5.5 shadow-[0_26px_60px_rgba(49,46,129,.35)] backdrop-blur-[14px]">
+                                        <span className="inline-flex items-center gap-1.5 rounded-full bg-green-300/20 px-3 py-1.25 text-xs font-semibold text-green-200">
+                                            <FileSearch size={15} />
+                                            Szövegelemzés
+                                        </span>
+                                        <div className="mt-4 flex items-center gap-3.5">
+                                            <div className="relative size-16">
+                                                <div
+                                                    className="absolute inset-0 rounded-full"
+                                                    style={{
+                                                        background:
+                                                            'conic-gradient(#4ade80 0 87%,rgba(255,255,255,.15) 87%)',
+                                                    }}
+                                                />
+                                                <div className="absolute inset-[7px] grid place-items-center rounded-full bg-indigo-950 text-[15px] font-bold text-white">
+                                                    <span ref={analyzePctRef}>
+                                                        87%
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <div className="text-sm font-semibold text-white">
+                                                    érthetőség
+                                                </div>
+                                                <div className="text-xs text-white/60">
+                                                    <span ref={analyzeCountRef}>
+                                                        312
+                                                    </span>{' '}
+                                                    / 358 szó
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="mt-4 text-xs leading-[1.7] text-white/80">
+                                            The space{' '}
+                                            <span className="rounded-[3px] bg-green-500 px-[3px] text-green-950">
+                                                between
+                                            </span>{' '}
+                                            two{' '}
+                                            <span className="rounded-[3px] bg-blue-500 px-[3px] text-white">
+                                                cities
+                                            </span>{' '}
+                                            lies a{' '}
+                                            <span className="rounded-[3px] bg-red-500 px-[3px] text-white">
+                                                valley
+                                            </span>
+                                            .
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="ts-hero-badge pointer-events-none absolute -top-3.5 right-[6%] -rotate-[8deg] animate-hero-float-slow-a rounded-full bg-white px-4 py-2 text-xs font-bold text-indigo-700 shadow-[0_10px_26px_rgba(0,0,0,.2)]">
+                                    10 000 SZÓ
+                                </div>
+                                <div className="ts-hero-badge pointer-events-none absolute bottom-2 left-[4%] rotate-[-7deg] animate-hero-pulse rounded-full bg-[#171717] px-4 py-2 text-xs font-bold text-white shadow-[0_10px_26px_rgba(0,0,0,.28)]">
+                                    SRS ISMÉTLÉS
+                                </div>
+                            </div>
+                        </section>
+
                         {/* FEATURES */}
                         <section
                             id="funkciok"
@@ -2692,8 +2495,8 @@ export default function Welcome({
                                                 <p className="text-sm leading-[1.6] text-white/70">
                                                     A Chrome Web Store-ból
                                                     egyetlen kattintással
-                                                    telepíthető, és automatikusan
-                                                    frissül.
+                                                    telepíthető, és
+                                                    automatikusan frissül.
                                                 </p>
                                                 <a
                                                     href={extensionStoreUrl}
@@ -2897,189 +2700,10 @@ export default function Welcome({
                                 </div>
                             </Reveal>
                         </section>
-                    </>
-                )}
+                    </main>
+                </div>
 
-                {isVideos && (
-                    <>
-                        {/* TANANYAG OLDAL */}
-                        <section
-                            className="px-5 pt-14 pb-2"
-                            style={{
-                                background:
-                                    'linear-gradient(180deg,#20276B 0%,#252a70 100%)',
-                            }}
-                        >
-                            <div className="mx-auto max-w-[1120px]">
-                                <div className="flex items-center justify-between gap-4 pb-4">
-                                    <button
-                                        onClick={goHome}
-                                        className="flex cursor-pointer items-center gap-2.5 text-[20px] font-bold tracking-[-.4px] text-white"
-                                    >
-                                        <img
-                                            src="/logo.png"
-                                            alt="TopWords"
-                                            className="size-11 rounded-[13px] shadow-[0_6px_18px_rgba(79,70,229,.5)]"
-                                        />
-                                        TopWords
-                                    </button>
-                                </div>
-                                <h1 className="text-[clamp(30px,4vw,44px)] leading-[1.1] font-bold tracking-[-1px] text-white">
-                                    Tananyag
-                                </h1>
-                                <p className="mt-3.5 max-w-[640px] text-base leading-[1.6] text-white/60">
-                                    Tanuld meg lépésről lépésre, hogyan használd
-                                    a TopWordsot. Minden funkcióhoz külön videó.
-                                </p>
-                                <div className="mt-6.5 flex flex-wrap gap-2.5">
-                                    {VIDEO_CATS.map((label) => {
-                                        const count =
-                                            label === 'Összes'
-                                                ? VIDEO_RAW.length
-                                                : VIDEO_RAW.filter(
-                                                      (v) => v.cat === label,
-                                                  ).length;
-                                        const active = videoFilter === label;
-
-                                        return (
-                                            <button
-                                                key={label}
-                                                onClick={() =>
-                                                    setVideoFilter(label)
-                                                }
-                                                className="inline-flex items-center gap-2 rounded-full px-4 py-2.25 font-sans text-sm font-semibold transition-all"
-                                                style={{
-                                                    border: active
-                                                        ? '1px solid transparent'
-                                                        : '1px solid rgba(255,255,255,.14)',
-                                                    background: active
-                                                        ? 'linear-gradient(135deg,#4ade80,#22c55e)'
-                                                        : 'rgba(255,255,255,.06)',
-                                                    color: active
-                                                        ? '#052e16'
-                                                        : 'rgba(255,255,255,.72)',
-                                                }}
-                                            >
-                                                {label}
-                                                <span
-                                                    className="rounded-full px-2 py-0.5 text-xs font-bold"
-                                                    style={{
-                                                        background: active
-                                                            ? 'rgba(5,46,22,.18)'
-                                                            : 'rgba(255,255,255,.1)',
-                                                        color: active
-                                                            ? '#052e16'
-                                                            : 'rgba(255,255,255,.65)',
-                                                    }}
-                                                >
-                                                    {count}
-                                                </span>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        </section>
-                        <section
-                            className="px-5 pt-8 pb-22.5"
-                            style={{
-                                background:
-                                    'linear-gradient(180deg,#252a70 0%,#20255f 100%)',
-                            }}
-                        >
-                            <div className="mx-auto grid max-w-[1120px] grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-5.5">
-                                {filteredVideos.map((v) => (
-                                    <div
-                                        key={v.title}
-                                        className="cursor-pointer overflow-hidden rounded-2xl border border-white/10 bg-[#1e2364] transition-all duration-250 hover:-translate-y-1.5 hover:shadow-[0_24px_50px_rgba(0,0,0,.12)]"
-                                    >
-                                        <div className="relative grid h-42.5 place-items-center bg-[#181c58]">
-                                            <span className="absolute top-3 left-3 rounded-lg bg-white/[0.08] px-2.5 py-1 text-[11px] font-bold text-white">
-                                                {v.cat}
-                                            </span>
-                                            <div className="grid size-14.5 place-items-center rounded-full bg-white/92 shadow-[0_8px_22px_rgba(0,0,0,.3)]">
-                                                <Play
-                                                    size={30}
-                                                    className="text-[#171717]"
-                                                />
-                                            </div>
-                                            <span className="absolute right-3 bottom-3 inline-flex items-center gap-1 rounded-md bg-black/55 px-2.25 py-0.75 text-xs font-semibold text-white">
-                                                <Clock size={14} />
-                                                {v.time}
-                                            </span>
-                                        </div>
-                                        <div className="flex items-start gap-3 p-5">
-                                            <span className="grid size-6 flex-none place-items-center rounded-full bg-gradient-to-br from-indigo-500 to-indigo-700 text-xs font-bold text-white">
-                                                {v.num}
-                                            </span>
-                                            <div>
-                                                <h3 className="text-base font-semibold text-white">
-                                                    {v.title}
-                                                </h3>
-                                                <p className="mt-1.5 text-[13px] leading-[1.5] text-white/50">
-                                                    {v.desc}
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                            <div className="mx-auto mt-11 max-w-[1120px] text-center">
-                                <a
-                                    href="#"
-                                    onClick={(e) => {
-                                        e.preventDefault();
-                                        goHome();
-                                    }}
-                                    className="inline-flex items-center gap-2 text-[15px] font-semibold text-green-300"
-                                >
-                                    <ArrowRight
-                                        size={19}
-                                        className="rotate-180"
-                                    />
-                                    Vissza a főoldalra
-                                </a>
-                            </div>
-                        </section>
-                    </>
-                )}
-
-                {/* FOOTER */}
-                <footer className="bg-[#171717] px-5 py-11">
-                    <div className="mx-auto flex max-w-[1100px] flex-wrap items-center justify-between gap-5">
-                        <div className="flex items-center gap-2.5 text-xl font-bold tracking-[-.4px] text-white">
-                            <span className="grid size-8.5 place-items-center rounded-[10px] bg-gradient-to-br from-indigo-600 to-indigo-800">
-                                <Languages size={20} className="text-white" />
-                            </span>
-                            TopWords
-                        </div>
-                        <div className="flex gap-5.5 text-sm text-neutral-400">
-                            <Link
-                                href={terms()}
-                                className="text-inherit transition-colors hover:text-white"
-                            >
-                                ÁSZF
-                            </Link>
-                            <Link
-                                href={privacy()}
-                                className="text-inherit transition-colors hover:text-white"
-                            >
-                                Adatkezelés
-                            </Link>
-                        </div>
-                        <div className="text-[13px] text-neutral-500">
-                            Készítette:{' '}
-                            <a
-                                href="https://codebarley.hu"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-indigo-300 hover:text-indigo-200"
-                            >
-                                codebarley.hu
-                            </a>
-                        </div>
-                    </div>
-                </footer>
+                <PublicFooter />
             </div>
         </>
     );

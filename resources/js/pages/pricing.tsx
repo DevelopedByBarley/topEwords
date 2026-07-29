@@ -9,7 +9,6 @@ import {
     Zap,
 } from 'lucide-react';
 import { useState } from 'react';
-import AppLogoIcon from '@/components/app-logo-icon';
 import { Button } from '@/components/ui/button';
 import {
     Tooltip,
@@ -17,7 +16,8 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { dashboard, home, login, register } from '@/routes';
+import PublicLayout from '@/layouts/public-layout';
+import { dashboard, register } from '@/routes';
 import { checkout, portal } from '@/routes/pricing';
 
 interface Props {
@@ -47,8 +47,7 @@ type PlanFeature = {
 const INFO = {
     flashcards:
         'A tanulókártyák (flashcardok) egyik oldalán a szó, a másikon a jelentése áll – ezekkel memorizálhatsz. A csomagok témák szerint rendezik a kártyáidat.',
-    quiz: 'Rövid feleletválasztós teszt a szavaidból: megjelenik egy szó, és a jó jelentést kell kiválasztanod.',
-    cloze: 'Szókiegészítős gyakorlat: egy mondatból kihagyunk egy szót, és neked kell beírnod a helyeset.',
+    srs: 'A kártyák a felejtési görbéd szerint térnek vissza: amit könnyen felidézel, azt ritkábban kérdezzük újra.',
     textAnalysis:
         'Beillesztesz egy szöveget, mi pedig kiemeljük benne, mely szavakat ismered már és melyek újak neked.',
     streak: 'A napi sorozat (streak) azt mutatja, hány napja tanulsz megszakítás nélkül – motivál a mindennapi gyakorlásra.',
@@ -59,12 +58,7 @@ const INFO = {
 const FREE_FEATURES: PlanFeature[] = [
     { value: 'Korlátlan', label: 'szógyűjtés tanulás közben' },
     { value: '50', label: 'tanulókártya, 5 csomagban', info: INFO.flashcards },
-    { value: '10', label: 'kérdés egy kvízkörben', info: INFO.quiz },
-    {
-        value: '10',
-        label: 'szó a szókiegészítős gyakorlatban',
-        info: INFO.cloze,
-    },
+    { label: 'Ütemezett kártyaismétlés (SRS)', info: INFO.srs },
     { value: '2', label: 'szövegelemzés naponta', info: INFO.textAnalysis },
     { value: '1', label: 'mentett könyv, 3 YouTube-felirat' },
     { label: 'Fejlődés- és napi sorozatkövetés', info: INFO.streak },
@@ -83,7 +77,7 @@ const FREE_FEATURES: PlanFeature[] = [
 // A Pro csomag (nem-AI) többlete az Ingyeneshez képest…
 const PRO_FEATURES: PlanFeature[] = [
     { heading: true, label: 'Minden az Ingyenesből, plusz:' },
-    { value: 'Korlátlan', label: 'tanulókártya, csomag, kvíz és gyakorlat' },
+    { value: 'Korlátlan', label: 'tanulókártya és kártyacsomag' },
     { value: '50', label: 'szövegelemzés naponta', info: INFO.textAnalysis },
     { value: '7', label: 'mentett könyv, 40 YouTube-felirat' },
     {
@@ -110,7 +104,7 @@ const AI_FEATURES: PlanFeature[] = [
 
 /**
  * Kis (i) ikon, amire rámutatva / rákoppintva rövid magyarázat jelenik meg.
- * A szakszavakat (tanulókártya, cloze, streak stb.) tesszük vele érthetővé.
+ * A szakszavakat (tanulókártya, SRS, streak stb.) tesszük vele érthetővé.
  */
 function InfoTip({ text }: { text: string }) {
     return (
@@ -233,50 +227,7 @@ export default function Pricing({
             </Head>
 
             <TooltipProvider delayDuration={100}>
-                <div className="min-h-screen bg-background text-foreground">
-                    {/* Nav */}
-                    <header className="border-b">
-                        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-                            <Link
-                                href={home()}
-                                className="flex items-center gap-2.5"
-                            >
-                                <AppLogoIcon className="size-11 rounded-xl" />
-                                <span className="text-sm font-semibold tracking-tight">
-                                    TopWords
-                                </span>
-                            </Link>
-                            <div className="flex items-center gap-3">
-                                {isLoggedIn ? (
-                                    <Link
-                                        href={dashboard()}
-                                        className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-                                    >
-                                        Irányítópult →
-                                    </Link>
-                                ) : (
-                                    <>
-                                        <Link
-                                            href={login()}
-                                            className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-                                        >
-                                            Bejelentkezés
-                                        </Link>
-                                        <Link href={register()}>
-                                            <Button
-                                                size="sm"
-                                                className="rounded-full bg-linear-to-br from-green-400 to-green-500 font-bold text-green-950 shadow-[0_4px_0_0_var(--color-green-600)] hover:brightness-105"
-                                            >
-                                                Regisztráció
-                                            </Button>
-                                        </Link>
-                                    </>
-                                )}
-                            </div>
-                        </div>
-                    </header>
-
-                    <main className="mx-auto max-w-7xl px-6 py-16">
+                <PublicLayout className="mx-auto w-full max-w-7xl px-6 py-16">
                         {/* Flash messages (fizetés eredménye) */}
                         {flash?.success && (
                             <div className="mb-8 flex items-start gap-2 rounded-xl border border-green-200 bg-green-50 px-5 py-4 text-sm text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-300">
@@ -610,8 +561,7 @@ export default function Pricing({
                                 </div>
                             </>
                         )}
-                    </main>
-                </div>
+                </PublicLayout>
             </TooltipProvider>
         </>
     );

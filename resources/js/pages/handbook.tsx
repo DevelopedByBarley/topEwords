@@ -21,6 +21,9 @@ import {
     CreditCard,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import AppLayout from '@/layouts/app-layout';
+import PublicLayout from '@/layouts/public-layout';
+import { handbook } from '@/routes';
 // import ChromeExtensionsLink from '@/components/chrome-extensions-link';
 // import { show as showDownload } from '@/routes/downloads';
 
@@ -265,15 +268,43 @@ function CardGrid({
     );
 }
 
+/**
+ * A kézikönyv az egyetlen olyan oldal, amit bejelentkezés nélkül is meg lehet
+ * nyitni, de bejelentkezve is van értelme. Vendégként a publikus keretet kapja
+ * (korábban az app-sidebart kapta, amiben minden link bejelentkezésre dobott),
+ * belépve viszont marad az alkalmazás megszokott kerete.
+ */
+function HandbookShell({
+    isGuest,
+    children,
+}: {
+    isGuest: boolean;
+    children: React.ReactNode;
+}) {
+    if (isGuest) {
+        return <PublicLayout>{children}</PublicLayout>;
+    }
+
+    return (
+        <AppLayout breadcrumbs={[{ title: 'Kézikönyv', href: handbook.url() }]}>
+            {children}
+        </AppLayout>
+    );
+}
+
 export default function Handbook() {
-    const { extensionStoreUrl } = usePage().props;
+    const { auth, extensionStoreUrl } = usePage<{
+        auth: { user: { id: number } | null };
+        extensionStoreUrl: string | null;
+    }>().props;
 
     const [activeId, setActiveId] = useState('attekintes');
     const observerRef = useRef<IntersectionObserver | null>(null);
-    const scrollRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        const root = scrollRef.current;
+        // A megfigyelés a viewporthoz igazodik: az oldal a saját görgetősávján
+        // fut, nem egy fix magasságú belső dobozban — így ugyanúgy működik a
+        // bejelentkezett app-keretben és a vendégeknek szánt publikus keretben.
         observerRef.current = new IntersectionObserver(
             (entries) => {
                 for (const entry of entries) {
@@ -282,7 +313,7 @@ export default function Handbook() {
                     }
                 }
             },
-            { root, rootMargin: '-20% 0px -70% 0px' },
+            { rootMargin: '-20% 0px -70% 0px' },
         );
         sections.forEach(({ id }) => {
             const el = document.getElementById(id);
@@ -296,18 +327,23 @@ export default function Handbook() {
     }, []);
 
     return (
-        <>
-            <Head title="Kézikönyv" />
+        <HandbookShell isGuest={!auth.user}>
+            <Head title="Kézikönyv">
+                <meta
+                    head-key="description"
+                    name="description"
+                    content="A TopWords kézikönyve: szavak, flashcardok, SRS, szövegelemzés és a Chrome bővítmény használata lépésről lépésre."
+                />
+            </Head>
 
-            <div
-                ref={scrollRef}
-                className="overflow-y-auto"
-                style={{ height: 'calc(100dvh - 64px)' }}
-            >
+            <div>
                 <div className="flex gap-0 px-4 py-6 md:px-6">
                     {/* Sticky TOC sidebar */}
-                    <aside className="sticky top-6 mr-10 hidden w-56 shrink-0 self-start lg:block">
-                        <div className="max-h-[calc(100dvh-5rem)] space-y-0.5 overflow-y-auto">
+                    <aside className="sticky top-20 mr-10 hidden w-56 shrink-0 self-start lg:block">
+                        <nav
+                            aria-label="Kézikönyv tartalomjegyzék"
+                            className="max-h-[calc(100dvh-7rem)] space-y-0.5 overflow-y-auto"
+                        >
                             <p className="mb-3 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
                                 Tartalom
                             </p>
@@ -334,7 +370,7 @@ export default function Handbook() {
                                     {label}
                                 </a>
                             ))}
-                        </div>
+                        </nav>
                     </aside>
 
                     {/* Main content */}
@@ -405,14 +441,18 @@ export default function Handbook() {
                                 />
                             </Sub>
 
-                            <Sub title="Dashboard">
+                            <Sub title="Haladás (főoldal)">
                                 <P>
                                     A főoldalon látod az összesített haladásodat
                                     szintenként (Top 1 000 → 8 001–10 000), a
                                     napi sorozatodat (streak) és az aktuális
                                     statisztikáidat. Minden szinthez tartozik
                                     egy sáv: hány szót jelöltél meg abból a
-                                    szintből.
+                                    szintből — a szint kártyájára kattintva
+                                    egyből a szűrt szólistára jutsz. A lap
+                                    tetején a „Folytasd itt” sáv mutatja a
+                                    következő lépést, például a ma esedékes
+                                    flashcardok számát.
                                 </P>
                             </Sub>
                         </Section>
@@ -1928,10 +1968,6 @@ export default function Handbook() {
                     </div>
                 </div>
             </div>
-        </>
+        </HandbookShell>
     );
 }
-
-Handbook.layout = {
-    breadcrumbs: [{ title: 'Kézikönyv', href: '/handbook' }],
-};

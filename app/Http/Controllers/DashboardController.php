@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\User;
 use App\Models\UserCustomWord;
 use App\Models\Word;
+use App\Services\FlashcardSrsService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -20,11 +22,13 @@ class DashboardController extends Controller
         6 => ['label' => '8 001 – 10 000', 'color' => 'red'],
     ];
 
-    public function index(Request $request): Response
+    public function index(Request $request, FlashcardSrsService $srs): Response
     {
+        $user = $request->user();
+
         $userStats = DB::table('user_word')
             ->join('words', 'words.id', '=', 'user_word.word_id')
-            ->where('user_word.user_id', $request->user()->id)
+            ->where('user_word.user_id', $user->id)
             ->selectRaw("
                 words.level,
                 SUM(CASE WHEN user_word.status = 'known' THEN 1 ELSE 0 END) as known,
@@ -61,7 +65,7 @@ class DashboardController extends Controller
         $totalKnown = $levelStats->sum('known');
         $totalWords = Word::count();
 
-        $customWords = UserCustomWord::where('user_id', $request->user()->id)
+        $customWords = UserCustomWord::where('user_id', $user->id)
             ->selectRaw('status, COUNT(*) as count')
             ->groupBy('status')
             ->pluck('count', 'status');
@@ -79,8 +83,44 @@ class DashboardController extends Controller
             'totalKnown' => $totalKnown,
             'totalWords' => $totalWords,
             'totalPercent' => $totalWords > 0 ? round(($totalKnown / $totalWords) * 100) : 0,
-            'streak' => $request->user()->currentStreak(),
+            'streak' => $user->currentStreak(),
+            'studiedToday' => (bool) $user->last_activity_date?->isToday(),
+            'lastActivityDate' => $user->last_activity_date?->toDateString(),
             'customStats' => $customStats,
+            // A számolás pakliként végigmegy az SRS-en, ezért deferred: a lap
+            // azonnal megjelenik, a „ma esedékes" doboz utólag töltődik be.
+            'dueFlashcards' => Inertia::defer(fn () => $this->countDueFlashcards($user, $srs)),
         ]);
+    }
+
+    /**
+     * A felhasználó összes paklijában ma esedékes tanulnivaló.
+     *
+     * A `countDueCards` a tanulás-sor kanonikus számlálója (ugyanazok a napi
+     * limitek és kizárások), így a dashboard száma megegyezik azzal, amit a
+     * flashcard-oldal deck-badge-ei mutatnak.
+     *
+     * @return array{cards: int, decks: int}
+     */
+    private function countDueFlashcards(User $user, FlashcardSrsService $srs): array
+    {
+        $decks = $user->flashcardDecks()->with('deckSettings')->get();
+        $userSettings = $user->flashcardSettings;
+        $defaultSettings = $srs->defaultSettings();
+
+        $cards = 0;
+        $decksWithDue = 0;
+
+        foreach ($decks as $deck) {
+            $settings = $deck->deckSettings ?? $userSettings ?? $defaultSettings;
+            $due = array_sum($srs->countDueCards($deck->id, $settings));
+
+            if ($due > 0) {
+                $cards += $due;
+                $decksWithDue++;
+            }
+        }
+
+        return ['cards' => $cards, 'decks' => $decksWithDue];
     }
 }

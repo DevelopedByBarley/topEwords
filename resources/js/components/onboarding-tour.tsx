@@ -16,9 +16,9 @@ export default function OnboardingTour() {
                 {
                     element: '#tour-dashboard',
                     popover: {
-                        title: '🏠 Dashboard',
+                        title: '🏠 Haladás',
                         description:
-                            'A főoldalon egy pillantásra látod a teljes haladásodat: hány szót ismersz, hány van folyamatban, mennyi az aktuális streak, és mikor volt az utolsó tanulás. Innen gyorsan eléred a legfontosabb funkciókat.',
+                            'A főoldalon egy pillantásra látod a teljes haladásodat: hány szót ismersz, hány van folyamatban, mennyi az aktuális streak, és mikor tanultál utoljára. Legfelül a „Folytasd itt” sáv mutatja, mi a következő lépés — például hány flashcard esedékes ma.',
                         side: 'right',
                         align: 'start',
                     },

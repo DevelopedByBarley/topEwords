@@ -1,18 +1,13 @@
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import {
     ArrowLeftRight,
-    BookMarked,
-    CheckCheck,
-    Clock,
     Flag,
     FolderOpen,
     FolderPlus,
     Info,
     Layers,
     Loader2,
-    Mic,
     Pencil,
-    PenLine,
     Plus,
     Search,
     Sparkles,
@@ -25,6 +20,7 @@ import { Button } from '@/components/ui/button';
 import {
     Dialog,
     DialogContent,
+    DialogDescription,
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
@@ -37,16 +33,13 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { FilterChip, FilterGroup } from '@/components/words/filter-chip';
 import ImportanceStars from '@/components/words/importance-stars';
 import PracticeModal from '@/components/words/practice-modal';
 import type { PracticeWord } from '@/components/words/practice-modal';
 import StatusButtons from '@/components/words/status-buttons';
 import {
     EMPTY_WORD_FORM,
-    LEVELS,
     POS_LABELS,
-    STATUS_CONFIG,
     speak,
     wordToFormData,
 } from '@/components/words/types';
@@ -56,8 +49,11 @@ import type {
     WordFormData,
     WordStatus,
 } from '@/components/words/types';
+import WordFilters from '@/components/words/word-filters';
+import type { WordFilterPatch } from '@/components/words/word-filters';
 import WordFormFields from '@/components/words/word-form-fields';
 import WordInsightPanel from '@/components/words/word-insight-panel';
+import WordProgressCard from '@/components/words/word-progress-card';
 import WordRow from '@/components/words/word-row';
 import type { UnifiedItem } from '@/components/words/word-row';
 import { httpErrorMessage } from '@/lib/http';
@@ -116,6 +112,8 @@ interface Props {
         status: string;
         importance: number | null;
         folder: number | null;
+        /** 'custom' = csak a saját szavak; üres = a teljes lista. */
+        source: string;
         per_page: number;
     };
     stats: {
@@ -143,7 +141,12 @@ interface Props {
     flashcardDecks: FlashcardDeck[];
 }
 
-const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+/** A backend `WordController::ALLOWED_PER_PAGE` értékei. */
+const PER_PAGE_OPTIONS = [20, 50, 100, 200, 300, 400, 500, 1000] as const;
+
+const STORAGE_KEY = 'words_filters';
+
+const HINT_STORAGE_KEY = 'words_hint_dismissed';
 
 export default function WordsIndex({
     words,
@@ -196,7 +199,17 @@ export default function WordsIndex({
     const [importingFlashcard, setImportingFlashcard] = useState(false);
     const [customImportSuccess, setCustomImportSuccess] = useState(false);
     const [wordImportSuccess, setWordImportSuccess] = useState(false);
-    const [customFilter, setCustomFilter] = useState<'all' | 'custom'>('all');
+    const [savingCustomWord, setSavingCustomWord] = useState(false);
+    // Kétlépcsős törlés a saját szó modalban: a gomb előbb megerősítést kér.
+    const [confirmDeleteCustom, setConfirmDeleteCustom] = useState(false);
+    const [hintDismissed, setHintDismissed] = useState(
+        () => localStorage.getItem(HINT_STORAGE_KEY) === '1',
+    );
+    // A forrás-szűrő az URL-ben él (a többi szűrővel azonos módon), így a
+    // dashboard „Saját szavak → Kezelés" linkje egyből ide tud navigálni,
+    // és a szűrt nézet megosztható/visszatölthető.
+    const customFilter: 'all' | 'custom' =
+        filters.source === 'custom' ? 'custom' : 'all';
     const [practiceModalWord, setPracticeModalWord] =
         useState<PracticeWord | null>(null);
     const [reportWordId, setReportWordId] = useState<number | null>(null);
@@ -216,8 +229,6 @@ export default function WordsIndex({
             ? (words.data.find((w) => w.id === selectedWordId) ?? null)
             : null;
     const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const progressPercent =
-        stats.total > 0 ? Math.round((stats.known / stats.total) * 100) : 0;
 
     const unifiedList = useMemo((): UnifiedItem[] => {
         if (customFilter === 'custom') {
@@ -243,7 +254,18 @@ export default function WordsIndex({
         );
     }, [customFilter, customWords, words.data, words.current_page]);
 
-    const STORAGE_KEY = 'words_filters';
+    // Saját-szavak nézetben a lista nincs lapozva, ezért a fejléc a betöltött
+    // elemek számát mutatja, nem a fő lista (szűrt) összesenét.
+    const listedTotal =
+        customFilter === 'custom' ? customWords.length : words.total;
+    const hasActiveFilters =
+        filters.search !== '' ||
+        filters.level !== null ||
+        filters.status !== '' ||
+        filters.importance !== null ||
+        filters.folder !== null ||
+        filters.source !== '' ||
+        (filters.letter !== '' && filters.letter !== 'ALL');
 
     useEffect(() => {
         const handler = () => setShowFolderSheet(true);
@@ -258,7 +280,9 @@ export default function WordsIndex({
         const search = new URLSearchParams(window.location.search);
         const addWord = search.get('add');
 
-        if (addWord) {
+        // Üres `?add=` is nyit: a dashboard „Hozzáadás" gombja szó nélkül,
+        // a bővítmény pedig előtöltött szóval hívja ugyanezt az űrlapot.
+        if (addWord !== null) {
             setCustomWordForm({ ...EMPTY_WORD_FORM, word: addWord.trim() });
             setShowAddCustomWord(true);
             // Clean the ?add= param from the URL without reloading
@@ -277,6 +301,7 @@ export default function WordsIndex({
             search.has('status') ||
             search.has('importance') ||
             search.has('folder') ||
+            search.has('source') ||
             search.has('search');
 
         if (!hasParams) {
@@ -313,19 +338,18 @@ export default function WordsIndex({
     }, []);
 
     const navigate = useCallback(
-        (
-            params: {
-                search?: string;
-                letter?: string;
-                level?: number | null;
-                status?: string;
-                importance?: number | null;
-                folder?: number | null;
-                page?: number;
-                per_page?: number;
-            },
-            options?: { preserveScroll?: boolean },
-        ) => {
+        (params: WordFilterPatch, options?: { preserveScroll?: boolean }) => {
+            // Egy szűrő-kattintás mindig felülírja a még függő kereső-debounce-t,
+            // különben az 350 ms-mal később visszaírná a régi keresőszót.
+            if (searchTimeout.current) {
+                clearTimeout(searchTimeout.current);
+                searchTimeout.current = null;
+            }
+
+            if (params.search !== undefined) {
+                setSearch(params.search);
+            }
+
             const resolved = {
                 search: params.search ?? filters.search,
                 letter:
@@ -346,6 +370,10 @@ export default function WordsIndex({
                     params.folder !== undefined
                         ? params.folder
                         : filters.folder,
+                source:
+                    params.source !== undefined
+                        ? params.source
+                        : filters.source,
                 per_page:
                     params.per_page !== undefined
                         ? params.per_page
@@ -364,6 +392,24 @@ export default function WordsIndex({
 
     function handleFolderFilter(folderId: number | null) {
         navigate({ folder: folderId, page: 1 });
+    }
+
+    function handleResetFilters() {
+        navigate({
+            search: '',
+            letter: 'ALL',
+            level: null,
+            status: '',
+            importance: null,
+            folder: null,
+            source: '',
+            page: 1,
+        });
+    }
+
+    function handleDismissHint() {
+        localStorage.setItem(HINT_STORAGE_KEY, '1');
+        setHintDismissed(true);
     }
 
     function handleCreateFolder() {
@@ -501,29 +547,8 @@ export default function WordsIndex({
         }
 
         searchTimeout.current = setTimeout(() => {
-            navigate(
-                { search: value, letter: filters.letter, page: 1 },
-                { preserveScroll: true },
-            );
+            navigate({ search: value, page: 1 }, { preserveScroll: true });
         }, 350);
-    }
-
-    function handleLetterClick(letter: string) {
-        setSearch('');
-        navigate({ search: '', letter, page: 1 });
-    }
-
-    function handleLevelClick(level: number | null) {
-        setSearch('');
-        navigate({ search: '', level, letter: 'ALL', page: 1 });
-    }
-
-    function handleStatusFilter(statusValue: string) {
-        navigate({ status: statusValue, page: 1 });
-    }
-
-    function handleImportanceFilter(value: number | null) {
-        navigate({ importance: value, page: 1 });
     }
 
     // A sor-kezelők useCallback-ben vannak, hogy a memoizált WordRow propjai
@@ -726,6 +751,10 @@ export default function WordsIndex({
     function handleAddCustomWord(e: React.FormEvent) {
         e.preventDefault();
 
+        if (savingCustomWord) {
+            return;
+        }
+
         if (!customWordForm.word.trim()) {
             setCustomWordErrors({ word: 'A szó megadása kötelező.' });
 
@@ -769,6 +798,7 @@ export default function WordsIndex({
         payload.adj_superlative = customWordForm.adj_superlative.trim() || null;
         payload.extra_forms = customWordForm.extra_forms.trim() || null;
 
+        setSavingCustomWord(true);
         router.post(storeCustomWord(), payload, {
             preserveScroll: true,
             only: ['customWords', 'customStats', 'stats', 'flash'],
@@ -779,6 +809,7 @@ export default function WordsIndex({
                 setGeminiBaseFormNotice(null);
             },
             onError: (e) => setCustomWordErrors(e),
+            onFinish: () => setSavingCustomWord(false),
         });
     }
 
@@ -875,129 +906,64 @@ export default function WordsIndex({
                 onClose={() => setPracticeModalWord(null)}
             />
 
-            <div className="flex h-full flex-1 flex-col gap-4 p-4 pb-24 md:px-6 md:pt-6 md:pb-28">
-                {/* Hero + progress + custom words */}
+            <div className="mx-auto flex h-full w-full max-w-[2000px] flex-1 flex-col gap-6 p-4 pb-24 md:p-6 md:pb-28 xl:px-10 2xl:px-16">
+                {/* Hero */}
                 <div
-                    id="custom-words"
                     className="relative overflow-hidden rounded-3xl p-6 md:p-8"
-                    style={{ background: 'linear-gradient(135deg,#4338CA,#4F8EEC)' }}
+                    style={{
+                        background: 'linear-gradient(135deg,#4338CA,#4F8EEC)',
+                    }}
                 >
-                    <div className="pointer-events-none absolute -top-14 -right-14 size-56 rounded-full bg-white/15" />
-                    <div className="relative flex items-start justify-between gap-3">
-                        <div className="flex flex-col gap-1">
+                    <div className="pointer-events-none absolute -top-16 -right-16 size-64 rounded-full bg-white/15 blur-2xl" />
+                    <div className="pointer-events-none absolute right-28 -bottom-24 size-48 rounded-full bg-white/10 blur-2xl" />
+                    <div className="relative flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+                        <div className="max-w-xl">
                             <h1 className="text-2xl font-bold tracking-tight text-white md:text-3xl">
                                 Top 10 000 angol szó
                             </h1>
-                            <p className="text-sm text-white/85">
-                                Jelöld meg a szavakat, amelyeket már ismersz.
+                            <p className="mt-1.5 text-sm text-white/85 md:text-base">
+                                Jelöld meg a szavakat, amelyeket már ismersz — a
+                                haladásod magától mentődik, és a szintekben is
+                                látszik.
                             </p>
+                            <button
+                                type="button"
+                                onClick={() => setShowAddCustomWord(true)}
+                                className="mt-5 inline-flex cursor-pointer items-center gap-2 rounded-full bg-linear-to-br from-green-400 to-green-500 px-6 py-3 text-sm font-bold text-green-950 shadow-[0_4px_0_0_var(--color-green-600)] transition-all hover:brightness-105 active:translate-y-0.75"
+                            >
+                                <Plus className="size-4" />
+                                Saját szó hozzáadása
+                            </button>
                         </div>
-                        <button
-                            onClick={() => setShowAddCustomWord(true)}
-                            className="mt-1 inline-flex shrink-0 items-center gap-1.5 rounded-full bg-linear-to-br from-green-400 to-green-500 px-4 py-2.5 text-sm font-bold text-green-950 shadow-[0_4px_0_0_var(--color-green-600)] transition-all hover:brightness-105 active:translate-y-0.75"
-                        >
-                            <Plus className="size-4" />
-                            <span className="hidden sm:inline">Saját szó</span>
-                            {customStats.total > 0 && (
-                                <span className="text-xs font-normal opacity-70">
-                                    {customStats.total}
+                        <div className="flex shrink-0 flex-col items-center gap-0.5 rounded-2xl bg-white/15 px-5 py-4 ring-1 ring-white/20 backdrop-blur-sm">
+                            <div className="flex items-baseline gap-2">
+                                <span className="text-4xl font-bold text-white tabular-nums">
+                                    {listedTotal.toLocaleString()}
                                 </span>
-                            )}
-                        </button>
-                    </div>
-                    <div className="relative mt-5">
-                        <div className="mb-2 flex items-center justify-between text-sm">
-                            <span className="font-bold text-white">
-                                Haladás
-                            </span>
-                            <span className="text-white/85">
-                                {stats.known.toLocaleString()} /{' '}
-                                {stats.total.toLocaleString()} (
-                                {progressPercent}%)
+                            </div>
+                            <span className="text-xs text-white/70">
+                                {hasActiveFilters
+                                    ? 'szó a szűrt listában'
+                                    : 'szó a listában'}
                             </span>
                         </div>
-                        <div className="h-3 w-full overflow-hidden rounded-full bg-black/15">
-                            <div
-                                className="h-3 rounded-full bg-white transition-all duration-300"
-                                style={{ width: `${progressPercent}%` }}
-                            />
-                        </div>
-                        <div className="mt-3 flex flex-wrap gap-2">
-                            <span className="flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-bold text-zinc-700">
-                                <CheckCheck className="size-3.5 text-green-600" />
-                                Tudom: {stats.known.toLocaleString()}
-                            </span>
-                            <span className="flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-bold text-zinc-700">
-                                <Clock className="size-3.5 text-blue-600" />
-                                Tanulom: {stats.learning.toLocaleString()}
-                            </span>
-                            <span className="flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-bold text-zinc-700">
-                                <BookMarked className="size-3.5 text-orange-600" />
-                                Később: {stats.saved.toLocaleString()}
-                            </span>
-                            <span className="flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-bold text-zinc-700">
-                                <Mic className="size-3.5 text-indigo-600" />
-                                Kiejtés: {stats.pronunciation.toLocaleString()}
-                            </span>
-                            <span className="flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-bold text-zinc-700">
-                                <PenLine className="size-3.5 text-rose-600" />
-                                Gyakorlásra: {stats.practice.toLocaleString()}
-                            </span>
-                        </div>
-                    </div>
-                    {/* Custom words sub-section */}
-                    <div className="relative mt-5 border-t border-white/20 pt-4">
-                        <div className="mb-2 flex items-center justify-between text-sm">
-                            <span className="font-bold text-white">
-                                Saját szavak
-                            </span>
-                            <span className="text-white/85">
-                                {customStats.total === 0
-                                    ? 'Még nincs hozzáadott szó'
-                                    : `${customStats.total} szó hozzáadva`}
-                            </span>
-                        </div>
-                        {customStats.total > 0 && (
-                            <>
-                                <div className="h-2 w-full overflow-hidden rounded-full bg-black/15">
-                                    <div
-                                        className="h-2 rounded-full bg-white transition-all duration-300"
-                                        style={{
-                                            width: `${Math.round((customStats.known / customStats.total) * 100)}%`,
-                                        }}
-                                    />
-                                </div>
-                                <div className="mt-3 flex flex-wrap gap-2">
-                                    <span className="flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-bold text-zinc-700">
-                                        <CheckCheck className="size-3.5 text-green-600" />
-                                        Tudom:{' '}
-                                        {customStats.known.toLocaleString()}
-                                    </span>
-                                    <span className="flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-bold text-zinc-700">
-                                        <Clock className="size-3.5 text-blue-600" />
-                                        Tanulom:{' '}
-                                        {customStats.learning.toLocaleString()}
-                                    </span>
-                                    <span className="flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-bold text-zinc-700">
-                                        <BookMarked className="size-3.5 text-orange-600" />
-                                        Később:{' '}
-                                        {customStats.saved.toLocaleString()}
-                                    </span>
-                                    <span className="flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-bold text-zinc-700">
-                                        <Mic className="size-3.5 text-indigo-600" />
-                                        Kiejtés:{' '}
-                                        {customStats.pronunciation.toLocaleString()}
-                                    </span>
-                                    <span className="flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-bold text-zinc-700">
-                                        <PenLine className="size-3.5 text-rose-600" />
-                                        Gyakorlásra:{' '}
-                                        {customStats.practice.toLocaleString()}
-                                    </span>
-                                </div>
-                            </>
-                        )}
                     </div>
                 </div>
+
+                <WordProgressCard
+                    stats={stats}
+                    customStats={customStats}
+                    activeStatus={filters.status}
+                    onStatusFilter={(status) => navigate({ status, page: 1 })}
+                    customOnly={customFilter === 'custom'}
+                    onCustomOnlyToggle={() =>
+                        navigate({
+                            source: customFilter === 'custom' ? '' : 'custom',
+                            page: 1,
+                        })
+                    }
+                    onAddCustomWord={() => setShowAddCustomWord(true)}
+                />
 
                 {/* Add custom word dialog */}
                 <Dialog
@@ -1011,12 +977,19 @@ export default function WordsIndex({
                         }
                     }}
                 >
-                    <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-lg">
-                        <DialogHeader className="border-b px-6 py-4">
+                    <DialogContent className="flex max-h-[90dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
+                        <DialogHeader className="border-b px-6 py-4 pr-12">
                             <DialogTitle>Saját szó hozzáadása</DialogTitle>
+                            <DialogDescription>
+                                A szó és a magyar jelentés kötelező — a többit
+                                az AI is kitöltheti helyetted.
+                            </DialogDescription>
                         </DialogHeader>
-                        <form onSubmit={handleAddCustomWord}>
-                            <div className="flex max-h-[65vh] flex-col gap-4 overflow-y-auto px-6 py-5">
+                        <form
+                            onSubmit={handleAddCustomWord}
+                            className="flex min-h-0 flex-1 flex-col"
+                        >
+                            <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-6 py-5">
                                 <WordFormFields
                                     form={customWordForm}
                                     onChange={setCustomWordForm}
@@ -1092,9 +1065,15 @@ export default function WordsIndex({
                                 <Button
                                     type="submit"
                                     className="flex-1"
-                                    disabled={!customWordForm.word.trim()}
+                                    disabled={
+                                        savingCustomWord ||
+                                        !customWordForm.word.trim()
+                                    }
                                 >
-                                    Mentés
+                                    {savingCustomWord ? (
+                                        <Loader2 className="size-4 animate-spin" />
+                                    ) : null}
+                                    {savingCustomWord ? 'Mentés…' : 'Mentés'}
                                 </Button>
                                 <Button
                                     type="button"
@@ -1113,203 +1092,29 @@ export default function WordsIndex({
                     </DialogContent>
                 </Dialog>
 
-                {/* Szűrők */}
-                <div className="flex flex-col gap-4 rounded-3xl bg-card p-4 shadow-sm md:p-5">
-                    {/* Keresés + oldalméret */}
-                    <div className="flex items-center gap-2">
-                        <div className="relative flex-1">
-                            <Search className="absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" />
-                            <Input
-                                type="search"
-                                placeholder="Keresés a szavak között..."
-                                className="rounded-full border-0 bg-muted pr-9 pl-10"
-                                value={search}
-                                onChange={(e) =>
-                                    handleSearchChange(e.target.value)
-                                }
-                            />
-                            {search && (
-                                <button
-                                    className="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                                    onClick={() => handleSearchChange('')}
-                                    aria-label="Törlés"
-                                >
-                                    <X className="size-4" />
-                                </button>
-                            )}
-                        </div>
-                        <Select
-                            value={String(filters.per_page)}
-                            onValueChange={(v) =>
-                                navigate({ per_page: Number(v), page: 1 })
-                            }
-                        >
-                            <SelectTrigger className="w-28 rounded-full border-0 bg-muted text-sm">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {[20, 50, 100, 200, 300, 400, 500, 1000].map(
-                                    (n) => (
-                                        <SelectItem key={n} value={String(n)}>
-                                            {n} / oldal
-                                        </SelectItem>
-                                    ),
-                                )}
-                            </SelectContent>
-                        </Select>
-                    </div>
-
-                    {!search && (
-                        <FilterGroup label="Szint">
-                            <FilterChip
-                                active={filters.level === null}
-                                onClick={() => handleLevelClick(null)}
-                            >
-                                Mind
-                            </FilterChip>
-                            {LEVELS.map((l) => (
-                                <FilterChip
-                                    key={l.value}
-                                    active={filters.level === l.value}
-                                    onClick={() => handleLevelClick(l.value)}
-                                >
-                                    {l.value}. {l.label}
-                                </FilterChip>
-                            ))}
-                        </FilterGroup>
-                    )}
-
-                    <FilterGroup label="Státusz">
-                        <FilterChip
-                            active={!filters.status}
-                            onClick={() => handleStatusFilter('')}
-                        >
-                            Mind
-                        </FilterChip>
-                        {STATUS_CONFIG.map(
-                            ({ value, label, icon: Icon, filterActive }) => (
-                                <FilterChip
-                                    key={value}
-                                    active={filters.status === value}
-                                    activeClass={`${filterActive} text-white shadow-sm`}
-                                    onClick={() => handleStatusFilter(value)}
-                                >
-                                    <Icon className="size-3.5" />
-                                    {label}
-                                    <span className="font-normal opacity-75">
-                                        {stats[value].toLocaleString()}
-                                    </span>
-                                </FilterChip>
-                            ),
-                        )}
-                    </FilterGroup>
-
-                    <FilterGroup label="Fontosság">
-                        <FilterChip
-                            active={filters.importance === null}
-                            onClick={() => handleImportanceFilter(null)}
-                        >
-                            Mind
-                        </FilterChip>
-                        {[1, 2, 3, 4, 5].map((n) => (
-                            <FilterChip
-                                key={n}
-                                active={filters.importance === n}
-                                activeClass="bg-amber-400 text-amber-950 shadow-sm"
-                                onClick={() => handleImportanceFilter(n)}
-                                title={`${n} csillag`}
-                            >
-                                {'★'.repeat(n)}
-                            </FilterChip>
-                        ))}
-                    </FilterGroup>
-
-                    {folders.length > 0 && (
-                        <FilterGroup label="Mappa">
-                            <FilterChip
-                                active={filters.folder === null}
-                                onClick={() => handleFolderFilter(null)}
-                            >
-                                Mind
-                            </FilterChip>
-                            {folders.map((f) => (
-                                <FilterChip
-                                    key={f.id}
-                                    active={filters.folder === f.id}
-                                    onClick={() => handleFolderFilter(f.id)}
-                                >
-                                    <FolderOpen className="size-3.5" />
-                                    {f.name}
-                                    <span className="font-normal opacity-75">
-                                        {f.words_count}
-                                    </span>
-                                </FilterChip>
-                            ))}
-                        </FilterGroup>
-                    )}
-
-                    {customStats.total > 0 && (
-                        <FilterGroup label="Forrás">
-                            <FilterChip
-                                active={customFilter === 'all'}
-                                onClick={() => setCustomFilter('all')}
-                            >
-                                Minden szó
-                            </FilterChip>
-                            <FilterChip
-                                active={customFilter === 'custom'}
-                                onClick={() => setCustomFilter('custom')}
-                            >
-                                <Plus className="size-3.5" />
-                                Saját szavak
-                                <span className="font-normal opacity-75">
-                                    {customStats.total}
-                                </span>
-                            </FilterChip>
-                        </FilterGroup>
-                    )}
-
-                    {!search && (
-                        <FilterGroup label="Betű">
-                            <FilterChip
-                                active={
-                                    !filters.letter || filters.letter === 'ALL'
-                                }
-                                onClick={() => handleLetterClick('ALL')}
-                            >
-                                Összes
-                            </FilterChip>
-                            {LETTERS.map((letter) => {
-                                const hasMarks = markedLetters.includes(letter);
-                                const isActive = filters.letter === letter;
-
-                                return (
-                                    <FilterChip
-                                        key={letter}
-                                        active={isActive}
-                                        onClick={() =>
-                                            handleLetterClick(letter)
-                                        }
-                                    >
-                                        {letter}
-                                        {hasMarks && !isActive && (
-                                            <span className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-indigo-500 opacity-80" />
-                                        )}
-                                    </FilterChip>
-                                );
-                            })}
-                        </FilterGroup>
-                    )}
-                </div>
+                <WordFilters
+                    filters={filters}
+                    search={search}
+                    onSearchChange={handleSearchChange}
+                    onChange={navigate}
+                    onReset={handleResetFilters}
+                    folders={folders}
+                    markedLetters={markedLetters}
+                    customTotal={customStats.total}
+                    perPageOptions={PER_PAGE_OPTIONS}
+                />
 
                 {/* Folder dialog */}
                 <Dialog
                     open={showFolderSheet}
                     onOpenChange={setShowFolderSheet}
                 >
-                    <DialogContent className="flex max-h-[80vh] flex-col gap-0 p-0 sm:max-w-sm">
-                        <DialogHeader className="border-b px-4 py-3">
+                    <DialogContent className="flex max-h-[85dvh] flex-col gap-0 p-0 sm:max-w-sm">
+                        <DialogHeader className="border-b px-4 py-3 pr-12">
                             <DialogTitle>Mappák</DialogTitle>
+                            <DialogDescription className="sr-only">
+                                Mappák kezelése és szűrés mappa szerint.
+                            </DialogDescription>
                         </DialogHeader>
                         <div className="flex flex-1 flex-col overflow-y-auto py-1">
                             <button
@@ -1468,39 +1273,67 @@ export default function WordsIndex({
                     </DialogContent>
                 </Dialog>
 
-                {/* Word count */}
-                <p className="text-sm text-muted-foreground">
-                    {words.total.toLocaleString()} szó
-                    {words.last_page > 1 && (
-                        <span>
-                            {' '}
-                            &mdash; {words.current_page}. / {words.last_page}.
-                            oldal
-                        </span>
-                    )}
-                </p>
-
-                {/* Hint banner */}
-                <div className="flex items-center gap-3 rounded-2xl border border-indigo-100 bg-indigo-50 px-4 py-3 text-indigo-900 dark:border-indigo-900/40 dark:bg-indigo-950/20 dark:text-indigo-200">
-                    <Info className="size-5 shrink-0 text-indigo-600 dark:text-indigo-400" />
-                    <p className="text-sm font-medium">
-                        {flipMode
-                            ? 'Fordított mód: a magyar jelentés látszik — kattints a szóra az angol megjelenítéséhez vagy mappa hozzáadásához!'
-                            : 'Kattints bármelyik szóra a magyar jelentés megtekintéséhez vagy mappa hozzáadásához!'}
-                    </p>
-                </div>
-
                 {/* Word list */}
-                {unifiedList.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-16 text-center text-muted-foreground">
-                        <Search className="mb-3 size-10 opacity-30" />
-                        <p className="font-medium">Nincs találat</p>
-                        <p className="text-sm">
-                            Próbálj más keresési feltételt.
+                <section className="overflow-hidden rounded-3xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-700 dark:bg-card">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
+                        <p className="text-sm font-medium tabular-nums">
+                            {listedTotal.toLocaleString()} szó
+                            {customFilter !== 'custom' &&
+                                words.last_page > 1 && (
+                                    <span className="font-normal text-muted-foreground">
+                                        {' '}
+                                        &mdash; {words.current_page}. /{' '}
+                                        {words.last_page}. oldal
+                                    </span>
+                                )}
                         </p>
+                        {customFilter === 'custom' && (
+                            <span className="rounded-full bg-indigo-100 px-2.5 py-1 text-xs font-medium text-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300">
+                                Csak a saját szavaid
+                            </span>
+                        )}
                     </div>
-                ) : (
-                    <div className="overflow-hidden rounded-3xl bg-card shadow-sm">
+
+                    {!hintDismissed && (
+                        <div className="flex items-start gap-3 border-b bg-indigo-50 px-4 py-3 text-indigo-900 dark:bg-indigo-950/20 dark:text-indigo-200">
+                            <Info className="mt-0.5 size-4 shrink-0 text-indigo-600 dark:text-indigo-400" />
+                            <p className="flex-1 text-sm">
+                                {flipMode
+                                    ? 'Fordított mód: a magyar jelentés látszik — kattints a szóra az angol alakért vagy mappa hozzáadásához.'
+                                    : 'Kattints bármelyik szóra a részletekért, mappához adásért vagy a példamondatért.'}
+                            </p>
+                            <button
+                                type="button"
+                                onClick={handleDismissHint}
+                                aria-label="Tipp elrejtése"
+                                className="shrink-0 cursor-pointer rounded p-0.5 text-indigo-500 transition-colors hover:text-indigo-900 dark:hover:text-indigo-200"
+                            >
+                                <X className="size-4" />
+                            </button>
+                        </div>
+                    )}
+
+                    {unifiedList.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center px-6 py-14 text-center">
+                            <Search className="mb-3 size-10 text-muted-foreground/40" />
+                            <p className="font-medium">Nincs találat</p>
+                            <p className="mt-1 text-sm text-muted-foreground">
+                                {hasActiveFilters
+                                    ? 'Egyik szó sem felel meg a beállított szűrőknek.'
+                                    : 'Próbálj más keresési feltételt.'}
+                            </p>
+                            {hasActiveFilters && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="mt-4"
+                                    onClick={handleResetFilters}
+                                >
+                                    Szűrők törlése
+                                </Button>
+                            )}
+                        </div>
+                    ) : (
                         <ul className="divide-y">
                             {unifiedList.map((item) => (
                                 <WordRow
@@ -1520,8 +1353,8 @@ export default function WordsIndex({
                                 />
                             ))}
                         </ul>
-                    </div>
-                )}
+                    )}
+                </section>
 
                 {/* Pagination */}
                 {words.last_page > 1 && customFilter !== 'custom' && (
@@ -1605,10 +1438,11 @@ export default function WordsIndex({
                 onOpenChange={(open) => {
                     if (!open) {
                         setSelectedCustomWordId(null);
+                        setConfirmDeleteCustom(false);
                     }
                 }}
             >
-                <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-md">
+                <DialogContent className="flex max-h-[90dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-md">
                     {(() => {
                         const cw = customWords.find(
                             (w) => w.id === selectedCustomWordId,
@@ -1620,7 +1454,7 @@ export default function WordsIndex({
 
                         return (
                             <>
-                                <div className="border-b bg-linear-to-br from-primary/8 to-primary/3 px-6 pt-5 pb-4">
+                                <div className="border-b bg-linear-to-br from-primary/8 to-primary/3 px-6 pt-5 pr-14 pb-4">
                                     <div className="flex items-start justify-between gap-3">
                                         <div className="min-w-0 flex-1">
                                             <div className="mb-2 flex flex-wrap items-center gap-1.5">
@@ -1638,6 +1472,10 @@ export default function WordsIndex({
                                                     {cw.word}
                                                 </h2>
                                             </DialogTitle>
+                                            <DialogDescription className="sr-only">
+                                                A saját szavad részletei és
+                                                beállításai.
+                                            </DialogDescription>
                                         </div>
                                         <button
                                             onClick={() => speak(cw.word)}
@@ -1648,7 +1486,7 @@ export default function WordsIndex({
                                         </button>
                                     </div>
                                 </div>
-                                <div className="max-h-[60vh] space-y-4 overflow-y-auto px-6 py-5">
+                                <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-5">
                                     {cw.meaning_hu && (
                                         <div className="rounded-xl border bg-card px-4 py-3.5">
                                             <p className="mb-1.5 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
@@ -1938,36 +1776,80 @@ export default function WordsIndex({
                                             />
                                         </div>
                                     )}
+                                </div>
 
-                                    <div className="flex gap-2 border-t pt-4">
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            className="flex-1"
-                                            onClick={() => {
-                                                setSelectedCustomWordId(null);
-                                                setEditCustomWordId(cw.id);
-                                                setEditCustomWordForm(
-                                                    wordToFormData(cw),
-                                                );
-                                            }}
-                                        >
-                                            <Pencil className="size-3.5" />
-                                            Szerkesztés
-                                        </Button>
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                                            onClick={() => {
-                                                handleDeleteCustomWord(cw.id);
-                                                setSelectedCustomWordId(null);
-                                            }}
-                                        >
-                                            <Trash2 className="size-3.5" />
-                                            Törlés
-                                        </Button>
-                                    </div>
+                                <div className="border-t px-6 py-4">
+                                    {confirmDeleteCustom ? (
+                                        <div className="flex flex-col gap-2">
+                                            <p className="text-sm font-medium text-destructive">
+                                                Biztosan törlöd a(z) „{cw.word}"
+                                                szót? Ez nem vonható vissza.
+                                            </p>
+                                            <div className="flex gap-2">
+                                                <Button
+                                                    variant="destructive"
+                                                    size="sm"
+                                                    className="flex-1"
+                                                    onClick={() => {
+                                                        handleDeleteCustomWord(
+                                                            cw.id,
+                                                        );
+                                                        setSelectedCustomWordId(
+                                                            null,
+                                                        );
+                                                        setConfirmDeleteCustom(
+                                                            false,
+                                                        );
+                                                    }}
+                                                >
+                                                    <Trash2 className="size-3.5" />
+                                                    Igen, törlöm
+                                                </Button>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() =>
+                                                        setConfirmDeleteCustom(
+                                                            false,
+                                                        )
+                                                    }
+                                                >
+                                                    Mégse
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="flex gap-2">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="flex-1"
+                                                onClick={() => {
+                                                    setSelectedCustomWordId(
+                                                        null,
+                                                    );
+                                                    setEditCustomWordId(cw.id);
+                                                    setEditCustomWordForm(
+                                                        wordToFormData(cw),
+                                                    );
+                                                }}
+                                            >
+                                                <Pencil className="size-3.5" />
+                                                Szerkesztés
+                                            </Button>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                                onClick={() =>
+                                                    setConfirmDeleteCustom(true)
+                                                }
+                                            >
+                                                <Trash2 className="size-3.5" />
+                                                Törlés
+                                            </Button>
+                                        </div>
+                                    )}
                                 </div>
                             </>
                         );
@@ -1984,11 +1866,14 @@ export default function WordsIndex({
                     }
                 }}
             >
-                <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-lg">
-                    <DialogHeader className="border-b px-6 py-4">
+                <DialogContent className="flex max-h-[90dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
+                    <DialogHeader className="border-b px-6 py-4 pr-12">
                         <DialogTitle>Saját szó szerkesztése</DialogTitle>
+                        <DialogDescription className="sr-only">
+                            A saját szavad adatainak módosítása.
+                        </DialogDescription>
                     </DialogHeader>
-                    <div className="flex max-h-[65vh] flex-col gap-4 overflow-y-auto px-6 py-5">
+                    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-6 py-5">
                         <WordFormFields
                             form={editCustomWordForm}
                             onChange={setEditCustomWordForm}
@@ -2052,11 +1937,11 @@ export default function WordsIndex({
                     }
                 }}
             >
-                <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-lg">
+                <DialogContent className="flex max-h-[90dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
                     {selectedWord && (
                         <>
                             {/* Hero */}
-                            <div className="border-b bg-linear-to-br from-primary/8 to-primary/3 px-6 pt-5 pb-4">
+                            <div className="border-b bg-linear-to-br from-primary/8 to-primary/3 px-6 pt-5 pr-14 pb-4">
                                 <div className="flex items-start justify-between gap-3">
                                     <div className="min-w-0 flex-1">
                                         <div className="mb-2 flex flex-wrap items-center gap-1.5">
@@ -2090,6 +1975,10 @@ export default function WordsIndex({
                                                     : selectedWord.word}
                                             </h2>
                                         </DialogTitle>
+                                        <DialogDescription className="sr-only">
+                                            A szó jelentése, alakjai és
+                                            beállításai.
+                                        </DialogDescription>
                                     </div>
                                     <button
                                         onClick={() => speak(selectedWord.word)}
@@ -2102,7 +1991,7 @@ export default function WordsIndex({
                             </div>
 
                             {/* Scrollable body */}
-                            <div className="max-h-[65vh] space-y-4 overflow-y-auto px-6 py-5">
+                            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-5">
                                 {/* Jelentés */}
                                 <div className="rounded-xl border bg-card px-4 py-3.5">
                                     <p className="mb-1.5 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
@@ -2501,13 +2390,19 @@ export default function WordsIndex({
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
                         <DialogTitle>Hibás adat jelentése</DialogTitle>
+                        <DialogDescription>
+                            Írd le, mi a gond a szó adataival — átnézzük és
+                            javítjuk.
+                        </DialogDescription>
                     </DialogHeader>
                     <form
                         onSubmit={(e) => {
                             e.preventDefault();
+
                             if (reportWordId === null) {
                                 return;
                             }
+
                             router.post(
                                 storeReport().url,
                                 {
@@ -2543,14 +2438,24 @@ export default function WordsIndex({
                             placeholder="Mi hibás ennél a szónál?"
                             required
                         />
-                        {reportForm.errors.description && (
-                            <p className="text-sm text-destructive">
-                                {reportForm.errors.description}
-                            </p>
-                        )}
+                        <div className="flex items-center justify-between gap-2">
+                            {reportForm.errors.description ? (
+                                <p className="text-sm text-destructive">
+                                    {reportForm.errors.description}
+                                </p>
+                            ) : (
+                                <span />
+                            )}
+                            <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                                {reportForm.data.description.length} / 2000
+                            </span>
+                        </div>
                         <Button
                             type="submit"
-                            disabled={reportForm.processing}
+                            disabled={
+                                reportForm.processing ||
+                                reportForm.data.description.trim() === ''
+                            }
                             className="self-start"
                         >
                             {reportForm.processing ? 'Küldés...' : 'Küldés'}
@@ -2570,11 +2475,14 @@ export default function WordsIndex({
                         }
                     }}
                 >
-                    <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-lg">
-                        <DialogHeader className="border-b px-6 py-4">
+                    <DialogContent className="flex max-h-[90dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
+                        <DialogHeader className="border-b px-6 py-4 pr-12">
                             <DialogTitle>Szó szerkesztése (Admin)</DialogTitle>
+                            <DialogDescription className="sr-only">
+                                A listás szó adatainak módosítása.
+                            </DialogDescription>
                         </DialogHeader>
-                        <div className="flex max-h-[65vh] flex-col gap-4 overflow-y-auto px-6 py-5">
+                        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-6 py-5">
                             <WordFormFields
                                 form={editWordForm}
                                 onChange={setEditWordForm}

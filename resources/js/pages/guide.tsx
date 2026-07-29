@@ -1,8 +1,8 @@
-import { Head, Link, usePage } from '@inertiajs/react';
-import { BookOpen, Clock, Play } from 'lucide-react';
+import { Head, Link } from '@inertiajs/react';
+import { Clock, Info, Video } from 'lucide-react';
 import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { dashboard, guide, login, pricing, privacy, register, terms } from '@/routes';
+import PublicLayout from '@/layouts/public-layout';
+import { handbook } from '@/routes';
 
 // A 'Kvíz' kategória kivezetve (2026-07-29): a kvíz és a mondatkiegészítés
 // nem része az induló feature-körnek — lásd routes/words.php.
@@ -28,7 +28,8 @@ const VIDEOS: Video[] = [
         category: 'Kezdő lépések',
         duration: '3:20',
         title: 'Első lépések a TopWordsban',
-        description: 'Regisztráció, a kezdőképernyő és a haladás-sáv értelmezése.',
+        description:
+            'Regisztráció, a kezdőképernyő és a haladás-sáv értelmezése.',
     },
     {
         id: 2,
@@ -42,7 +43,8 @@ const VIDEOS: Video[] = [
         category: 'Szólista',
         duration: '4:05',
         title: 'A 10 000 szó böngészése',
-        description: 'Hogyan lapozz a frekvencialistában és keress rá szavakra.',
+        description:
+            'Hogyan lapozz a frekvencialistában és keress rá szavakra.',
     },
     {
         id: 4,
@@ -70,21 +72,24 @@ const VIDEOS: Video[] = [
         category: 'Flashcard',
         duration: '4:55',
         title: 'Az SRS-értékelés használata',
-        description: 'Mit jelent az Újra / Nehéz / Jó / Könnyű, és mikor melyiket.',
+        description:
+            'Mit jelent az Újra / Nehéz / Jó / Könnyű, és mikor melyiket.',
     },
     {
         id: 8,
         category: 'Flashcard',
         duration: '5:20',
         title: 'CSV import és kalibráció',
-        description: 'Tömeges importálás és szintfelmérő kalibrálás új kártyákhoz.',
+        description:
+            'Tömeges importálás és szintfelmérő kalibrálás új kártyákhoz.',
     },
     {
         id: 10,
         category: 'Szövegelemzés',
         duration: '6:10',
         title: 'Szöveg, könyv és YouTube elemzése',
-        description: 'Ismeretlen szavak kiemelése és azonnali tanulás szövegből.',
+        description:
+            'Ismeretlen szavak kiemelése és azonnali tanulás szövegből.',
     },
     {
         id: 11,
@@ -98,7 +103,8 @@ const VIDEOS: Video[] = [
         category: 'Extension',
         duration: '5:45',
         title: 'A bővítmény használata',
-        description: 'Dupla kattintás, keresőpaletta és felirat-kiemelés Netflixen.',
+        description:
+            'Dupla kattintás, keresőpaletta és felirat-kiemelés Netflixen.',
     },
 ];
 
@@ -119,17 +125,25 @@ function categoryCount(cat: CategoryKey): number {
     return VIDEOS.filter((v) => v.category === cat).length;
 }
 
+/**
+ * Egy tervezett videó kártyája.
+ *
+ * A borítón szándékosan NINCS lejátszás-gomb: a videók még nem készültek el,
+ * és a korábbi play-ikon kattintható tartalmat ígért, ami nem létezett. A
+ * „Hamarosan" felirat őszintén jelzi, hogy ez egy terv, nem egy elérhető lecke.
+ */
 function VideoCard({ video, index }: { video: Video; index: number }) {
     return (
-        <div className="group overflow-hidden rounded-xl border border-neutral-200 bg-white dark:border-neutral-700 dark:bg-neutral-900">
+        <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white dark:border-neutral-700 dark:bg-neutral-900">
             <div className="relative aspect-video bg-neutral-900">
                 <span className="absolute top-2.5 left-2.5 rounded-md bg-black/60 px-2 py-0.5 text-[11px] font-semibold text-white backdrop-blur-sm">
                     {video.category}
                 </span>
-                <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="flex size-12 items-center justify-center rounded-full bg-white/90 shadow-lg transition-transform group-hover:scale-105">
-                        <Play className="ml-0.5 size-5 fill-neutral-800 text-neutral-800" />
-                    </div>
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-neutral-400">
+                    <Video className="size-7" />
+                    <span className="text-[11px] font-semibold tracking-wide uppercase">
+                        Hamarosan
+                    </span>
                 </div>
                 <div className="absolute right-2.5 bottom-2.5 flex items-center gap-1 rounded-md bg-black/60 px-2 py-0.5 text-[11px] font-semibold text-white backdrop-blur-sm">
                     <Clock className="size-3" />
@@ -142,7 +156,7 @@ function VideoCard({ video, index }: { video: Video; index: number }) {
                         {index + 1}
                     </span>
                     <div>
-                        <h3 className="text-sm font-semibold leading-snug text-neutral-800 dark:text-neutral-100">
+                        <h3 className="text-sm leading-snug font-semibold text-neutral-800 dark:text-neutral-100">
                             {video.title}
                         </h3>
                         <p className="mt-1 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">
@@ -156,11 +170,6 @@ function VideoCard({ video, index }: { video: Video; index: number }) {
 }
 
 export default function Guide() {
-    const { auth, billingEnabled } = usePage<{
-        auth: { user: { id: number } | null };
-        billingEnabled: boolean;
-    }>().props;
-
     const [activeCategory, setActiveCategory] = useState<CategoryKey>('Összes');
 
     const visibleVideos =
@@ -178,172 +187,72 @@ export default function Guide() {
                 />
             </Head>
 
-            <div className="min-h-screen bg-neutral-50 text-foreground dark:bg-neutral-950">
-                {/* Header */}
-                <header className="sticky top-0 z-50 border-b border-neutral-200 bg-neutral-50/80 backdrop-blur-md dark:border-neutral-700 dark:bg-neutral-900/80">
-                    <div className="mx-auto flex max-w-300 items-center gap-5 px-6 py-3">
-                        <Link
-                            href="/"
-                            className="flex items-center gap-2.5 text-[20px] font-extrabold leading-none tracking-tight text-neutral-800 dark:text-neutral-100"
-                        >
-                            <span className="flex size-9 items-center justify-center rounded-xl bg-linear-to-br from-indigo-600 to-indigo-800 text-white">
-                                <BookOpen size={22} />
-                            </span>
-                            TopWords
-                        </Link>
-
-                        <nav className="ml-2 hidden items-center gap-1 lg:flex">
-                            {(
-                                [
-                                    ['Funkciók', '/#features'],
-                                    ['Szólista', '/#wordlist'],
-                                    ['Flashcard', '/#flashcard'],
-                                    ['Bővítmény', '/#extension'],
-                                ] as const
-                            ).map(([label, href]) => (
-                                <a
-                                    key={label}
-                                    href={href}
-                                    className="rounded-lg px-3 py-2 text-sm font-medium text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-800 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
-                                >
-                                    {label}
-                                </a>
-                            ))}
+            <PublicLayout className="mx-auto w-full max-w-300 px-6 py-10">
+                {/* Title */}
+                <div className="mb-8">
+                    <h1 className="text-3xl font-extrabold tracking-tight text-neutral-900 dark:text-neutral-50">
+                        Tananyag
+                    </h1>
+                    <p className="mt-2 max-w-xl text-neutral-500 dark:text-neutral-400">
+                        Tanuld meg lépésről lépésre, hogyan használd a
+                        TopWordsot. Minden funkcióhoz külön videó.
+                    </p>
+                    <p className="mt-4 inline-flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">
+                        <Info className="mt-0.5 size-4 shrink-0" />
+                        <span>
+                            A videók még készülnek — addig a{' '}
                             <Link
-                                href={guide()}
-                                className="rounded-lg px-3 py-2 text-sm font-medium text-indigo-600 transition-colors hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-900/20"
+                                href={handbook()}
+                                className="font-medium underline underline-offset-2"
                             >
-                                Tananyag
-                            </Link>
-                        </nav>
+                                kézikönyv
+                            </Link>{' '}
+                            írásban végigvezet minden funkción.
+                        </span>
+                    </p>
+                </div>
 
-                        <div className="ml-auto flex items-center gap-2">
-                            {billingEnabled && (
-                                <Button
-                                    variant="ghost"
-                                    asChild
-                                    className="hidden sm:inline-flex"
-                                >
-                                    <Link href={pricing()}>Árak</Link>
-                                </Button>
-                            )}
-                            {auth.user ? (
-                                <Button
-                                    asChild
-                                    className="bg-linear-to-br from-indigo-600 to-indigo-800 text-white hover:brightness-105"
-                                >
-                                    <Link href={dashboard()}>
-                                        Irány az alkalmazás
-                                    </Link>
-                                </Button>
-                            ) : (
-                                <>
-                                    <Button
-                                        variant="ghost"
-                                        asChild
-                                        className="hidden sm:inline-flex"
-                                    >
-                                        <Link href={login()}>
-                                            Bejelentkezés
-                                        </Link>
-                                    </Button>
-                                    <Button
-                                        asChild
-                                        className="bg-linear-to-br from-indigo-600 to-indigo-800 text-white hover:brightness-105"
-                                    >
-                                        <Link href={register()}>
-                                            Regisztrálás
-                                        </Link>
-                                    </Button>
-                                </>
-                            )}
-                        </div>
-                    </div>
-                </header>
-
-                {/* Main */}
-                <main className="mx-auto max-w-300 px-6 py-10">
-                    {/* Title */}
-                    <div className="mb-8">
-                        <h1 className="text-3xl font-extrabold tracking-tight text-neutral-900 dark:text-neutral-50">
-                            Tananyag
-                        </h1>
-                        <p className="mt-2 max-w-xl text-neutral-500 dark:text-neutral-400">
-                            Tanuld meg lépésről lépésre, hogyan használd a
-                            TopWordost. Minden funkcióhoz külön videó.
-                        </p>
-                    </div>
-
-                    {/* Category filter */}
-                    <div className="mb-8 flex flex-wrap gap-2">
-                        {CATEGORIES.map((cat) => (
-                            <button
-                                key={cat}
-                                onClick={() => setActiveCategory(cat)}
-                                className={`inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-semibold transition-colors ${
+                {/* Category filter */}
+                <div className="mb-8 flex flex-wrap gap-2">
+                    {CATEGORIES.map((cat) => (
+                        <button
+                            key={cat}
+                            onClick={() => setActiveCategory(cat)}
+                            className={`inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-semibold transition-colors ${
+                                activeCategory === cat
+                                    ? 'bg-linear-to-br from-indigo-600 to-indigo-800 text-white'
+                                    : 'bg-white text-neutral-600 hover:bg-neutral-100 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700'
+                            }`}
+                        >
+                            {cat}
+                            <span
+                                className={`rounded-full px-1.5 py-0.5 text-[11px] font-bold ${
                                     activeCategory === cat
-                                        ? 'bg-linear-to-br from-indigo-600 to-indigo-800 text-white'
-                                        : 'bg-white text-neutral-600 hover:bg-neutral-100 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700'
+                                        ? 'bg-white/20 text-white'
+                                        : 'bg-neutral-100 text-neutral-500 dark:bg-neutral-700 dark:text-neutral-400'
                                 }`}
                             >
-                                {cat}
-                                <span
-                                    className={`rounded-full px-1.5 py-0.5 text-[11px] font-bold ${
-                                        activeCategory === cat
-                                            ? 'bg-white/20 text-white'
-                                            : 'bg-neutral-100 text-neutral-500 dark:bg-neutral-700 dark:text-neutral-400'
-                                    }`}
-                                >
-                                    {categoryCount(cat)}
-                                </span>
-                            </button>
-                        ))}
-                    </div>
+                                {categoryCount(cat)}
+                            </span>
+                        </button>
+                    ))}
+                </div>
 
-                    {/* Video grid */}
-                    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                        {visibleVideos.map((video, i) => (
-                            <VideoCard
-                                key={video.id}
-                                video={video}
-                                index={activeCategory === 'Összes' ? i : VIDEOS.indexOf(video)}
-                            />
-                        ))}
-                    </div>
-                </main>
-
-                {/* Footer */}
-                <footer className="mt-16 border-t border-neutral-200 dark:border-neutral-700">
-                    <div className="mx-auto max-w-300 px-6 py-8">
-                        <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs text-neutral-400 dark:text-neutral-500">
-                            <span>© 2025 TopWords</span>
-                            <span>·</span>
-                            <Link
-                                href={terms()}
-                                className="transition-colors hover:text-neutral-700 dark:hover:text-neutral-200"
-                            >
-                                Általános feltételek
-                            </Link>
-                            <span>·</span>
-                            <Link
-                                href={privacy()}
-                                className="transition-colors hover:text-neutral-700 dark:hover:text-neutral-200"
-                            >
-                                Adatkezelés
-                            </Link>
-                            <span>·</span>
-                            <a
-                                href="https://codebarley.hu"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="transition-colors hover:text-neutral-700 dark:hover:text-neutral-200"
-                            >
-                                Készítette: codebarley.hu
-                            </a>
-                        </div>
-                    </div>
-                </footer>
-            </div>
+                {/* Video grid */}
+                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                    {visibleVideos.map((video, i) => (
+                        <VideoCard
+                            key={video.id}
+                            video={video}
+                            index={
+                                activeCategory === 'Összes'
+                                    ? i
+                                    : VIDEOS.indexOf(video)
+                            }
+                        />
+                    ))}
+                </div>
+            </PublicLayout>
         </>
     );
 }

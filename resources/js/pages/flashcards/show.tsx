@@ -7,6 +7,7 @@ import {
     Download,
     Loader2,
     MoveRight,
+    Pencil,
     Plus,
     RotateCcw,
     Search,
@@ -21,6 +22,7 @@ import CardForm from '@/components/flashcards/card-form';
 import CardPreviewDialog from '@/components/flashcards/card-preview-dialog';
 import CardRow from '@/components/flashcards/card-row';
 import CardStatsDialog from '@/components/flashcards/card-stats-dialog';
+import DeckFormDialog from '@/components/flashcards/deck-form-dialog';
 import DeckSettingsDialog from '@/components/flashcards/deck-settings-dialog';
 import {
     CsvImport,
@@ -39,9 +41,12 @@ import type {
     WordResult,
 } from '@/components/flashcards/types';
 import { Button } from '@/components/ui/button';
+import ConfirmDialog from '@/components/ui/confirm-dialog';
 import {
     Dialog,
     DialogContent,
+    DialogDescription,
+    DialogFooter,
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
@@ -52,7 +57,6 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
-import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { calibrate, index, show, study } from '@/routes/flashcards';
 import { skip as skipCalibration } from '@/routes/flashcards/calibrate';
@@ -92,12 +96,13 @@ export default function FlashcardShow({
             calibrationPrompt?: number | null;
             importedCardId?: number | null;
         };
-        auth: { isAdmin: boolean };
-    }>().props as any;
-    const isAdmin: boolean = (auth as any)?.isAdmin ?? false;
+        auth: { isAdmin?: boolean };
+    }>().props;
+    const isAdmin = auth?.isAdmin ?? false;
     const [showCalibrateModal, setShowCalibrateModal] = useState(
         (flash?.calibrationPrompt ?? 0) > 0,
     );
+    const [showRenameDialog, setShowRenameDialog] = useState(false);
     const [showNewForm, setShowNewForm] = useState(false);
     const [editingCard, setEditingCard] = useState<Flashcard | null>(null);
     const [previewCard, setPreviewCard] = useState<Flashcard | null>(null);
@@ -230,7 +235,13 @@ export default function FlashcardShow({
     const [search, setSearch] = useState('');
     const [stateFilter, setStateFilter] = useState('');
     const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-    const [bulkMoveTarget, setBulkMoveTarget] = useState<{ id: number; name: string } | null>(null);
+    const [bulkMoveTarget, setBulkMoveTarget] = useState<{
+        id: number;
+        name: string;
+    } | null>(null);
+    const [bulkConfirm, setBulkConfirm] = useState<'delete' | 'reset' | null>(
+        null,
+    );
     const PAGE_SIZE = 50;
     const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
@@ -332,31 +343,52 @@ export default function FlashcardShow({
         <>
             <Head title={deck.name} />
 
-            <div className="space-y-6 px-4 py-6">
+            <div className="mx-auto flex h-full w-full max-w-[2000px] flex-1 flex-col gap-6 p-4 md:p-6 xl:px-10 2xl:px-16">
                 {/* Hero: deck info + study CTA */}
                 <div
                     className="relative overflow-hidden rounded-3xl p-6 md:p-8"
-                    style={{ background: 'linear-gradient(135deg,#4338CA,#4F8EEC)' }}
+                    style={{
+                        background: 'linear-gradient(135deg,#4338CA,#4F8EEC)',
+                    }}
                 >
-                    <div className="pointer-events-none absolute -top-14 -right-14 size-56 rounded-full bg-white/15" />
+                    <div className="pointer-events-none absolute -top-16 -right-16 size-64 rounded-full bg-white/15 blur-2xl" />
                     <div className="relative flex flex-col gap-4">
                         <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
-                                <h1 className="text-2xl font-bold tracking-tight text-white md:text-3xl">
-                                    {deck.name}
-                                </h1>
+                                <div className="flex items-center gap-2">
+                                    <h1 className="text-2xl font-bold tracking-tight text-white md:text-3xl">
+                                        {deck.name}
+                                    </h1>
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            setShowRenameDialog(true)
+                                        }
+                                        className="shrink-0 cursor-pointer rounded-full p-1.5 text-white/70 transition-colors hover:bg-white/20 hover:text-white"
+                                        aria-label="Pakli átnevezése"
+                                        title="Pakli átnevezése"
+                                    >
+                                        <Pencil className="size-4" />
+                                    </button>
+                                </div>
                                 {deck.description && (
                                     <p className="mt-1 text-sm text-white/85">
                                         {deck.description}
                                     </p>
                                 )}
                             </div>
-                            <span className="shrink-0 rounded-full bg-white/20 px-3 py-1.5 text-xs font-bold text-white tabular-nums">
-                                {flashcards?.length ?? '—'} kártya
-                            </span>
+                            {flashcards === undefined ? (
+                                <span className="h-7 w-24 shrink-0 animate-pulse rounded-full bg-white/20" />
+                            ) : (
+                                <span className="shrink-0 rounded-full bg-white/20 px-3 py-1.5 text-xs font-bold text-white tabular-nums">
+                                    {flashcards.length} kártya
+                                </span>
+                            )}
                         </div>
 
-                        {(flashcards?.length ?? 0) > 0 &&
+                        {/* A due-számok nem deferred propok, így a fő akció
+                            azonnal látszik — nem várunk a kártyalistára. */}
+                        {(flashcards === undefined || flashcards.length > 0) &&
                             (() => {
                                 const dueCount = newDueCount + reviewDueCount;
                                 const hasCountdown =
@@ -477,18 +509,22 @@ export default function FlashcardShow({
                     open={showCalibrateModal}
                     onOpenChange={setShowCalibrateModal}
                 >
-                    <DialogContent>
-                        <DialogHeader>
+                    <DialogContent className="sm:max-w-md">
+                        <DialogHeader className="pr-8">
                             <DialogTitle>Kalibráció</DialogTitle>
+                            <DialogDescription asChild>
+                                <p>
+                                    <span className="font-semibold text-foreground">
+                                        {flash?.calibrationPrompt} kártyát
+                                    </span>{' '}
+                                    importáltál. Ha megmondod, mennyire ismered
+                                    őket, az ismétlési ütemterv nem nulláról
+                                    indul. Kihagyás esetén mind új kártyaként
+                                    kerül a sorba.
+                                </p>
+                            </DialogDescription>
                         </DialogHeader>
-                        <p className="text-sm text-muted-foreground">
-                            <span className="font-semibold text-foreground">
-                                {flash?.calibrationPrompt} kártyát
-                            </span>{' '}
-                            importáltál. Szeretnéd kalibrálni őket, hogy az SRS
-                            ne nulláról induljon?
-                        </p>
-                        <div className="mt-2 flex justify-end gap-3">
+                        <DialogFooter>
                             <Button
                                 variant="outline"
                                 onClick={() => {
@@ -506,15 +542,14 @@ export default function FlashcardShow({
                             >
                                 Kalibrálás indítása
                             </Button>
-                        </div>
+                        </DialogFooter>
                     </DialogContent>
                 </Dialog>
 
-                {/* Actions */}
-                <div className="flex flex-wrap gap-2">
+                {/* Műveletek: elöl az egyetlen elsődleges akció (kártya
+                    felvitele), utána az import/export és a beállítások. */}
+                <div className="flex flex-wrap items-center gap-2">
                     <Button
-                        size="sm"
-                        variant="outline"
                         onClick={() => {
                             setShowNewForm(true);
                             setEditingCard(null);
@@ -523,21 +558,24 @@ export default function FlashcardShow({
                         <Plus className="mr-1 size-4" />
                         Új kártya
                     </Button>
+
                     <WordSearchImport onImport={handleWordImport} />
                     <CsvImport deck={deck} />
+
                     {(flashcards?.length ?? 0) > 0 && (
-                        <a href={csvExport(deck.id).url}>
-                            <Button size="sm" variant="outline">
+                        <Button size="sm" variant="outline" asChild>
+                            <a href={csvExport(deck.id).url}>
                                 <Download className="mr-1 size-4" />
                                 CSV export
-                            </Button>
-                        </a>
+                            </a>
+                        </Button>
                     )}
+
                     <Button
                         size="sm"
                         variant="outline"
                         onClick={() => setShowSettings(true)}
-                        className="relative"
+                        className="relative ms-auto"
                     >
                         <Settings2 className="mr-1 size-4" />
                         Beállítások
@@ -553,44 +591,48 @@ export default function FlashcardShow({
                 <Deferred
                     data="flashcards"
                     fallback={
-                        <div className="space-y-2 pt-2">
-                            {[...Array(6)].map((_, i) => (
-                                <div
-                                    key={i}
-                                    className="h-14 animate-pulse rounded-lg border bg-muted/40"
-                                />
-                            ))}
-                        </div>
+                        <>
+                            <div className="h-24 animate-pulse rounded-3xl border bg-muted/40" />
+                            <div className="space-y-2">
+                                {[...Array(6)].map((_, i) => (
+                                    <div
+                                        key={i}
+                                        className="h-16 animate-pulse rounded-2xl border bg-muted/40"
+                                    />
+                                ))}
+                            </div>
+                        </>
                     }
                 >
-                    <Separator />
-
-                    {/* Filters */}
+                    {/* Szűrők */}
                     {(flashcards?.length ?? 0) > 0 && (
-                        <div className="space-y-3">
-                            {/* Search */}
+                        <section className="flex flex-col gap-3 rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm md:p-5 dark:border-neutral-700 dark:bg-card">
                             <div className="relative max-w-sm">
-                                <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                                <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" />
                                 <Input
+                                    type="search"
                                     value={search}
                                     onChange={(e) => {
                                         setSearch(e.target.value);
                                         setVisibleCount(PAGE_SIZE);
                                     }}
                                     placeholder="Keresés az előlapon / hátlapon..."
-                                    className="h-8 pl-8"
+                                    className="rounded-full border-0 bg-muted pr-9 pl-10"
+                                    aria-label="Keresés a kártyák között"
                                 />
                                 {search && (
                                     <button
+                                        type="button"
                                         onClick={() => setSearch('')}
-                                        className="absolute top-1/2 right-2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                        aria-label="Keresés törlése"
+                                        className="absolute top-1/2 right-3 -translate-y-1/2 cursor-pointer text-muted-foreground hover:text-foreground"
                                     >
-                                        <X className="size-3.5" />
+                                        <X className="size-4" />
                                     </button>
                                 )}
                             </div>
 
-                            {/* State filter chips */}
+                            {/* Állapot-szűrő chipek */}
                             <div className="flex flex-wrap items-center gap-1.5">
                                 <SlidersHorizontal className="size-3.5 text-muted-foreground" />
                                 {STATE_FILTER_OPTIONS.map(
@@ -606,11 +648,13 @@ export default function FlashcardShow({
                                         return (
                                             <button
                                                 key={value}
+                                                type="button"
+                                                aria-pressed={active}
                                                 onClick={() => {
                                                     setStateFilter(value);
                                                     setVisibleCount(PAGE_SIZE);
                                                 }}
-                                                className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                                                className={`flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
                                                     active
                                                         ? 'border-primary bg-primary text-primary-foreground'
                                                         : 'border-border text-muted-foreground hover:border-foreground hover:text-foreground'
@@ -618,7 +662,7 @@ export default function FlashcardShow({
                                             >
                                                 {label}
                                                 <span
-                                                    className={`text-[10px] ${active ? 'opacity-80' : 'opacity-60'}`}
+                                                    className={`text-[10px] tabular-nums ${active ? 'opacity-80' : 'opacity-60'}`}
                                                 >
                                                     {count}
                                                 </span>
@@ -628,45 +672,79 @@ export default function FlashcardShow({
                                 )}
                             </div>
 
-                            {/* Result count */}
+                            {/* Találatszám */}
                             {(search || stateFilter) && (
                                 <p className="text-xs text-muted-foreground">
-                                    {filtered.length} találat
+                                    <span className="tabular-nums">
+                                        {filtered.length}
+                                    </span>{' '}
+                                    találat
                                     {' · '}
                                     <button
+                                        type="button"
                                         onClick={() => {
                                             setSearch('');
                                             setStateFilter('');
                                         }}
-                                        className="underline hover:no-underline"
+                                        className="cursor-pointer underline hover:no-underline"
                                     >
                                         szűrők törlése
                                     </button>
                                 </p>
                             )}
-                        </div>
+                        </section>
                     )}
 
-                    {/* Card list */}
+                    {/* Kártyalista */}
                     {(flashcards?.length ?? 0) === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-16 text-center text-muted-foreground">
-                            <BookOpen className="mb-4 size-12 opacity-30" />
-                            <p className="text-sm">
-                                Még nincs kártya ebben a deckben.
+                        <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed py-16 text-center">
+                            <BookOpen className="mb-4 size-12 text-muted-foreground opacity-30" />
+                            <p className="text-sm font-medium">
+                                Még nincs kártya ebben a pakliban.
                             </p>
+                            <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+                                Vegyél fel kártyát kézzel, importálj egy szót a
+                                szótárból, vagy tölts be egy CSV-t.
+                            </p>
+                            <Button
+                                className="mt-4"
+                                onClick={() => {
+                                    setShowNewForm(true);
+                                    setEditingCard(null);
+                                }}
+                            >
+                                <Plus className="mr-1 size-4" />
+                                Első kártya felvitele
+                            </Button>
                         </div>
                     ) : filtered.length === 0 ? (
-                        <div className="py-10 text-center text-sm text-muted-foreground">
+                        <div className="rounded-3xl border border-dashed py-10 text-center text-sm text-muted-foreground">
                             Nincs a szűrőknek megfelelő kártya.
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setSearch('');
+                                    setStateFilter('');
+                                }}
+                                className="ml-1 cursor-pointer underline hover:no-underline"
+                            >
+                                Szűrők törlése
+                            </button>
                         </div>
                     ) : (
                         <div className="space-y-2">
-                            {/* Select all + bulk action bar */}
                             <div className="flex items-center gap-3 px-1 pb-1">
                                 <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground select-none">
                                     <input
                                         type="checkbox"
                                         checked={allFilteredSelected}
+                                        ref={(el) => {
+                                            if (el) {
+                                                el.indeterminate =
+                                                    someSelected &&
+                                                    !allFilteredSelected;
+                                            }
+                                        }}
                                         onChange={toggleSelectAll}
                                         className="size-4 cursor-pointer rounded border-input accent-primary"
                                     />
@@ -674,124 +752,27 @@ export default function FlashcardShow({
                                         ? 'Kijelölés törlése'
                                         : `Összes kijelölése (${filtered.length})`}
                                 </label>
-
-                                {someSelected && (
-                                    <div className="ml-auto flex animate-in flex-wrap items-center gap-1.5 duration-150 fade-in">
-                                        <span className="mr-1 text-xs text-muted-foreground">
-                                            {selectedIds.size} kijelölve
-                                        </span>
-
-                                        <button
-                                            onClick={() => {
-                                                if (
-                                                    !confirm(
-                                                        `Visszaállítod ${selectedIds.size} kártya haladását?`,
-                                                    )
-                                                ) {
-                                                    return;
-                                                }
-
-                                                bulkAction(
-                                                    bulkResetCards(deck.id).url,
-                                                );
-                                            }}
-                                            className="flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                                        >
-                                            <RotateCcw className="size-3" />
-                                            Haladás törlése
-                                        </button>
-
-                                        <button
-                                            onClick={() =>
-                                                bulkAction(
-                                                    bulkDirectionCards(deck.id)
-                                                        .url,
-                                                    {
-                                                        direction:
-                                                            allSelectedBoth
-                                                                ? 'front_to_back'
-                                                                : 'both',
-                                                    },
-                                                )
-                                            }
-                                            className="flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                                        >
-                                            <ArrowLeftRight className="size-3" />
-                                            {allSelectedBoth
-                                                ? 'Visszaállítás (1 irányú)'
-                                                : 'Kétirányú kártya'}
-                                        </button>
-
-                                        {otherDecks.length > 0 && (
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                    <button className="flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
-                                                        <MoveRight className="size-3" />
-                                                        Áthelyezés
-                                                    </button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent
-                                                    align="end"
-                                                    className="w-48"
-                                                >
-                                                    {otherDecks.map((d) => (
-                                                        <DropdownMenuItem
-                                                            key={d.id}
-                                                            onClick={() => setBulkMoveTarget({ id: d.id, name: d.name })}
-                                                        >
-                                                            {d.name}
-                                                        </DropdownMenuItem>
-                                                    ))}
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
-                                        )}
-
-                                        <button
-                                            onClick={() => {
-                                                if (
-                                                    !confirm(
-                                                        `Törlöd a kijelölt ${selectedIds.size} kártyát?`,
-                                                    )
-                                                ) {
-                                                    return;
-                                                }
-
-                                                bulkAction(
-                                                    bulkDeleteCards(deck.id)
-                                                        .url,
-                                                );
-                                            }}
-                                            className="flex items-center gap-1 rounded-md border border-destructive/40 px-2.5 py-1 text-xs font-medium text-destructive transition-colors hover:bg-destructive/10"
-                                        >
-                                            <Trash2 className="size-3" />
-                                            Törlés
-                                        </button>
-                                    </div>
-                                )}
                             </div>
 
                             {visibleCards.map((card) => (
-                                <div key={card.id}>
-                                    <CardRow
-                                        card={card}
-                                        deck={deck}
-                                        otherDecks={otherDecks}
-                                        onEdit={(c) => {
-                                            setEditingCard(c);
-                                            setShowNewForm(false);
-                                        }}
-                                        onPreview={(c) => setPreviewCard(c)}
-                                        onPractice={
-                                            isAdmin
-                                                ? openPracticeModal
-                                                : undefined
-                                        }
-                                        onStats={(c) => setStatsCard(c)}
-                                        selected={selectedIds.has(card.id)}
-                                        onSelect={handleSelect}
-                                        now={now}
-                                    />
-                                </div>
+                                <CardRow
+                                    key={card.id}
+                                    card={card}
+                                    deck={deck}
+                                    otherDecks={otherDecks}
+                                    onEdit={(c) => {
+                                        setEditingCard(c);
+                                        setShowNewForm(false);
+                                    }}
+                                    onPreview={(c) => setPreviewCard(c)}
+                                    onPractice={
+                                        isAdmin ? openPracticeModal : undefined
+                                    }
+                                    onStats={(c) => setStatsCard(c)}
+                                    selected={selectedIds.has(card.id)}
+                                    onSelect={handleSelect}
+                                    now={now}
+                                />
                             ))}
                             {visibleCount < filtered.length && (
                                 <div className="flex justify-center py-4">
@@ -810,8 +791,144 @@ export default function FlashcardShow({
                             )}
                         </div>
                     )}
+
+                    {/* Hely a rögzített tömeges művelet-sávnak, hogy ne
+                        takarja el a lista utolsó sorait. */}
+                    {someSelected && <div className="h-20" aria-hidden />}
                 </Deferred>
             </div>
+
+            {/* Tömeges műveletek — rögzítve az ablak aljához, hogy a lista
+                bármely pontjáról elérhető legyen kigörgetés nélkül. */}
+            {someSelected && (
+                <div className="fixed inset-x-0 bottom-0 z-40 animate-in border-t bg-background/95 px-4 py-3 shadow-[0_-4px_16px_-8px_rgb(0_0_0/0.25)] backdrop-blur duration-150 slide-in-from-bottom-2">
+                    <div className="mx-auto flex max-w-[2000px] flex-wrap items-center gap-1.5">
+                        <span className="text-xs font-medium text-muted-foreground tabular-nums">
+                            {selectedIds.size} kijelölve
+                        </span>
+                        <button
+                            type="button"
+                            onClick={clearSelection}
+                            className="mr-2 cursor-pointer text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                        >
+                            Mégse
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => setBulkConfirm('reset')}
+                            className="flex cursor-pointer items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                        >
+                            <RotateCcw className="size-3" />
+                            Haladás törlése
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() =>
+                                bulkAction(bulkDirectionCards(deck.id).url, {
+                                    direction: allSelectedBoth
+                                        ? 'front_to_back'
+                                        : 'both',
+                                })
+                            }
+                            className="flex cursor-pointer items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                        >
+                            <ArrowLeftRight className="size-3" />
+                            {allSelectedBoth
+                                ? 'Visszaállítás (1 irányú)'
+                                : 'Kétirányú kártya'}
+                        </button>
+
+                        {otherDecks.length > 0 && (
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <button
+                                        type="button"
+                                        className="flex cursor-pointer items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                                    >
+                                        <MoveRight className="size-3" />
+                                        Áthelyezés
+                                    </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent
+                                    align="start"
+                                    side="top"
+                                    className="w-48"
+                                >
+                                    {otherDecks.map((d) => (
+                                        <DropdownMenuItem
+                                            key={d.id}
+                                            onClick={() =>
+                                                setBulkMoveTarget({
+                                                    id: d.id,
+                                                    name: d.name,
+                                                })
+                                            }
+                                        >
+                                            {d.name}
+                                        </DropdownMenuItem>
+                                    ))}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        )}
+
+                        <button
+                            type="button"
+                            onClick={() => setBulkConfirm('delete')}
+                            className="flex cursor-pointer items-center gap-1 rounded-md border border-destructive/40 px-2.5 py-1.5 text-xs font-medium text-destructive transition-colors hover:bg-destructive/10"
+                        >
+                            <Trash2 className="size-3" />
+                            Törlés
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            <ConfirmDialog
+                open={bulkConfirm === 'reset'}
+                onOpenChange={(open) => !open && setBulkConfirm(null)}
+                title="Haladás visszaállítása"
+                confirmLabel="Igen, visszaállítom"
+                description={
+                    <>
+                        <strong className="text-foreground">
+                            {selectedIds.size} kártya
+                        </strong>{' '}
+                        SRS-adatai (intervallum, ismétlésszám, tévesztések)
+                        törlődnek, és a kártyák újként kerülnek vissza a
+                        tanulási sorba.
+                    </>
+                }
+                onConfirm={() => bulkAction(bulkResetCards(deck.id).url)}
+            />
+
+            <ConfirmDialog
+                open={bulkConfirm === 'delete'}
+                onOpenChange={(open) => !open && setBulkConfirm(null)}
+                title="Kártyák törlése"
+                destructive
+                confirmLabel="Igen, törlöm"
+                description={
+                    <>
+                        A kijelölt{' '}
+                        <strong className="text-foreground">
+                            {selectedIds.size} kártya
+                        </strong>{' '}
+                        a tanulási előzményeivel együtt véglegesen törlődik. Ez
+                        nem vonható vissza.
+                    </>
+                }
+                onConfirm={() => bulkAction(bulkDeleteCards(deck.id).url)}
+            />
+
+            <DeckFormDialog
+                open={showRenameDialog}
+                onOpenChange={setShowRenameDialog}
+                deck={deck}
+                folders={[]}
+                defaultFolderId={null}
+            />
 
             {/* Card stats dialog */}
             {statsCard && (
@@ -853,28 +970,28 @@ export default function FlashcardShow({
                     }
                 }}
             >
-                <DialogContent className="max-h-[92vh] w-[calc(100vw-2rem)] overflow-y-auto sm:max-w-2xl">
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2">
+                <DialogContent className="flex max-h-[90dvh] w-[calc(100vw-2rem)] flex-col sm:max-w-2xl">
+                    <DialogHeader className="pr-8">
+                        <DialogTitle className="flex flex-wrap items-center gap-2">
                             <Sparkles className="size-4 text-indigo-600" />
                             Mondatírás gyakorlás
                             {practiceCard && (
-                                <span className="ml-1 rounded-md bg-indigo-100 px-2 py-0.5 text-xs font-semibold text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
+                                <span className="rounded-md bg-indigo-100 px-2 py-0.5 text-xs font-semibold text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
                                     {practiceCard.front
                                         .replace(/<[^>]*>/g, '')
                                         .trim()}
                                 </span>
                             )}
                         </DialogTitle>
+                        <DialogDescription>
+                            Írj mondatokat, amelyekben természetesen használod a
+                            szót. Az AI ellenőrzi a szóhasználatot és a
+                            grammatikát.
+                        </DialogDescription>
                     </DialogHeader>
 
-                    <div className="space-y-4 pt-1">
+                    <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pt-1">
                         <div className="space-y-2">
-                            <p className="text-xs text-muted-foreground">
-                                Írj mondatokat amelyekben természetesen
-                                használod a szót. Az AI ellenőrzi a
-                                szóhasználatot és a grammatikát.
-                            </p>
                             <Textarea
                                 value={practiceText}
                                 onChange={(e) => {
@@ -992,21 +1109,27 @@ export default function FlashcardShow({
                     }
                 }}
             >
-                <DialogContent className="max-h-[92vh] w-[calc(100vw-2rem)] overflow-y-auto sm:max-w-7xl">
-                    <DialogHeader>
+                <DialogContent className="flex max-h-[92dvh] w-[calc(100vw-2rem)] flex-col sm:max-w-5xl">
+                    <DialogHeader className="pr-8">
                         <DialogTitle>
                             {editingCard ? 'Kártya szerkesztése' : 'Új kártya'}
                         </DialogTitle>
+                        <DialogDescription>
+                            Az előlap a kérdés, a hátlap a válasz. A tanulás
+                            iránya és a kártya színe alul állítható.
+                        </DialogDescription>
                     </DialogHeader>
-                    <CardForm
-                        key={editingCard?.id ?? 'new'}
-                        deck={deck}
-                        card={editingCard ?? undefined}
-                        onCancel={() => {
-                            setShowNewForm(false);
-                            setEditingCard(null);
-                        }}
-                    />
+                    <div className="min-h-0 flex-1 overflow-y-auto">
+                        <CardForm
+                            key={editingCard?.id ?? 'new'}
+                            deck={deck}
+                            card={editingCard ?? undefined}
+                            onCancel={() => {
+                                setShowNewForm(false);
+                                setEditingCard(null);
+                            }}
+                        />
+                    </div>
                 </DialogContent>
             </Dialog>
 
@@ -1031,7 +1154,7 @@ export default function FlashcardShow({
 
 FlashcardShow.layout = (props: { deck: Deck }) => ({
     breadcrumbs: [
-        { title: 'Flashcard decks', href: index() },
+        { title: 'Flashcards', href: index() },
         { title: props.deck.name, href: show({ deck: props.deck.id }) },
     ],
 });
