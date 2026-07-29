@@ -1,6 +1,6 @@
 # Bővítmény go-live teendők (Chrome Web Store)
 
-**Készült:** 2026-07-28 · **Frissítve:** 2026-07-29 · **Bővítmény verzió:** 1.27 · **Commit:** `db7b6a2`
+**Készült:** 2026-07-28 · **Frissítve:** 2026-07-29 · **Bővítmény verzió:** 1.28 · **Commit:** `db7b6a2`
 (pusholva a `main`-re)
 
 A kód- és jogi oldali javítások megtörténtek (AI-tájékoztatás, felelősség-kizárás, ÁSZF/Adatvédelem,
@@ -8,7 +8,8 @@ manifest-korlát, `isTrusted`-guard). Ez a lista **csak azt tartalmazza, ami mé
 sorrendben, ahogy érdemes haladni.
 
 **1.25 óta:** 1.26 — az oldal-kiemelés SPA-navigáció után is megmarad (MutationObserver);
-1.27 — a kiemelés YouTube/Netflix alatt betöltéskor inaktív marad.
+1.27 — a kiemelés YouTube/Netflix alatt betöltéskor inaktív marad; 1.28 — popup-arculat az app
+lila témájához igazítva + kétnyelvű (HU/EN) súgó-modál a szétszórt tippek helyett.
 
 ---
 
@@ -16,7 +17,7 @@ sorrendben, ahogy érdemes haladni.
 
 - [ ] **Ploi → Deploy** megnyomása a topwords.eu site-on. A Quick Deploy ki van kapcsolva, ezért a
       push önmagában nem élesít. Ezzel megy ki: a frissített ÁSZF, Adatkezelési tájékoztató és a
-      letöltési oldalról szolgált **1.27-es zip**.
+      letöltési oldalról szolgált **1.28-as zip**.
 - [ ] Deploy után ellenőrizd élesben: `https://topwords.eu/terms` (7. és 8. pont látszik),
       `https://topwords.eu/privacy` (6. pont: AI), és a Letöltések oldalon a zip letöltése.
 
@@ -72,7 +73,7 @@ sorrendben, ahogy érdemes haladni.
 
 ## 3. Chrome Web Store Developer Dashboard — kitöltendő mezők
 
-Ezek bemásolhatók. (Feltöltendő csomag: `chrome-extension/topwords-extension-1.27.zip`)
+Ezek bemásolhatók. (Feltöltendő csomag: `chrome-extension/topwords-extension-1.28.zip`)
 
 ### Single purpose
 > TopWords helps Hungarian learners of English build vocabulary: it looks up English words on any
@@ -105,6 +106,8 @@ Ezek bemásolhatók. (Feltöltendő csomag: `chrome-extension/topwords-extension
 - [ ] **Nyelv:** a bővítmény felülete magyar, a manifest-leírás angol. Állítsd a listing default
       nyelvét **magyarra** (vagy adj hozzá magyar lokalizált listinget), különben a store-ban
       angolul hirdetett, magyarul működő terméket látnak a felhasználók.
+      Az 1.28 óta a popup súgó-modálja **HU/EN kapcsolóval** kétnyelvű, tehát a reviewer a
+      bővítményen belül is angolul olvashat mindent — a listing nyelvi döntése ettől független.
 - [ ] Képernyőképek (1280×800 vagy 640×400), legalább 1 db, ideálisan 3–5: szó-popup egy cikken,
       YouTube-felirat sáv, kereső (Alt+W), AI-flashcard.
 - [ ] Kategória, rövid leírás, promo-szöveg.

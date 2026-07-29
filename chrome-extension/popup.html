@@ -6,11 +6,14 @@
 </head>
 <body>
     <div class="header">
-        <div class="logo">W</div>
-        <div>
+        <img class="logo" src="icon48.png" alt="" width="32" height="32">
+        <div class="header-text">
             <div class="title">TopWords</div>
             <div class="subtitle">szótanulás böngészés közben</div>
         </div>
+        <button id="info-btn" class="icon-btn" aria-label="Információ és súgó / Info and help" title="Információ / Info">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="11" x2="12" y2="16"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        </button>
     </div>
 
     <div id="login-banner" class="login-banner" style="display:none">
@@ -44,27 +47,138 @@
         <div id="stats-result" class="stats-result" style="display:none"></div>
     </div>
 
-    <div class="hint">
-        <p><kbd id="shortcut-key">Alt</kbd> + <kbd>W</kbd> — szókereső megnyitása</p>
-        <p>🖱 Dupla kattintás + tartás egy szón — jelentés</p>
-        <p>🖱 Jobb katt egy kijelölt szón → „Szó keresése"</p>
-        <p><kbd>1</kbd>–<kbd>4</kbd> — státusz beállítása nyitott szónál</p>
-        <p class="hint-sep">🎬 <strong>YouTube / Netflix felirat:</strong> <kbd>Shift</kbd> + kattintás több szóra kijelöli a kifejezést, a <kbd>Shift</kbd> elengedésekor megnyílik a fordítás.</p>
+    <div class="footer">
+        <button id="info-link" class="footer-link">Súgó és gyorsbillentyűk</button>
+        <span class="footer-sep" aria-hidden="true">·</span>
+        <a href="https://topwords.eu/privacy" target="_blank" rel="noopener noreferrer">Adatvédelem</a>
+        <span class="footer-sep" aria-hidden="true">·</span>
+        <a href="https://topwords.eu/terms" target="_blank" rel="noopener noreferrer">ÁSZF</a>
     </div>
 
-    <div class="legal">
-        <p class="legal-ai">
-            ✨ Az AI-funkciók (szó-kitöltés, AI-flashcard) külső AI-szolgáltatót
-            (Google Gemini) használnak: a keresett szó a topwords.eu szerverén át
-            hozzá kerül feldolgozásra. A generált tartalom tévedhet — használat
-            előtt ellenőrizd. A TopWords a külső AI által generált tartalom
-            helyességéért felelősséget nem vállal.
-        </p>
-        <p class="legal-links">
-            <a href="https://topwords.eu/privacy" target="_blank" rel="noopener noreferrer">Adatvédelem</a>
-            <span aria-hidden="true">·</span>
-            <a href="https://topwords.eu/terms" target="_blank" rel="noopener noreferrer">ÁSZF</a>
-        </p>
+    <!--
+        Súgó-modál. A tartalom mindkét nyelven itt, a statikus HTML-ben van (nem
+        JS-ből épül), így a jogi szövegek egy helyen, átnézhetően állnak — erre
+        épül a LegalAndExtensionDisclosureTest őrszem-tesztje is.
+    -->
+    <div id="info-overlay" class="overlay" hidden>
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="info-title">
+            <div class="modal-head">
+                <span id="info-title" class="modal-title">Súgó</span>
+                <span class="lang-switch" role="group" aria-label="Nyelv / Language">
+                    <button class="lang-btn active" data-lang="hu">HU</button>
+                    <button class="lang-btn" data-lang="en">EN</button>
+                </span>
+                <button id="info-close" class="icon-btn" aria-label="Bezárás / Close">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+
+            <div class="modal-body">
+                <div class="lang-block" data-lang="hu">
+                    <section>
+                        <h2>Mire való</h2>
+                        <p>Angol szavak keresése bármely weboldalon és YouTube/Netflix feliratban. A státuszaid a topwords.eu-fiókodba mentődnek, így a haladásod minden eszközön ugyanaz.</p>
+                    </section>
+
+                    <section>
+                        <h2>Gyorsbillentyűk</h2>
+                        <ul>
+                            <li><kbd class="js-mod">Alt</kbd> + <kbd>W</kbd> — szókereső megnyitása</li>
+                            <li><kbd>1</kbd>–<kbd>4</kbd> — státusz beállítása nyitott szónál</li>
+                            <li><kbd>Esc</kbd> — bezárás</li>
+                        </ul>
+                    </section>
+
+                    <section>
+                        <h2>Egérrel</h2>
+                        <ul>
+                            <li>Dupla kattintás + nyomva tartás egy szón — jelentés</li>
+                            <li>Jobb katt kijelölt szón → „Szó keresése"</li>
+                        </ul>
+                    </section>
+
+                    <section>
+                        <h2>Kiemelés az oldalon</h2>
+                        <p>Színnel jelöli azokat a szavakat, amelyeknek már adtál státuszt. Kiemelt szón a <strong>dupla kattintás</strong> „Tudom"-ra, a <strong>hosszú nyomás</strong> „Később"-re állít.</p>
+                        <p class="note">A kiemelés <strong>szándékosan kihagyja a linkeket, gombokat, menüket és beviteli mezőket</strong>, hogy ne zavarja az oldal használatát: a navigáció ne törjön el, és véletlenül se kattints félre.</p>
+                        <p class="note">Olyan oldalakon is megmarad, amelyek kattintásra nem töltik újra a lapot. YouTube-on és Netflixen betöltéskor magától inaktív marad, mert ott a felirat-funkció veszi át a szerepét.</p>
+                    </section>
+
+                    <section>
+                        <h2>YouTube / Netflix felirat</h2>
+                        <p><kbd>Shift</kbd> + kattintás több szóra kijelöli a kifejezést; a <kbd>Shift</kbd> elengedésekor megnyílik a fordítás.</p>
+                    </section>
+
+                    <section>
+                        <h2>Adatvédelem</h2>
+                        <p>Az oldal szövege a böngésződben marad, <strong>nem küldjük el sehova</strong>. Csak azt a szót kapja meg a topwords.eu szervere, amit ténylegesen kikeresel. Az oldal címe is csak akkor megy el, ha te indítod az „Oldal szövegelemzése" gombot.</p>
+                    </section>
+
+                    <section>
+                        <h2>AI-funkciók</h2>
+                        <p>Az AI-funkciók (szó-kitöltés, AI-flashcard) külső AI-szolgáltatót (Google Gemini) használnak: a keresett szó a topwords.eu szerverén át hozzá kerül feldolgozásra. A generált tartalom tévedhet — használat előtt ellenőrizd. A TopWords a külső AI által generált tartalom helyességéért felelősséget nem vállal.</p>
+                    </section>
+
+                    <p class="modal-links">
+                        <a href="https://topwords.eu/privacy" target="_blank" rel="noopener noreferrer">Adatvédelem</a>
+                        <span aria-hidden="true">·</span>
+                        <a href="https://topwords.eu/terms" target="_blank" rel="noopener noreferrer">ÁSZF</a>
+                    </p>
+                </div>
+
+                <div class="lang-block" data-lang="en" hidden>
+                    <section>
+                        <h2>What it does</h2>
+                        <p>Look up English words on any web page and in YouTube/Netflix subtitles. Your word statuses are saved to your topwords.eu account, so your progress is the same on every device.</p>
+                    </section>
+
+                    <section>
+                        <h2>Keyboard shortcuts</h2>
+                        <ul>
+                            <li><kbd class="js-mod">Alt</kbd> + <kbd>W</kbd> — open the word search</li>
+                            <li><kbd>1</kbd>–<kbd>4</kbd> — set the status of the open word</li>
+                            <li><kbd>Esc</kbd> — close</li>
+                        </ul>
+                    </section>
+
+                    <section>
+                        <h2>With the mouse</h2>
+                        <ul>
+                            <li>Double-click a word and hold — shows its meaning</li>
+                            <li>Right-click a selected word → “Look up word”</li>
+                        </ul>
+                    </section>
+
+                    <section>
+                        <h2>Highlighting on the page</h2>
+                        <p>Marks the words you have already given a status. On a highlighted word, <strong>double-click</strong> sets “known” and a <strong>long press</strong> sets “saved for later”.</p>
+                        <p class="note">Highlighting <strong>deliberately skips links, buttons, menus and input fields</strong> so it never gets in the way of using the site: navigation stays intact and you cannot mis-click.</p>
+                        <p class="note">It also survives on sites that do not reload the page when you follow a link. On YouTube and Netflix it stays off on load, because the subtitle feature takes over there.</p>
+                    </section>
+
+                    <section>
+                        <h2>YouTube / Netflix subtitles</h2>
+                        <p><kbd>Shift</kbd> + clicking several words selects a phrase; releasing <kbd>Shift</kbd> opens the translation.</p>
+                    </section>
+
+                    <section>
+                        <h2>Privacy</h2>
+                        <p>Page text stays in your browser and is <strong>never transmitted</strong>. Only the individual word you actually look up is sent to the topwords.eu server. The page URL is sent only when you start the “Analyse page text” action yourself.</p>
+                    </section>
+
+                    <section>
+                        <h2>AI features</h2>
+                        <p>The AI features (word auto-fill, AI flashcards) use an external AI provider (Google Gemini): the word you look up is passed to it through the topwords.eu server. Generated content can be wrong — check it before you rely on it. TopWords accepts no liability for the correctness of content generated by the external AI.</p>
+                    </section>
+
+                    <p class="modal-links">
+                        <a href="https://topwords.eu/privacy" target="_blank" rel="noopener noreferrer">Privacy policy</a>
+                        <span aria-hidden="true">·</span>
+                        <a href="https://topwords.eu/terms" target="_blank" rel="noopener noreferrer">Terms</a>
+                    </p>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script src="popup.js"></script>

@@ -3,9 +3,57 @@ const APP_URL = 'https://topwords.eu';
 chrome.runtime.sendMessage({ type: 'REFRESH_BADGE' });
 
 // ── Mac/Win gyorsbillentyű felirat ───────────────────────────────────────────
+// A modál mindkét nyelvi blokkjában szerepel a módosító billentyű, ezért az
+// összes előfordulást állítjuk.
 
-document.getElementById('shortcut-key').textContent =
-    navigator.platform.includes('Mac') ? 'Option' : 'Alt';
+const modifierKey = navigator.platform.includes('Mac') ? 'Option' : 'Alt';
+document.querySelectorAll('.js-mod').forEach((el) => {
+    el.textContent = modifierKey;
+});
+
+// ── Súgó-modál ───────────────────────────────────────────────────────────────
+
+const infoOverlay = document.getElementById('info-overlay');
+
+function setInfoOpen(open) {
+    infoOverlay.hidden = !open;
+}
+
+document.getElementById('info-btn').addEventListener('click', () => setInfoOpen(true));
+document.getElementById('info-link').addEventListener('click', () => setInfoOpen(true));
+document.getElementById('info-close').addEventListener('click', () => setInfoOpen(false));
+
+// Kattintás a sötétített háttérre (nem a kártyára) bezár.
+infoOverlay.addEventListener('click', (e) => {
+    if (e.target === infoOverlay) {
+        setInfoOpen(false);
+    }
+});
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !infoOverlay.hidden) {
+        setInfoOpen(false);
+    }
+});
+
+// Nyelvváltó: a HU és EN blokk is a statikus HTML-ben van, csak láthatóságot váltunk.
+document.querySelectorAll('.lang-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+        const lang = btn.dataset.lang;
+
+        document.querySelectorAll('.lang-btn').forEach((other) => {
+            other.classList.toggle('active', other === btn);
+        });
+
+        document.querySelectorAll('.lang-block').forEach((block) => {
+            block.hidden = block.dataset.lang !== lang;
+        });
+
+        // A modál címe is kövesse a választott nyelvet.
+        document.getElementById('info-title').textContent =
+            lang === 'en' ? 'Help' : 'Súgó';
+    });
+});
 
 // ── Bejelentkezés-állapot ────────────────────────────────────────────────────
 
