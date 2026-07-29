@@ -77,7 +77,7 @@ export default function OnboardingTour() {
                     popover: {
                         title: '🌐 Chrome bővítmény',
                         description:
-                            'Hamarosan érkezik a Chrome bővítmény: bármely weboldalon dupla kattintással vagy az Option+W (Windows: Alt+W) gyorsbillentyűvel kereshetsz majd szavakat. Azonnal látod a fordítást, a státuszt, és közvetlenül a böngészőből adhatod hozzá a szót a szótárhoz — YouTube- és Netflix-feliratokon is.',
+                            'A Chrome bővítménnyel bármely weboldalon dupla kattintással vagy az Option+W (Windows: Alt+W) gyorsbillentyűvel kereshetsz szavakat. Azonnal látod a fordítást, a státuszt, és közvetlenül a böngészőből adhatod hozzá a szót a szótárhoz — YouTube- és Netflix-feliratokon is.',
                     },
                 },
         ];

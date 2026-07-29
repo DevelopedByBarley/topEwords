@@ -1,6 +1,7 @@
 import { Link, usePage } from '@inertiajs/react';
 import {
     BookOpen,
+    Chrome,
     Download,
     Flag,
     FolderOpen,
@@ -146,12 +147,23 @@ const navGroups: { label?: string; items: NavItem[] }[] = [
     },
 ];
 
-// INDULÁSKOR ELREJTVE (2026-07-29): a „Letöltések" oldal `can:admin` mögé
-// került (routes/web.php), mert a bővítmény a Chrome Web Store-ból fog jönni.
-// A menüpont csak adminnak jelenik meg — ez a friss buildek egyetlen helye.
+/**
+ * A bővítmény menüpontja mindenkinek látszik. Amíg a store-listing nem él
+ * (`CHROME_WEB_STORE_URL` üres), a kézikönyv bővítmény-szekciójára visz;
+ * beállított linkkel új lapon nyíló store-link lesz belőle.
+ */
+function extensionNavItem(storeUrl: string | null): NavItem {
+    return storeUrl
+        ? { title: 'Chrome bővítmény', href: storeUrl, icon: Chrome, isExternal: true }
+        : { title: 'Chrome bővítmény', href: '/handbook#extension', icon: Chrome };
+}
+
+// A „Letöltések" oldal `can:admin` mögé került (routes/web.php): a felhasználók
+// a store-ból telepítenek, a fejlesztői .zip és a Player buildjei viszont itt
+// maradnak elérhetők — ez a menüpont csak adminnak jelenik meg.
 const adminNavItems: NavItem[] = [
     {
-        title: 'Letöltések',
+        title: 'Letöltések (dev)',
         href: downloadsIndex(),
         icon: Download,
     },
@@ -169,6 +181,8 @@ export function AppSidebar() {
     const { url, props } = usePage() as any;
     const { isCurrentUrl } = useCurrentUrl();
     const isAdmin: boolean = (props as any)?.auth?.isAdmin ?? false;
+    const extensionStoreUrl: string | null =
+        (props as any)?.extensionStoreUrl ?? null;
     // A „Mappák" gomb csak a szólista-oldalon jelenik meg. A korábbi
     // quiz/cloze/practice kizárások az induláskor kivezetett gyakorlókat
     // szűrték ki; azok route-jai megszűntek (routes/words.php), így az
@@ -307,6 +321,7 @@ export function AppSidebar() {
                     label={navGroups[3].label}
                     items={[
                         ...navGroups[3].items,
+                        extensionNavItem(extensionStoreUrl),
                         ...(isAdmin ? adminNavItems : []),
                     ]}
                 />

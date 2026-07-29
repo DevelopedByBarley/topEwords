@@ -1,13 +1,18 @@
-import { Link } from '@inertiajs/react';
-import { BookOpen, Check, Download, Puzzle, X } from 'lucide-react';
+import { Link, usePage } from '@inertiajs/react';
+import { BookOpen, Check, Chrome, Clock, Puzzle, X } from 'lucide-react';
 import { useState } from 'react';
-import ChromeExtensionsLink from '@/components/chrome-extensions-link';
 import { useExtensionInstalled } from '@/hooks/use-extension-installed';
-import { show as showDownload } from '@/routes/downloads';
 
 const DISMISS_KEY = 'topwords_ext_banner_dismissed';
 
+/**
+ * A bővítmény telepítésére hívó banner a dashboardon. A CTA a Chrome Web
+ * Store-listingre visz, ha a `CHROME_WEB_STORE_URL` env-kulcs be van állítva;
+ * addig „hamarosan" állapotot mutat. A fejlesztői .zip letöltése szándékosan
+ * nincs itt: az admin-only, a /downloads oldalon érhető el.
+ */
 export function ExtensionBanner() {
+    const { extensionStoreUrl } = usePage().props;
     const installed = useExtensionInstalled();
     const [dismissed, setDismissed] = useState(
         () => localStorage.getItem(DISMISS_KEY) === '1',
@@ -27,15 +32,6 @@ export function ExtensionBanner() {
         'Tanult szavak kiemelése bármely oldalon',
         'Gyors kereső (Ctrl+Shift+F) AI-kitöltéssel',
         'YouTube- és Netflix-feliratok színezése és átirat',
-    ];
-
-    const steps: React.ReactNode[] = [
-        'Töltsd le a .zip-et, és csomagold ki egy mappába',
-        <>
-            Másold a címsorba: <ChromeExtensionsLink />
-        </>,
-        'Kapcsold be a Fejlesztői módot (jobb felső sarok)',
-        'Kattints a „Kicsomagolt bővítmény betöltése" gombra → válaszd a mappát',
     ];
 
     return (
@@ -84,34 +80,29 @@ export function ExtensionBanner() {
                 ))}
             </ul>
 
-            <ol className="mt-4 grid gap-2 sm:grid-cols-2">
-                {steps.map((text, i) => (
-                    <li key={i} className="flex items-start gap-2 text-sm">
-                        <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-blue-200 text-xs font-bold text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
-                            {i + 1}
-                        </span>
-                        <span className="text-blue-900/85 dark:text-blue-200">
-                            {text}
-                        </span>
-                    </li>
-                ))}
-            </ol>
-
             <div className="mt-4 flex flex-wrap items-center gap-2">
-                <a
-                    href={showDownload('extension').url}
-                    download
-                    className="inline-flex items-center gap-2 rounded-full bg-linear-to-br from-green-400 to-green-500 px-4 py-2 text-sm font-bold text-green-950 shadow-[0_4px_0_0_var(--color-green-600)] transition-all hover:brightness-105 active:translate-y-0.75"
-                >
-                    <Download className="size-4" />
-                    Bővítmény letöltése (.zip)
-                </a>
+                {extensionStoreUrl ? (
+                    <a
+                        href={extensionStoreUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 rounded-full bg-linear-to-br from-green-400 to-green-500 px-4 py-2 text-sm font-bold text-green-950 shadow-[0_4px_0_0_var(--color-green-600)] transition-all hover:brightness-105 active:translate-y-0.75"
+                    >
+                        <Chrome className="size-4" />
+                        Telepítés a Chrome Web Store-ból
+                    </a>
+                ) : (
+                    <span className="inline-flex items-center gap-2 rounded-full border border-blue-300 bg-white/60 px-4 py-2 text-sm font-semibold text-blue-800 dark:border-blue-700 dark:bg-blue-950/40 dark:text-blue-200">
+                        <Clock className="size-4" />
+                        Hamarosan a Chrome Web Store-ban
+                    </span>
+                )}
                 <Link
                     href="/handbook#extension"
                     className="inline-flex items-center gap-1.5 rounded-full border border-blue-300 px-3 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-100 dark:border-blue-700 dark:text-blue-300 dark:hover:bg-blue-900/30"
                 >
                     <BookOpen className="size-4" />
-                    Részletes útmutató
+                    Mit tud a bővítmény?
                 </Link>
             </div>
         </div>

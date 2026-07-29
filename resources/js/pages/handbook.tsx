@@ -1,4 +1,4 @@
-import { Head } from '@inertiajs/react';
+import { Head, usePage } from '@inertiajs/react';
 // A kivezetett szekciókhoz tartozó ikonok kikommentelve (2026-07-29):
 // Zap (Mondatkiegészítés), HelpCircle (Kvíz), RefreshCw (Szóismétlés),
 // NotebookPen (Szabad írás), MonitorPlay + Download (Desktop lejátszó).
@@ -266,6 +266,8 @@ function CardGrid({
 }
 
 export default function Handbook() {
+    const { extensionStoreUrl } = usePage().props;
+
     const [activeId, setActiveId] = useState('attekintes');
     const observerRef = useRef<IntersectionObserver | null>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -386,7 +388,7 @@ export default function Handbook() {
                                     {
                                         icon: Chrome,
                                         title: 'Chrome bővítmény',
-                                        desc: 'Azonnali fordítás bármely weboldalon (hamarosan)',
+                                        desc: 'Azonnali fordítás bármely weboldalon',
                                     },
                                 ]}
                             />
@@ -1571,13 +1573,35 @@ export default function Handbook() {
                              * kellene, onnan hozható vissza.
                              */}
                             <Sub title="Telepítés">
-                                <P>
-                                    A bővítmény hamarosan elérhető lesz a Chrome
-                                    Web Store-ban — onnan egyetlen kattintással
-                                    telepíthető, és automatikusan frissül. A
-                                    megjelenésig az app többi funkciója bővítmény
-                                    nélkül is teljes értékű.
-                                </P>
+                                {extensionStoreUrl ? (
+                                    <>
+                                        <P>
+                                            A bővítmény a Chrome Web Store-ból
+                                            egyetlen kattintással telepíthető, és
+                                            automatikusan frissül.
+                                        </P>
+                                        <div className="mt-3 mb-4">
+                                            <a
+                                                href={extensionStoreUrl}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+                                            >
+                                                <Chrome className="size-4" />
+                                                Telepítés a Chrome Web Store-ból
+                                            </a>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <P>
+                                        A bővítmény hamarosan elérhető lesz a
+                                        Chrome Web Store-ban — onnan egyetlen
+                                        kattintással telepíthető, és
+                                        automatikusan frissül. A megjelenésig az
+                                        app többi funkciója bővítmény nélkül is
+                                        teljes értékű.
+                                    </P>
+                                )}
                                 <InfoBox type="warning">
                                     <strong>Fontos:</strong> A bővítmény csak
                                     akkor működik, ha be vagy jelentkezve a

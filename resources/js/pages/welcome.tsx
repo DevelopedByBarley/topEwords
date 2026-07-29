@@ -6,6 +6,7 @@ import {
     Bug,
     Check,
     CheckCircle2,
+    Chrome,
     Clock,
     Download,
     Edit,
@@ -593,7 +594,7 @@ export default function Welcome({
 }: {
     canRegister?: boolean;
 }) {
-    const { auth, billingEnabled } = usePage().props;
+    const { auth, billingEnabled, extensionStoreUrl } = usePage().props;
 
     const [page, setPage] = useState<'home' | 'videos'>('home');
     const [flipped, setFlipped] = useState(false);
@@ -2686,14 +2687,36 @@ export default function Welcome({
                                         <div className="mb-2 text-sm font-semibold text-white">
                                             Hogyan telepítsd?
                                         </div>
-                                        <p className="text-sm leading-[1.6] text-white/70">
-                                            A bővítmény hamarosan elérhető lesz a
-                                            Chrome Web Store-ban — onnan egyetlen
-                                            kattintással telepíthető, és
-                                            automatikusan frissül. A megjelenésig
-                                            az app többi funkciója bővítmény
-                                            nélkül is teljes értékű.
-                                        </p>
+                                        {extensionStoreUrl ? (
+                                            <>
+                                                <p className="text-sm leading-[1.6] text-white/70">
+                                                    A Chrome Web Store-ból
+                                                    egyetlen kattintással
+                                                    telepíthető, és automatikusan
+                                                    frissül.
+                                                </p>
+                                                <a
+                                                    href={extensionStoreUrl}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="mt-4 inline-flex items-center gap-2 rounded-xl bg-white px-4.5 py-2.75 text-sm font-bold text-indigo-800 shadow-md transition-all hover:-translate-y-0.5"
+                                                >
+                                                    <Chrome size={20} />
+                                                    Telepítés a Chrome Web
+                                                    Store-ból
+                                                </a>
+                                            </>
+                                        ) : (
+                                            <p className="text-sm leading-[1.6] text-white/70">
+                                                A bővítmény hamarosan elérhető
+                                                lesz a Chrome Web Store-ban —
+                                                onnan egyetlen kattintással
+                                                telepíthető, és automatikusan
+                                                frissül. A megjelenésig az app
+                                                többi funkciója bővítmény nélkül
+                                                is teljes értékű.
+                                            </p>
+                                        )}
                                     </div>
                                 </Reveal>
                             </div>

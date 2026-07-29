@@ -377,7 +377,7 @@ const FEATURE_SLIDES = [
         id: 'extension',
         title: 'Tanulj bárhol a neten',
         subtitle:
-            'A Chrome bővítmény hamarosan érkezik a Chrome Web Store-ba — bármely oldalon, YouTube-on és Netflixen is működik.',
+            'A Chrome bővítmény bármely oldalon, YouTube-on és Netflixen is működik.',
         Visual: ExtensionVisual,
         features: [
             {

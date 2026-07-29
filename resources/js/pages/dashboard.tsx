@@ -1,10 +1,6 @@
 import { Head, Link } from '@inertiajs/react';
 import { BookMarked, CheckCheck, Clock, ExternalLink, Flame, Mic, NotebookPen, Trophy } from 'lucide-react';
-// INDULÁSKOR ELREJTVE (2026-07-29): a bővítmény-banner a .zip fejlesztői módú
-// telepítését hirdette, de a letöltés admin-only lett — a bővítmény a Chrome
-// Web Store-ból fog jönni. A komponens megmarad; visszakapcsoláskor ez az
-// import és a lentebbi <ExtensionBanner /> élesítendő (a store-linkkel együtt).
-// import { ExtensionBanner } from '@/components/extension-banner';
+import { ExtensionBanner } from '@/components/extension-banner';
 import { dashboard } from '@/routes';
 import { index as wordsIndex } from '@/routes/words';
 
@@ -79,7 +75,7 @@ export default function Dashboard({ levelStats, totalKnown, totalWords, totalPer
                     </div>
                 </div>
 
-                {/* <ExtensionBanner /> — lásd a fájl tetején lévő kommentet */}
+                <ExtensionBanner />
 
                 {/* Streak */}
                 <div className={`rounded-3xl border p-5 shadow-sm ${streak > 0 ? 'border-orange-200/60 bg-orange-50 dark:border-orange-900/40 dark:bg-orange-950/20' : 'border-neutral-200 bg-white dark:border-neutral-700 dark:bg-card'}`}>

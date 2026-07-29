@@ -20,7 +20,8 @@ lila témájához igazítva + kétnyelvű (HU/EN) súgó-modál a szétszórt ti
       letöltési oldalról szolgált **1.28-as zip**.
 - [ ] Deploy után ellenőrizd élesben: `https://topwords.eu/terms` (7. és 8. pont látszik),
       `https://topwords.eu/privacy` (6. pont: AI), és a Letöltések oldalon a zip letöltése
-      (**a Letöltések 2026-07-29 óta admin-only** — az admin fiókoddal nézd).
+      (**a Letöltések 2026-07-29 óta admin-only** — a sidebarban „Letöltések (dev)" néven,
+      az admin fiókoddal nézd).
 
 ---
 
@@ -120,18 +121,15 @@ Ezek bemásolhatók. (Feltöltendő csomag: `chrome-extension/topwords-extension
 
 ## 4. Publikálás után
 
-- [ ] **Store-link kivezetése a felhasználói felületekre.** 2026-07-29 óta a letöltés
-      `can:admin` mögött van, a felhasználói felületek pedig „hamarosan a Chrome Web
-      Store-ban" szöveget mutatnak. Publikálás után ezeket kell store-linkre cserélni:
-      a landing bővítmény-blokkja ([welcome.tsx](resources/js/pages/welcome.tsx)), a kézikönyv
-      `#extension` → „Telepítés" szekciója ([handbook.tsx](resources/js/pages/handbook.tsx)),
-      az onboarding extension-diája ([onboarding/index.tsx](resources/js/pages/onboarding/index.tsx))
-      és az onboarding-tour bővítmény-lépése
-      ([onboarding-tour.tsx](resources/js/components/onboarding-tour.tsx)).
-      A dashboard `<ExtensionBanner />`-e is ki van kommentelve
-      ([dashboard.tsx](resources/js/pages/dashboard.tsx)) — a store-linkkel élesíthető újra.
+- [ ] **`CHROME_WEB_STORE_URL` beállítása a prod `.env`-ben — ez az EGYETLEN teendő.**
+      A store-link 2026-07-29 óta egy env-kulcsból jön ([config/extension.php](config/extension.php)),
+      és Inertia shared propként (`extensionStoreUrl`) jut el minden felületre: a dashboard
+      bővítmény-bannerére, a sidebar „Chrome bővítmény" menüpontjára, a landing
+      bővítmény-blokkjára és a kézikönyv „Telepítés" szekciójára. Amíg üres, mindegyik
+      „hamarosan" állapotot mutat; beállítva mindegyik a store-listingre visz. Kód-módosítás
+      nem kell hozzá, csak `php artisan config:cache` a deploy után.
 - [ ] A [downloads.tsx](resources/js/pages/downloads.tsx) admin-only oldal maradhat így: ez a
-      friss buildek egyetlen helye (a zip tartaléknak is jó).
+      fejlesztői .zip és a Player-buildek egyetlen helye (tartaléknak is jó).
 - [ ] A store-verzió és a repóbeli `manifest.json` verzió szinkronban tartása minden kiadásnál
       (a `build-zip.sh` a manifestből veszi a zip nevét).
 

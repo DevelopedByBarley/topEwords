@@ -62,6 +62,9 @@ class HandleInertiaRequests extends Middleware
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'billingEnabled' => Billing::enabled(),
+            // `null`, amíg a store-listing nem él — ilyenkor a bővítmény-banner
+            // és a sidebar-menüpont „hamarosan" állapotot mutat a link helyett.
+            'extensionStoreUrl' => config('extension.store_url'),
             'flash' => [
                 'streakTriggered' => session('streak_triggered'),
                 'success' => session('success'),
