@@ -17,7 +17,26 @@ const SKIP_TAGS = new Set([
     'BUTTON',
 ]);
 
+// A YouTube és a Netflix saját felirat-felületet kap (youtube.js / netflix.js), és
+// ott az oldal-kiemelés csak zavar (lejátszó-vezérlők, ajánló-csempék). Ezeken a
+// domaineken a kiemelés betöltéskor magától inaktív marad, a kapcsoló is kikapcsolt
+// állapotot mutat — a mentett beállítást viszont NEM írjuk át, hogy a többi oldalon
+// bekapcsolva maradjon.
+const HL_SUPPRESSED_DOMAINS = ['youtube.com', 'netflix.com'];
+
+function isHighlightSuppressedHost() {
+    const host = location.hostname;
+
+    return HL_SUPPRESSED_DOMAINS.some(
+        (domain) => host === domain || host.endsWith(`.${domain}`),
+    );
+}
+
 function initHighlight() {
+    if (isHighlightSuppressedHost()) {
+        return;
+    }
+
     storageGet({ hlEnabled: false }, ({ hlEnabled }) => {
         if (!hlEnabled) {
             return;
