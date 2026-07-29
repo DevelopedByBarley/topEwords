@@ -1,10 +1,14 @@
 # Bővítmény go-live teendők (Chrome Web Store)
 
-**Készült:** 2026-07-28 · **Bővítmény verzió:** 1.25 · **Commit:** `02e6b6e` (pusholva a `main`-re)
+**Készült:** 2026-07-28 · **Frissítve:** 2026-07-29 · **Bővítmény verzió:** 1.27 · **Commit:** `db7b6a2`
+(pusholva a `main`-re)
 
 A kód- és jogi oldali javítások megtörténtek (AI-tájékoztatás, felelősség-kizárás, ÁSZF/Adatvédelem,
 manifest-korlát, `isTrusted`-guard). Ez a lista **csak azt tartalmazza, ami még hátravan** — abban a
 sorrendben, ahogy érdemes haladni.
+
+**1.25 óta:** 1.26 — az oldal-kiemelés SPA-navigáció után is megmarad (MutationObserver);
+1.27 — a kiemelés YouTube/Netflix alatt betöltéskor inaktív marad.
 
 ---
 
@@ -12,7 +16,7 @@ sorrendben, ahogy érdemes haladni.
 
 - [ ] **Ploi → Deploy** megnyomása a topwords.eu site-on. A Quick Deploy ki van kapcsolva, ezért a
       push önmagában nem élesít. Ezzel megy ki: a frissített ÁSZF, Adatkezelési tájékoztató és a
-      letöltési oldalról szolgált **1.25-ös zip**.
+      letöltési oldalról szolgált **1.27-es zip**.
 - [ ] Deploy után ellenőrizd élesben: `https://topwords.eu/terms` (7. és 8. pont látszik),
       `https://topwords.eu/privacy` (6. pont: AI), és a Letöltések oldalon a zip letöltése.
 
@@ -32,25 +36,29 @@ sorrendben, ahogy érdemes haladni.
       élesítve — az „Az előfizetés hamarosan elérhető" kártya fogadja. Nem elutasítási ok, csak
       félkésznek látszik.
 
-- [ ] **Szolgáltatói cégadatok az ÁSZF-be.** Jelenleg csak név (CodeBarley) + `info@topwords.eu`
-      szerepel. Az Ekertv. alapján kötelező a **székhely, adószám, nyilvántartási/cégjegyzékszám**
-      (egyéni vállalkozónál: nyilvántartási szám). Ezeket írd meg, és beteszem az ÁSZF 1. pontjába.
+- [x] ~~**Szolgáltatói cégadatok az ÁSZF-be.**~~ **KÉSZ** (2026-07-29): Szaniszló Árpád egyéni
+      vállalkozó (CodeBarley), 3881 Abaújszántó, Aranyosi út 3., nyilvántartási szám 58300488,
+      adószám 45715428-1-25, `info@codebarley.hu`. Bekerült az **ÁSZF 1. pontjába** és — a GDPR
+      adatkezelő-azonosítási követelménye miatt — az **Adatkezelési tájékoztató 1. pontjába** is.
+      Őrszem-teszt védi mindkettőt (`LegalAndExtensionDisclosureTest` → *„a jogi oldalak megnevezik
+      a szolgáltatót…"*).
 
-- [ ] **Fizetős előfizetés → 14 napos elállás.** Az ÁSZF 9. pontja tartalmazza a szabályt, de a
-      kivétel (azonnali teljesítés kérése) csak akkor érvényesíthető, ha a checkoutban erről is
-      nyilatkozik a felhasználó. **Nem nulláról kell építeni:** a checkoutban már van egy kötelező
-      `accept_terms` jelölőnégyzet, szerveroldalon is kikényszerítve
-      (`PricingCheckoutGatekeeperTest` → *„checkout requires explicit consent"*), elég ehhez
-      hozzátenni a mondatot: *„Kérem a szolgáltatás azonnali megkezdését, és tudomásul veszem, hogy
-      a teljesítés megkezdése után elállási jogomat elveszítem."*
-      > Ez **nem** a store-beküldés feltétele — csak az éles fizetés indulásáig kell meglennie.
+- [x] ~~**Fizetős előfizetés → 14 napos elállás.**~~ **KÉSZ** (2026-07-29-i ellenőrzés). A tétel
+      elavult volt: a nyilatkozat már a `989ffba` commit óta benne van a checkout jelölőnégyzetében
+      (`resources/js/pages/pricing.tsx`): *„…kifejezetten hozzájárulok a teljesítés azonnali
+      megkezdéséhez, és tudomásul veszem, hogy ezzel elveszítem a 14 napos elállási jogomat."*
+      A szerveroldali kikényszerítést a `PricingCheckoutGatekeeperTest` fedi; a szöveg véletlen
+      törlése ellen új őrszem-teszt véd (`LegalAndExtensionDisclosureTest` → *„a checkout kifejezett
+      nyilatkozatot kér a teljesítés azonnali megkezdéséről"*).
 
 ---
 
 ## 2. Jogi / adatvédelmi pontosítások
 
-- [ ] **Tárhelyszolgáltató.** Az Adatkezelési tájékoztatóba „Rackhost Zrt. (Magyarország)" került —
-      ellenőrizd a pontos cégnevet és székhelyet, és pótold.
+- [x] ~~**Tárhelyszolgáltató.**~~ **PÓTOLVA** (2026-07-29): az Adatkezelési tájékoztatóban most
+      „Rackhost Informatikai Zrt. (székhely: 6722 Szeged, Tisza Lajos körút 41., Magyarország)".
+      Forrás: Nemzeti Cégtár / Céginfo (adószám 25333572-2-06, cégjegyzékszám 06-10-000489).
+      ⚠️ **Vesd össze a rackhost.hu impresszumával**, mielőtt élesbe megy — cégadat változhat.
 - [ ] **Ploi mint sub-processzor.** A Ploi (ploi.io, Hollandia) adminisztratív hozzáféréssel bír a
       szerverhez. Döntsd el, felvesszük-e adatfeldolgozóként (jogilag védhetőbb, ha igen).
 - [ ] **Naplómegőrzés.** A tájékoztató legfeljebb 12 hónapot ígér, de a `.env`-ben `LOG_STACK=single`
@@ -64,7 +72,7 @@ sorrendben, ahogy érdemes haladni.
 
 ## 3. Chrome Web Store Developer Dashboard — kitöltendő mezők
 
-Ezek bemásolhatók. (Feltöltendő csomag: `chrome-extension/topwords-extension-1.25.zip`)
+Ezek bemásolhatók. (Feltöltendő csomag: `chrome-extension/topwords-extension-1.27.zip`)
 
 ### Single purpose
 > TopWords helps Hungarian learners of English build vocabulary: it looks up English words on any
@@ -131,8 +139,9 @@ Ezek bemásolhatók. (Feltöltendő csomag: `chrome-extension/topwords-extension
 
 ## 6. Policy-megfelelés — bizonyítékok a dashboard mezőihez
 
-A 2026-07-28-i ellenőrzés eredménye az 1.25-ös csomagon. A parancsok újrafuttathatók a
-`chrome-extension/` könyvtárból, ha a csomag változik.
+A 2026-07-28-i ellenőrzés eredménye, **2026-07-29-én újrafuttatva az 1.27-es csomagon — minden
+sor változatlanul áll** (a 3 opt-in alapérték, a nulla külső hoszt és a nulla invazív engedély is).
+A parancsok újrafuttathatók a `chrome-extension/` könyvtárból, ha a csomag változik.
 
 ### Összefoglaló
 

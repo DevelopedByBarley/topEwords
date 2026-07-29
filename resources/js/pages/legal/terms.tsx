@@ -87,9 +87,28 @@ export default function Terms() {
                             <div className="rounded-xl border bg-card p-4 text-muted-foreground">
                                 <p>
                                     <strong className="text-foreground">
-                                        Szolgáltató:
+                                        Szolgáltató neve:
                                     </strong>{' '}
-                                    CodeBarley
+                                    Szaniszló Árpád egyéni vállalkozó
+                                    (CodeBarley)
+                                </p>
+                                <p>
+                                    <strong className="text-foreground">
+                                        Székhely:
+                                    </strong>{' '}
+                                    3881 Abaújszántó, Aranyosi út 3.
+                                </p>
+                                <p>
+                                    <strong className="text-foreground">
+                                        Nyilvántartási szám:
+                                    </strong>{' '}
+                                    58300488
+                                </p>
+                                <p>
+                                    <strong className="text-foreground">
+                                        Adószám:
+                                    </strong>{' '}
+                                    45715428-1-25
                                 </p>
                                 <p>
                                     <strong className="text-foreground">
@@ -108,6 +127,13 @@ export default function Terms() {
                                     <strong className="text-foreground">
                                         Kapcsolat:
                                     </strong>{' '}
+                                    <a
+                                        href="mailto:info@codebarley.hu"
+                                        className="text-foreground underline underline-offset-4 hover:no-underline"
+                                    >
+                                        info@codebarley.hu
+                                    </a>{' '}
+                                    ·{' '}
                                     <a
                                         href="mailto:info@topwords.eu"
                                         className="text-foreground underline underline-offset-4 hover:no-underline"

@@ -58,6 +58,30 @@ test('az adatkezelési tájékoztató megnevezi az adatfeldolgozókat, kitöltet
         ->not->toContain('[tárhelyszolgáltató');
 });
 
+test('a jogi oldalak megnevezik a szolgáltatót az Ekertv. szerinti kötelező adatokkal', function (string $page) {
+    // Ekertv. 4. §: név, székhely, nyilvántartási szám és elektronikus elérhetőség
+    // nélkül a szolgáltatás jogsértő. A GDPR ugyanezt kéri az adatkezelőről.
+    expect(legalPage($page))
+        ->toContain('Szaniszló Árpád egyéni vállalkozó')
+        ->toContain('3881 Abaújszántó')
+        ->toContain('58300488')
+        ->toContain('45715428-1-25');
+})->with(['terms', 'privacy']);
+
+test('a checkout kifejezett nyilatkozatot kér a teljesítés azonnali megkezdéséről', function () {
+    // A 45/2014. Korm. rendelet szerinti elállási kivétel csak akkor
+    // érvényesíthető, ha a felhasználó a megrendeléskor kifejezetten kéri az
+    // azonnali teljesítést, és tudomásul veszi az elállási jog elvesztését.
+    // A szerveroldali kikényszerítést a PricingCheckoutGatekeeperTest fedi.
+    $pricing = file_get_contents(resource_path('js/pages/pricing.tsx'));
+
+    expect($pricing)
+        ->toContain('hozzájárulok a')
+        ->toContain('azonnali')
+        ->toContain('14 napos elállási jogomat')
+        ->toContain('accept_terms');
+});
+
 test('a bővítmény manifestje megfelel a Chrome Web Store formai korlátainak', function () {
     $manifest = json_decode(extensionFile('manifest.json'), true, 512, JSON_THROW_ON_ERROR);
 

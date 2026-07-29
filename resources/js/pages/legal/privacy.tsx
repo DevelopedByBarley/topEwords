@@ -59,7 +59,26 @@ export default function Privacy() {
                                     <strong className="text-foreground">
                                         Neve:
                                     </strong>{' '}
-                                    CodeBarley
+                                    Szaniszló Árpád egyéni vállalkozó
+                                    (CodeBarley)
+                                </p>
+                                <p>
+                                    <strong className="text-foreground">
+                                        Székhely:
+                                    </strong>{' '}
+                                    3881 Abaújszántó, Aranyosi út 3.
+                                </p>
+                                <p>
+                                    <strong className="text-foreground">
+                                        Nyilvántartási szám:
+                                    </strong>{' '}
+                                    58300488
+                                </p>
+                                <p>
+                                    <strong className="text-foreground">
+                                        Adószám:
+                                    </strong>{' '}
+                                    45715428-1-25
                                 </p>
                                 <p>
                                     <strong className="text-foreground">
@@ -354,9 +373,10 @@ export default function Privacy() {
                                     <strong className="text-foreground">
                                         Tárhely- és levelezési szolgáltató
                                     </strong>{' '}
-                                    – Rackhost Zrt. (Magyarország) – a szerver
-                                    üzemeltetése, az adatok tárolása és a
-                                    rendszerüzenetek (e-mailek) kiküldése
+                                    – Rackhost Informatikai Zrt. (székhely: 6722
+                                    Szeged, Tisza Lajos körút 41., Magyarország)
+                                    – a szerver üzemeltetése, az adatok tárolása
+                                    és a rendszerüzenetek (e-mailek) kiküldése
                                     céljából. Az adatok az Európai Unió
                                     területén tárolódnak.
                                 </li>
