@@ -68,6 +68,31 @@ class AchievementService
     ];
 
     /**
+     * Az induló feature-körből kivezetett funkciókhoz tartozó csoportok.
+     *
+     * INDULÁSKOR ELREJTVE (2026-07-29): a kvíz route-jai ki vannak kommentelve
+     * (routes/words.php), így ezek a teljesítmények megszerezhetetlenek —
+     * elérhetetlen célként csak rontanák a haladás-százalékot. A definíciók
+     * NEM törlődnek: a funkció visszahozásakor elég ezt a tömböt üríteni.
+     *
+     * @var string[]
+     */
+    public const HIDDEN_GROUPS = ['quiz'];
+
+    /**
+     * A jelenleg elérhető teljesítmények — a kivezetett funkciók csoportjai nélkül.
+     *
+     * @return array<string, array{title: string, description: string, icon: string, group: string}>
+     */
+    public static function visibleAchievements(): array
+    {
+        return array_filter(
+            self::ACHIEVEMENTS,
+            fn (array $achievement): bool => ! in_array($achievement['group'], self::HIDDEN_GROUPS, true),
+        );
+    }
+
+    /**
      * Check and award all applicable achievements for the given trigger groups.
      * Returns newly unlocked achievements.
      *
@@ -79,7 +104,7 @@ class AchievementService
         $alreadyUnlocked = $user->achievements()->pluck('achievement_key')->flip();
         $newlyUnlocked = [];
 
-        foreach (self::ACHIEVEMENTS as $key => $achievement) {
+        foreach (self::visibleAchievements() as $key => $achievement) {
             if ($alreadyUnlocked->has($key)) {
                 continue;
             }
@@ -193,6 +218,11 @@ class AchievementService
     {
         $user->increment('quiz_completions');
         $user->refresh();
+
+        // A kvíz kivezetve — a számláló még nő, de jelvényt nem osztunk.
+        if (in_array('quiz', self::HIDDEN_GROUPS, true)) {
+            return [];
+        }
 
         $newlyUnlocked = $this->checkAndAward($user, ['quiz']);
 

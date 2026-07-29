@@ -53,8 +53,13 @@ export default function Downloads() {
                         Letöltések
                     </h1>
                     <p className="mt-1 text-sm text-muted-foreground">
-                        A Chrome bővítmény és a topwords Player asztali app
-                        letöltése egy helyen.
+                        A Chrome bővítmény és a topwords Player asztali app friss
+                        buildje egy helyen.
+                    </p>
+                    <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+                        Csak adminoknak látható. A felhasználói felületekről a
+                        letöltő gombok le vannak véve — a bővítmény a Chrome Web
+                        Store-ból fog települni.
                     </p>
                 </div>
 
@@ -66,15 +71,11 @@ export default function Downloads() {
                             Tanulj bárhol a neten: dupla kattintással vagy az
                             Option+W / Alt+W gyorsbillentyűvel kereshetsz
                             szavakat bármely oldalon, YouTube-on és Netflixen
-                            is. A béta időszak alatt a bővítmény fejlesztői
-                            módban telepíthető — a lépésekhez lásd a{' '}
-                            <a
-                                href="/handbook#extension"
-                                className="font-medium text-primary underline underline-offset-2"
-                            >
-                                kézikönyvet
-                            </a>
-                            . Telepítéshez nyisd meg: <ChromeExtensionsLink />
+                            is. A Chrome Web Store-os publikálásig ez a zip
+                            telepíthető fejlesztői módban: csomagold ki, majd
+                            nyisd meg a <ChromeExtensionsLink /> oldalt,
+                            kapcsold be a Fejlesztői módot, és töltsd be a
+                            kicsomagolt mappát.
                         </>
                     }
                     links={[

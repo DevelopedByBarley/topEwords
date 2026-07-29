@@ -138,16 +138,22 @@ const navGroups: { label?: string; items: NavItem[] }[] = [
                 icon: BookOpen,
             },
             {
-                title: 'Letöltések',
-                href: downloadsIndex(),
-                icon: Download,
-            },
-            {
                 title: 'Hibabejelentés',
                 href: reportIndex(),
                 icon: Flag,
             },
         ],
+    },
+];
+
+// INDULÁSKOR ELREJTVE (2026-07-29): a „Letöltések" oldal `can:admin` mögé
+// került (routes/web.php), mert a bővítmény a Chrome Web Store-ból fog jönni.
+// A menüpont csak adminnak jelenik meg — ez a friss buildek egyetlen helye.
+const adminNavItems: NavItem[] = [
+    {
+        title: 'Letöltések',
+        href: downloadsIndex(),
+        icon: Download,
     },
 ];
 
@@ -160,10 +166,9 @@ const footerNavItems: NavItem[] = [
 ];
 
 export function AppSidebar() {
-    const { url } = usePage() as any;
+    const { url, props } = usePage() as any;
     const { isCurrentUrl } = useCurrentUrl();
-    // Csak a kivezetett „Szabad írás" admin-linkjéhez kellett (lásd lentebb):
-    // const isAdmin: boolean = (props as any)?.auth?.isAdmin ?? false;
+    const isAdmin: boolean = (props as any)?.auth?.isAdmin ?? false;
     // A „Mappák" gomb csak a szólista-oldalon jelenik meg. A korábbi
     // quiz/cloze/practice kizárások az induláskor kivezetett gyakorlókat
     // szűrték ki; azok route-jai megszűntek (routes/words.php), így az
@@ -300,7 +305,10 @@ export function AppSidebar() {
                   */}
                 <NavMain
                     label={navGroups[3].label}
-                    items={navGroups[3].items}
+                    items={[
+                        ...navGroups[3].items,
+                        ...(isAdmin ? adminNavItems : []),
+                    ]}
                 />
             </SidebarContent>
 

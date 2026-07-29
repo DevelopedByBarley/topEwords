@@ -53,52 +53,22 @@ export default function OnboardingTour() {
                         align: 'start',
                     },
                 },
-{
-                    element: '#tour-quiz',
-                    popover: {
-                        title: '⚔️ Kvíz',
-                        description:
-                            'Teszteld le a szókincsed szabadon! A kvíz véletlenszerűen választ szavakat az általad megadott szintekről és státuszokból, majd feleletválasztós kérdéseket tesz fel magyar–angol és angol–magyar irányban egyaránt. A végén elmentheted az eredményt a statisztikáidhoz.',
-                        side: 'right',
-                        align: 'start',
-                    },
-                },
-                {
-                    element: '#tour-cloze',
-                    popover: {
-                        title: '✏️ Mondatkiegészítés',
-                        description:
-                            'Valós példamondatokban kell beírni a hiányzó szót. A kontextusból kell kitalálni a helyes választ – ez az egyik leghatékonyabb módszer arra, hogy a szavak valóban bevésődjenek. A feladatok az általad tanuló szavakból generálódnak.',
-                        side: 'right',
-                        align: 'start',
-                    },
-                },
-                {
-                    element: '#tour-irregular-verbs',
-                    popover: {
-                        title: '🔀 Rendhagyó igék',
-                        description:
-                            'Gyakorold a leggyakoribb angol rendhagyó igék mindhárom alakját: infinitive → past simple → past participle. Az interaktív kvíz véletlenszerű sorrendben kérdez, és azonnal visszajelzést ad. Szűrhetsz nehézségi szint szerint is.',
-                        side: 'right',
-                        align: 'start',
-                    },
-                },
-                {
-                    element: '#tour-practice',
-                    popover: {
-                        title: '✍️ Szabad írás',
-                        description:
-                            'Adj meg célszavakat, írj szabadon angolul, majd az AI ellenőrzi, hogy helyesen és természetesen használtad-e őket. Visszajelzést kapsz szavanként és a teljes szöveg grammatikájáról is, sőt javított változatot is mutat.',
-                        side: 'right',
-                        align: 'start',
-                    },
-                },
+                /*
+                 * INDULÁSKOR KIVEZETVE (2026-07-29): a Kvíz (#tour-quiz),
+                 * Mondatkiegészítés (#tour-cloze), Rendhagyó igék
+                 * (#tour-irregular-verbs) és Szabad írás (#tour-practice)
+                 * lépései. A route-jaik ki vannak kommentelve, a sidebar-
+                 * horgonyaik nem léteznek — a lenti szűrő eddig is kidobta
+                 * őket, de a szöveg itt már félrevezető lett volna.
+                 * A topwords Player lépése szintén kikerült: a letöltés
+                 * `can:admin` mögé került (routes/web.php).
+                 */
                 {
                     element: '#tour-achievements',
                     popover: {
                         title: '🏅 Teljesítmények',
                         description:
-                            'Gyűjts érmeket a tanulásért! Teljesítményeket kaphatsz szókincsed növeléséért, streak megőrzéséért, kvíz eredményekért és sok minden másért. A teljesítmények motiválnak és megmutatják, mennyit fejlődtél az idő során.',
+                            'Gyűjts érmeket a tanulásért! Teljesítményeket kaphatsz a szókincsed növeléséért, a streak megőrzéséért, a flashcard-ismétlésekért, a szövegelemzésekért és a szintek teljesítéséért. A teljesítmények motiválnak és megmutatják, mennyit fejlődtél az idő során.',
                         side: 'right',
                         align: 'start',
                     },
@@ -107,14 +77,7 @@ export default function OnboardingTour() {
                     popover: {
                         title: '🌐 Chrome bővítmény',
                         description:
-                            'Telepítsd a Chrome bővítményt, és bármely weboldalon egyetlen kattintással vagy a Ctrl+Shift+F (Mac: ⌘⇧F) gyorsbillentyűvel kereshetsz szavakat. Azonnal látod a fordítást, a státuszt, és közvetlenül a böngészőből adhatod hozzá a szót a szótárhoz. Tökéletes olvasáshoz és böngészés közbeni tanuláshoz!',
-                    },
-                },
-                {
-                    popover: {
-                        title: '🖥️ topwords Player',
-                        description:
-                            'Töltsd le az asztali lejátszót (Mac és Windows), és nézz helyi videófájlokat úgy, hogy a felirat szavai a szólista-státuszaid szerint színeződnek. A Beállítások → Lejátszó összekötése oldalon egy kóddal párosíthatod a fiókodat.',
+                            'Hamarosan érkezik a Chrome bővítmény: bármely weboldalon dupla kattintással vagy az Option+W (Windows: Alt+W) gyorsbillentyűvel kereshetsz majd szavakat. Azonnal látod a fordítást, a státuszt, és közvetlenül a böngészőből adhatod hozzá a szót a szótárhoz — YouTube- és Netflix-feliratokon is.',
                     },
                 },
         ];

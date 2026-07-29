@@ -4,12 +4,13 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { dashboard, guide, login, pricing, privacy, register, terms } from '@/routes';
 
+// A 'Kvíz' kategória kivezetve (2026-07-29): a kvíz és a mondatkiegészítés
+// nem része az induló feature-körnek — lásd routes/words.php.
 type CategoryKey =
     | 'Összes'
     | 'Kezdő lépések'
     | 'Szólista'
     | 'Flashcard'
-    | 'Kvíz'
     | 'Szövegelemzés'
     | 'Extension';
 
@@ -79,13 +80,6 @@ const VIDEOS: Video[] = [
         description: 'Tömeges importálás és szintfelmérő kalibrálás új kártyákhoz.',
     },
     {
-        id: 9,
-        category: 'Kvíz',
-        duration: '3:15',
-        title: 'Kvíz és mondatkiegészítés',
-        description: 'Szókincsteszt és cloze feladatok hatékony használata.',
-    },
-    {
         id: 10,
         category: 'Szövegelemzés',
         duration: '6:10',
@@ -97,7 +91,7 @@ const VIDEOS: Video[] = [
         category: 'Extension',
         duration: '4:30',
         title: 'A Chrome bővítmény telepítése',
-        description: 'Fejlesztői módban töltsd fel a bővítményt pár perc alatt.',
+        description: 'Telepítés a Chrome Web Store-ból, egyetlen kattintással.',
     },
     {
         id: 12,
@@ -113,7 +107,6 @@ const CATEGORIES: CategoryKey[] = [
     'Kezdő lépések',
     'Szólista',
     'Flashcard',
-    'Kvíz',
     'Szövegelemzés',
     'Extension',
 ];
@@ -181,7 +174,7 @@ export default function Guide() {
                 <meta
                     head-key="description"
                     name="description"
-                    content="Lépésről lépésre videók a TopWords összes funkciójáról — szólista, flashcard, kvíz, szövegelemzés és Chrome bővítmény."
+                    content="Lépésről lépésre videók a TopWords összes funkciójáról — szólista, flashcard, szövegelemzés és Chrome bővítmény."
                 />
             </Head>
 
@@ -205,7 +198,6 @@ export default function Guide() {
                                     ['Funkciók', '/#features'],
                                     ['Szólista', '/#wordlist'],
                                     ['Flashcard', '/#flashcard'],
-                                    ['Kvíz', '/#quiz'],
                                     ['Bővítmény', '/#extension'],
                                 ] as const
                             ).map(([label, href]) => (

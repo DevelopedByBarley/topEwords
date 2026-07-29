@@ -9,7 +9,7 @@ use Inertia\Response;
 
 class AchievementController extends Controller
 {
-    public function index(Request $request, AchievementService $service): Response
+    public function index(Request $request): Response
     {
         $user = $request->user();
 
@@ -17,6 +17,8 @@ class AchievementController extends Controller
             ->orderBy('unlocked_at')
             ->pluck('unlocked_at', 'achievement_key');
 
+        // A kivezetett funkciók csoportjai (pl. 'quiz') itt szándékosan
+        // hiányoznak — lásd AchievementService::HIDDEN_GROUPS.
         $groups = [
             'streak' => 'Sorozat',
             'vocab' => 'Szókincs',
@@ -24,14 +26,15 @@ class AchievementController extends Controller
             'level' => 'Szintek',
             'custom' => 'Saját szavak',
             'flashcard' => 'Flashcards',
-            'quiz' => 'Kvíz',
             'analysis' => 'Szövegelemzés',
         ];
+
+        $visible = AchievementService::visibleAchievements();
 
         $grouped = [];
         foreach ($groups as $groupKey => $groupLabel) {
             $items = [];
-            foreach (AchievementService::ACHIEVEMENTS as $key => $achievement) {
+            foreach ($visible as $key => $achievement) {
                 if ($achievement['group'] !== $groupKey) {
                     continue;
                 }
@@ -47,8 +50,10 @@ class AchievementController extends Controller
             $grouped[] = ['label' => $groupLabel, 'key' => $groupKey, 'items' => $items];
         }
 
-        $totalUnlocked = $unlocked->count();
-        $totalAchievements = count(AchievementService::ACHIEVEMENTS);
+        // A haladás csak a látható jelvényekből számol: egy korábban megszerzett
+        // kvíz-jelvény különben 100%-nál nagyobb arányt adna.
+        $totalUnlocked = $unlocked->keys()->intersect(array_keys($visible))->count();
+        $totalAchievements = count($visible);
 
         return Inertia::render('achievements/index', [
             'grouped' => $grouped,

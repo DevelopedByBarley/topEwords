@@ -1,47 +1,47 @@
 import { Head } from '@inertiajs/react';
+// A kivezetett szekciókhoz tartozó ikonok kikommentelve (2026-07-29):
+// Zap (Mondatkiegészítés), HelpCircle (Kvíz), RefreshCw (Szóismétlés),
+// NotebookPen (Szabad írás), MonitorPlay + Download (Desktop lejátszó).
 import {
     BookOpen,
-    Zap,
     LayoutGrid,
     Chrome,
     Brain,
     Settings2,
     FileText,
-    HelpCircle,
     GitBranch,
     Award,
     ChevronRight,
     Lightbulb,
     AlertCircle,
     Star,
-    RefreshCw,
     ListChecks,
-    NotebookPen,
-    Download,
     Tv2,
     Youtube,
-    MonitorPlay,
     CreditCard,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import ChromeExtensionsLink from '@/components/chrome-extensions-link';
-import { show as showDownload } from '@/routes/downloads';
+// import ChromeExtensionsLink from '@/components/chrome-extensions-link';
+// import { show as showDownload } from '@/routes/downloads';
 
+// Az induló feature-körhöz igazítva (2026-07-29): a kivezetett funkciók
+// szekciói kikommentelve — a hozzájuk tartozó tartalom lentebb, a render-fában
+// szintén kommentben él. Visszahozáskor a kettőt együtt kell élesíteni.
 const sections = [
     { id: 'attekintes', label: 'Áttekintés', icon: LayoutGrid },
     { id: 'szavak', label: 'Szavak', icon: BookOpen },
-    { id: 'szoismetles', label: 'Szóismétlés', icon: RefreshCw },
+    // { id: 'szoismetles', label: 'Szóismétlés', icon: RefreshCw },
     { id: 'flashcards', label: 'Flashcards', icon: Brain },
     { id: 'srs', label: 'SRS algoritmus', icon: GitBranch },
     { id: 'deck-settings', label: 'Deck beállítások', icon: Settings2 },
     { id: 'szovegelemzes', label: 'Szövegelemzés', icon: FileText },
-    { id: 'kviz', label: 'Kvíz', icon: HelpCircle },
-    { id: 'cloze', label: 'Mondatkiegészítés', icon: Zap },
-    { id: 'szabad-iras', label: 'Szabad írás', icon: NotebookPen },
-    { id: 'irregular', label: 'Rendhagyó igék', icon: GitBranch },
+    // { id: 'kviz', label: 'Kvíz', icon: HelpCircle },
+    // { id: 'cloze', label: 'Mondatkiegészítés', icon: Zap },
+    // { id: 'szabad-iras', label: 'Szabad írás', icon: NotebookPen },
+    // { id: 'irregular', label: 'Rendhagyó igék', icon: GitBranch },
     { id: 'teljesitmenyek', label: 'Teljesítmények', icon: Award },
     { id: 'extension', label: 'Chrome bővítmény', icon: Chrome },
-    { id: 'player', label: 'Desktop lejátszó', icon: MonitorPlay },
+    // { id: 'player', label: 'Desktop lejátszó', icon: MonitorPlay },
     { id: 'elofizetes', label: 'Előfizetés & számlázás', icon: CreditCard },
 ];
 
@@ -374,34 +374,19 @@ export default function Handbook() {
                                         desc: 'Okos kártyás ismétlés SRS algoritmussal',
                                     },
                                     {
-                                        icon: RefreshCw,
-                                        title: 'Szóismétlés',
-                                        desc: 'Státuszalapú szóismétlő kvíz, 1–14 napos intervallumon',
-                                    },
-                                    {
                                         icon: FileText,
                                         title: 'Szövegelemzés',
                                         desc: 'Könyv, web, YouTube — melyik szót nem ismered?',
                                     },
                                     {
-                                        icon: HelpCircle,
-                                        title: 'Kvíz',
-                                        desc: 'Gyors fordításteszt bármely szintből',
-                                    },
-                                    {
-                                        icon: Zap,
-                                        title: 'Mondatkiegészítés',
-                                        desc: 'Valós mondatokban kell megtalálni a szót',
+                                        icon: Award,
+                                        title: 'Teljesítmények',
+                                        desc: 'Streak és érmek a haladásodért',
                                     },
                                     {
                                         icon: Chrome,
                                         title: 'Chrome bővítmény',
-                                        desc: 'Azonnali fordítás bármely weboldalon',
-                                    },
-                                    {
-                                        icon: MonitorPlay,
-                                        title: 'Desktop lejátszó',
-                                        desc: 'Videók felirat-kiemeléssel a szólistád szerint',
+                                        desc: 'Azonnali fordítás bármely weboldalon (hamarosan)',
                                     },
                                 ]}
                             />
@@ -413,7 +398,7 @@ export default function Handbook() {
                                         'Jelöld meg a szavakat státusszal (Tudom / Tanulom) — ettől frissül a haladásod.',
                                         'Hozz létre egy flashcard paklit (decket) és adj hozzá szavakat.',
                                         'Minden nap kattints a Tanulás gombra — az SRS algoritmus elvégzi a többit.',
-                                        'Telepítsd a Chrome bővítményt, hogy tanulás közben se kelljen abbahagyni az olvasást.',
+                                        'Elemezd a szövegeidet — cikkeket, könyvet, YouTube-videót —, hogy lásd, mennyit értesz belőlük.',
                                     ]}
                                 />
                             </Sub>
@@ -562,72 +547,78 @@ export default function Handbook() {
                             </Sub>
                         </Section>
 
-                        {/* ── Szóismétlés ── */}
-                        <Section
-                            id="szoismetles"
-                            title="Szóismétlés"
-                            icon={RefreshCw}
-                        >
-                            <P>
-                                A Szóismétlés egy egyszerűsített kvízrendszer,
-                                amely automatikusan ismételteti veled az
-                                esedékes szavakat státuszuk alapján. Ez a
-                                flashcard SRS-szel párhuzamosan működik — a
-                                szótárban megjelölt szavakat tartja frissen,
-                                visszahívással erősítve a memóriát.
-                            </P>
-
-                            <Sub title="Ismétlési intervallumok">
-                                <P>
-                                    Minden státuszhoz más ismétlési időköz
-                                    tartozik. Ha egy szót sikeresen felismersz a
-                                    munkamenetben, az ismétlési ideje újraindul.
-                                </P>
-                                <Table
-                                    headers={['Státusz', 'Ismétlési időköz']}
-                                    rows={[
-                                        [
-                                            <Badge color="blue">Tanulom</Badge>,
-                                            '1 nap',
-                                        ],
-                                        [
-                                            <Badge color="orange">
-                                                Mentett
-                                            </Badge>,
-                                            '3 nap',
-                                        ],
-                                        [
-                                            <Badge color="purple">
-                                                Kiejtés
-                                            </Badge>,
-                                            '7 nap',
-                                        ],
-                                        [
-                                            <Badge color="green">Tudom</Badge>,
-                                            '14 nap',
-                                        ],
-                                    ]}
-                                />
-                            </Sub>
-
-                            <Sub title="Hogyan működik?">
-                                <Steps
-                                    items={[
-                                        'Nyisd meg a Szóismétlés oldalt — látod, mennyi szó esedékes státuszok szerint.',
-                                        'Kattints a "Kezdés" gombra — legfeljebb 50 szó kerül be egy munkamenetbe.',
-                                        'Megjelenik a szó angolul, és négy magyar fordítás közül kell a helyeset választani.',
-                                        'Helyes válasz esetén a szó megkapja a mai dátumot, és az intervallum újraindul.',
-                                        'A munkamenet végén látod az eredményedet és az elrontott szavakat.',
-                                    ]}
-                                />
-                                <InfoBox type="tip">
-                                    A szóismétlés nem befolyásolja a flashcard
-                                    SRS állapotát — a két rendszer egymástól
-                                    függetlenül működik, de egymást kiegészítve
-                                    erőteljesebb bevésést adnak.
-                                </InfoBox>
-                            </Sub>
-                        </Section>
+                        {/*
+                         * INDULÁSKOR KIVEZETVE (2026-07-29): a Szóismétlés (napi ismétlő)
+                         * felületnek nincs route-ja az appban. A leírás visszahozáskor
+                         * élesíthető, a `sections` tömb `szoismetles` elemével együtt.
+                         *
+                         *    ── Szóismétlés ──
+                         * <Section
+                         *     id="szoismetles"
+                         *     title="Szóismétlés"
+                         *     icon={RefreshCw}
+                         * >
+                         *     <P>
+                         *         A Szóismétlés egy egyszerűsített kvízrendszer,
+                         *         amely automatikusan ismételteti veled az
+                         *         esedékes szavakat státuszuk alapján. Ez a
+                         *         flashcard SRS-szel párhuzamosan működik — a
+                         *         szótárban megjelölt szavakat tartja frissen,
+                         *         visszahívással erősítve a memóriát.
+                         *     </P>
+                         *
+                         *     <Sub title="Ismétlési intervallumok">
+                         *         <P>
+                         *             Minden státuszhoz más ismétlési időköz
+                         *             tartozik. Ha egy szót sikeresen felismersz a
+                         *             munkamenetben, az ismétlési ideje újraindul.
+                         *         </P>
+                         *         <Table
+                         *             headers={['Státusz', 'Ismétlési időköz']}
+                         *             rows={[
+                         *                 [
+                         *                     <Badge color="blue">Tanulom</Badge>,
+                         *                     '1 nap',
+                         *                 ],
+                         *                 [
+                         *                     <Badge color="orange">
+                         *                         Mentett
+                         *                     </Badge>,
+                         *                     '3 nap',
+                         *                 ],
+                         *                 [
+                         *                     <Badge color="purple">
+                         *                         Kiejtés
+                         *                     </Badge>,
+                         *                     '7 nap',
+                         *                 ],
+                         *                 [
+                         *                     <Badge color="green">Tudom</Badge>,
+                         *                     '14 nap',
+                         *                 ],
+                         *             ]}
+                         *         />
+                         *     </Sub>
+                         *
+                         *     <Sub title="Hogyan működik?">
+                         *         <Steps
+                         *             items={[
+                         *                 'Nyisd meg a Szóismétlés oldalt — látod, mennyi szó esedékes státuszok szerint.',
+                         *                 'Kattints a "Kezdés" gombra — legfeljebb 50 szó kerül be egy munkamenetbe.',
+                         *                 'Megjelenik a szó angolul, és négy magyar fordítás közül kell a helyeset választani.',
+                         *                 'Helyes válasz esetén a szó megkapja a mai dátumot, és az intervallum újraindul.',
+                         *                 'A munkamenet végén látod az eredményedet és az elrontott szavakat.',
+                         *             ]}
+                         *         />
+                         *         <InfoBox type="tip">
+                         *             A szóismétlés nem befolyásolja a flashcard
+                         *             SRS állapotát — a két rendszer egymástól
+                         *             függetlenül működik, de egymást kiegészítve
+                         *             erőteljesebb bevésést adnak.
+                         *         </InfoBox>
+                         *     </Sub>
+                         * </Section>
+                        */}
 
                         {/* ── Flashcards ── */}
                         <Section
@@ -1244,111 +1235,120 @@ export default function Handbook() {
                             </Sub>
                         </Section>
 
-                        {/* ── Kvíz ── */}
-                        <Section id="kviz" title="Kvíz" icon={HelpCircle}>
-                            <P>
-                                A kvíz gyors szókincstesztet biztosít: az
-                                alkalmazás szavakat választ ki a szótárból és
-                                négy válaszlehetőséget kínál.
-                            </P>
-                            <Ul
-                                items={[
-                                    'Szűrheted szintre, státuszra vagy mappára — csak azzal a szócsoporttal tesztelj, amire fókuszálsz',
-                                    'Kérdéstípusok: EN→HU és HU→EN fordítás, vegyesen',
-                                    'A befejezésekor megtekintheted az elrontott szavakat',
-                                    'Az eredmény beleszámít a teljesítmény-statisztikákba',
-                                ]}
-                            />
-                        </Section>
-
-                        {/* ── Mondatkiegészítés ── */}
-                        <Section
-                            id="cloze"
-                            title="Mondatkiegészítés"
-                            icon={Zap}
-                        >
-                            <P>
-                                A mondatkiegészítés (cloze) feladatban valós
-                                példamondatokból hiányzik egy szó — neked kell
-                                beírni. Ez az egyik leghatékonyabb tanulási
-                                technika, mert a szót kontextusban kell
-                                felidézni, nem csak felismerni.
-                            </P>
-                            <Ul
-                                items={[
-                                    'A hiányzó szó helyét jelzés mutatja, a betűk száma is látható segítségként',
-                                    'Szűrheted szintre: csak az adott nehézségi fokból kap feladatot',
-                                    'Megoldás után látod a helyes szót és a fordítást',
-                                ]}
-                            />
-                        </Section>
-
-                        {/* ── Szabad írás ── */}
-                        <Section
-                            id="szabad-iras"
-                            title="Szabad írás"
-                            icon={NotebookPen}
-                        >
-                            <P>
-                                A szabad írás gyakorlóban angol szöveget írhatsz
-                                szabadon, miközben az AI ellenőrzi, hogy a
-                                megadott célszavakat helyesen és természetesen
-                                használtad-e, és visszajelzést ad a
-                                grammatikáról is.
-                            </P>
-                            <Sub title="Hogyan működik?">
-                                <Steps
-                                    items={[
-                                        'Adj hozzá célszavakat (max. 10) a szólistádból kereséssel, vagy gépeld be kézzel.',
-                                        'Írj szabadon angol szöveget — próbáld természetesen beépíteni a célszavakat.',
-                                        'Kattints az „Ellenőrzés" gombra — az AI feldolgozza a szöveget.',
-                                        'Minden célszónál látod, hogy helyesen használtad-e, és miért.',
-                                    ]}
-                                />
-                            </Sub>
-                            <Sub title="Mit kapsz vissza?">
-                                <Ul
-                                    items={[
-                                        'Szavanként: helyes / helytelen / nem használt jelzés, magyarázattal',
-                                        'Grammatikai megjegyzések: szintaktikai vagy idiomatikus hibák listája',
-                                        'Javított változat: az AI átírja a szöveget, ha volt hiba',
-                                        'Összefoglaló értékelés magyarul a teljes szövegről',
-                                    ]}
-                                />
-                            </Sub>
-                            <Sub title="Tipp">
-                                <P>
-                                    A szólistában a „Gyakorlásra" státuszú
-                                    szavak automatikusan megjelennek a célszavak
-                                    között — ezeket könnyedén hozzáadhatod
-                                    egyetlen kattintással. A funkció AI-t
-                                    (Claude) használ, ezért internet-kapcsolat
-                                    szükséges.
-                                </P>
-                            </Sub>
-                        </Section>
-
-                        {/* ── Rendhagyó igék ── */}
-                        <Section
-                            id="irregular"
-                            title="Rendhagyó igék"
-                            icon={GitBranch}
-                        >
-                            <P>
-                                A modul a leggyakoribb szabálytalan angol igék
-                                három alakját gyakoroltatja: infinitive
-                                (alapalak), past simple (múlt idő), past
-                                participle (befejezett melléknévi igenév).
-                            </P>
-                            <Ul
-                                items={[
-                                    'Kártyaszerű megjelenítés — forgasd a kártyát, ha ismered az igét',
-                                    'Szűrheted nehézségi szint alapján',
-                                    'Beépített példamondatok segítik a kontextusos megjegyzést',
-                                    'Kvíz mód: add meg a három alakot és ellenőrzöm az eredményt',
-                                ]}
-                            />
-                        </Section>
+                        {/*
+                         * INDULÁSKOR KIVEZETVE (2026-07-29): a Kvíz, a Mondatkiegészítés, a
+                         * Szabad írás és a Rendhagyó igék nem részei az induló feature-körnek —
+                         * a route-jaik ki vannak kommentelve (routes/words.php), a sidebar-
+                         * linkjeik elrejtve. A szekciók szövege itt marad, hogy visszahozáskor
+                         * ne kelljen újraírni; a `sections` tömb megfelelő elemeivel együtt
+                         * élesítendők.
+                         *
+                         *    ── Kvíz ──
+                         * <Section id="kviz" title="Kvíz" icon={HelpCircle}>
+                         *     <P>
+                         *         A kvíz gyors szókincstesztet biztosít: az
+                         *         alkalmazás szavakat választ ki a szótárból és
+                         *         négy válaszlehetőséget kínál.
+                         *     </P>
+                         *     <Ul
+                         *         items={[
+                         *             'Szűrheted szintre, státuszra vagy mappára — csak azzal a szócsoporttal tesztelj, amire fókuszálsz',
+                         *             'Kérdéstípusok: EN→HU és HU→EN fordítás, vegyesen',
+                         *             'A befejezésekor megtekintheted az elrontott szavakat',
+                         *             'Az eredmény beleszámít a teljesítmény-statisztikákba',
+                         *         ]}
+                         *     />
+                         * </Section>
+                         *
+                         *    ── Mondatkiegészítés ──
+                         * <Section
+                         *     id="cloze"
+                         *     title="Mondatkiegészítés"
+                         *     icon={Zap}
+                         * >
+                         *     <P>
+                         *         A mondatkiegészítés (cloze) feladatban valós
+                         *         példamondatokból hiányzik egy szó — neked kell
+                         *         beírni. Ez az egyik leghatékonyabb tanulási
+                         *         technika, mert a szót kontextusban kell
+                         *         felidézni, nem csak felismerni.
+                         *     </P>
+                         *     <Ul
+                         *         items={[
+                         *             'A hiányzó szó helyét jelzés mutatja, a betűk száma is látható segítségként',
+                         *             'Szűrheted szintre: csak az adott nehézségi fokból kap feladatot',
+                         *             'Megoldás után látod a helyes szót és a fordítást',
+                         *         ]}
+                         *     />
+                         * </Section>
+                         *
+                         *    ── Szabad írás ──
+                         * <Section
+                         *     id="szabad-iras"
+                         *     title="Szabad írás"
+                         *     icon={NotebookPen}
+                         * >
+                         *     <P>
+                         *         A szabad írás gyakorlóban angol szöveget írhatsz
+                         *         szabadon, miközben az AI ellenőrzi, hogy a
+                         *         megadott célszavakat helyesen és természetesen
+                         *         használtad-e, és visszajelzést ad a
+                         *         grammatikáról is.
+                         *     </P>
+                         *     <Sub title="Hogyan működik?">
+                         *         <Steps
+                         *             items={[
+                         *                 'Adj hozzá célszavakat (max. 10) a szólistádból kereséssel, vagy gépeld be kézzel.',
+                         *                 'Írj szabadon angol szöveget — próbáld természetesen beépíteni a célszavakat.',
+                         *                 'Kattints az „Ellenőrzés" gombra — az AI feldolgozza a szöveget.',
+                         *                 'Minden célszónál látod, hogy helyesen használtad-e, és miért.',
+                         *             ]}
+                         *         />
+                         *     </Sub>
+                         *     <Sub title="Mit kapsz vissza?">
+                         *         <Ul
+                         *             items={[
+                         *                 'Szavanként: helyes / helytelen / nem használt jelzés, magyarázattal',
+                         *                 'Grammatikai megjegyzések: szintaktikai vagy idiomatikus hibák listája',
+                         *                 'Javított változat: az AI átírja a szöveget, ha volt hiba',
+                         *                 'Összefoglaló értékelés magyarul a teljes szövegről',
+                         *             ]}
+                         *         />
+                         *     </Sub>
+                         *     <Sub title="Tipp">
+                         *         <P>
+                         *             A szólistában a „Gyakorlásra" státuszú
+                         *             szavak automatikusan megjelennek a célszavak
+                         *             között — ezeket könnyedén hozzáadhatod
+                         *             egyetlen kattintással. A funkció AI-t
+                         *             (Claude) használ, ezért internet-kapcsolat
+                         *             szükséges.
+                         *         </P>
+                         *     </Sub>
+                         * </Section>
+                         *
+                         *    ── Rendhagyó igék ──
+                         * <Section
+                         *     id="irregular"
+                         *     title="Rendhagyó igék"
+                         *     icon={GitBranch}
+                         * >
+                         *     <P>
+                         *         A modul a leggyakoribb szabálytalan angol igék
+                         *         három alakját gyakoroltatja: infinitive
+                         *         (alapalak), past simple (múlt idő), past
+                         *         participle (befejezett melléknévi igenév).
+                         *     </P>
+                         *     <Ul
+                         *         items={[
+                         *             'Kártyaszerű megjelenítés — forgasd a kártyát, ha ismered az igét',
+                         *             'Szűrheted nehézségi szint alapján',
+                         *             'Beépített példamondatok segítik a kontextusos megjegyzést',
+                         *             'Kvíz mód: add meg a három alakot és ellenőrzöm az eredményt',
+                         *         ]}
+                         *     />
+                         * </Section>
+                        */}
 
                         {/* ── Teljesítmények ── */}
                         <Section
@@ -1373,16 +1373,16 @@ export default function Handbook() {
                                         'Egymást követő napok száma (7, 30, 100 nap...)',
                                     ],
                                     [
-                                        'Kvíz',
-                                        'Elvégzett kvízek száma és tökéletes eredmények',
-                                    ],
-                                    [
                                         'Szövegelemzés',
                                         'Elemzett szövegek száma',
                                     ],
                                     [
                                         'Flashcard',
                                         'Tanult kártyák száma és befejezett munkamenetek',
+                                    ],
+                                    [
+                                        'Szintek',
+                                        'Egy teljes gyakorisági szint (pl. Top 1 000) minden szava „Tudom"',
                                     ],
                                 ]}
                             />
@@ -1563,71 +1563,21 @@ export default function Handbook() {
                                 ]}
                             />
 
-                            <Sub title="Telepítés (béta — fejlesztői mód)">
+                            {/*
+                             * A fejlesztői módú telepítés lépései TÖRÖLVE (2026-07-29):
+                             * a bővítmény a Chrome Web Store-ból fog települni, a .zip
+                             * letöltése `can:admin` mögé került (routes/web.php). A régi
+                             * 6 lépéses útmutató a git-előzményben marad meg — ha mégis
+                             * kellene, onnan hozható vissza.
+                             */}
+                            <Sub title="Telepítés">
                                 <P>
-                                    A béta időszak alatt a bővítmény közvetlenül
-                                    letölthető az oldalról, és néhány perc alatt
-                                    telepíthető fejlesztői módban — nincs
-                                    szükség Chrome Web Store-ra.
+                                    A bővítmény hamarosan elérhető lesz a Chrome
+                                    Web Store-ban — onnan egyetlen kattintással
+                                    telepíthető, és automatikusan frissül. A
+                                    megjelenésig az app többi funkciója bővítmény
+                                    nélkül is teljes értékű.
                                 </P>
-                                <div className="mt-3 mb-4">
-                                    <div className="relative inline-flex">
-                                        <span className="pointer-events-none absolute inset-0 animate-ping rounded-lg bg-primary opacity-40" />
-                                        <a
-                                            href={showDownload('extension').url}
-                                            download
-                                            className="relative inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
-                                        >
-                                            <Download className="size-4" />
-                                            Bővítmény letöltése (.zip)
-                                        </a>
-                                    </div>
-                                </div>
-                                <Steps
-                                    items={[
-                                        'Kattints a fenti bővítmény letöltése gombra, majd csomagold ki a letöltött .zip fájlt egy mappába (jegyezd meg, hova).',
-                                        <>
-                                            Nyisd meg a böngészőben a Chrome
-                                            bővítmények oldalát:{' '}
-                                            <ChromeExtensionsLink /> — másold be
-                                            a címsorba (az aktuális weboldal
-                                            URL-je helyére) és nyomj Entert.
-                                        </>,
-                                        <>
-                                            Kapcsold be a{' '}
-                                            <strong>Fejlesztői mód</strong>{' '}
-                                            (Developer mode) kapcsolót az oldal{' '}
-                                            <strong>jobb felső sarkában</strong>.
-                                        </>,
-                                        <>
-                                            Kattints a{' '}
-                                            <strong>
-                                                Kicsomagolt elemek betöltése
-                                            </strong>{' '}
-                                            (Load unpacked) gombra, válaszd ki
-                                            az imént kicsomagolt mappát, lépj
-                                            bele, majd kattints a{' '}
-                                            <strong>Mappaválasztás</strong>{' '}
-                                            gombra.
-                                        </>,
-                                        <>
-                                            Ha szeretnéd mindig látni a bővítmény
-                                            irányítópultját: kattints a jobb
-                                            felső sarokban lévő{' '}
-                                            <strong>puzzle ikonra</strong> (a
-                                            címsor és a letöltések gomb között),
-                                            majd a{' '}
-                                            <strong>TopWords</strong> melletti{' '}
-                                            <strong>kitűző ikonra</strong>.
-                                        </>,
-                                        <>
-                                            Kész — a bővítmény automatikusan
-                                            felismeri, hogy be vagy-e jelentkezve
-                                            a TopWords-be. Indítsd újra a Google
-                                            Chrome-ot és élvezd a tanulást!
-                                        </>,
-                                    ]}
-                                />
                                 <InfoBox type="warning">
                                     <strong>Fontos:</strong> A bővítmény csak
                                     akkor működik, ha be vagy jelentkezve a
@@ -1638,14 +1588,6 @@ export default function Handbook() {
                                     Az AI funkciókhoz (fordítás, szókitöltés){' '}
                                     <strong>Prémium előfizetés</strong>{' '}
                                     szükséges.
-                                </InfoBox>
-                                <InfoBox type="tip">
-                                    A kicsomagolt mappát ne töröld és ne helyezd
-                                    át a telepítés után — a Chrome innen tölti
-                                    be a bővítményt. Frissítéskor töltsd le az
-                                    új .zip-et, cseréld le a mappa tartalmát,
-                                    majd a bővítmények oldalán kattints a
-                                    frissítés (🔄) ikonra.
                                 </InfoBox>
                             </Sub>
 
@@ -1799,90 +1741,98 @@ export default function Handbook() {
                         </Section>
 
                         {/* ── Desktop lejátszó ── */}
-                        <Section
-                            id="player"
-                            title="Desktop lejátszó (topwords Player)"
-                            icon={MonitorPlay}
-                        >
-                            <P>
-                                A topwords Player egy külön asztali alkalmazás
-                                (Mac és Windows), amellyel videókat játszhatsz
-                                le úgy, hogy a feliratok szavai a saját
-                                szólistád státuszai szerint színeződnek — a
-                                Chrome bővítmény YouTube/Netflix-élményéhez
-                                hasonlóan, de helyi videófájlokra.
-                            </P>
-
-                            <div className="mb-4 flex flex-wrap gap-2">
-                                <a
-                                    href={showDownload('player-mac').url}
-                                    download
-                                    className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
-                                >
-                                    <Download className="size-4" />
-                                    Player letöltése – macOS (.dmg)
-                                </a>
-                                <a
-                                    href={showDownload('player-win').url}
-                                    download
-                                    className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
-                                >
-                                    <Download className="size-4" />
-                                    Player letöltése – Windows (.exe)
-                                </a>
-                            </div>
-
-                            <Sub title="Első megnyitás macOS-en">
-                                <P>
-                                    A béta időszak alatt a lejátszó még nincs
-                                    hitelesítve az Apple által (nincs
-                                    Developer ID aláírás), ezért macOS
-                                    letöltés után figyelmeztetést mutat.
-                                </P>
-                                <InfoBox type="info">
-                                    Nyisd meg a{' '}
-                                    <strong>
-                                        Rendszerbeállítások → Adatvédelem és
-                                        biztonság
-                                    </strong>{' '}
-                                    oldalt, görgess le a „Biztonság" részhez,
-                                    és a Topwords Player üzenete mellett
-                                    kattints a{' '}
-                                    <strong>„Megnyitás mindenképp"</strong>{' '}
-                                    gombra.
-                                </InfoBox>
-                            </Sub>
-
-                            <Sub title="Fiók összekötése">
-                                <Steps
-                                    items={[
-                                        'Nyisd meg a topwords Playert — a program felkínál egy párosító kódot.',
-                                        'A lejátszó megnyitja a rendszer-böngésződet ezen az oldalon (Beállítások → Lejátszó összekötése).',
-                                        'Írd be kézzel a lejátszóban látott kódot, majd kattints az "Összekötés jóváhagyása" gombra.',
-                                        'A jóváhagyás után a lejátszó pár másodpercen belül automatikusan bejelentkezik.',
-                                    ]}
-                                />
-                                <InfoBox type="warning">
-                                    Csak a <strong>saját lejátszódban</strong>{' '}
-                                    megjelenő kódot írd be. A kódot szándékosan
-                                    nem lehet linkkel előre kitölteni, hogy egy
-                                    kapott linkkel senki ne tudjon idegen
-                                    párosítást jóváhagyatni — a jóváhagyás
-                                    mindig a te bejelentkezett munkameneteddel
-                                    történik, jelszó soha nem kerül a lejátszóba.
-                                </InfoBox>
-                            </Sub>
-
-                            <Sub title="Mit tud a lejátszó?">
-                                <Ul
-                                    items={[
-                                        'Feliratos videók lejátszása, a szavak a szólista-státuszaid szerint kiszínezve (zöld/kék/narancs/lila/piros)',
-                                        'A párosítási token 90 napig érvényes — ezután újra össze kell kötni a fiókodat',
-                                        'A jelentés és a státuszkezelés a lejátszóból ugyanúgy elérhető, mint a bővítményben',
-                                    ]}
-                                />
-                            </Sub>
-                        </Section>
+                        {/*
+                         * INDULÁSKOR KIVEZETVE (2026-07-29): a topwords Player letöltése `can:admin`
+                         * mögé került (routes/web.php), így a felhasználó nem tudja beszerezni az
+                         * appot — a leírását sem hirdetjük. A szekció szövege itt marad;
+                         * visszahozáskor a `sections` tömb `player` elemével együtt élesítendő
+                         * (a showDownload / Download importok is kellenek).
+                         *
+                         * <Section
+                         *     id="player"
+                         *     title="Desktop lejátszó (topwords Player)"
+                         *     icon={MonitorPlay}
+                         * >
+                         *     <P>
+                         *         A topwords Player egy külön asztali alkalmazás
+                         *         (Mac és Windows), amellyel videókat játszhatsz
+                         *         le úgy, hogy a feliratok szavai a saját
+                         *         szólistád státuszai szerint színeződnek — a
+                         *         Chrome bővítmény YouTube/Netflix-élményéhez
+                         *         hasonlóan, de helyi videófájlokra.
+                         *     </P>
+                         *
+                         *     <div className="mb-4 flex flex-wrap gap-2">
+                         *         <a
+                         *             href={showDownload('player-mac').url}
+                         *             download
+                         *             className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+                         *         >
+                         *             <Download className="size-4" />
+                         *             Player letöltése – macOS (.dmg)
+                         *         </a>
+                         *         <a
+                         *             href={showDownload('player-win').url}
+                         *             download
+                         *             className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+                         *         >
+                         *             <Download className="size-4" />
+                         *             Player letöltése – Windows (.exe)
+                         *         </a>
+                         *     </div>
+                         *
+                         *     <Sub title="Első megnyitás macOS-en">
+                         *         <P>
+                         *             A béta időszak alatt a lejátszó még nincs
+                         *             hitelesítve az Apple által (nincs
+                         *             Developer ID aláírás), ezért macOS
+                         *             letöltés után figyelmeztetést mutat.
+                         *         </P>
+                         *         <InfoBox type="info">
+                         *             Nyisd meg a{' '}
+                         *             <strong>
+                         *                 Rendszerbeállítások → Adatvédelem és
+                         *                 biztonság
+                         *             </strong>{' '}
+                         *             oldalt, görgess le a „Biztonság" részhez,
+                         *             és a Topwords Player üzenete mellett
+                         *             kattints a{' '}
+                         *             <strong>„Megnyitás mindenképp"</strong>{' '}
+                         *             gombra.
+                         *         </InfoBox>
+                         *     </Sub>
+                         *
+                         *     <Sub title="Fiók összekötése">
+                         *         <Steps
+                         *             items={[
+                         *                 'Nyisd meg a topwords Playert — a program felkínál egy párosító kódot.',
+                         *                 'A lejátszó megnyitja a rendszer-böngésződet ezen az oldalon (Beállítások → Lejátszó összekötése).',
+                         *                 'Írd be kézzel a lejátszóban látott kódot, majd kattints az "Összekötés jóváhagyása" gombra.',
+                         *                 'A jóváhagyás után a lejátszó pár másodpercen belül automatikusan bejelentkezik.',
+                         *             ]}
+                         *         />
+                         *         <InfoBox type="warning">
+                         *             Csak a <strong>saját lejátszódban</strong>{' '}
+                         *             megjelenő kódot írd be. A kódot szándékosan
+                         *             nem lehet linkkel előre kitölteni, hogy egy
+                         *             kapott linkkel senki ne tudjon idegen
+                         *             párosítást jóváhagyatni — a jóváhagyás
+                         *             mindig a te bejelentkezett munkameneteddel
+                         *             történik, jelszó soha nem kerül a lejátszóba.
+                         *         </InfoBox>
+                         *     </Sub>
+                         *
+                         *     <Sub title="Mit tud a lejátszó?">
+                         *         <Ul
+                         *             items={[
+                         *                 'Feliratos videók lejátszása, a szavak a szólista-státuszaid szerint kiszínezve (zöld/kék/narancs/lila/piros)',
+                         *                 'A párosítási token 90 napig érvényes — ezután újra össze kell kötni a fiókodat',
+                         *                 'A jelentés és a státuszkezelés a lejátszóból ugyanúgy elérhető, mint a bővítményben',
+                         *             ]}
+                         *         />
+                         *     </Sub>
+                         * </Section>
+                        */}
 
                         {/* ── Előfizetés & számlázás ── */}
                         <Section

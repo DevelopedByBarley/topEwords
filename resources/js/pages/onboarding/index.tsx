@@ -1,25 +1,21 @@
 import { Head, router } from '@inertiajs/react';
+// A kivezetett diákhoz/pontokhoz tartozó ikonok kikommentelve (2026-07-29):
+// Brain (Kvíz), CalendarCheck (Napi ismétlés), Repeat (Rendhagyó igék),
+// Download / Link2 / MonitorPlay / Play (Player-dia).
 import {
     BookOpen,
-    Brain,
-    CalendarCheck,
     CheckCircle2,
     ChevronLeft,
     ChevronRight,
     Circle,
-    Download,
     Keyboard,
     Layers,
-    Link2,
     Menu,
     Monitor,
-    MonitorPlay,
     Moon,
     MousePointerClick,
     PencilLine,
-    Play,
     Plus,
-    Repeat,
     RotateCw,
     ScanText,
     Sparkles,
@@ -32,7 +28,7 @@ import { useState } from 'react';
 import { STATUS_CONFIG } from '@/components/words/types';
 import type { Appearance } from '@/hooks/use-appearance';
 import { useAppearance } from '@/hooks/use-appearance';
-import { show as showDownload } from '@/routes/downloads';
+// import { show as showDownload } from '@/routes/downloads';
 import { complete as onboardingComplete } from '@/routes/onboarding';
 
 interface Word {
@@ -137,11 +133,13 @@ function WordListVisual() {
 }
 
 function PracticeVisual() {
-    const quiz = [
-        { t: 'javít', ok: true },
-        { t: 'akadályoz', ok: false },
-        { t: 'elhalaszt', ok: false },
-        { t: 'megtagad', ok: false },
+    // Az SRS négy értékelő gombja — a kvíz-mockup helyett, mert a kvíz nem
+    // része az induló feature-körnek.
+    const ratings = [
+        { t: 'Újra', tone: 'text-red-600 dark:text-red-400' },
+        { t: 'Nehéz', tone: 'text-orange-600 dark:text-orange-400' },
+        { t: 'Jó', tone: 'text-green-600 dark:text-green-400' },
+        { t: 'Könnyű', tone: 'text-blue-600 dark:text-blue-400' },
     ];
 
     return (
@@ -153,20 +151,19 @@ function PracticeVisual() {
                     kattints a megfordításhoz
                 </p>
             </div>
-            <div className="grid grid-cols-2 gap-1.5">
-                {quiz.map(({ t, ok }) => (
+            <div className="grid grid-cols-4 gap-1.5">
+                {ratings.map(({ t, tone }) => (
                     <div
                         key={t}
-                        className={`rounded-lg border px-3 py-2 text-center text-xs font-medium ${
-                            ok
-                                ? 'border-green-400 bg-green-50 text-green-700 dark:border-green-700 dark:bg-green-950/30 dark:text-green-400'
-                                : 'bg-card text-muted-foreground'
-                        }`}
+                        className={`rounded-lg border bg-card px-2 py-2 text-center text-xs font-semibold ${tone}`}
                     >
                         {t}
                     </div>
                 ))}
             </div>
+            <p className="mt-2.5 text-center text-xs text-muted-foreground">
+                Az értékelésed dönti el, mikor jön elő újra a kártya
+            </p>
         </div>
     );
 }
@@ -265,46 +262,61 @@ function ExtensionVisual() {
     );
 }
 
-function PlayerVisual() {
-    const subtitleWords = [
-        { t: 'The' },
-        { t: 'crew' },
-        { t: 'finally', status: 'learning' },
-        { t: 'reached' },
-        { t: 'the' },
-        { t: 'summit.', status: 'saved' },
-    ];
+/*
+ * A Player-dia kivezetve (2026-07-29) — a topwords Player letöltése
+ * `can:admin` mögé került, így nem hirdetjük az onboardingban. A mockup
+ * itt marad, hogy visszakapcsoláskor ne kelljen újraírni.
+ *
+ * function PlayerVisual() {
+ *     const subtitleWords = [
+ *         { t: 'The' },
+ *         { t: 'crew' },
+ *         { t: 'finally', status: 'learning' },
+ *         { t: 'reached' },
+ *         { t: 'the' },
+ *         { t: 'summit.', status: 'saved' },
+ *     ];
+ *
+ *     return (
+ *         <div className="rounded-2xl border bg-muted/30 p-4">
+ *             <div className="relative mx-auto mb-3 flex aspect-video max-w-sm items-center justify-center overflow-hidden rounded-2xl border bg-slate-900">
+ *                 <div className="flex size-12 items-center justify-center rounded-full bg-white/15">
+ *                     <Play className="ml-0.5 size-5 fill-white text-white" />
+ *                 </div>
+ *                 <div className="absolute bottom-2 left-0 right-0 px-2 text-center text-xs font-medium text-white">
+ *                     {subtitleWords.map((w, i) => (
+ *                         <span key={i}>
+ *                             {w.status ? (
+ *                                 <span
+ *                                     className={`rounded px-1 ${statusEntry(w.status).pillActive}`}
+ *                                 >
+ *                                     {w.t}
+ *                                 </span>
+ *                             ) : (
+ *                                 w.t
+ *                             )}{' '}
+ *                         </span>
+ *                     ))}
+ *                 </div>
+ *             </div>
+ *             <div className="flex items-center justify-center gap-2 text-xs font-medium text-muted-foreground">
+ *                 <MonitorPlay className="size-4 text-primary" />
+ *                 Mac & Windows asztali app
+ *             </div>
+ *         </div>
+ *     );
+ * }
+ */
 
-    return (
-        <div className="rounded-2xl border bg-muted/30 p-4">
-            <div className="relative mx-auto mb-3 flex aspect-video max-w-sm items-center justify-center overflow-hidden rounded-2xl border bg-slate-900">
-                <div className="flex size-12 items-center justify-center rounded-full bg-white/15">
-                    <Play className="ml-0.5 size-5 fill-white text-white" />
-                </div>
-                <div className="absolute bottom-2 left-0 right-0 px-2 text-center text-xs font-medium text-white">
-                    {subtitleWords.map((w, i) => (
-                        <span key={i}>
-                            {w.status ? (
-                                <span
-                                    className={`rounded px-1 ${statusEntry(w.status).pillActive}`}
-                                >
-                                    {w.t}
-                                </span>
-                            ) : (
-                                w.t
-                            )}{' '}
-                        </span>
-                    ))}
-                </div>
-            </div>
-            <div className="flex items-center justify-center gap-2 text-xs font-medium text-muted-foreground">
-                <MonitorPlay className="size-4 text-primary" />
-                Mac & Windows asztali app
-            </div>
-        </div>
-    );
-}
-
+/*
+ * Az induló feature-körhöz igazítva (2026-07-29). Kikerült innen:
+ *   – „Rendhagyó igék", „Kvíz", „Mondatkiegészítés", „Napi ismétlés": a
+ *     route-jaik ki vannak kommentelve (routes/words.php), nem elérhetők.
+ *   – a teljes „player" dia: a topwords Player letöltése `can:admin` mögé
+ *     került, így a felhasználó nem tudná beszerezni az appot.
+ * Visszahozáskor a kivett dia/pont ide kerül vissza (a PlayerVisual és a
+ * hozzá tartozó ikon-importok szándékosan bent maradtak).
+ */
 const FEATURE_SLIDES = [
     {
         id: 'vocab',
@@ -322,18 +334,12 @@ const FEATURE_SLIDES = [
                 title: 'Saját szavak',
                 desc: 'Vedd fel a top 10 000-en kívüli szavaidat is, és tanuld őket ugyanúgy, mint a többit.',
             },
-            {
-                Icon: Repeat,
-                title: 'Rendhagyó igék',
-                desc: 'Kereshető táblázat az angol rendhagyó igék mindhárom alakjával — gyors átnézésre.',
-            },
         ],
     },
     {
         id: 'practice',
-        title: 'Sokféleképpen gyakorolhatsz',
-        subtitle:
-            'Flashcard, kvíz, mondatkiegészítés — mind a státuszaidra épül.',
+        title: 'Gyakorolj okos ismétléssel',
+        subtitle: 'A flashcard-paklik a te státuszaidra és tempódra épülnek.',
         Visual: PracticeVisual,
         features: [
             {
@@ -342,19 +348,9 @@ const FEATURE_SLIDES = [
                 desc: 'Intelligens ismétlés: a kártyák akkor jönnek elő, amikor épp felejtenéd őket. Importálhatsz a szólistából vagy CSV-ből is.',
             },
             {
-                Icon: Brain,
-                title: 'Kvíz',
-                desc: 'Feleletválasztós teszt — szűrhetsz szint, státusz és mappa szerint, 10-től akár az összes szóig.',
-            },
-            {
                 Icon: PencilLine,
-                title: 'Mondatkiegészítés',
-                desc: 'Egészítsd ki a hiányos példamondatokat a megfelelő szóval, kontextusban gyakorolva.',
-            },
-            {
-                Icon: CalendarCheck,
-                title: 'Napi ismétlés',
-                desc: 'Naponta összeállított gyakorló-sor a státuszaid alapján, ami tartja a sorozatodat.',
+                title: 'AI mondat-ellenőrzés',
+                desc: 'Írj saját mondatot egy szóval, és az AI megmondja, természetes-e — így nem csak felismered, hanem használod is a szót.',
             },
         ],
     },
@@ -381,7 +377,7 @@ const FEATURE_SLIDES = [
         id: 'extension',
         title: 'Tanulj bárhol a neten',
         subtitle:
-            'A Chrome bővítmény bármely oldalon, YouTube-on és Netflixen is működik.',
+            'A Chrome bővítmény hamarosan érkezik a Chrome Web Store-ba — bármely oldalon, YouTube-on és Netflixen is működik.',
         Visual: ExtensionVisual,
         features: [
             {
@@ -408,25 +404,6 @@ const FEATURE_SLIDES = [
                 Icon: Youtube,
                 title: 'YouTube és Netflix feliratok',
                 desc: 'Elemezd a videók és sorozatok feliratát, és nézd meg, mennyit értenél belőle a szókincseddel.',
-            },
-        ],
-    },
-    {
-        id: 'player',
-        title: 'Nézz filmeket a saját tempódban',
-        subtitle:
-            'A topwords Player asztali app helyi videókhoz — a felirat szavai a státuszaid szerint színeződnek.',
-        Visual: PlayerVisual,
-        features: [
-            {
-                Icon: MonitorPlay,
-                title: 'Mac & Windows asztali app',
-                desc: 'Játssz le bármilyen helyi videófájlt úgy, hogy a felirat szavai a szólistád státuszai szerint kiszínezve jelennek meg.',
-            },
-            {
-                Icon: Link2,
-                title: 'Gyors párosítás',
-                desc: 'A lejátszóban megjelenő kóddal kötheted össze a fiókodat — jelszó soha nem kerül a lejátszóba, a párosítás a Beállításokban hagyható jóvá.',
             },
         ],
     },
@@ -534,7 +511,7 @@ export default function Onboarding({
                             </h1>
                             <p className="mb-3 text-muted-foreground">
                                 Az app a 10 000 leggyakoribb angol szó köré
-                                épül: szólista, flashcard ismétlés, kvízek és
+                                épül: szólista, flashcard ismétlés és
                                 szövegelemzés segít, hogy a passzív tudásodból
                                 aktív szókincs legyen.
                             </p>
@@ -823,26 +800,12 @@ export default function Onboarding({
                                         )}
                                     </div>
 
-                                    {slide.id === 'player' && (
-                                        <div className="mb-6 flex flex-wrap justify-center gap-2.5">
-                                            <a
-                                                href={showDownload('player-mac').url}
-                                                download
-                                                className="inline-flex items-center gap-2 rounded-xl border px-4.5 py-2.75 text-sm font-semibold transition-colors hover:bg-accent"
-                                            >
-                                                <Download className="size-4" />
-                                                Player – macOS (.dmg)
-                                            </a>
-                                            <a
-                                                href={showDownload('player-win').url}
-                                                download
-                                                className="inline-flex items-center gap-2 rounded-xl border px-4.5 py-2.75 text-sm font-semibold transition-colors hover:bg-accent"
-                                            >
-                                                <Download className="size-4" />
-                                                Player – Windows (.exe)
-                                            </a>
-                                        </div>
-                                    )}
+                                    {/*
+                                     * A „player" dia letöltő gombjai kivezetve (2026-07-29)
+                                     * a diával együtt — a letöltés `can:admin` mögé került.
+                                     * Visszahozáskor a FEATURE_SLIDES player-diájával együtt
+                                     * élesítendő (showDownload + Download import is kell).
+                                     */}
 
                                     <div className="flex gap-3">
                                         <button

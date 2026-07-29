@@ -19,7 +19,8 @@ lila témájához igazítva + kétnyelvű (HU/EN) súgó-modál a szétszórt ti
       push önmagában nem élesít. Ezzel megy ki: a frissített ÁSZF, Adatkezelési tájékoztató és a
       letöltési oldalról szolgált **1.28-as zip**.
 - [ ] Deploy után ellenőrizd élesben: `https://topwords.eu/terms` (7. és 8. pont látszik),
-      `https://topwords.eu/privacy` (6. pont: AI), és a Letöltések oldalon a zip letöltése.
+      `https://topwords.eu/privacy` (6. pont: AI), és a Letöltések oldalon a zip letöltése
+      (**a Letöltések 2026-07-29 óta admin-only** — az admin fiókoddal nézd).
 
 ---
 
@@ -119,10 +120,18 @@ Ezek bemásolhatók. (Feltöltendő csomag: `chrome-extension/topwords-extension
 
 ## 4. Publikálás után
 
-- [ ] **Letöltések oldal átállítása.** A [downloads.tsx](resources/js/pages/downloads.tsx) jelenleg
-      „béta / fejlesztői módban telepíthető" zip-letöltést kínál. Publikálás után cseréld a
-      Chrome Web Store linkre (a zip maradhat tartaléknak).
-- [ ] Ugyanez a kézikönyv `#extension` szekciójában és a landing page bővítmény-blokkjában.
+- [ ] **Store-link kivezetése a felhasználói felületekre.** 2026-07-29 óta a letöltés
+      `can:admin` mögött van, a felhasználói felületek pedig „hamarosan a Chrome Web
+      Store-ban" szöveget mutatnak. Publikálás után ezeket kell store-linkre cserélni:
+      a landing bővítmény-blokkja ([welcome.tsx](resources/js/pages/welcome.tsx)), a kézikönyv
+      `#extension` → „Telepítés" szekciója ([handbook.tsx](resources/js/pages/handbook.tsx)),
+      az onboarding extension-diája ([onboarding/index.tsx](resources/js/pages/onboarding/index.tsx))
+      és az onboarding-tour bővítmény-lépése
+      ([onboarding-tour.tsx](resources/js/components/onboarding-tour.tsx)).
+      A dashboard `<ExtensionBanner />`-e is ki van kommentelve
+      ([dashboard.tsx](resources/js/pages/dashboard.tsx)) — a store-linkkel élesíthető újra.
+- [ ] A [downloads.tsx](resources/js/pages/downloads.tsx) admin-only oldal maradhat így: ez a
+      friss buildek egyetlen helye (a zip tartaléknak is jó).
 - [ ] A store-verzió és a repóbeli `manifest.json` verzió szinkronban tartása minden kiadásnál
       (a `build-zip.sh` a manifestből veszi a zip nevét).
 

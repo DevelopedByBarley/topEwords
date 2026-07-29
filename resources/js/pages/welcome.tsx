@@ -35,7 +35,8 @@ import {
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import BetaBanner from '@/components/beta-banner';
-import ChromeExtensionsLink from '@/components/chrome-extensions-link';
+// A letöltő blokkal együtt kivezetve (2026-07-29):
+// import ChromeExtensionsLink from '@/components/chrome-extensions-link';
 import {
     dashboard,
     login,
@@ -44,7 +45,7 @@ import {
     register,
     terms,
 } from '@/routes';
-import { show as showDownload } from '@/routes/downloads';
+// import { show as showDownload } from '@/routes/downloads';
 import { index as wordsIndex } from '@/routes/words';
 
 type Status = 'Tudom' | 'Tanulom' | 'Később' | 'Kiejtés' | 'Gyakorlásra';
@@ -473,13 +474,15 @@ const EXT_USAGE = [
     },
 ];
 
-const INSTALL_STEPS = [
-    { n: 1, text: 'Töltsd le a .zip-et, és csomagold ki egy mappába' },
-    { n: 2, text: 'Nyisd meg: chrome://extensions' },
-    { n: 3, text: 'Kapcsold be a Fejlesztői módot (jobb felső sarok)' },
-    { n: 4, text: 'Kattints: Kicsomagolt bővítmény betöltése' },
-    { n: 5, text: 'Válaszd ki a kicsomagolt mappát' },
-];
+// A fejlesztői módú telepítés lépései kivezetve (2026-07-29) — a bővítmény a
+// Chrome Web Store-ból fog települni, lásd a bővítmény-szekció kommentjét.
+// const INSTALL_STEPS = [
+//     { n: 1, text: 'Töltsd le a .zip-et, és csomagold ki egy mappába' },
+//     { n: 2, text: 'Nyisd meg: chrome://extensions' },
+//     { n: 3, text: 'Kapcsold be a Fejlesztői módot (jobb felső sarok)' },
+//     { n: 4, text: 'Kattints: Kicsomagolt bővítmény betöltése' },
+//     { n: 5, text: 'Válaszd ki a kicsomagolt mappát' },
+// ];
 
 const FREE_PLAN = [
     '10 000 szavas szólista',
@@ -2669,72 +2672,28 @@ export default function Welcome({
                                             </div>
                                         </div>
                                     </div>
+                                    {/*
+                                     * A LETÖLTŐ BLOKK KIVEZETVE (2026-07-29). Korábban a
+                                     * fejlesztői módú telepítés 5 lépését és a .zip letöltő
+                                     * gombját mutatta (bejelentkezve), illetve egy „Jelentkezz
+                                     * be a letöltéshez" linket vendégként. A letöltés azóta
+                                     * `can:admin` mögött van (routes/web.php), mert a bővítmény
+                                     * a Chrome Web Store-ból fog települni — a helyére a lenti
+                                     * „hamarosan" doboz került. Visszakapcsoláskor az
+                                     * INSTALL_STEPS konstans és a Download / login import is kell.
+                                     */}
                                     <div className="mt-5.5 rounded-2xl border border-white/10 bg-white/[0.06] p-5.5">
-                                        <div className="mb-3.5 text-sm font-semibold text-white">
-                                            Hogyan telepítsd? A tesztidőszak
-                                            alatt fejlesztői módban:
+                                        <div className="mb-2 text-sm font-semibold text-white">
+                                            Hogyan telepítsd?
                                         </div>
-                                        <div className="flex flex-col gap-2.5">
-                                            {INSTALL_STEPS.map((s) => (
-                                                <div
-                                                    key={s.n}
-                                                    className="flex items-center gap-3"
-                                                >
-                                                    <span className="grid size-6.5 flex-none place-items-center rounded-full bg-indigo-500 text-[13px] font-bold text-white">
-                                                        {s.n}
-                                                    </span>
-                                                    <span className="text-sm text-white/82">
-                                                        {s.n === 2 ? (
-                                                            <>
-                                                                Nyisd meg:{' '}
-                                                                <ChromeExtensionsLink />
-                                                            </>
-                                                        ) : (
-                                                            s.text
-                                                        )}
-                                                    </span>
-                                                </div>
-                                            ))}
-                                        </div>
-                                        {auth.user ? (
-                                            <div className="mt-4 flex flex-col gap-2.25">
-                                                <a
-                                                    href={
-                                                        showDownload(
-                                                            'extension',
-                                                        ).url
-                                                    }
-                                                    download
-                                                    className="inline-flex items-center gap-2 rounded-xl bg-white px-4.5 py-2.75 text-sm font-bold text-indigo-800 shadow-md transition-all hover:-translate-y-0.5"
-                                                >
-                                                    <Download size={20} />
-                                                    Bővítmény letöltése (.zip)
-                                                </a>
-                                                {/*
-                                                 * Offline lejátszó letöltő gombjai kivezetve a
-                                                 * főoldalról (2026-07-28). A DownloadController
-                                                 * 'player-mac' / 'player-win' slugjai ÉLNEK — csak a
-                                                 * landingről nem hirdetjük őket. Visszakapcsoláshoz
-                                                 * ez a blokk elég.
-                                                 *
-                                                 * <div className="flex flex-wrap gap-2.25">
-                                                 *     <a href={showDownload('player-mac').url} download className="...">
-                                                 *         <Download size={20} /> Player – macOS (.dmg)
-                                                 *     </a>
-                                                 *     <a href={showDownload('player-win').url} download className="...">
-                                                 *         <Download size={20} /> Player – Windows (.exe)
-                                                 *     </a>
-                                                 * </div>
-                                                 */}
-                                            </div>
-                                        ) : (
-                                            <Link
-                                                href={login()}
-                                                className="mt-4 inline-flex items-center gap-2 rounded-xl bg-white px-4.5 py-2.75 text-sm font-bold text-indigo-800 shadow-md transition-all hover:-translate-y-0.5"
-                                            >
-                                                Jelentkezz be a letöltéshez
-                                            </Link>
-                                        )}
+                                        <p className="text-sm leading-[1.6] text-white/70">
+                                            A bővítmény hamarosan elérhető lesz a
+                                            Chrome Web Store-ban — onnan egyetlen
+                                            kattintással telepíthető, és
+                                            automatikusan frissül. A megjelenésig
+                                            az app többi funkciója bővítmény
+                                            nélkül is teljes értékű.
+                                        </p>
                                     </div>
                                 </Reveal>
                             </div>
