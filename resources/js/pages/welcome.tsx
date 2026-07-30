@@ -3,10 +3,8 @@ import {
     AlarmClock,
     ArrowRight,
     Bookmark,
-    Bug,
     Check,
     Chrome,
-    Download,
     Edit,
     FileSearch,
     Film,
@@ -21,17 +19,18 @@ import {
     NotebookPen,
     Play,
     Puzzle,
-    Route,
-    Shuffle,
     SlidersHorizontal,
     Sparkles,
     Star,
-    Table,
     Volume2,
     Wand2,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import BetaBanner from '@/components/beta-banner';
+import {
+    FlashcardScrollSection,
+    RATE_DEFS,
+} from '@/components/public/flashcard-scroll';
 import { PublicFooter } from '@/components/public/public-footer';
 import { PublicHeader } from '@/components/public/public-header';
 import { TextAnalysisScrollSection } from '@/components/public/text-analysis-scroll';
@@ -193,111 +192,6 @@ const STATUS_META: Record<
 };
 
 const WORD_AUTOPLAY_MS = 4000;
-
-const RATE_DEFS = [
-    { label: 'Újra', time: '1 perc', c: '#ef4444' },
-    { label: 'Nehéz', time: '6 nap', c: '#f59e0b' },
-    { label: 'Jó', time: '10 nap', c: '#22c55e' },
-    { label: 'Könnyű', time: '15 nap', c: '#3b82f6' },
-];
-
-const SRS_EXPLAIN = [
-    {
-        label: 'Újra',
-        bg: '#ef4444',
-        desc: 'Visszakerül a tanulási lépések elejére.',
-    },
-    {
-        label: 'Nehéz',
-        bg: '#f59e0b',
-        desc: 'Kisebb intervallum, csökkenő ease faktor.',
-    },
-    {
-        label: 'Jó',
-        bg: '#22c55e',
-        desc: 'Az intervallum nő az ease faktor alapján.',
-    },
-    { label: 'Könnyű', bg: '#3b82f6', desc: 'Tovább vár, az ease faktor nő.' },
-];
-
-const DEMO_DECK = [
-    {
-        rank: '#288 · Top 1 000 · melléknév',
-        word: 'important',
-        translation: 'fontos',
-        example: 'This is a very important decision.',
-        exampleHu: 'Ez egy nagyon fontos döntés.',
-    },
-    {
-        rank: '#178 · Top 1 000 · elöljáró',
-        word: 'between',
-        translation: 'között',
-        example: 'The space between two cities lies a valley.',
-        exampleHu: 'A két város közötti térben egy völgy fekszik.',
-    },
-    {
-        rank: '#215 · Top 1 000 · melléknév',
-        word: 'different',
-        translation: 'különböző',
-        example: 'They have completely different opinions.',
-        exampleHu: 'Teljesen különböző véleményük van.',
-    },
-    {
-        rank: '#305 · Top 1 000 · főnév',
-        word: 'government',
-        translation: 'kormány',
-        example: 'The government passed a new law.',
-        exampleHu: 'A kormány új törvényt fogadott el.',
-    },
-];
-
-const FLASH_CAPS = [
-    {
-        icon: Layers,
-        title: 'Saját deck-ek',
-        desc: 'Tetszőleges számú kártyacsomag különböző témákhoz.',
-    },
-    {
-        icon: Route,
-        title: 'Kétirányú kártyák',
-        desc: 'Előlap→hátlap és vissza — külön értékelve.',
-    },
-    {
-        icon: Volume2,
-        title: 'Hangos felolvasás',
-        desc: 'Az elő- és hátlap szövege felolvasható.',
-    },
-    {
-        icon: Shuffle,
-        title: 'Kártyák keverése',
-        desc: 'Bekapcsolható keverés a kétoldalú kártyáknál.',
-    },
-    {
-        icon: Download,
-        title: 'Import a szólistáról',
-        desc: 'Egy kattintással importálhatsz kártyát.',
-    },
-    {
-        icon: Table,
-        title: 'CSV import / export',
-        desc: 'Importálj CSV-ből vagy exportáld a decked.',
-    },
-    {
-        icon: SlidersHorizontal,
-        title: 'Deckenként testreszabható',
-        desc: 'Napi korlát, lépések, ease faktorok, keverés.',
-    },
-    {
-        icon: LayoutGrid,
-        title: 'Haladás nyomon követése',
-        desc: 'Új · Tanulás · Ismétlés — és mikor esedékes.',
-    },
-    {
-        icon: Bug,
-        title: 'Leech detektálás',
-        desc: 'A sokat tévesztett kártyákat automatikusan jelöli.',
-    },
-];
 
 /*
  * KIVEZETVE (2026-07-28) — a "Gyakorlási módok" szekcióval együtt.
@@ -485,13 +379,6 @@ export default function Welcome({
     const { auth, billingEnabled, extensionStoreUrl } = usePage().props;
 
     const [flipped, setFlipped] = useState(false);
-    const [flipped2, setFlipped2] = useState(false);
-    const [deckIndex, setDeckIndex] = useState(0);
-    const demoCard = DEMO_DECK[deckIndex];
-    const rateCard = () => {
-        setFlipped2(false);
-        setDeckIndex((i) => (i + 1) % DEMO_DECK.length);
-    };
     // Kivezetve a "Gyakorlási módok" szekcióval (2026-07-28):
     // const [quizPick, setQuizPick] = useState<string | null>(null);
     const [filter, setFilter] = useState<'Összes' | 'Tanulom' | 'Tudom'>(
@@ -1509,167 +1396,7 @@ export default function Welcome({
 
                         <TextAnalysisScrollSection />
 
-                        {/* FLASHCARD SRS */}
-                        <section id="flashcard" className="bg-white px-5 py-24">
-                            <Reveal className="mx-auto mb-14 max-w-[760px] text-center">
-                                <h2 className="text-[clamp(30px,4vw,46px)] leading-[1.1] font-bold tracking-[-1px] text-[#171717]">
-                                    Intelligens ismétlési rendszer
-                                </h2>
-                                <p className="mx-auto mt-4 max-w-[560px] text-[17px] leading-[1.6] text-[#737373]">
-                                    Minden értékelés után kiszámolja, mikor kell
-                                    visszamutatnia a kártyát — ha könnyen ment,
-                                    tovább vár; ha nehéz volt, hamarabb
-                                    visszahozza.
-                                </p>
-                            </Reveal>
-
-                            <div className="mx-auto grid max-w-[1120px] grid-cols-[repeat(auto-fit,minmax(320px,1fr))] items-start gap-10">
-                                <Reveal className="rounded-3xl border border-neutral-200 p-6 shadow-[0_20px_50px_rgba(0,0,0,.06)]">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-2.25 font-semibold text-[#171717]">
-                                            <Layers
-                                                size={20}
-                                                className="text-indigo-700"
-                                            />
-                                            Angol alapszavak
-                                        </div>
-                                        <span className="rounded-full bg-indigo-50 px-3 py-1.25 text-[13px] font-semibold text-indigo-700">
-                                            {deckIndex + 1} / {DEMO_DECK.length}
-                                        </span>
-                                    </div>
-                                    <div className="mt-3.5 h-1.5 overflow-hidden rounded-full bg-indigo-50">
-                                        <div
-                                            className="h-full rounded-full bg-gradient-to-r from-indigo-600 to-indigo-800 transition-all duration-500"
-                                            style={{
-                                                width: `${((deckIndex + 1) / DEMO_DECK.length) * 100}%`,
-                                            }}
-                                        />
-                                    </div>
-                                    <button
-                                        onClick={() => setFlipped2((v) => !v)}
-                                        className="mt-4.5 h-59 w-full cursor-pointer"
-                                        style={{ perspective: 1200 }}
-                                    >
-                                        <div
-                                            className="relative size-full transition-transform duration-600 ease-[cubic-bezier(.4,.2,.2,1)]"
-                                            style={{
-                                                transformStyle: 'preserve-3d',
-                                                transform: flipped2
-                                                    ? 'rotateY(180deg)'
-                                                    : 'rotateY(0deg)',
-                                            }}
-                                        >
-                                            <div
-                                                className="absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-[18px] border border-indigo-200 bg-gradient-to-br from-indigo-50 to-indigo-100"
-                                                style={{
-                                                    backfaceVisibility:
-                                                        'hidden',
-                                                }}
-                                            >
-                                                <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-indigo-700">
-                                                    {demoCard.rank}
-                                                </span>
-                                                <span className="text-[46px] font-bold tracking-tight text-[#171717]">
-                                                    {demoCard.word}
-                                                </span>
-                                                <span className="inline-flex items-center gap-1.25 text-xs text-indigo-500">
-                                                    <MousePointerClick
-                                                        size={15}
-                                                    />
-                                                    Kattints a megfordításhoz
-                                                </span>
-                                            </div>
-                                            <div
-                                                className="absolute inset-0 flex flex-col items-center justify-center gap-3.5 rounded-[18px] bg-gradient-to-br from-indigo-600 to-indigo-800 p-6 text-center shadow-[inset_0_0_0_1px_rgba(255,255,255,.12)]"
-                                                style={{
-                                                    backfaceVisibility:
-                                                        'hidden',
-                                                    transform:
-                                                        'rotateY(180deg)',
-                                                }}
-                                            >
-                                                <span className="text-[42px] font-bold tracking-tight text-white">
-                                                    {demoCard.translation}
-                                                </span>
-                                                <span className="text-sm leading-[1.55] text-indigo-100">
-                                                    „{demoCard.example}”
-                                                </span>
-                                                <span className="text-sm text-indigo-200">
-                                                    {demoCard.exampleHu}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </button>
-                                    <div className="mt-3 text-center text-xs text-[#a1a1a1]">
-                                        {flipped2
-                                            ? 'Hogy ment? Értékeld — az algoritmus ütemezi a következő ismétlést.'
-                                            : 'Fordítsd meg a kártyát, majd értékeld, mennyire ment könnyen.'}
-                                    </div>
-                                    <div className="mt-3 grid grid-cols-4 gap-2.5">
-                                        {RATE_DEFS.map((r) => (
-                                            <button
-                                                key={r.label}
-                                                onClick={rateCard}
-                                                disabled={!flipped2}
-                                                className="flex flex-col items-center gap-0.5 rounded-xl py-3 transition-all hover:-translate-y-0.5 disabled:pointer-events-none disabled:opacity-40"
-                                                style={{
-                                                    border: `1px solid ${r.c}3d`,
-                                                    background: `${r.c}14`,
-                                                    color: r.c,
-                                                }}
-                                            >
-                                                <span className="text-sm font-bold">
-                                                    {r.label}
-                                                </span>
-                                                <span className="text-[11px] opacity-80">
-                                                    {r.time}
-                                                </span>
-                                            </button>
-                                        ))}
-                                    </div>
-                                </Reveal>
-                                <Reveal className="flex flex-col gap-3.5">
-                                    {SRS_EXPLAIN.map((e) => (
-                                        <div
-                                            key={e.label}
-                                            className="flex items-start gap-3.5 rounded-[14px] border border-neutral-200 bg-[#fafafa] p-4"
-                                        >
-                                            <span
-                                                className="inline-flex min-w-9 flex-none items-center justify-center rounded-[9px] px-2.25 py-2 text-xs font-semibold whitespace-nowrap text-white"
-                                                style={{ background: e.bg }}
-                                            >
-                                                {e.label}
-                                            </span>
-                                            <p className="text-sm leading-[1.55] text-[#404040]">
-                                                {e.desc}
-                                            </p>
-                                        </div>
-                                    ))}
-                                </Reveal>
-                            </div>
-
-                            <div className="mx-auto mt-10 grid max-w-[1120px] grid-cols-[repeat(auto-fit,minmax(210px,1fr))] gap-3.5">
-                                {FLASH_CAPS.map((c) => (
-                                    <Reveal
-                                        key={c.title}
-                                        className="flex items-start gap-2.75 rounded-xl border border-indigo-100 bg-indigo-50 p-4"
-                                    >
-                                        <c.icon
-                                            size={20}
-                                            className="flex-none text-indigo-600"
-                                        />
-                                        <div>
-                                            <div className="text-sm font-semibold text-[#171717]">
-                                                {c.title}
-                                            </div>
-                                            <div className="mt-0.75 text-xs leading-[1.5] text-[#737373]">
-                                                {c.desc}
-                                            </div>
-                                        </div>
-                                    </Reveal>
-                                ))}
-                            </div>
-                        </section>
+                        <FlashcardScrollSection />
 
                         {/*
                          * GYAKORLÁSI MÓDOK — KIVEZETVE (2026-07-28)
