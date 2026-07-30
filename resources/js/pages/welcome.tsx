@@ -194,6 +194,8 @@ const STATUS_META: Record<
     },
 };
 
+const WORD_AUTOPLAY_MS = 4000;
+
 const RATE_DEFS = [
     { label: 'Újra', time: '1 perc', c: '#ef4444' },
     { label: 'Nehéz', time: '6 nap', c: '#f59e0b' },
@@ -413,8 +415,8 @@ const PRO_PLAN = [
 
 const SIDE_NAV_DEFS = [
     { id: 'funkciok', label: 'Funkciók', icon: LayoutGrid },
-    { id: 'szovegelemzes', label: 'Szövegelemzés', icon: FileSearch },
     { id: 'szolista', label: 'Szólista', icon: List },
+    { id: 'szovegelemzes', label: 'Szövegelemzés', icon: FileSearch },
     { id: 'flashcard', label: 'Flashcard', icon: Layers },
     // Kivezetve a "Gyakorlási módok" szekcióval együtt (2026-07-28):
     // { id: 'gyakorlas', label: 'Gyakorlás', icon: HelpCircle },
@@ -523,6 +525,7 @@ export default function Welcome({
     const [activeSection, setActiveSection] = useState('funkciok');
     const [showSideNav, setShowSideNav] = useState(false);
     const [selWord, setSelWord] = useState(0);
+    const [wordAutoplay, setWordAutoplay] = useState(true);
     const [popupMode, setPopupMode] = useState<'word' | 'phrase'>('word');
     const [words, setWords] = useState<WordEntry[]>(INITIAL_WORDS);
     const [hoveredFeature, setHoveredFeature] = useState(0);
@@ -541,8 +544,8 @@ export default function Welcome({
     useEffect(() => {
         const ids = [
             'funkciok',
-            'szovegelemzes',
             'szolista',
+            'szovegelemzes',
             'flashcard',
             // 'gyakorlas' — kivezetve (2026-07-28), a szekció nincs a DOM-ban
             'ai',
@@ -596,6 +599,23 @@ export default function Welcome({
         return () => window.removeEventListener('scroll', onScroll);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    useEffect(() => {
+        if (!wordAutoplay) {
+            return;
+        }
+
+        const id = setInterval(() => {
+            setSelWord((i) => (i + 1) % INITIAL_WORDS.length);
+        }, WORD_AUTOPLAY_MS);
+
+        return () => clearInterval(id);
+    }, [wordAutoplay]);
+
+    const selectWord = (i: number) => {
+        setWordAutoplay(false);
+        setSelWord(i);
+    };
 
     const setWord = (i: number, st: Status) => {
         setWords((prev) => {
@@ -1227,6 +1247,291 @@ export default function Welcome({
                             </div>
                         </section>
 
+                        {/* SZÓLISTA */}
+                        <section
+                            id="szolista"
+                            className="px-5 py-24"
+                            style={{
+                                background:
+                                    'linear-gradient(180deg,#f7f4ff 0%,#f5f3ff 50%,#eef2ff 100%)',
+                            }}
+                        >
+                            <Reveal className="mx-auto mb-12 max-w-[680px] text-center">
+                                <h2 className="text-[clamp(30px,4vw,46px)] leading-[1.1] font-bold tracking-[-1px] text-[#171717]">
+                                    Kövesd nyomon a szókincsed fejlődését
+                                </h2>
+                                <p className="mx-auto mt-4 text-[17px] leading-[1.6] text-[#737373]">
+                                    Bármelyik szót választod is, a rendszer
+                                    segít megtanulni: jelöld a státuszát,
+                                    állítsd be a fontosságát, nézd meg az
+                                    infóit, és kérj AI-segítséget, ha valamit
+                                    nem értesz.
+                                </p>
+                            </Reveal>
+
+                            <div className="mx-auto grid max-w-[1080px] grid-cols-[1.1fr_1fr] items-start gap-6 max-lg:grid-cols-1">
+                                {/* list */}
+                                <Reveal className="min-w-0 overflow-hidden rounded-[20px] border border-neutral-200 bg-white shadow-[0_20px_50px_rgba(0,0,0,.06)]">
+                                    <div className="flex items-center justify-between px-5 pt-4.5 pb-3.5">
+                                        <div className="flex items-center gap-2 font-semibold text-[#171717]">
+                                            <List
+                                                size={20}
+                                                className="text-indigo-700"
+                                            />
+                                            Szólista
+                                        </div>
+                                        <span className="rounded-full bg-green-50 px-3 py-1.25 text-[13px] font-semibold text-green-700">
+                                            {knownCount} / {words.length} tudom
+                                        </span>
+                                    </div>
+                                    <div className="flex gap-2 border-b border-neutral-100 px-5 pb-3.5">
+                                        {filterTabs.map((t) => (
+                                            <button
+                                                key={t.label}
+                                                onClick={() =>
+                                                    setFilter(t.label)
+                                                }
+                                                className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.75 font-sans text-[13px] font-semibold transition-all"
+                                                style={{
+                                                    border: `1px solid ${filter === t.label ? '#4338ca' : '#e5e5e5'}`,
+                                                    background:
+                                                        filter === t.label
+                                                            ? '#4338ca'
+                                                            : '#fff',
+                                                    color:
+                                                        filter === t.label
+                                                            ? '#fff'
+                                                            : '#525252',
+                                                }}
+                                            >
+                                                {t.label}
+                                                <span className="opacity-70">
+                                                    {t.count}
+                                                </span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <div className="max-h-[420px] overflow-auto">
+                                        {visibleWords.map((w) => {
+                                            const th = w.status
+                                                ? STATUS_META[w.status]
+                                                : null;
+                                            const selected = selWord === w.i;
+
+                                            return (
+                                                <div
+                                                    key={w.word}
+                                                    onClick={() =>
+                                                        selectWord(w.i)
+                                                    }
+                                                    className="flex cursor-pointer items-center gap-3 border-b border-neutral-100 px-4 py-3 transition-colors"
+                                                    style={{
+                                                        borderLeft: `3px solid ${selected ? '#4338ca' : th ? th.color : 'transparent'}`,
+                                                        background: selected
+                                                            ? '#eef2ff'
+                                                            : th
+                                                              ? th.tint
+                                                              : '#fff',
+                                                    }}
+                                                >
+                                                    <span
+                                                        className="size-2.25 flex-none rounded-full"
+                                                        style={
+                                                            th
+                                                                ? {
+                                                                      background:
+                                                                          th.color,
+                                                                  }
+                                                                : {
+                                                                      border: '1.5px solid #d4d4d4',
+                                                                  }
+                                                        }
+                                                    />
+                                                    <span
+                                                        className="text-base font-semibold transition-colors"
+                                                        style={{
+                                                            color: th
+                                                                ? th.color
+                                                                : '#171717',
+                                                        }}
+                                                    >
+                                                        {w.word}
+                                                    </span>
+                                                    <span className="text-[11px] text-[#a1a1a1] italic">
+                                                        {w.pos}
+                                                    </span>
+                                                    <span className="flex-1" />
+                                                    <span className="text-[13px] text-[#a1a1a1]">
+                                                        {w.hu}
+                                                    </span>
+                                                    {selected &&
+                                                    wordAutoplay ? (
+                                                        <svg
+                                                            width="18"
+                                                            height="18"
+                                                            viewBox="0 0 18 18"
+                                                            className="flex-none -rotate-90"
+                                                        >
+                                                            <circle
+                                                                cx="9"
+                                                                cy="9"
+                                                                r="7"
+                                                                fill="none"
+                                                                stroke="#e0e7ff"
+                                                                strokeWidth="2"
+                                                            />
+                                                            <circle
+                                                                cx="9"
+                                                                cy="9"
+                                                                r="7"
+                                                                fill="none"
+                                                                stroke="#4338ca"
+                                                                strokeWidth="2"
+                                                                strokeLinecap="round"
+                                                                strokeDasharray={
+                                                                    44
+                                                                }
+                                                                style={{
+                                                                    animation: `ring-countdown ${WORD_AUTOPLAY_MS}ms linear forwards`,
+                                                                }}
+                                                            />
+                                                        </svg>
+                                                    ) : (
+                                                        <ArrowRight
+                                                            size={18}
+                                                            className="text-neutral-300"
+                                                        />
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </Reveal>
+
+                                {/* detail */}
+                                <Reveal className="overflow-hidden rounded-[20px] border border-neutral-200 bg-white shadow-[0_20px_50px_rgba(0,0,0,.06)]">
+                                    <div className="border-b border-neutral-100 bg-[#f7f7fb] p-5">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2.5">
+                                                <span className="text-xs font-bold text-[#a1a1a1]">
+                                                    #{sel.num}
+                                                </span>
+                                                <span className="rounded-full bg-indigo-100 px-2.5 py-0.75 text-[11px] font-semibold text-indigo-700">
+                                                    {sel.pos}
+                                                </span>
+                                            </div>
+                                            <span className="grid size-8.5 place-items-center rounded-full border-[1.5px] border-indigo-700 text-indigo-700">
+                                                <Volume2 size={19} />
+                                            </span>
+                                        </div>
+                                        <div className="mt-2 text-[26px] font-bold tracking-[-.4px] text-[#171717]">
+                                            {sel.word}
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-col gap-4.5 p-5">
+                                        <div>
+                                            <div className="text-[11px] font-bold tracking-[.8px] text-[#a1a1a1]">
+                                                MAGYAR JELENTÉS
+                                            </div>
+                                            <div className="mt-2 rounded-xl border border-neutral-200 px-4 py-3.5 text-[19px] font-semibold text-[#171717]">
+                                                {sel.hu}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <div className="text-[11px] font-bold tracking-[.8px] text-[#a1a1a1]">
+                                                SZINONIMÁK
+                                            </div>
+                                            <div className="mt-2 flex flex-wrap gap-2">
+                                                {sel.syn.map((s) => (
+                                                    <span
+                                                        key={s}
+                                                        className="rounded-full border border-neutral-200 bg-[#fafafa] px-3.5 py-1.75 text-[13px] text-[#404040]"
+                                                    >
+                                                        {s}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <div
+                                            className="rounded-xl bg-[#f7f7fb] p-4"
+                                            style={{
+                                                borderLeft: `3px solid ${selMeta ? selMeta.color : '#4338ca'}`,
+                                            }}
+                                        >
+                                            <div className="text-[11px] font-bold tracking-[.8px] text-[#a1a1a1]">
+                                                PÉLDAMONDAT
+                                            </div>
+                                            <div className="mt-2 text-[15px] font-medium text-[#171717] italic">
+                                                „{sel.ex.en}”
+                                            </div>
+                                            <div className="mt-1.5 text-sm text-[#737373]">
+                                                {sel.ex.hu}
+                                            </div>
+                                        </div>
+                                        <div className="flex flex-wrap gap-2">
+                                            {detailButtons.map((key) => {
+                                                const m = STATUS_META[key];
+                                                const active =
+                                                    sel.status === key;
+                                                const full =
+                                                    key === 'Gyakorlásra';
+
+                                                return (
+                                                    <button
+                                                        key={key}
+                                                        onClick={() =>
+                                                            setWord(
+                                                                selWord,
+                                                                key,
+                                                            )
+                                                        }
+                                                        className="flex items-center justify-center gap-1.5 rounded-[11px] px-2.5 py-2.75 font-sans text-[13px] font-semibold transition-all"
+                                                        style={{
+                                                            flex: full
+                                                                ? '1 1 100%'
+                                                                : '1 1 40%',
+                                                            background: active
+                                                                ? m.bg
+                                                                : '#f4f4f5',
+                                                            color: active
+                                                                ? m.color
+                                                                : '#71717a',
+                                                            border: `1px solid ${active ? `${m.color}55` : 'transparent'}`,
+                                                        }}
+                                                    >
+                                                        <m.icon size={17} />
+                                                        {key}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                        <div>
+                                            <div className="text-[11px] font-bold tracking-[.8px] text-[#a1a1a1]">
+                                                FONTOSSÁG
+                                            </div>
+                                            <div className="mt-2 flex gap-2">
+                                                {[1, 2, 3, 4, 5].map((n) => (
+                                                    <Star
+                                                        key={n}
+                                                        size={26}
+                                                        className={
+                                                            n <= sel.imp
+                                                                ? 'fill-amber-500 text-amber-500'
+                                                                : 'text-neutral-200'
+                                                        }
+                                                    />
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <button className="flex w-full items-center justify-center gap-2 rounded-xl border-[1.5px] border-indigo-200 py-3.25 font-sans text-sm font-semibold text-indigo-700 transition-colors hover:bg-indigo-50">
+                                            <Sparkles size={18} />
+                                            Szó infók (AI)
+                                        </button>
+                                    </div>
+                                </Reveal>
+                            </div>
+                        </section>
+
                         {/* SZÖVEGELEMZÉS */}
                         <section
                             id="szovegelemzes"
@@ -1234,10 +1539,7 @@ export default function Welcome({
                         >
                             <div className="mx-auto max-w-[1000px]">
                                 <Reveal className="mx-auto max-w-[640px] text-center">
-                                    <span className="inline-block rounded-full bg-indigo-100 px-3.75 py-1.5 text-xs font-bold tracking-[1.2px] text-indigo-700">
-                                        SZÖVEGELEMZÉS
-                                    </span>
-                                    <h2 className="mt-4.5 text-[clamp(30px,4vw,46px)] leading-[1.1] font-bold tracking-[-1px] text-[#171717]">
+                                    <h2 className="text-[clamp(30px,4vw,46px)] leading-[1.1] font-bold tracking-[-1px] text-[#171717]">
                                         Elemezz bármilyen angol szöveget
                                     </h2>
                                     <p className="mx-auto mt-4 text-[17px] leading-[1.6] text-[#737373]">
@@ -1739,259 +2041,6 @@ export default function Welcome({
                                             <span className="size-2.5 rounded-[3px] bg-red-500" />
                                             Ismeretlen
                                         </span>
-                                    </div>
-                                </Reveal>
-                            </div>
-                        </section>
-
-                        {/* SZÓLISTA */}
-                        <section
-                            id="szolista"
-                            className="px-5 py-24"
-                            style={{
-                                background:
-                                    'linear-gradient(180deg,#f7f4ff 0%,#f5f3ff 50%,#eef2ff 100%)',
-                            }}
-                        >
-                            <Reveal className="mx-auto mb-12 max-w-[680px] text-center">
-                                <span className="inline-block rounded-full bg-indigo-100 px-3.75 py-1.5 text-xs font-bold tracking-[1.2px] text-indigo-700">
-                                    SZÓLISTA
-                                </span>
-                                <h2 className="mt-4.5 text-[clamp(30px,4vw,46px)] leading-[1.1] font-bold tracking-[-1px] text-[#171717]">
-                                    Kövesd nyomon a szókincsed fejlődését
-                                </h2>
-                                <p className="mx-auto mt-4 text-[17px] leading-[1.6] text-[#737373]">
-                                    Minden szóhoz jelölheted, hol tartasz — a
-                                    rendszer összeszámolja a haladásodat.
-                                    Próbáld ki: kattints egy szóra, majd állítsd
-                                    a státuszát.
-                                </p>
-                            </Reveal>
-
-                            <div className="mx-auto grid max-w-[1080px] grid-cols-[1.1fr_1fr] items-start gap-6 max-lg:grid-cols-1">
-                                {/* list */}
-                                <Reveal className="min-w-0 overflow-hidden rounded-[20px] border border-neutral-200 bg-white shadow-[0_20px_50px_rgba(0,0,0,.06)]">
-                                    <div className="flex items-center justify-between px-5 pt-4.5 pb-3.5">
-                                        <div className="flex items-center gap-2 font-semibold text-[#171717]">
-                                            <List
-                                                size={20}
-                                                className="text-indigo-700"
-                                            />
-                                            Szólista
-                                        </div>
-                                        <span className="rounded-full bg-green-50 px-3 py-1.25 text-[13px] font-semibold text-green-700">
-                                            {knownCount} / {words.length} tudom
-                                        </span>
-                                    </div>
-                                    <div className="flex gap-2 border-b border-neutral-100 px-5 pb-3.5">
-                                        {filterTabs.map((t) => (
-                                            <button
-                                                key={t.label}
-                                                onClick={() =>
-                                                    setFilter(t.label)
-                                                }
-                                                className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.75 font-sans text-[13px] font-semibold transition-all"
-                                                style={{
-                                                    border: `1px solid ${filter === t.label ? '#4338ca' : '#e5e5e5'}`,
-                                                    background:
-                                                        filter === t.label
-                                                            ? '#4338ca'
-                                                            : '#fff',
-                                                    color:
-                                                        filter === t.label
-                                                            ? '#fff'
-                                                            : '#525252',
-                                                }}
-                                            >
-                                                {t.label}
-                                                <span className="opacity-70">
-                                                    {t.count}
-                                                </span>
-                                            </button>
-                                        ))}
-                                    </div>
-                                    <div className="max-h-[420px] overflow-auto">
-                                        {visibleWords.map((w) => {
-                                            const th = w.status
-                                                ? STATUS_META[w.status]
-                                                : null;
-                                            const selected = selWord === w.i;
-
-                                            return (
-                                                <div
-                                                    key={w.word}
-                                                    onClick={() =>
-                                                        setSelWord(w.i)
-                                                    }
-                                                    className="flex cursor-pointer items-center gap-3 border-b border-neutral-100 px-4 py-3 transition-colors"
-                                                    style={{
-                                                        borderLeft: `3px solid ${selected ? '#4338ca' : th ? th.color : 'transparent'}`,
-                                                        background: selected
-                                                            ? '#eef2ff'
-                                                            : th
-                                                              ? th.tint
-                                                              : '#fff',
-                                                    }}
-                                                >
-                                                    <span
-                                                        className="size-2.25 flex-none rounded-full"
-                                                        style={
-                                                            th
-                                                                ? {
-                                                                      background:
-                                                                          th.color,
-                                                                  }
-                                                                : {
-                                                                      border: '1.5px solid #d4d4d4',
-                                                                  }
-                                                        }
-                                                    />
-                                                    <span
-                                                        className="text-base font-semibold transition-colors"
-                                                        style={{
-                                                            color: th
-                                                                ? th.color
-                                                                : '#171717',
-                                                        }}
-                                                    >
-                                                        {w.word}
-                                                    </span>
-                                                    <span className="text-[11px] text-[#a1a1a1] italic">
-                                                        {w.pos}
-                                                    </span>
-                                                    <span className="flex-1" />
-                                                    <span className="text-[13px] text-[#a1a1a1]">
-                                                        {w.hu}
-                                                    </span>
-                                                    <ArrowRight
-                                                        size={18}
-                                                        className="text-neutral-300"
-                                                    />
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </Reveal>
-
-                                {/* detail */}
-                                <Reveal className="overflow-hidden rounded-[20px] border border-neutral-200 bg-white shadow-[0_20px_50px_rgba(0,0,0,.06)]">
-                                    <div className="border-b border-neutral-100 bg-[#f7f7fb] p-5">
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-2.5">
-                                                <span className="text-xs font-bold text-[#a1a1a1]">
-                                                    #{sel.num}
-                                                </span>
-                                                <span className="rounded-full bg-indigo-100 px-2.5 py-0.75 text-[11px] font-semibold text-indigo-700">
-                                                    {sel.pos}
-                                                </span>
-                                            </div>
-                                            <span className="grid size-8.5 place-items-center rounded-full border-[1.5px] border-indigo-700 text-indigo-700">
-                                                <Volume2 size={19} />
-                                            </span>
-                                        </div>
-                                        <div className="mt-2 text-[26px] font-bold tracking-[-.4px] text-[#171717]">
-                                            {sel.word}
-                                        </div>
-                                    </div>
-                                    <div className="flex flex-col gap-4.5 p-5">
-                                        <div>
-                                            <div className="text-[11px] font-bold tracking-[.8px] text-[#a1a1a1]">
-                                                MAGYAR JELENTÉS
-                                            </div>
-                                            <div className="mt-2 rounded-xl border border-neutral-200 px-4 py-3.5 text-[19px] font-semibold text-[#171717]">
-                                                {sel.hu}
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <div className="text-[11px] font-bold tracking-[.8px] text-[#a1a1a1]">
-                                                SZINONIMÁK
-                                            </div>
-                                            <div className="mt-2 flex flex-wrap gap-2">
-                                                {sel.syn.map((s) => (
-                                                    <span
-                                                        key={s}
-                                                        className="rounded-full border border-neutral-200 bg-[#fafafa] px-3.5 py-1.75 text-[13px] text-[#404040]"
-                                                    >
-                                                        {s}
-                                                    </span>
-                                                ))}
-                                            </div>
-                                        </div>
-                                        <div
-                                            className="rounded-xl bg-[#f7f7fb] p-4"
-                                            style={{
-                                                borderLeft: `3px solid ${selMeta ? selMeta.color : '#4338ca'}`,
-                                            }}
-                                        >
-                                            <div className="text-[11px] font-bold tracking-[.8px] text-[#a1a1a1]">
-                                                PÉLDAMONDAT
-                                            </div>
-                                            <div className="mt-2 text-[15px] font-medium text-[#171717] italic">
-                                                „{sel.ex.en}”
-                                            </div>
-                                            <div className="mt-1.5 text-sm text-[#737373]">
-                                                {sel.ex.hu}
-                                            </div>
-                                        </div>
-                                        <div className="flex flex-wrap gap-2">
-                                            {detailButtons.map((key) => {
-                                                const m = STATUS_META[key];
-                                                const active =
-                                                    sel.status === key;
-                                                const full =
-                                                    key === 'Gyakorlásra';
-
-                                                return (
-                                                    <button
-                                                        key={key}
-                                                        onClick={() =>
-                                                            setWord(
-                                                                selWord,
-                                                                key,
-                                                            )
-                                                        }
-                                                        className="flex items-center justify-center gap-1.5 rounded-[11px] px-2.5 py-2.75 font-sans text-[13px] font-semibold transition-all"
-                                                        style={{
-                                                            flex: full
-                                                                ? '1 1 100%'
-                                                                : '1 1 40%',
-                                                            background: active
-                                                                ? m.bg
-                                                                : '#f4f4f5',
-                                                            color: active
-                                                                ? m.color
-                                                                : '#71717a',
-                                                            border: `1px solid ${active ? `${m.color}55` : 'transparent'}`,
-                                                        }}
-                                                    >
-                                                        <m.icon size={17} />
-                                                        {key}
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-                                        <div>
-                                            <div className="text-[11px] font-bold tracking-[.8px] text-[#a1a1a1]">
-                                                FONTOSSÁG
-                                            </div>
-                                            <div className="mt-2 flex gap-2">
-                                                {[1, 2, 3, 4, 5].map((n) => (
-                                                    <Star
-                                                        key={n}
-                                                        size={26}
-                                                        className={
-                                                            n <= sel.imp
-                                                                ? 'fill-amber-500 text-amber-500'
-                                                                : 'text-neutral-200'
-                                                        }
-                                                    />
-                                                ))}
-                                            </div>
-                                        </div>
-                                        <button className="flex w-full items-center justify-center gap-2 rounded-xl border-[1.5px] border-indigo-200 py-3.25 font-sans text-sm font-semibold text-indigo-700 transition-colors hover:bg-indigo-50">
-                                            <Sparkles size={18} />
-                                            Szó infók (AI)
-                                        </button>
                                     </div>
                                 </Reveal>
                             </div>

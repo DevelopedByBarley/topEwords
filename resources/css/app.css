@@ -214,6 +214,12 @@
     to { transform: scaleX(1); }
 }
 
+/* Landing: szólista auto-váltás visszaszámláló gyűrűje */
+@keyframes ring-countdown {
+    from { stroke-dashoffset: 44; }
+    to { stroke-dashoffset: 0; }
+}
+
 @theme {
     --animate-streak-pop: streak-pop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
     --animate-streak-out: streak-out 0.35s ease-in forwards;
