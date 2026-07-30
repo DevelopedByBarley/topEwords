@@ -220,6 +220,12 @@
     to { stroke-dashoffset: 0; }
 }
 
+/* Landing: szövegelemzés-demó panel tartalomváltásának bejövő animációja */
+@keyframes panel-fade-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
 @theme {
     --animate-streak-pop: streak-pop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
     --animate-streak-out: streak-out 0.35s ease-in forwards;
@@ -233,6 +239,7 @@
     --animate-hero-float-slow-b: hero-float-slow-b 13s ease-in-out infinite 1s;
     --animate-hero-pulse: hero-pulse 2.8s ease-in-out infinite;
     --animate-bar-grow: bar-grow 1.2s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+    --animate-panel-fade-in: panel-fade-in 0.35s ease-out both;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -243,7 +250,8 @@
     .animate-hero-twinkle,
     .animate-hero-float-slow-a,
     .animate-hero-float-slow-b,
-    .animate-hero-pulse {
+    .animate-hero-pulse,
+    .animate-panel-fade-in {
         animation: none !important;
     }
 }

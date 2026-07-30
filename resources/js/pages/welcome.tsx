@@ -5,7 +5,6 @@ import {
     Bookmark,
     Bug,
     Check,
-    CheckCircle2,
     Chrome,
     Download,
     Edit,
@@ -17,7 +16,6 @@ import {
     Layers,
     LayoutGrid,
     List,
-    Menu,
     Mic,
     MousePointerClick,
     NotebookPen,
@@ -31,12 +29,12 @@ import {
     Table,
     Volume2,
     Wand2,
-    X,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import BetaBanner from '@/components/beta-banner';
 import { PublicFooter } from '@/components/public/public-footer';
 import { PublicHeader } from '@/components/public/public-header';
+import { TextAnalysisScrollSection } from '@/components/public/text-analysis-scroll';
 // A letöltő blokkal együtt kivezetve (2026-07-29):
 // import ChromeExtensionsLink from '@/components/chrome-extensions-link';
 import { dashboard, login, pricing as pricingRoute, register } from '@/routes';
@@ -316,29 +314,6 @@ const FLASH_CAPS = [
  * ];
  */
 
-const ANALYZE_BULLETS = [
-    {
-        icon: LayoutGrid,
-        title: 'Érthetőség %',
-        desc: 'látod, hány szót ismersz a szövegben',
-    },
-    {
-        icon: MousePointerClick,
-        title: 'Shift + kattintás',
-        desc: 'jelölj ki több szót, és vidd fel egész kifejezésként',
-    },
-    {
-        icon: Sparkles,
-        title: 'Közvetlen AI-kitöltés',
-        desc: 'a bővítményből egyenesen a webappba',
-    },
-    {
-        icon: FileSearch,
-        title: 'YouTube & Netflix',
-        desc: 'elemezd a feliratokat, és lásd, hány szót értesz belőlük',
-    },
-];
-
 const AI_CARDS = [
     {
         icon: Wand2,
@@ -526,7 +501,6 @@ export default function Welcome({
     const [showSideNav, setShowSideNav] = useState(false);
     const [selWord, setSelWord] = useState(0);
     const [wordAutoplay, setWordAutoplay] = useState(true);
-    const [popupMode, setPopupMode] = useState<'word' | 'phrase'>('word');
     const [words, setWords] = useState<WordEntry[]>(INITIAL_WORDS);
     const [hoveredFeature, setHoveredFeature] = useState(0);
 
@@ -667,7 +641,6 @@ export default function Welcome({
     const analyzePctRef = useCountUp(87, '%');
     const analyzeCountRef = useCountUp(312);
     const barRef = useRef<HTMLDivElement>(null);
-    const bar2Ref = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         const io = new IntersectionObserver(
@@ -682,7 +655,9 @@ export default function Welcome({
             { threshold: 0.4 },
         );
 
-        [barRef.current, bar2Ref.current].forEach((el) => el && io.observe(el));
+        if (barRef.current) {
+            io.observe(barRef.current);
+        }
 
         return () => io.disconnect();
     }, []);
@@ -1532,527 +1507,12 @@ export default function Welcome({
                             </div>
                         </section>
 
-                        {/* SZÖVEGELEMZÉS */}
-                        <section
-                            id="szovegelemzes"
-                            className="bg-white px-5 py-24"
-                        >
-                            <div className="mx-auto max-w-[1000px]">
-                                <Reveal className="mx-auto max-w-[640px] text-center">
-                                    <h2 className="text-[clamp(30px,4vw,46px)] leading-[1.1] font-bold tracking-[-1px] text-[#171717]">
-                                        Elemezz bármilyen angol szöveget
-                                    </h2>
-                                    <p className="mx-auto mt-4 text-[17px] leading-[1.6] text-[#737373]">
-                                        Illeszd be a szöveget, adj meg egy
-                                        webcímet vagy könyvet — vagy elemezd
-                                        egyenesen a{' '}
-                                        <b className="text-[#404040]">
-                                            YouTube
-                                        </b>{' '}
-                                        és{' '}
-                                        <b className="text-[#404040]">
-                                            Netflix
-                                        </b>{' '}
-                                        feliratait. Minden elemzés megmutatja, a
-                                        szöveg hány százalékát érted.
-                                    </p>
-                                </Reveal>
-
-                                <Reveal
-                                    className="mt-10 rounded-3xl border border-indigo-100 p-5 sm:p-8"
-                                    style={{
-                                        background:
-                                            'linear-gradient(155deg,#f5f3ff,#eef2ff)',
-                                    }}
-                                >
-                                    <div>
-                                        <div className="mb-5 flex flex-wrap items-center justify-center gap-2 sm:gap-3">
-                                            <span className="text-sm font-semibold text-[#525252]">
-                                                Próbáld ki:
-                                            </span>
-                                            <div className="inline-flex gap-1.5 rounded-full border-[1.5px] border-indigo-200 bg-white p-1.5 shadow-[0_10px_26px_rgba(49,46,129,.14)]">
-                                                <button
-                                                    onClick={() =>
-                                                        setPopupMode('word')
-                                                    }
-                                                    className="inline-flex items-center gap-1.25 rounded-full px-3.5 py-2 font-sans text-[13px] font-bold whitespace-nowrap transition-all sm:gap-1.75 sm:px-5 sm:py-2.75 sm:text-[15px]"
-                                                    style={{
-                                                        background:
-                                                            popupMode === 'word'
-                                                                ? '#4338ca'
-                                                                : '#eef2ff',
-                                                        color:
-                                                            popupMode === 'word'
-                                                                ? '#fff'
-                                                                : '#4338ca',
-                                                        boxShadow:
-                                                            popupMode === 'word'
-                                                                ? '0 8px 20px rgba(67,56,202,.4)'
-                                                                : 'none',
-                                                    }}
-                                                >
-                                                    <List
-                                                        size={17}
-                                                        className="shrink-0 sm:hidden"
-                                                    />
-                                                    <List
-                                                        size={19}
-                                                        className="hidden shrink-0 sm:block"
-                                                    />
-                                                    Egy szó
-                                                </button>
-                                                <button
-                                                    onClick={() =>
-                                                        setPopupMode('phrase')
-                                                    }
-                                                    className="inline-flex items-center gap-1.25 rounded-full px-3.5 py-2 font-sans text-[13px] font-bold whitespace-nowrap transition-all sm:gap-1.75 sm:px-5 sm:py-2.75 sm:text-[15px]"
-                                                    style={{
-                                                        background:
-                                                            popupMode ===
-                                                            'phrase'
-                                                                ? '#4338ca'
-                                                                : '#eef2ff',
-                                                        color:
-                                                            popupMode ===
-                                                            'phrase'
-                                                                ? '#fff'
-                                                                : '#4338ca',
-                                                        boxShadow:
-                                                            popupMode ===
-                                                            'phrase'
-                                                                ? '0 8px 20px rgba(67,56,202,.4)'
-                                                                : 'none',
-                                                    }}
-                                                >
-                                                    <MousePointerClick
-                                                        size={17}
-                                                        className="shrink-0 sm:hidden"
-                                                    />
-                                                    <MousePointerClick
-                                                        size={19}
-                                                        className="hidden shrink-0 sm:block"
-                                                    />
-                                                    <span className="sm:hidden">
-                                                        Kifejezés
-                                                    </span>
-                                                    <span className="hidden sm:inline">
-                                                        Kifejezés · shift+click
-                                                    </span>
-                                                </button>
-                                            </div>
-                                        </div>
-
-                                        <div className="relative mx-auto max-w-[900px]">
-                                            <div className="relative aspect-[3/6] overflow-hidden rounded-[18px] bg-[#0b0b12] shadow-[0_30px_70px_rgba(0,0,0,.36)] sm:aspect-video">
-                                                <div className="absolute top-3.5 left-3.5 z-3 flex gap-2">
-                                                    <span className="inline-flex items-center gap-1.25 rounded-lg bg-[#e50914] px-2.75 py-1.25 text-xs font-bold text-white">
-                                                        <Film size={15} />
-                                                        Netflix
-                                                    </span>
-                                                    <span className="inline-flex items-center gap-1.25 rounded-lg bg-[#ff0033] px-2.75 py-1.25 text-xs font-bold text-white">
-                                                        <Play size={15} />
-                                                        YouTube
-                                                    </span>
-                                                </div>
-                                                {/*
-                                                 * Offline lejátszó kivezetve a főoldalról (2026-07-28):
-                                                 * <span className="absolute top-3.5 right-3.5 z-3 inline-flex items-center gap-1.25 rounded-full bg-green-500/92 px-2.75 py-1.25 text-xs font-bold text-white">
-                                                 *     <Download size={15} />
-                                                 *     Offline
-                                                 * </span>
-                                                 */}
-                                                <div
-                                                    className="absolute inset-0"
-                                                    style={{
-                                                        background:
-                                                            'radial-gradient(circle at 40% 40%,rgba(79,70,229,.34),rgba(11,11,18,.12))',
-                                                    }}
-                                                />
-
-                                                {popupMode === 'word' && (
-                                                    <div className="absolute inset-x-0 bottom-16 z-2 px-5.5 text-center">
-                                                        <span className="ts-subtitle rounded-md bg-black/50 box-decoration-clone px-2.75 py-1.5 text-xl leading-[2] font-bold">
-                                                            <span className="text-orange-500">
-                                                                Something
-                                                            </span>{' '}
-                                                            <span className="text-green-400">
-                                                                we
-                                                            </span>{' '}
-                                                            <span className="text-blue-400">
-                                                                may
-                                                            </span>{' '}
-                                                            <span className="text-green-400">
-                                                                not
-                                                            </span>{' '}
-                                                            <span className="text-green-400">
-                                                                be
-                                                            </span>{' '}
-                                                            <span className="rounded-[3px] bg-orange-500/[0.18] px-0.5 text-orange-500 outline outline-offset-2 outline-orange-500">
-                                                                able
-                                                            </span>{' '}
-                                                            <span className="text-blue-400">
-                                                                to
-                                                            </span>{' '}
-                                                            <span className="text-white">
-                                                                deter
-                                                            </span>
-                                                            .{' '}
-                                                            <span className="text-red-400">
-                                                                Before
-                                                            </span>
-                                                            …
-                                                        </span>
-                                                    </div>
-                                                )}
-                                                {popupMode === 'phrase' && (
-                                                    <div className="absolute inset-x-0 bottom-16 z-2 px-5.5 text-center">
-                                                        <span className="ts-subtitle rounded-md bg-black/50 box-decoration-clone px-2.75 py-1.5 text-xl leading-[2] font-bold">
-                                                            <span className="text-orange-500">
-                                                                Something
-                                                            </span>{' '}
-                                                            <span className="text-green-400">
-                                                                we
-                                                            </span>{' '}
-                                                            <span className="text-blue-400">
-                                                                may
-                                                            </span>{' '}
-                                                            <span className="rounded-[3px] bg-green-400/[0.16] px-0.5 text-green-400 outline outline-offset-2 outline-green-400">
-                                                                not
-                                                            </span>{' '}
-                                                            <span className="rounded-[3px] bg-green-400/[0.16] px-0.5 text-green-400 outline outline-offset-2 outline-green-400">
-                                                                be
-                                                            </span>{' '}
-                                                            <span className="rounded-[3px] bg-green-400/[0.16] px-0.5 text-orange-500 outline outline-offset-2 outline-green-400">
-                                                                able
-                                                            </span>{' '}
-                                                            <span className="text-blue-400">
-                                                                to
-                                                            </span>{' '}
-                                                            <span className="text-white">
-                                                                deter
-                                                            </span>
-                                                            .{' '}
-                                                            <span className="text-red-400">
-                                                                Before
-                                                            </span>
-                                                            …
-                                                        </span>
-                                                    </div>
-                                                )}
-
-                                                <div className="absolute inset-x-0 bottom-0 z-2 bg-gradient-to-t from-black/78 px-4 py-3.5">
-                                                    <div className="flex items-center gap-2.5 text-white">
-                                                        <Menu
-                                                            size={20}
-                                                            className="rotate-90"
-                                                        />
-                                                        <div className="h-1 flex-1 rounded-full bg-white/28">
-                                                            <div className="h-full w-[38%] rounded-full bg-red-500" />
-                                                        </div>
-                                                        <span className="text-[11px] text-white/75">
-                                                            12:04
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            {popupMode === 'word' && (
-                                                <div className="ts-wordpop absolute bottom-38 left-[57%] z-6 w-59 -translate-x-1/2 rounded-[14px] border border-neutral-200 bg-white p-4 shadow-[0_20px_46px_rgba(0,0,0,.28)] sm:bottom-30">
-                                                    <div className="ts-wordpop-tail absolute -bottom-1.75 left-1/2 -ml-1.75 size-3.5 rotate-45 border-r border-b border-neutral-200 bg-white" />
-                                                    <div className="flex items-center justify-between">
-                                                        <div className="flex items-baseline gap-1.75">
-                                                            <span className="text-[17px] font-bold text-[#171717]">
-                                                                able
-                                                            </span>
-                                                            <span className="text-[11px] text-[#a1a1a1] italic">
-                                                                adj
-                                                            </span>
-                                                        </div>
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="text-[11px] font-semibold text-[#a1a1a1]">
-                                                                #241
-                                                            </span>
-                                                            <X
-                                                                size={16}
-                                                                className="text-[#a1a1a1]"
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                    <div className="mt-2 text-sm font-semibold text-[#171717]">
-                                                        képes, tud valamit
-                                                        megtenni
-                                                    </div>
-                                                    <div className="mt-0.75 text-xs text-[#737373]">
-                                                        ≈ capable, competent
-                                                    </div>
-                                                    <div className="mt-2.5 border-l-2 border-indigo-200 pl-2.25">
-                                                        <div className="text-xs text-[#404040] italic">
-                                                            „She is able to
-                                                            speak three
-                                                            languages.”
-                                                        </div>
-                                                        <div className="text-xs text-[#a1a1a1]">
-                                                            „Három nyelven tud
-                                                            beszélni.”
-                                                        </div>
-                                                    </div>
-                                                    <div className="mt-2.5 flex flex-wrap gap-1.5">
-                                                        <span className="rounded-full bg-neutral-100 px-2.5 py-1.25 text-xs font-semibold text-neutral-600">
-                                                            Tanulom
-                                                        </span>
-                                                        <span className="rounded-full bg-orange-100 px-2.5 py-1.25 text-xs font-bold text-orange-600">
-                                                            Mentett
-                                                        </span>
-                                                        <span className="rounded-full bg-neutral-100 px-2.5 py-1.25 text-xs font-semibold text-neutral-600">
-                                                            Tudom
-                                                        </span>
-                                                        <span className="rounded-full bg-neutral-100 px-2.5 py-1.25 text-xs font-semibold text-neutral-600">
-                                                            Kiejtés
-                                                        </span>
-                                                        <span className="rounded-full bg-neutral-100 px-2.5 py-1.25 text-xs font-semibold text-neutral-600">
-                                                            Gyakorlásra
-                                                        </span>
-                                                    </div>
-                                                    <div className="mt-3 flex items-center justify-between">
-                                                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-700">
-                                                            Megnyitás
-                                                            <ArrowRight
-                                                                size={15}
-                                                            />
-                                                        </span>
-                                                        <div className="flex gap-1.5 text-[#a1a1a1]">
-                                                            <Volume2
-                                                                size={17}
-                                                            />
-                                                            <Sparkles
-                                                                size={17}
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            )}
-
-                                            {popupMode === 'phrase' && (
-                                                <div className="ts-wordpop absolute bottom-38 left-[47%] z-7 w-60 -translate-x-1/2 rounded-[14px] border border-neutral-200 bg-white p-4 shadow-[0_20px_46px_rgba(0,0,0,.28)] sm:bottom-30">
-                                                    <div className="ts-wordpop-tail absolute -bottom-1.75 left-1/2 -ml-1.75 size-3.5 rotate-45 border-r border-b border-neutral-200 bg-white" />
-                                                    <div className="flex items-center justify-between">
-                                                        <span className="text-base font-bold text-[#171717]">
-                                                            not be able
-                                                        </span>
-                                                        <X
-                                                            size={16}
-                                                            className="text-[#a1a1a1]"
-                                                        />
-                                                    </div>
-                                                    <div className="mt-1.25 inline-flex items-center gap-1.25 rounded-full bg-green-50 px-2.25 py-0.75 text-[11px] font-semibold text-green-700">
-                                                        <MousePointerClick
-                                                            size={14}
-                                                        />
-                                                        3 szó kijelölve · shift
-                                                        + kattintás
-                                                    </div>
-                                                    <div className="mt-2.5 text-[13px] leading-[1.5] text-[#737373]">
-                                                        A kifejezés még nincs az
-                                                        adatbázisban — vedd fel
-                                                        egészben.
-                                                    </div>
-                                                    <div className="mt-3 flex flex-col gap-2.25 border-t border-neutral-100 pt-3">
-                                                        <span className="inline-flex items-center gap-1.25 text-[13px] font-semibold text-indigo-700">
-                                                            Saját kifejezésként
-                                                            hozzáadom
-                                                            <ArrowRight
-                                                                size={15}
-                                                            />
-                                                        </span>
-                                                        <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-purple-700">
-                                                            <Sparkles
-                                                                size={16}
-                                                            />
-                                                            AI-kitöltés —
-                                                            közvetlen a webappba
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        {/*
-                                         * Offline lejátszó kivezetve a főoldalról (2026-07-28):
-                                         * <div className="mt-4 flex items-center justify-center gap-2">
-                                         *     <LayoutGrid size={18} className="text-indigo-700" />
-                                         *     <span className="text-[13px] font-medium text-[#525252]">
-                                         *         Saját TopWords lejátszó — macOS &amp; Windows
-                                         *     </span>
-                                         * </div>
-                                         */}
-                                    </div>
-
-                                    <div className="ts-textrow mt-7.5 grid grid-cols-1 items-center gap-8 lg:grid-cols-[1.15fr_1fr] lg:gap-10">
-                                        <div>
-                                            <span className="inline-flex items-center gap-1.5 rounded-full border border-indigo-100 bg-white px-3 py-1.25 text-xs font-bold tracking-[.6px] text-indigo-700">
-                                                FELIRATELEMZÉS
-                                            </span>
-                                            <h3 className="mt-3.5 text-[clamp(24px,3vw,32px)] leading-[1.15] font-bold tracking-[-.5px] text-[#171717]">
-                                                Nézz YouTube-ot és Netflixet —{' '}
-                                                <span className="text-indigo-700">
-                                                    tanulj közben
-                                                </span>
-                                            </h3>
-                                            <p className="mt-3 text-base leading-[1.65] text-[#525252]">
-                                                Elemezd a feliratokat, és lásd
-                                                élőben, hány szót értesz. Az
-                                                ismeretlen szavak egy
-                                                kattintással a tanulólistádba
-                                                kerülnek.
-                                            </p>
-                                            <div className="mt-4.5 flex flex-wrap gap-2.5">
-                                                <span className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-[13px] font-semibold text-[#171717]">
-                                                    <Play
-                                                        size={17}
-                                                        className="text-[#ff0033]"
-                                                    />
-                                                    YouTube
-                                                </span>
-                                                <span className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-[13px] font-semibold text-[#171717]">
-                                                    <Film
-                                                        size={17}
-                                                        className="text-[#e50914]"
-                                                    />
-                                                    Netflix
-                                                </span>
-                                                {/*
-                                                 * Offline lejátszó kivezetve a főoldalról (2026-07-28):
-                                                 * <span className="inline-flex items-center gap-1.5 rounded-full border border-green-200 bg-green-50 px-3.5 py-2 text-[13px] font-semibold text-green-700">
-                                                 *     <Download size={17} />
-                                                 *     Offline lejátszó
-                                                 * </span>
-                                                 */}
-                                            </div>
-                                        </div>
-                                        <div className="flex flex-col gap-2.75">
-                                            {[
-                                                'YouTube- és Netflix-feliratok elemzése egy kattintással',
-                                                'Szavak kiemelése lejátszás közben — Tudom · Tanulom · Ismeretlen',
-                                                'Az ismeretlen szavak egy kattintással a listádba kerülnek',
-                                            ].map((t) => (
-                                                <div
-                                                    key={t}
-                                                    className="flex items-start gap-2.5 text-[15px] leading-[1.5] text-[#404040]"
-                                                >
-                                                    <CheckCircle2
-                                                        size={20}
-                                                        className="flex-none text-green-500"
-                                                    />
-                                                    {t}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </Reveal>
-
-                                <div className="mt-11 grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4">
-                                    {ANALYZE_BULLETS.map((b) => (
-                                        <Reveal
-                                            key={b.title}
-                                            className="rounded-[14px] border border-neutral-200 bg-[#fafafa] p-5 transition-all duration-250 hover:-translate-y-1.5 hover:shadow-[0_24px_50px_rgba(0,0,0,.12)]"
-                                        >
-                                            <span className="grid size-10.5 place-items-center rounded-[11px] bg-indigo-100 text-indigo-700">
-                                                <b.icon size={23} />
-                                            </span>
-                                            <div className="mt-3 text-[15px] font-semibold text-[#171717]">
-                                                {b.title}
-                                            </div>
-                                            <div className="mt-1.25 text-[13px] leading-[1.5] text-[#737373]">
-                                                {b.desc}
-                                            </div>
-                                        </Reveal>
-                                    ))}
-                                </div>
-
-                                <Reveal className="mt-6 rounded-3xl bg-[#171717] p-7.5 shadow-[0_24px_60px_rgba(0,0,0,.24)]">
-                                    <div className="flex flex-wrap gap-2">
-                                        <span className="rounded-lg bg-indigo-700 px-3.5 py-1.75 text-xs font-semibold text-white">
-                                            Szöveg
-                                        </span>
-                                        <span className="rounded-lg bg-neutral-800 px-3.5 py-1.75 text-xs font-semibold text-neutral-400">
-                                            URL
-                                        </span>
-                                        <span className="inline-flex items-center gap-1.25 rounded-lg bg-[#ff0033] px-3.5 py-1.75 text-xs font-bold text-white">
-                                            <Play size={15} />
-                                            YouTube
-                                        </span>
-                                        <span className="inline-flex items-center gap-1.25 rounded-lg bg-[#e50914] px-3.5 py-1.75 text-xs font-bold text-white">
-                                            <Film size={15} />
-                                            Netflix
-                                        </span>
-                                        <span className="rounded-lg bg-neutral-800 px-3.5 py-1.75 text-xs font-semibold text-neutral-400">
-                                            Könyv
-                                        </span>
-                                    </div>
-                                    <p className="mt-4.5 text-base leading-[1.85] text-neutral-300">
-                                        The space{' '}
-                                        <span className="rounded bg-green-500 px-1 py-0.25 text-green-950">
-                                            between
-                                        </span>{' '}
-                                        two{' '}
-                                        <span className="rounded bg-blue-500 px-1 py-0.25 text-white">
-                                            cities
-                                        </span>{' '}
-                                        lies a{' '}
-                                        <span className="rounded bg-red-500 px-1 py-0.25 text-white">
-                                            valley
-                                        </span>{' '}
-                                        known for its{' '}
-                                        <span className="rounded bg-green-500 px-1 py-0.25 text-green-950">
-                                            remarkable
-                                        </span>{' '}
-                                        landscape and{' '}
-                                        <span className="rounded bg-blue-500 px-1 py-0.25 text-white">
-                                            resilient
-                                        </span>{' '}
-                                        wildlife.
-                                    </p>
-                                    <div className="mt-5 flex items-center gap-4.5 border-t border-neutral-800 pt-4.5">
-                                        <div className="flex-1">
-                                            <div className="mb-2 flex justify-between text-[13px] text-neutral-400">
-                                                <span>Érthetőség</span>
-                                                <span className="font-semibold text-green-400">
-                                                    87%
-                                                </span>
-                                            </div>
-                                            <div className="h-2.5 overflow-hidden rounded-full bg-neutral-800">
-                                                <div
-                                                    ref={bar2Ref}
-                                                    className="h-full w-[87%] origin-left [transform:scaleX(0)] rounded-full bg-gradient-to-r from-green-400 to-green-500"
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="mt-4 flex gap-4 text-xs text-neutral-400">
-                                        <span className="inline-flex items-center gap-1.5">
-                                            <span className="size-2.5 rounded-[3px] bg-green-500" />
-                                            Tudom
-                                        </span>
-                                        <span className="inline-flex items-center gap-1.5">
-                                            <span className="size-2.5 rounded-[3px] bg-blue-500" />
-                                            Tanulom
-                                        </span>
-                                        <span className="inline-flex items-center gap-1.5">
-                                            <span className="size-2.5 rounded-[3px] bg-red-500" />
-                                            Ismeretlen
-                                        </span>
-                                    </div>
-                                </Reveal>
-                            </div>
-                        </section>
+                        <TextAnalysisScrollSection />
 
                         {/* FLASHCARD SRS */}
                         <section id="flashcard" className="bg-white px-5 py-24">
                             <Reveal className="mx-auto mb-14 max-w-[760px] text-center">
-                                <span className="inline-block rounded-full bg-indigo-100 px-3.75 py-1.5 text-xs font-bold tracking-[1.2px] text-indigo-700">
-                                    FLASHCARD SRS
-                                </span>
-                                <h2 className="mt-4.5 text-[clamp(30px,4vw,46px)] leading-[1.1] font-bold tracking-[-1px] text-[#171717]">
+                                <h2 className="text-[clamp(30px,4vw,46px)] leading-[1.1] font-bold tracking-[-1px] text-[#171717]">
                                     Intelligens ismétlési rendszer
                                 </h2>
                                 <p className="mx-auto mt-4 max-w-[560px] text-[17px] leading-[1.6] text-[#737373]">
