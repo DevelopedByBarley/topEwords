@@ -123,7 +123,7 @@ test('book limit follows the paid plan for any active subscription', function ()
     $this->actingAs($user)
         ->getJson(route('text-analysis.books.index'))
         ->assertOk()
-        ->assertJsonPath('bookLimit', 7);
+        ->assertJsonPath('bookLimit', 3);
 });
 
 test('youtube limit follows the paid plan for any active subscription', function () {

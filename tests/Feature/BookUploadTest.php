@@ -152,6 +152,61 @@ test('the per-plan book count limit blocks further uploads', function () {
     @unlink($path);
 });
 
+/**
+ * Egy makeEpub()-EPUB-ot inkompresszibilis véletlen bájtokkal a kért méret fölé
+ * fúj. Véletlen bájtok kellenek: egy ismétlődő prózát a deflate összezsugorítana,
+ * és akkor a fájlméret helyett a kinyerési korlátokat tesztelnénk.
+ */
+function makeEpubPaddedTo(int $padBytes): string
+{
+    $prose = str_repeat('<p>This is a sufficiently long sentence of readable prose.</p>', 5);
+    $path = makeEpub($prose);
+
+    $zip = new ZipArchive;
+    $zip->open($path);
+    $zip->addFromString('assets/cover.bin', random_bytes($padBytes));
+    $zip->close();
+
+    return $path;
+}
+
+test('a 3 MB-nál nagyobb EPUB-ot a validáció utasítja el, kinyerés előtt', function () {
+    $user = User::factory()->create();
+
+    $path = makeEpubPaddedTo(4 * 1024 * 1024);
+    expect(filesize($path))->toBeGreaterThan(3 * 1024 * 1024);
+
+    $upload = new UploadedFile($path, 'huge.epub', 'application/epub+zip', null, true);
+
+    // A `file` kulcsú validációs hiba bizonyítja, hogy a `max:` bukott el, nem
+    // valamelyik későbbi kinyerési korlát (azok `error` kulccsal válaszolnak).
+    $this->actingAs($user)
+        ->postJson(route('text-analysis.books.store'), ['file' => $upload])
+        ->assertStatus(422)
+        ->assertJsonValidationErrors('file');
+
+    expect(UserBook::where('user_id', $user->id)->count())->toBe(0);
+
+    @unlink($path);
+});
+
+test('a 3 MB-os keret alatti EPUB átmegy', function () {
+    $user = User::factory()->create();
+
+    $path = makeEpubPaddedTo(2 * 1024 * 1024);
+    expect(filesize($path))->toBeLessThan(3 * 1024 * 1024);
+
+    $upload = new UploadedFile($path, 'ok.epub', 'application/epub+zip', null, true);
+
+    $this->actingAs($user)
+        ->post(route('text-analysis.books.store'), ['file' => $upload])
+        ->assertOk();
+
+    expect(UserBook::where('user_id', $user->id)->count())->toBe(1);
+
+    @unlink($path);
+});
+
 test('a book whose extracted text exceeds the size cap is rejected with 422', function () {
     $user = User::factory()->create();
 

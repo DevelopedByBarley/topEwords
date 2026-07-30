@@ -16,11 +16,49 @@ interface SelectableTokensProps {
     onWordClick?: (word: string, context: string) => void;
     /** A kereső modal nyitott állapota — záráskor töröljük a kijelölést. */
     lookupOpen?: boolean;
+    /**
+     * Koppintással jelölhető kifejezés-mód: Shift nélkül is kijelölhető
+     * tartomány, hogy a funkció mobilon (ahol nincs Shift) is elérhető legyen.
+     */
+    phraseMode?: boolean;
+    /** A kifejezés átadása után hívjuk, hogy a hívó kiléphessen a kifejezés-módból. */
+    onPhraseComplete?: () => void;
     /** Egy blokk inline tartalmát a saját konténerébe csomagolja (pl. <p> vagy felirat-sor). */
     renderBlock: (inline: React.ReactNode, blockIndex: number) => React.ReactNode;
 }
 
+interface FlatToken {
+    text: string;
+    context: string;
+}
+
 const normalizePhrase = (value: string): string => value.replace(/\s+/g, ' ').trim();
+
+/**
+ * A kijelölt tartomány átadása a kereső modalnak.
+ *
+ * @return Igaz, ha a kifejezés átadható volt (a plafonnál hosszabb nem az).
+ */
+function commitPhrase(
+    lo: number,
+    hi: number,
+    items: FlatToken[],
+    onWordClick?: (word: string, context: string) => void,
+): boolean {
+    // A kijelölt kifejezésnek a kiemelés-motor plafonjához kell igazodnia —
+    // hosszabb kifejezés menthető lenne, de olvasáskor a mohó n-gram illesztés
+    // (MAX_PHRASE_WORDS) sosem festené ki.
+    if (hi - lo + 1 > MAX_PHRASE_WORDS) {
+        showToast('error', `Legfeljebb ${MAX_PHRASE_WORDS} szavas kifejezés jelölhető ki.`);
+
+        return false;
+    }
+
+    const phrase = normalizePhrase(items.slice(lo, hi + 1).map((f) => f.text).join(' '));
+    onWordClick?.(phrase, items[lo].context);
+
+    return true;
+}
 
 /**
  * Kiemelt, kattintható szavak megjelenítése a szöveg- és felirat-nézethez.
@@ -29,16 +67,30 @@ const normalizePhrase = (value: string): string => value.replace(/\s+/g, ' ').tr
  * - Shift+kattintás(ok): a modal NEM ugrik fel, csak a horgony és a kattintott
  *   szó közötti tartomány jelölődik ki. A Shift elengedésekor nyílik meg a modal
  *   az összefűzött, többszavas kifejezéssel.
+ * - Kifejezés-módban (`phraseMode`) Shift nélkül is megy: az első koppintás a
+ *   kezdet, a második a vég — ez az egyetlen elérhető út érintőképernyőn.
  * - A modal bezárásakor (vagy elkattintáskor) a kijelölés törlődik.
+ *
+ * Billentyűzet: a szó-folyam egyetlen tab-stop (roving tabindex), a nyilakkal
+ * lépkedni, Enterrel/Space-szel megnyitni lehet — így több ezer szó sem tesz
+ * végigtabbolhatatlanná egy oldalt.
  */
-export default function SelectableTokens({ blocks, onWordClick, lookupOpen, renderBlock }: SelectableTokensProps) {
+export default function SelectableTokens({
+    blocks,
+    onWordClick,
+    lookupOpen,
+    phraseMode = false,
+    onPhraseComplete,
+    renderBlock,
+}: SelectableTokensProps) {
     const [anchor, setAnchor] = useState<number | null>(null);
     const [range, setRange] = useState<[number, number] | null>(null);
+    const [focusIndex, setFocusIndex] = useState(0);
 
     // Globális, dokumentum-sorrendű indexet rendelünk minden kattintható tokenhez (a
     // szeparátorok -1-et kapnak), és párhuzamosan lapos listát építünk a kereséshez.
     const decorated: { token: RenderToken; index: number }[][] = [];
-    const flat: { text: string; context: string }[] = [];
+    const flat: FlatToken[] = [];
     let counter = 0;
 
     for (const block of blocks) {
@@ -62,6 +114,7 @@ export default function SelectableTokens({ blocks, onWordClick, lookupOpen, rend
     const flatRef = useRef(flat);
     const onWordClickRef = useRef(onWordClick);
     const shiftSelectedRef = useRef(false);
+    const tokenRefs = useRef(new Map<number, HTMLSpanElement>());
 
     useEffect(() => {
         rangeRef.current = range;
@@ -83,23 +136,7 @@ export default function SelectableTokens({ blocks, onWordClick, lookupOpen, rend
                 return;
             }
 
-            const [lo, hi] = selected;
-
-            // A kijelölt kifejezésnek a kiemelés-motor plafonjához kell
-            // igazodnia — hosszabb kifejezés menthető lenne, de olvasáskor a
-            // mohó n-gram illesztés (MAX_PHRASE_WORDS) sosem festené ki.
-            if (hi - lo + 1 > MAX_PHRASE_WORDS) {
-                showToast(
-                    'error',
-                    `Legfeljebb ${MAX_PHRASE_WORDS} szavas kifejezés jelölhető ki.`,
-                );
-
-                return;
-            }
-
-            const items = flatRef.current;
-            const phrase = normalizePhrase(items.slice(lo, hi + 1).map((f) => f.text).join(' '));
-            onWordClickRef.current?.(phrase, items[lo].context);
+            commitPhrase(selected[0], selected[1], flatRef.current, onWordClickRef.current);
         };
         window.addEventListener('keyup', handleKeyUp);
 
@@ -120,17 +157,49 @@ export default function SelectableTokens({ blocks, onWordClick, lookupOpen, rend
         }
     }
 
-    const handleClick = (index: number, shiftKey: boolean) => {
-        if (shiftKey) {
-            // Shift: csak a kijelölést építjük; a modal NEM nyílik meg kattintáskor.
-            shiftSelectedRef.current = true;
+    // Kifejezés-módból kilépve a félkész kijelölés is eltűnik, hogy a következő
+    // koppintás ne folytassa egy korábban elkezdett tartományt.
+    const [prevPhraseMode, setPrevPhraseMode] = useState(phraseMode);
 
-            if (anchor === null) {
-                setAnchor(index);
-                setRange([index, index]);
-            } else {
-                setRange([Math.min(anchor, index), Math.max(anchor, index)]);
-            }
+    if (prevPhraseMode !== phraseMode) {
+        setPrevPhraseMode(phraseMode);
+        setAnchor(null);
+        setRange(null);
+    }
+
+    /** Kijelölés-építés Shift-tel vagy kifejezés-módban. A második pont zárja a kifejezést. */
+    const extendSelection = (index: number) => {
+        if (anchor === null) {
+            setAnchor(index);
+            setRange([index, index]);
+
+            return;
+        }
+
+        const lo = Math.min(anchor, index);
+        const hi = Math.max(anchor, index);
+
+        // Shift-tel a kifejezést a Shift elengedése zárja (közben szabadon
+        // igazítható); koppintós módban a második pont azonnal zár.
+        if (!phraseMode) {
+            setRange([lo, hi]);
+
+            return;
+        }
+
+        if (!commitPhrase(lo, hi, flat, onWordClick)) {
+            return;
+        }
+
+        setAnchor(null);
+        setRange(null);
+        onPhraseComplete?.();
+    };
+
+    const handleActivate = (index: number, shiftKey: boolean) => {
+        if (shiftKey || phraseMode) {
+            shiftSelectedRef.current = shiftKey;
+            extendSelection(index);
 
             return;
         }
@@ -139,6 +208,46 @@ export default function SelectableTokens({ blocks, onWordClick, lookupOpen, rend
         setRange(null);
         onWordClick?.(flat[index].text, flat[index].context);
     };
+
+    /** Nyilazás a szavak között: a fókusz mozgatása és a roving tabindex frissítése. */
+    const moveFocus = (nextIndex: number) => {
+        const clamped = Math.max(0, Math.min(flat.length - 1, nextIndex));
+        setFocusIndex(clamped);
+        tokenRefs.current.get(clamped)?.focus();
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent, index: number) => {
+        switch (e.key) {
+            case 'Enter':
+            case ' ':
+                e.preventDefault();
+                handleActivate(index, e.shiftKey);
+                break;
+            case 'ArrowRight':
+            case 'ArrowDown':
+                e.preventDefault();
+                moveFocus(index + 1);
+                break;
+            case 'ArrowLeft':
+            case 'ArrowUp':
+                e.preventDefault();
+                moveFocus(index - 1);
+                break;
+            case 'Home':
+                e.preventDefault();
+                moveFocus(0);
+                break;
+            case 'End':
+                e.preventDefault();
+                moveFocus(flat.length - 1);
+                break;
+            default:
+                break;
+        }
+    };
+
+    // A tokenszám a szöveg váltásakor csökkenhet — a fókusz-index ne mutasson túl a végén.
+    const rovingIndex = Math.min(focusIndex, Math.max(0, flat.length - 1));
 
     return (
         <>
@@ -154,14 +263,29 @@ export default function SelectableTokens({ blocks, onWordClick, lookupOpen, rend
                     return (
                         <span
                             key={ti}
+                            ref={(el) => {
+                                if (el) {
+                                    tokenRefs.current.set(index, el);
+                                } else {
+                                    tokenRefs.current.delete(index);
+                                }
+                            }}
+                            role="button"
+                            tabIndex={index === rovingIndex ? 0 : -1}
+                            // A szó maga a hozzáférhető név — külön aria-label
+                            // minden tokenre feleslegesen szószátyár lenne.
+                            // Az `aria-pressed` csak a kijelölteken jelenik meg.
+                            aria-pressed={selected || undefined}
                             // Shift+kattintásnál ne induljon natív szövegkijelölés.
                             onMouseDown={(e) => {
                                 if (e.shiftKey) {
                                     e.preventDefault();
                                 }
                             }}
-                            onClick={(e) => handleClick(index, e.shiftKey)}
-                            className={`cursor-pointer rounded px-0.5 transition-opacity hover:opacity-70 ${statusClass} ${selected ? 'ring-2 ring-primary ring-offset-1' : ''}`}
+                            onClick={(e) => handleActivate(index, e.shiftKey)}
+                            onKeyDown={(e) => handleKeyDown(e, index)}
+                            onFocus={() => setFocusIndex(index)}
+                            className={`cursor-pointer rounded px-0.5 transition-opacity hover:opacity-70 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none ${statusClass} ${selected ? 'ring-2 ring-primary ring-offset-1' : ''}`}
                         >
                             {token.text}
                         </span>

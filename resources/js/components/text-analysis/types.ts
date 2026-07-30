@@ -1,4 +1,4 @@
-import { BookOpen, FileText, Globe, Youtube } from 'lucide-react';
+import { BookMarked, BookOpen, CheckCheck, Clock, FileText, Globe, HelpCircle, Mic, PenLine, Youtube } from 'lucide-react';
 
 export type InputMode = 'text' | 'youtube' | 'url' | 'book';
 
@@ -8,6 +8,9 @@ export interface UserBook {
     file_type: string;
     total_pages: number;
 }
+
+/** Melyik lapozó-gomb tölt éppen — csak az forogjon, amit a felhasználó megnyomott. */
+export type PageDirection = 'prev' | 'next' | null;
 
 /** Egy YouTube-felirat időbélyeges sora: t = kezdés másodpercben, x = szöveg. */
 export interface LyricSegment {
@@ -52,7 +55,7 @@ export interface HistoryEntry {
     date: string;
 }
 
-export type TokenStatus = 'known' | 'learning' | 'saved' | 'pronunciation' | 'in_list' | 'not_in_list';
+export type TokenStatus = 'known' | 'learning' | 'saved' | 'pronunciation' | 'practice' | 'in_list' | 'not_in_list';
 
 export type LookupResult =
     | { type: 'word'; id: number; word: string; meaning_hu: string | null; example_en: string | null; part_of_speech: string | null; rank: number; status: string | null }
@@ -94,14 +97,75 @@ export const EMPTY_CUSTOM_WORD_FORM: CustomWordForm = {
     noun_plural: '', adj_comparative: '', adj_superlative: '',
 };
 
-export const STATUS_STYLES: Record<TokenStatus, string> = {
-    known: 'bg-green-100 text-green-900 dark:bg-green-900/40 dark:text-green-300',
-    learning: 'bg-blue-100 text-blue-900 dark:bg-blue-900/40 dark:text-blue-300',
-    saved: 'bg-yellow-100 text-yellow-900 dark:bg-yellow-900/40 dark:text-yellow-300',
-    pronunciation: 'bg-violet-100 text-violet-900 dark:bg-violet-900/40 dark:text-violet-300',
-    in_list: 'bg-red-100 text-red-900 dark:bg-red-900/40 dark:text-red-300',
-    not_in_list: '',
+export interface TokenStatusMeta {
+    /** A szóra kerülő kiemelés — üres, ha a státusz nem kap színt. */
+    highlight: string;
+    /** A jelmagyarázatban megjelenő megnevezés. */
+    label: string;
+    icon: React.ElementType;
+    iconClass: string;
+}
+
+/**
+ * A kiemelés-színek és a jelmagyarázat EGYETLEN forrása. A megnevezések és a
+ * színcsaládok szándékosan a Szavak oldal `STATUS_CONFIG`-jával egyeznek: a
+ * felhasználó ugyanazt a szót ugyanabban a színben látja mindkét felületen.
+ */
+export const TOKEN_STATUS_META: Record<TokenStatus, TokenStatusMeta> = {
+    known: {
+        highlight: 'bg-green-100 text-green-900 dark:bg-green-900/40 dark:text-green-300',
+        label: 'Tudom',
+        icon: CheckCheck,
+        iconClass: 'text-green-500',
+    },
+    learning: {
+        highlight: 'bg-blue-100 text-blue-900 dark:bg-blue-900/40 dark:text-blue-300',
+        label: 'Tanulom',
+        icon: Clock,
+        iconClass: 'text-blue-500',
+    },
+    in_list: {
+        highlight: 'bg-red-100 text-red-900 dark:bg-red-900/40 dark:text-red-300',
+        label: 'Top 10 000, de ismeretlen',
+        icon: BookOpen,
+        iconClass: 'text-red-500',
+    },
+    saved: {
+        highlight: 'bg-orange-100 text-orange-900 dark:bg-orange-900/40 dark:text-orange-300',
+        label: 'Később',
+        icon: BookMarked,
+        iconClass: 'text-orange-500',
+    },
+    pronunciation: {
+        highlight: 'bg-violet-100 text-violet-900 dark:bg-violet-900/40 dark:text-violet-300',
+        label: 'Kiejtés',
+        icon: Mic,
+        iconClass: 'text-violet-500',
+    },
+    practice: {
+        highlight: 'bg-rose-100 text-rose-900 dark:bg-rose-900/40 dark:text-rose-300',
+        label: 'Gyakorlásra',
+        icon: PenLine,
+        iconClass: 'text-rose-500',
+    },
+    not_in_list: {
+        highlight: '',
+        label: 'Tulajdonnév / ritka szó',
+        icon: HelpCircle,
+        iconClass: 'text-muted-foreground',
+    },
 };
+
+/**
+ * Mindig látható jelmagyarázat-elemek. A többi státusz (Később, Kiejtés,
+ * Gyakorlásra) csak akkor jelenik meg, ha az adott szövegben elő is fordul —
+ * így a jelmagyarázat nem hét csempével indul.
+ */
+export const ALWAYS_SHOWN_STATUSES: TokenStatus[] = ['known', 'learning', 'in_list', 'not_in_list'];
+
+export const STATUS_STYLES: Record<TokenStatus, string> = Object.fromEntries(
+    Object.entries(TOKEN_STATUS_META).map(([status, meta]) => [status, meta.highlight]),
+) as Record<TokenStatus, string>;
 
 export const POS_LABELS: Record<string, string> = {
     verb: 'ige', noun: 'főnév', adj: 'melléknév', adv: 'határozószó',

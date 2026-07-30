@@ -36,7 +36,7 @@ return [
             'quiz_per_round' => null,
             'cloze_per_round' => null,
             'text_analyses_per_day' => 50,
-            'books' => 7,
+            'books' => 3,
             'youtube_transcripts' => 40,
             'extension_writes_per_day' => null,
             'ai_budget_micros' => 500000,

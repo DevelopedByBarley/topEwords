@@ -10,9 +10,11 @@ interface LyricsViewProps {
     phraseStatuses?: Record<string, TokenStatus>;
     onWordClick?: (word: string, context: string) => void;
     lookupOpen?: boolean;
+    phraseMode?: boolean;
+    onPhraseComplete?: () => void;
 }
 
-export default function LyricsView({ segments, tokenStatuses, phraseStatuses, onWordClick, lookupOpen }: LyricsViewProps) {
+export default function LyricsView({ segments, tokenStatuses, phraseStatuses, onWordClick, lookupOpen, phraseMode, onPhraseComplete }: LyricsViewProps) {
     const blocks: TokenBlock[] = segments.map((seg) => ({
         tokens: buildRenderTokens(seg.x, tokenStatuses, phraseStatuses ?? {}),
         getContext: () => seg.x,
@@ -24,6 +26,8 @@ export default function LyricsView({ segments, tokenStatuses, phraseStatuses, on
                 blocks={blocks}
                 onWordClick={onWordClick}
                 lookupOpen={lookupOpen}
+                phraseMode={phraseMode}
+                onPhraseComplete={onPhraseComplete}
                 renderBlock={(inline, i) => (
                     <div key={i} className="flex gap-3 border-b border-border/50 py-1.5 last:border-0">
                         <span className="shrink-0 pt-1 font-mono text-xs tabular-nums text-muted-foreground">

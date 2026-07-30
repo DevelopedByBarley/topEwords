@@ -1,7 +1,9 @@
-import { BookOpen, CheckCheck, Clock, HelpCircle, X } from 'lucide-react';
+import { Highlighter, RotateCcw, X } from 'lucide-react';
+import { useState } from 'react';
 import HighlightedText from '@/components/text-analysis/highlighted-text';
 import LyricsView from '@/components/text-analysis/lyrics-view';
-import type { AnalysisResult, LyricSegment } from '@/components/text-analysis/types';
+import { ALWAYS_SHOWN_STATUSES, TOKEN_STATUS_META } from '@/components/text-analysis/types';
+import type { AnalysisResult, LyricSegment, TokenStatus } from '@/components/text-analysis/types';
 import { Button } from '@/components/ui/button';
 
 interface AnalysisResultViewProps {
@@ -15,6 +17,10 @@ interface AnalysisResultViewProps {
 }
 
 export default function AnalysisResultView({ result, activeText, segments, onWordClick, onReset, lookupOpen, children }: AnalysisResultViewProps) {
+    // Koppintásos kifejezés-jelölés: érintőképernyőn nincs Shift, ezért a
+    // többszavas felvitel csak ezen az úton érhető el.
+    const [phraseMode, setPhraseMode] = useState(false);
+
     const comprehensionColor =
         result.comprehension >= 90 ? 'text-green-600 dark:text-green-400'
         : result.comprehension >= 70 ? 'text-blue-600 dark:text-blue-400'
@@ -28,6 +34,18 @@ export default function AnalysisResultView({ result, activeText, segments, onWor
         : 'bg-red-500';
 
     const inListUnknownCount = Object.values(result.tokenStatuses).filter((s) => s === 'in_list').length;
+
+    // A jelmagyarázat csak a szövegben tényleg előforduló státuszokat sorolja fel
+    // (a négy alap mindig látszik) — így nem indul hét csempével.
+    const presentStatuses = new Set<TokenStatus>([
+        ...Object.values(result.tokenStatuses),
+        ...Object.values(result.phraseStatuses ?? {}),
+    ]);
+    const legendStatuses = (Object.keys(TOKEN_STATUS_META) as TokenStatus[]).filter(
+        (status) => ALWAYS_SHOWN_STATUSES.includes(status) || presentStatuses.has(status),
+    );
+
+    const lyricSegments = segments && segments.length > 0 ? segments : null;
 
     return (
         <div className="flex flex-col gap-5">
@@ -43,12 +61,19 @@ export default function AnalysisResultView({ result, activeText, segments, onWor
                             {result.knownCount.toLocaleString()} ismert szó / {result.totalWords.toLocaleString()} szó összesen
                         </p>
                     </div>
-                    <Button variant="ghost" size="icon" onClick={onReset} title="Új elemzés">
+                    <Button variant="ghost" size="icon" onClick={onReset} title="Új elemzés" aria-label="Elemzés bezárása, új elemzés indítása">
                         <X className="size-4" />
                     </Button>
                 </div>
 
-                <div className="mb-5 h-3 w-full overflow-hidden rounded-full bg-secondary">
+                <div
+                    className="mb-5 h-3 w-full overflow-hidden rounded-full bg-secondary"
+                    role="progressbar"
+                    aria-valuenow={result.comprehension}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-label="Érthetőség"
+                >
                     <div
                         className={`h-3 rounded-full transition-all duration-700 ${comprehensionBarColor}`}
                         style={{ width: `${result.comprehension}%` }}
@@ -85,32 +110,74 @@ export default function AnalysisResultView({ result, activeText, segments, onWor
 
             {/* Legend */}
             <div className="flex flex-wrap gap-2 text-xs">
-                {([
-                    { label: 'Tudom', cls: 'bg-green-100 text-green-900 dark:bg-green-900/40 dark:text-green-300', Icon: CheckCheck, iconCls: 'text-green-500' },
-                    { label: 'Tanulom', cls: 'bg-blue-100 text-blue-900 dark:bg-blue-900/40 dark:text-blue-300', Icon: Clock, iconCls: 'text-blue-500' },
-                    { label: 'Top 10k, de ismeretlen', cls: 'bg-red-100 text-red-900 dark:bg-red-900/40 dark:text-red-300', Icon: BookOpen, iconCls: 'text-red-500' },
-                    { label: 'Tulajdonnév / ritka szó', cls: '', Icon: HelpCircle, iconCls: 'text-muted-foreground' },
-                ]).map(({ label, cls, Icon, iconCls }) => (
-                    <span key={label} className="flex items-center gap-1.5 rounded-full bg-card px-3 py-1.5 shadow-sm">
-                        <Icon className={`size-3 ${iconCls}`} />
-                        {cls && <span className={`rounded px-1 ${cls}`}>szó</span>}
-                        {label}
-                    </span>
-                ))}
+                {legendStatuses.map((status) => {
+                    const { label, highlight, icon: Icon, iconClass } = TOKEN_STATUS_META[status];
+
+                    return (
+                        <span key={status} className="flex items-center gap-1.5 rounded-full bg-card px-3 py-1.5 shadow-sm">
+                            <Icon className={`size-3 ${iconClass}`} />
+                            {highlight && <span className={`rounded px-1 ${highlight}`}>szó</span>}
+                            {label}
+                        </span>
+                    );
+                })}
             </div>
 
             {/* Highlighted text / lyrics */}
             <div className="rounded-3xl bg-card p-5 shadow-sm">
-                <p className="text-sm font-medium">
-                    {segments && segments.length > 0 ? 'Felirat időbélyegekkel' : 'Szöveg kiemelésekkel'}
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                    <p className="text-sm font-medium">
+                        {lyricSegments ? 'Felirat időbélyegekkel' : 'Szöveg kiemelésekkel'}
+                    </p>
+                    <button
+                        type="button"
+                        onClick={() => setPhraseMode((v) => !v)}
+                        aria-pressed={phraseMode}
+                        className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                            phraseMode
+                                ? 'bg-indigo-500 text-white'
+                                : 'bg-muted text-muted-foreground hover:bg-accent hover:text-foreground'
+                        }`}
+                    >
+                        <Highlighter className="size-3.5" />
+                        {phraseMode ? 'Kifejezés-jelölés kikapcsolása' : 'Kifejezés jelölése'}
+                    </button>
+                </div>
+
+                <p className="mt-1 mb-3 text-xs text-muted-foreground" aria-live="polite">
+                    {phraseMode ? (
+                        <>Koppints a kifejezés <strong>első</strong>, majd az <strong>utolsó</strong> szavára — a jelentés ekkor nyílik meg.</>
+                    ) : (
+                        <>
+                            Kattints egy szóra a jelentéséhez — billentyűzetről a nyilakkal lépkedhetsz, Enterrel nyithatsz.
+                            <span className="hidden pointer-fine:inline">
+                                {' '}Kifejezéshez tartsd lenyomva a{' '}
+                                <kbd className="rounded border bg-muted px-1 font-sans">Shift</kbd> billentyűt, jelöld ki a szavakat, és engedd el.
+                            </span>
+                        </>
+                    )}
                 </p>
-                <p className="mb-3 text-xs text-muted-foreground">
-                    Tipp: tartsd lenyomva a <kbd className="rounded border bg-muted px-1 font-sans">Shift</kbd> billentyűt, jelöld ki a szavakat, és engedd el — a kifejezés ekkor kerül felvételre.
-                </p>
-                {segments && segments.length > 0 ? (
-                    <LyricsView segments={segments} tokenStatuses={result.tokenStatuses} phraseStatuses={result.phraseStatuses} onWordClick={onWordClick} lookupOpen={lookupOpen} />
+
+                {lyricSegments ? (
+                    <LyricsView
+                        segments={lyricSegments}
+                        tokenStatuses={result.tokenStatuses}
+                        phraseStatuses={result.phraseStatuses}
+                        onWordClick={onWordClick}
+                        lookupOpen={lookupOpen}
+                        phraseMode={phraseMode}
+                        onPhraseComplete={() => setPhraseMode(false)}
+                    />
                 ) : (
-                    <HighlightedText text={activeText} tokenStatuses={result.tokenStatuses} phraseStatuses={result.phraseStatuses} onWordClick={onWordClick} lookupOpen={lookupOpen} />
+                    <HighlightedText
+                        text={activeText}
+                        tokenStatuses={result.tokenStatuses}
+                        phraseStatuses={result.phraseStatuses}
+                        onWordClick={onWordClick}
+                        lookupOpen={lookupOpen}
+                        phraseMode={phraseMode}
+                        onPhraseComplete={() => setPhraseMode(false)}
+                    />
                 )}
             </div>
 
@@ -147,6 +214,7 @@ export default function AnalysisResultView({ result, activeText, segments, onWor
             {children}
 
             <Button variant="outline" onClick={onReset} className="self-start">
+                <RotateCcw className="size-4" />
                 Új elemzés
             </Button>
         </div>

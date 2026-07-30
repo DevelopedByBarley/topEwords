@@ -15,10 +15,11 @@ import {
     postJson,
     saveHistory,
 } from '@/components/text-analysis/types';
-import type { AnalysisResult, HistoryEntry, InputMode, LyricSegment, TokenStatus, UserBook, VideoOverview, YoutubeTranscript } from '@/components/text-analysis/types';
+import type { AnalysisResult, HistoryEntry, InputMode, LyricSegment, PageDirection, TokenStatus, UserBook, VideoOverview, YoutubeTranscript } from '@/components/text-analysis/types';
 import WordLookupDialog from '@/components/text-analysis/word-lookup-dialog';
 import { WholeVideoBanner, YoutubeList, YoutubeReader } from '@/components/text-analysis/youtube-panel';
 import { Button } from '@/components/ui/button';
+import ConfirmDialog from '@/components/ui/confirm-dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { csrfHeaders } from '@/lib/csrf';
@@ -27,6 +28,9 @@ import { sanitizeUploadFilename } from '@/lib/sanitize-filename';
 import { analyze as analyzeRoute, fetchSource as fetchSourceRoute, show as textAnalysisShow } from '@/routes/text-analysis';
 import { destroy as destroyBook, index as booksIndex, overview as bookOverviewRoute, page as bookPageRoute, store as storeBook } from '@/routes/text-analysis/books';
 import { destroy as ytDestroy, index as ytIndex, overview as ytOverviewRoute, page as ytPageRoute, store as ytStore } from '@/routes/text-analysis/youtube';
+
+/** A szerver oldali `max:15000` validáció párja (TextAnalysisController@analyze). */
+const TEXT_MAX_LENGTH = 15000;
 
 const MODE_TABS: { id: InputMode; label: string; Icon: React.ElementType }[] = [
     { id: 'text', label: 'Szöveg', Icon: FileText },
@@ -74,9 +78,35 @@ export default function TextAnalysis() {
     const [overview, setOverview] = useState<VideoOverview | 'failed' | null>(null);
     const [isUploadingBook, setIsUploadingBook] = useState(false);
     const [isLoadingPage, setIsLoadingPage] = useState(false);
+    const [loadingDirection, setLoadingDirection] = useState<PageDirection>(null);
 
     const [lookupWord, setLookupWord] = useState<string | null>(null);
     const [lookupContext, setLookupContext] = useState<string | null>(null);
+
+    // Törlés-megerősítés: a natív confirm() helyett a saját dialógusunk, hogy a
+    // felhasználó a törlendő címét kiemelve olvassa (ConfirmDialog-konvenció).
+    const [bookToDelete, setBookToDelete] = useState<UserBook | null>(null);
+    const [transcriptToDelete, setTranscriptToDelete] = useState<YoutubeTranscript | null>(null);
+
+    const errorRef = useRef<HTMLDivElement>(null);
+    const resultRef = useRef<HTMLDivElement>(null);
+    // Csak a friss elemzésre ugrunk, a modalból jövő státusz-frissítésekre nem.
+    const shouldScrollToResult = useRef(false);
+
+    // A hibasáv a lap tetején van, a lapozó/elemző gomb viszont az alján lehet —
+    // görgetés nélkül a hiba észrevétlen maradna.
+    useEffect(() => {
+        if (error) {
+            errorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+    }, [error]);
+
+    useEffect(() => {
+        if (result && shouldScrollToResult.current) {
+            shouldScrollToResult.current = false;
+            resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+    }, [result]);
 
     const didAutoFetch = useRef(false);
     useEffect(() => {
@@ -146,6 +176,7 @@ return;
         localStorage.setItem(getBookmarkKey(bookId), String(page));
     const loadBookmark = (bookId: number): number =>
         parseInt(localStorage.getItem(getBookmarkKey(bookId)) ?? '1', 10) || 1;
+    const clearBookmark = (bookId: number) => localStorage.removeItem(getBookmarkKey(bookId));
 
     const fetchBooks = async () => {
         try {
@@ -163,6 +194,7 @@ return;
 
     const loadBookPage = async (book: UserBook, page: number, thenAnalyze = false) => {
         setIsLoadingPage(true);
+        setLoadingDirection(page > bookPage ? 'next' : page < bookPage ? 'prev' : null);
         setError(null);
 
         try {
@@ -191,6 +223,7 @@ return;
             setError('Hálózati hiba. Próbáld újra.');
         } finally {
             setIsLoadingPage(false);
+            setLoadingDirection(null);
         }
     };
 
@@ -261,6 +294,7 @@ return;
         localStorage.setItem(getYtBookmarkKey(id), String(page));
     const loadYtBookmark = (id: number): number =>
         parseInt(localStorage.getItem(getYtBookmarkKey(id)) ?? '1', 10) || 1;
+    const clearYtBookmark = (id: number) => localStorage.removeItem(getYtBookmarkKey(id));
 
     const fetchTranscripts = async () => {
         try {
@@ -294,6 +328,7 @@ return;
 
     const loadYtPage = async (transcript: YoutubeTranscript, page: number, thenAnalyze = false) => {
         setIsLoadingPage(true);
+        setLoadingDirection(page > ytPage ? 'next' : page < ytPage ? 'prev' : null);
         setError(null);
 
         try {
@@ -322,6 +357,7 @@ return;
             setError('Hálózati hiba. Próbáld újra.');
         } finally {
             setIsLoadingPage(false);
+            setLoadingDirection(null);
         }
     };
 
@@ -375,10 +411,6 @@ return;
     };
 
     const deleteTranscript = async (transcript: YoutubeTranscript) => {
-        if (!confirm(`Törlöd a(z) „${transcript.title}" feliratot?`)) {
-return;
-}
-
         setError(null);
 
         try {
@@ -396,6 +428,9 @@ return;
         }
 
         setTranscripts((prev) => prev.filter((t) => t.id !== transcript.id));
+        // A könyvjelző a localStorage-ban él — a felirattal együtt annak is menni kell,
+        // különben árva kulcsok gyűlnek a törölt id-k alatt.
+        clearYtBookmark(transcript.id);
 
         if (activeTranscript?.id === transcript.id) {
             setActiveTranscript(null);
@@ -407,10 +442,6 @@ return;
     };
 
     const handleDeleteBook = async (book: UserBook) => {
-        if (!confirm(`Törlöd a(z) „${book.title}" könyvet?`)) {
-return;
-}
-
         setError(null);
 
         try {
@@ -428,6 +459,7 @@ return;
         }
 
         setBooks((prev) => prev.filter((b) => b.id !== book.id));
+        clearBookmark(book.id);
 
         if (activeBook?.id === book.id) {
             setActiveBook(null);
@@ -556,6 +588,7 @@ return;
                 return;
             }
 
+            shouldScrollToResult.current = true;
             setResult(data as unknown as AnalysisResult);
 
             if (Array.isArray(data.achievements) && (data.achievements as unknown[]).length > 0) {
@@ -647,7 +680,7 @@ learningDelta += freq;
         <>
             <Head title="Szövegelemzés" />
 
-            <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
+            <div className="mx-auto flex w-full max-w-[2000px] flex-1 flex-col gap-6 p-4 md:p-6 xl:px-10 2xl:px-16">
                 {/* Hero */}
                 <div
                     className="relative overflow-hidden rounded-3xl p-6 md:p-8"
@@ -664,21 +697,22 @@ learningDelta += freq;
 
                 {/* Mode tabs + history toggle */}
                 {!result && (
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2" role="tablist" aria-label="Forrás típusa">
                         {MODE_TABS.map(({ id, label, Icon }) => (
                             <button
                                 key={id}
                                 type="button"
-                                title={label}
+                                role="tab"
+                                aria-selected={mode === id}
                                 onClick={() => switchMode(id)}
-                                className={`flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium transition-colors sm:px-4 ${
+                                className={`flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-medium transition-colors sm:px-4 sm:text-sm ${
                                     mode === id
                                         ? 'bg-indigo-500 text-white'
                                         : 'bg-muted text-muted-foreground hover:bg-accent hover:text-foreground'
                                 }`}
                             >
                                 <Icon className="size-3.5" />
-                                <span className="hidden sm:inline">{label}</span>
+                                {label}
                             </button>
                         ))}
 
@@ -686,7 +720,8 @@ learningDelta += freq;
                             <button
                                 type="button"
                                 onClick={() => setShowHistory((v) => !v)}
-                                className={`ml-auto flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium transition-colors ${
+                                aria-expanded={showHistory}
+                                className={`ml-auto flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-medium transition-colors sm:text-sm ${
                                     showHistory ? 'bg-foreground text-background' : 'bg-muted text-muted-foreground hover:text-foreground'
                                 }`}
                             >
@@ -718,11 +753,20 @@ learningDelta += freq;
                                 <Textarea
                                     value={text}
                                     onChange={(e) => setText(e.target.value)}
+                                    // A gomb messze lehet a kurzortól — a szokásos
+                                    // ⌘/Ctrl+Enter is indítsa az elemzést.
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && !isAnalyzing) {
+                                            e.preventDefault();
+                                            analyze();
+                                        }
+                                    }}
                                     placeholder="Illeszd be ide az angol szöveget... (cikk, könyvrészlet, felirat, bármi)"
                                     className="min-h-48 resize-none rounded-2xl"
-                                    maxLength={15000}
+                                    maxLength={TEXT_MAX_LENGTH}
+                                    aria-describedby="text-length-counter"
                                 />
-                                <div className="flex items-center justify-between gap-3">
+                                <div className="flex flex-wrap items-center justify-between gap-3">
                                     <button
                                         type="button"
                                         onClick={() => setText(EXAMPLE_TEXT)}
@@ -731,13 +775,31 @@ learningDelta += freq;
                                         Példa szöveg betöltése
                                     </button>
                                     <div className="flex items-center gap-2">
-                                        <span className="hidden text-xs text-muted-foreground sm:inline">{text.length.toLocaleString()} / 15 000</span>
+                                        {/* A számláló mobilon is látszik: a `maxLength` szó nélkül
+                                            vágja el a beillesztett szöveget, ezért látni kell a keretet. */}
+                                        <span
+                                            id="text-length-counter"
+                                            className={`text-xs tabular-nums ${
+                                                text.length >= TEXT_MAX_LENGTH
+                                                    ? 'font-medium text-amber-600 dark:text-amber-400'
+                                                    : 'text-muted-foreground'
+                                            }`}
+                                        >
+                                            {text.length.toLocaleString()} / {TEXT_MAX_LENGTH.toLocaleString()}
+                                        </span>
                                         <Button onClick={() => analyze()} disabled={isAnalyzing || !text.trim()}>
                                             {isAnalyzing ? <Loader2 className="size-4 animate-spin" /> : <ScanText className="size-4" />}
                                             {isAnalyzing ? 'Elemzés...' : 'Elemzés'}
                                         </Button>
                                     </div>
                                 </div>
+
+                                {text.length >= TEXT_MAX_LENGTH && (
+                                    <p className="text-xs text-amber-600 dark:text-amber-400" role="status">
+                                        Elérted a {TEXT_MAX_LENGTH.toLocaleString()} karakteres keretet. Ha ennél hosszabbat illesztettél be,
+                                        a vége levágódott — hosszabb anyagot könyvként vagy weboldalként érdemes elemezni, oldalanként.
+                                    </p>
+                                )}
                             </>
                         )}
 
@@ -749,6 +811,7 @@ learningDelta += freq;
                                     segments={segments}
                                     overview={overview}
                                     isLoadingPage={isLoadingPage}
+                                    loadingDirection={loadingDirection}
                                     isAnalyzing={isAnalyzing}
                                     onBack={() => {
  setActiveTranscript(null); setFetchedSource(null); setSegments(null); setOverview(null); setResult(null); 
@@ -789,7 +852,7 @@ learningDelta += freq;
                                         loaded={youtubeLoaded}
                                         loadBookmark={loadYtBookmark}
                                         onSelect={selectTranscript}
-                                        onDelete={deleteTranscript}
+                                        onDelete={setTranscriptToDelete}
                                     />
                                 </>
                             )
@@ -859,7 +922,7 @@ learningDelta += freq;
                                         loadBookmark={loadBookmark}
                                         onUpload={handleBookUpload}
                                         onSelect={selectBook}
-                                        onDelete={handleDeleteBook}
+                                        onDelete={setBookToDelete}
                                     />
                                 )}
 
@@ -876,6 +939,7 @@ learningDelta += freq;
                                             page={bookPage}
                                             text={fetchedSource}
                                             isLoadingPage={isLoadingPage}
+                                            loadingDirection={loadingDirection}
                                             isAnalyzing={isAnalyzing}
                                             onBack={() => {
  setActiveBook(null); setFetchedSource(null); setBookOverview(null); setResult(null); 
@@ -893,60 +957,73 @@ learningDelta += freq;
                                 )}
                             </>
                         )}
+                    </div>
+                )}
 
-                        {error && (
-                            <div className="rounded-2xl bg-destructive/10 px-4 py-3 text-sm text-destructive">
-                                {error}
-                                {upgradeUrl && (
-                                    <Link href={upgradeUrl} className="ml-2 font-semibold underline underline-offset-2">
-                                        Csomagok megtekintése →
-                                    </Link>
-                                )}
-                            </div>
+                {/*
+                  A hibasáv szándékosan a `!result` kapun KÍVÜL van: eredmény
+                  mellett is jön hiba (lapozás, újraelemzés a lapozóból), és a
+                  kapun belül az néma maradt volna.
+                */}
+                {error && (
+                    <div
+                        ref={errorRef}
+                        role="alert"
+                        className="rounded-2xl bg-destructive/10 px-4 py-3 text-sm text-destructive"
+                    >
+                        {error}
+                        {upgradeUrl && (
+                            <Link href={upgradeUrl} className="ml-2 font-semibold underline underline-offset-2">
+                                Csomagok megtekintése →
+                            </Link>
                         )}
                     </div>
                 )}
 
                 {/* Results */}
                 {result && (
-                    <AnalysisResultView
-                        result={result}
-                        activeText={activeText}
-                        segments={segments}
-                        onWordClick={handleWordClick}
-                        onReset={handleResultReset}
-                        lookupOpen={lookupWord !== null}
-                    >
-                        {mode === 'book' && activeBook && (
-                            <>
-                                <WholeVideoBanner
-                                    overview={bookOverview}
-                                    heading="A teljes könyvből ismered"
-                                    source="könyvben"
-                                    loadingLabel="Teljes könyv kiértékelése…"
-                                />
-                                <BookPager
-                                    page={bookPage}
-                                    totalPages={activeBook.total_pages}
-                                    disabled={isLoadingPage || isAnalyzing}
-                                    onPrev={() => loadBookPage(activeBook, bookPage - 1, true)}
-                                    onNext={() => loadBookPage(activeBook, bookPage + 1, true)}
-                                />
-                            </>
-                        )}
-                        {mode === 'youtube' && activeTranscript && (
-                            <>
-                                <WholeVideoBanner overview={overview} />
-                                <BookPager
-                                    page={ytPage}
-                                    totalPages={activeTranscript.total_pages}
-                                    disabled={isLoadingPage || isAnalyzing}
-                                    onPrev={() => loadYtPage(activeTranscript, ytPage - 1, true)}
-                                    onNext={() => loadYtPage(activeTranscript, ytPage + 1, true)}
-                                />
-                            </>
-                        )}
-                    </AnalysisResultView>
+                    <div ref={resultRef} className="scroll-mt-4">
+                        <AnalysisResultView
+                            result={result}
+                            activeText={activeText}
+                            segments={segments}
+                            onWordClick={handleWordClick}
+                            onReset={handleResultReset}
+                            lookupOpen={lookupWord !== null}
+                        >
+                            {mode === 'book' && activeBook && (
+                                <>
+                                    <WholeVideoBanner
+                                        overview={bookOverview}
+                                        heading="A teljes könyvből ismered"
+                                        source="könyvben"
+                                        loadingLabel="Teljes könyv kiértékelése…"
+                                    />
+                                    <BookPager
+                                        page={bookPage}
+                                        totalPages={activeBook.total_pages}
+                                        disabled={isLoadingPage || isAnalyzing}
+                                        loadingDirection={loadingDirection}
+                                        onPrev={() => loadBookPage(activeBook, bookPage - 1, true)}
+                                        onNext={() => loadBookPage(activeBook, bookPage + 1, true)}
+                                    />
+                                </>
+                            )}
+                            {mode === 'youtube' && activeTranscript && (
+                                <>
+                                    <WholeVideoBanner overview={overview} />
+                                    <BookPager
+                                        page={ytPage}
+                                        totalPages={activeTranscript.total_pages}
+                                        disabled={isLoadingPage || isAnalyzing}
+                                        loadingDirection={loadingDirection}
+                                        onPrev={() => loadYtPage(activeTranscript, ytPage - 1, true)}
+                                        onNext={() => loadYtPage(activeTranscript, ytPage + 1, true)}
+                                    />
+                                </>
+                            )}
+                        </AnalysisResultView>
+                    </div>
                 )}
             </div>
 
@@ -955,10 +1032,40 @@ learningDelta += freq;
                 context={lookupContext}
                 hasAiAccess={hasAiAccess}
                 onClose={() => {
- setLookupWord(null); setLookupContext(null); 
+ setLookupWord(null); setLookupContext(null);
 }}
                 onStatusChange={handleLookupStatusChange}
                 onCustomAdded={handleCustomAdded}
+            />
+
+            <ConfirmDialog
+                open={bookToDelete !== null}
+                onOpenChange={(open) => !open && setBookToDelete(null)}
+                title="Könyv törlése"
+                description={
+                    <>
+                        A(z) <strong>„{bookToDelete?.title}"</strong> könyv és a hozzá tartozó könyvjelző véglegesen törlődik.
+                        A könyvből felvett szavaid megmaradnak.
+                    </>
+                }
+                confirmLabel="Törlés"
+                destructive
+                onConfirm={() => bookToDelete && handleDeleteBook(bookToDelete)}
+            />
+
+            <ConfirmDialog
+                open={transcriptToDelete !== null}
+                onOpenChange={(open) => !open && setTranscriptToDelete(null)}
+                title="Felirat törlése"
+                description={
+                    <>
+                        A(z) <strong>„{transcriptToDelete?.title}"</strong> felirat és a hozzá tartozó könyvjelző véglegesen törlődik.
+                        A feliratból felvett szavaid megmaradnak.
+                    </>
+                }
+                confirmLabel="Törlés"
+                destructive
+                onConfirm={() => transcriptToDelete && deleteTranscript(transcriptToDelete)}
             />
         </>
     );

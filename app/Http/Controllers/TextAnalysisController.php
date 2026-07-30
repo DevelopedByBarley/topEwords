@@ -713,6 +713,14 @@ class TextAnalysisController extends Controller
         return null;
     }
 
+    /**
+     * Egy feltölthető EPUB maximális mérete kilobájtban (a `max:` validációs
+     * szabály egysége). Egy tipikus regény-EPUB 0,3–3 MB, ezért 3 MB elég a
+     * valódi könyvekhez, és ennyi az a méret, amit a PHP-cap is beengedhet
+     * (`public/.user.ini`) — a felület ugyanezt írja ki a feltöltés előtt.
+     */
+    private const MAX_BOOK_UPLOAD_KB = 3 * 1024;
+
     private const BOOK_STORAGE_LIMIT = 30 * 1024 * 1024;
 
     /** Max uncompressed bytes of a single EPUB zip entry (zip-bomb guard). */
@@ -1671,7 +1679,7 @@ PROMPT;
         // kicsomagolt méretet, így a safeReadZipEntry() a kibontás ELŐTT dönt
         // (mérve: 34 MB-os bomba blokkolva 0,0000 s alatt, 2 MB memóriával).
         $request->validate([
-            'file' => 'required|file|mimetypes:application/epub+zip,application/zip|extensions:epub|max:30720',
+            'file' => 'required|file|mimetypes:application/epub+zip,application/zip|extensions:epub|max:'.self::MAX_BOOK_UPLOAD_KB,
         ]);
 
         $user = $request->user();

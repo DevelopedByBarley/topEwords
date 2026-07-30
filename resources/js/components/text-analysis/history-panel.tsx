@@ -39,7 +39,8 @@ export default function HistoryPanel({ history, onLoad, onDelete, onClearAll }: 
                             <button
                                 type="button"
                                 onClick={() => onDelete(entry.id)}
-                                className="shrink-0 rounded p-1 text-muted-foreground transition-opacity hover:text-destructive sm:opacity-0 sm:group-hover:opacity-100"
+                                aria-label={`„${entry.label}" törlése az előzményekből`}
+                                className="shrink-0 rounded p-1 text-muted-foreground transition-opacity hover:text-destructive sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100"
                             >
                                 <Trash2 className="size-3.5" />
                             </button>

@@ -9,9 +9,11 @@ interface HighlightedProps {
     phraseStatuses?: Record<string, TokenStatus>;
     onWordClick?: (word: string, context: string) => void;
     lookupOpen?: boolean;
+    phraseMode?: boolean;
+    onPhraseComplete?: () => void;
 }
 
-export default function HighlightedText({ text, tokenStatuses, phraseStatuses, onWordClick, lookupOpen }: HighlightedProps) {
+export default function HighlightedText({ text, tokenStatuses, phraseStatuses, onWordClick, lookupOpen, phraseMode, onPhraseComplete }: HighlightedProps) {
     const sentences = text.split(/(?<=[.!?])\s+/);
     const getContext = (word: string) =>
         sentences.find((s) => s.toLowerCase().includes(word.toLowerCase()))?.trim() ?? text.slice(0, 300);
@@ -31,6 +33,8 @@ export default function HighlightedText({ text, tokenStatuses, phraseStatuses, o
                 blocks={blocks}
                 onWordClick={onWordClick}
                 lookupOpen={lookupOpen}
+                phraseMode={phraseMode}
+                onPhraseComplete={onPhraseComplete}
                 renderBlock={(inline, i) =>
                     multiPara ? (
                         <p key={i} className="wrap-break-word leading-7">

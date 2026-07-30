@@ -393,7 +393,7 @@ test('saved book limit is reported per plan', function (string $state, int $limi
         ->assertJsonPath('bookLimit', $limit);
 })->with([
     'free' => ['free', 1],
-    'premium' => ['premium', 7],
+    'premium' => ['premium', 3],
 ]);
 
 test('saved youtube transcript limit is reported per plan', function (string $state, int $limit) {

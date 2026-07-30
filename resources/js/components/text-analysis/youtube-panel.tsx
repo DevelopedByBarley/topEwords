@@ -1,6 +1,6 @@
 import { ChevronLeft, ChevronRight, Loader2, ScanText, Trash2, Youtube } from 'lucide-react';
 import LyricsView from '@/components/text-analysis/lyrics-view';
-import type { LyricSegment, VideoOverview, YoutubeTranscript } from '@/components/text-analysis/types';
+import type { LyricSegment, PageDirection, VideoOverview, YoutubeTranscript } from '@/components/text-analysis/types';
 import { Button } from '@/components/ui/button';
 
 /** „A teljes videóból/könyvből X%-át ismered" sáv. `'failed'`-nél nem jelenik meg. */
@@ -72,7 +72,15 @@ export function YoutubeList({ transcripts, youtubeLimit, loaded, loadBookmark, o
     }
 
     if (transcripts.length === 0) {
-        return null;
+        return (
+            <div className="flex flex-col items-center gap-2 rounded-3xl bg-card px-6 py-10 text-center shadow-sm">
+                <Youtube className="size-8 text-muted-foreground/60" />
+                <p className="text-sm font-medium">Még nincs mentett feliratod</p>
+                <p className="max-w-md text-xs text-muted-foreground">
+                    Illessz be egy YouTube-linket a fenti mezőbe, és itt megjelenik a mentett feliratok listája.
+                </p>
+            </div>
+        );
     }
 
     return (
@@ -99,7 +107,8 @@ export function YoutubeList({ transcripts, youtubeLimit, loaded, loadBookmark, o
                             <button
                                 type="button"
                                 onClick={() => onDelete(t)}
-                                className="shrink-0 rounded p-1 text-muted-foreground transition-opacity hover:text-destructive sm:opacity-0 sm:group-hover:opacity-100"
+                                aria-label={`„${t.title}" törlése`}
+                                className="shrink-0 rounded p-1 text-muted-foreground transition-opacity hover:text-destructive sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100"
                             >
                                 <Trash2 className="size-3.5" />
                             </button>
@@ -117,13 +126,14 @@ interface YoutubeReaderProps {
     segments: LyricSegment[] | null;
     overview: VideoOverview | 'failed' | null;
     isLoadingPage: boolean;
+    loadingDirection: PageDirection;
     isAnalyzing: boolean;
     onBack: () => void;
     onPageChange: (page: number) => void;
     onAnalyze: () => void;
 }
 
-export function YoutubeReader({ transcript, page, segments, overview, isLoadingPage, isAnalyzing, onBack, onPageChange, onAnalyze }: YoutubeReaderProps) {
+export function YoutubeReader({ transcript, page, segments, overview, isLoadingPage, loadingDirection, isAnalyzing, onBack, onPageChange, onAnalyze }: YoutubeReaderProps) {
     return (
         <>
             <div className="flex items-center justify-between gap-2">
@@ -137,25 +147,31 @@ export function YoutubeReader({ transcript, page, segments, overview, isLoadingP
 
             <WholeVideoBanner overview={overview} />
 
-            <div className="max-h-80 overflow-y-auto rounded-3xl bg-card px-5 py-4 text-sm leading-7 shadow-sm">
+            {/* Lapozás közben a régi felirat halványan látszik — nem ugrik a layout. */}
+            <div
+                className={`max-h-80 overflow-y-auto rounded-3xl bg-card px-5 py-4 text-sm leading-7 shadow-sm transition-opacity md:max-h-104 ${
+                    isLoadingPage ? 'opacity-50' : ''
+                }`}
+                aria-busy={isLoadingPage}
+            >
                 {segments && segments.length > 0 ? (
                     <LyricsView segments={segments} tokenStatuses={{}} />
                 ) : (
                     <div className="flex justify-center py-6">
-                        <Loader2 className="size-5 animate-spin text-muted-foreground" />
+                        <Loader2 className="size-5 animate-spin text-muted-foreground" aria-label="Felirat betöltése" />
                     </div>
                 )}
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-2">
                 <Button variant="outline" size="sm" onClick={() => onPageChange(page - 1)} disabled={page <= 1 || isLoadingPage}>
-                    {isLoadingPage ? <Loader2 className="size-4 animate-spin" /> : <ChevronLeft className="size-4" />}
+                    {isLoadingPage && loadingDirection === 'prev' ? <Loader2 className="size-4 animate-spin" /> : <ChevronLeft className="size-4" />}
                     Előző
                 </Button>
                 <div className="flex gap-2">
                     <Button variant="outline" size="sm" onClick={() => onPageChange(page + 1)} disabled={page >= transcript.total_pages || isLoadingPage}>
                         Következő
-                        {isLoadingPage ? <Loader2 className="size-4 animate-spin" /> : <ChevronRight className="size-4" />}
+                        {isLoadingPage && loadingDirection === 'next' ? <Loader2 className="size-4 animate-spin" /> : <ChevronRight className="size-4" />}
                     </Button>
                     <Button size="sm" onClick={onAnalyze} disabled={isAnalyzing || isLoadingPage}>
                         {isAnalyzing ? <Loader2 className="size-4 animate-spin" /> : <ScanText className="size-4" />}
