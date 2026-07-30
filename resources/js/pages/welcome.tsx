@@ -782,21 +782,48 @@ export default function Welcome({
 
                             {/* hero copy */}
                             <div className="relative z-4 mx-auto mt-14 max-w-[840px] text-center">
-                                <div className="ts-hero-badge inline-flex items-center gap-2 rounded-full border border-white/[0.18] bg-white/10 px-4 py-1.75 text-[13px] font-medium text-indigo-200 backdrop-blur-md">
-                                    <Languages size={16} />
-                                    Magyar jelentés, magyar példamondat
-                                </div>
-                                <h1 className="mt-6.5 text-[clamp(42px,6.6vw,80px)] leading-[1.02] font-extrabold tracking-[-1.5px] text-white">
-                                    Tudd meg, hány szót
+                                <h1 className="text-[clamp(42px,6.6vw,80px)] leading-[1.02] font-extrabold tracking-[-1.5px] text-white">
+                                    Angol szavak tanulása
                                     <br />
-                                    ismersz már
+                                    hatékonyan
                                 </h1>
                                 <p className="mx-auto mt-5.5 max-w-[600px] text-[17px] leading-[1.65] text-white/78">
-                                    Illessz be egy cikket, videót vagy könyvet,
-                                    és megmutatjuk, a benne lévő szavak hány
-                                    százalékát ismered. Amit nem, azt egy
-                                    kattintással beteszed a saját tanulólistádba
-                                    — a 10 000 leggyakoribb angol szóra építve.
+                                    <b className="text-white">Tanuld</b> és{' '}
+                                    <b className="text-white">kövesd nyomon</b>{' '}
+                                    az angol szavakat a{' '}
+                                    <b className="text-white">
+                                        leghatékonyabb módon
+                                    </b>
+                                    : indulj egy{' '}
+                                    <b className="text-white">
+                                        10 000 szavas kezdő szótárral
+                                    </b>
+                                    , amit{' '}
+                                    <b className="text-white">
+                                        magad bővíthetsz
+                                    </b>
+                                    , és használd cikkekben,{' '}
+                                    <span className="inline-flex -translate-y-px items-center gap-1 rounded-full bg-[#ff0033] px-2 py-0.5 align-middle text-[13px] font-bold text-white">
+                                        <Play size={11} />
+                                        YouTube
+                                    </span>{' '}
+                                    és{' '}
+                                    <span className="inline-flex -translate-y-px items-center gap-1 rounded-full bg-[#e50914] px-2 py-0.5 align-middle text-[13px] font-bold text-white">
+                                        <Film size={11} />
+                                        Netflix
+                                    </span>{' '}
+                                    videóiban, vagy{' '}
+                                    <span className="inline-flex -translate-y-px items-center gap-1 rounded-full bg-amber-500 px-2 py-0.5 align-middle text-[13px] font-bold text-white">
+                                        <Layers size={11} />
+                                        flashcard
+                                    </span>
+                                    okban is — az{' '}
+                                    <span className="inline-flex -translate-y-px items-center gap-1 rounded-full bg-linear-to-r from-indigo-500 to-violet-500 px-2 py-0.5 align-middle text-[13px] font-bold text-white">
+                                        <Sparkles size={11} />
+                                        AI
+                                    </span>
+                                    -nak köszönhetően mindez{' '}
+                                    <b className="text-white">villámgyorsan</b>.
                                 </p>
                                 <div className="mt-8.5 flex flex-wrap justify-center gap-3.5">
                                     {auth.user ? (
@@ -827,29 +854,6 @@ export default function Welcome({
                                         <Layers size={20} />
                                         Próbáld a flashcardot
                                     </a>
-                                </div>
-                                {/*
-                                 * Tényállítások, nem ígéretek: mindhárom ellenőrizhető a terméken.
-                                 * A korábbi "Gyors tanulás" kikerült — mérhetetlen marketing-töltelék,
-                                 * és pont az ilyen üres superlatívusz teszi generikussá a heroet.
-                                 */}
-                                <div className="mt-6.5 flex flex-wrap justify-center gap-x-5.5 gap-y-2 text-[13px] text-white/62">
-                                    {[
-                                        'Nincs hirdetés',
-                                        'Ingyenes regisztráció',
-                                        'Bankkártya nélkül',
-                                    ].map((item) => (
-                                        <span
-                                            key={item}
-                                            className="inline-flex items-center gap-1.5"
-                                        >
-                                            <Check
-                                                size={15}
-                                                className="text-white/45"
-                                            />
-                                            {item}
-                                        </span>
-                                    ))}
                                 </div>
                             </div>
 
@@ -1099,14 +1103,14 @@ export default function Welcome({
                                     FUNKCIÓK
                                 </span>
                                 <h2 className="mt-5 text-[clamp(32px,4.4vw,50px)] leading-[1.08] font-bold tracking-[-1.2px] text-[#171717]">
-                                    Szótár, szövegelemző
+                                    Egy szótár,
                                     <br />
-                                    és flashcard — egyben
+                                    minden funkcióval összekötve
                                 </h2>
                                 <p className="mx-auto mt-4.5 max-w-[560px] text-[17px] leading-[1.6] text-[#737373]">
-                                    Ugyanaz a szókészlet mindenhol: amit a
-                                    szövegelemzőben megjelölsz, azt a
-                                    flashcardokban gyakorlod.
+                                    Használd ki a rendszer előnyeit, kövesd a
+                                    szótáradat, és gyakorold bármelyik funkción
+                                    keresztül.
                                 </p>
                             </Reveal>
                             {/*
@@ -1121,29 +1125,29 @@ export default function Welcome({
                             <div className="mx-auto grid max-w-[1100px] grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
                                 {[
                                     {
-                                        icon: FileSearch,
-                                        title: 'Szövegelemzés',
-                                        desc: 'Cikk, webcím, YouTube-felirat vagy egész könyv — megmutatja, hány szót ismersz belőle.',
-                                    },
-                                    {
-                                        icon: Layers,
-                                        title: 'Flashcard SRS',
-                                        desc: 'Az ismeretlen szavakból kártya lesz, és akkor jön vissza, amikor kezdenéd elfelejteni.',
-                                    },
-                                    {
                                         icon: List,
                                         title: 'Szólista',
-                                        desc: 'A 10 000 leggyakoribb angol szó gyakorisági sorrendben, saját tudás-jelöléssel.',
-                                    },
-                                    {
-                                        icon: Puzzle,
-                                        title: 'Chrome-bővítmény',
-                                        desc: 'Bármely oldalon dupla kattintás a szóra — a jelentés popupban, mentés egy gombbal.',
+                                        desc: '10 000 szavas induló szótár: könnyen áttekinthető, szavanként jelölheted a tudásszinted, AI segíti a tanulást, és minden funkció erre a listára épül.',
                                     },
                                     {
                                         icon: Bookmark,
                                         title: 'Saját szavak',
-                                        desc: 'Ami nincs a top 10 000-ben, felveheted — ugyanúgy viselkedik, mint a többi.',
+                                        desc: 'Bővítsd a szótáradat tetszés szerint: vegyél fel új szavakat bárhonnan — akár film vagy YouTube-videó nézése közben is —, az AI segítségével, egy kattintással.',
+                                    },
+                                    {
+                                        icon: Layers,
+                                        title: 'Flashcard SRS',
+                                        desc: 'A leghatékonyabb tanulási módszer: bízd az algoritmusra az ismétlést, és tanulj tehermentesen. Film vagy YouTube-videó nézése közben az AI egy kattintással kártyát is készít belőle.',
+                                    },
+                                    {
+                                        icon: FileSearch,
+                                        title: 'Szövegelemzés',
+                                        desc: 'Találd meg a szintednek megfelelő tartalmat: nézd meg, mennyit értesz belőle, mielőtt nekiállnál — weboldal, könyv vagy YouTube-videó egyaránt.',
+                                    },
+                                    {
+                                        icon: Puzzle,
+                                        title: 'Chrome-bővítmény',
+                                        desc: 'Telepítsd egy kattintással, és nézz YouTube- vagy Netflix-tartalmat, vagy böngéssz a saját szavaid kiemelésével — kezeld a szavaidat, és készíts flashcardot akár AI-val is.',
                                     },
                                     {
                                         icon: Languages,
@@ -1185,7 +1189,7 @@ export default function Welcome({
                                                             ? {
                                                                   background:
                                                                       'rgba(255,255,255,.14)',
-                                                                  color: '#fff',
+                                                                  color: '#4ade80',
                                                               }
                                                             : {
                                                                   background:
