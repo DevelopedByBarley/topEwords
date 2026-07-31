@@ -28,6 +28,10 @@ class CreateNewUser implements CreatesNewUsers
         $rules = [
             ...$this->profileRules(),
             'password' => $this->passwordRules(),
+            // Az ÁSZF és az adatkezelési tájékoztató elfogadása kötelező. A szabály
+            // szerver oldalon is áll: a kliens oldali pipa csak a kényelmes út, a
+            // közvetlen POST sem hozhat létre elfogadás nélküli fiókot.
+            'terms' => ['accepted'],
             // Regisztrációkor a számlázás opcionális (a checkout előtt úgyis kötelező lesz),
             // ezért required: false. A szabályok a BillingUpdateRequest-tel közös trait-ből jönnek.
             ...$this->billingRules(required: false),
@@ -43,7 +47,10 @@ class CreateNewUser implements CreatesNewUsers
             }];
         }
 
-        Validator::make($input, $rules, $this->billingMessages())->validate();
+        Validator::make($input, $rules, [
+            'terms.accepted' => 'Az ÁSZF és az adatkezelési tájékoztató elfogadása kötelező.',
+            ...$this->billingMessages(),
+        ])->validate();
 
         return DB::transaction(function () use ($input, $inviteOnly): User {
             $invite = null;

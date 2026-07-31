@@ -1,6 +1,7 @@
 import { Link, usePage } from '@inertiajs/react';
 import { CheckCircle2, Flame } from 'lucide-react';
 import AppLogoIcon from '@/components/app-logo-icon';
+import { cn } from '@/lib/utils';
 import { home } from '@/routes';
 import type { AuthLayoutProps } from '@/types';
 
@@ -8,6 +9,7 @@ export default function AuthSplitLayout({
     children,
     title,
     description,
+    wide = false,
 }: AuthLayoutProps) {
     const { name } = usePage().props;
 
@@ -34,20 +36,29 @@ export default function AuthSplitLayout({
 
                 <div className="relative z-10 flex flex-1 flex-col items-start justify-center gap-8 py-8">
                     <div className="space-y-3">
-                        <h2 className="text-4xl leading-tight font-bold">
+                        {/*
+                         * Szándékosan nem <h2>: az oldal egyetlen címsora a jobb
+                         * oldali <h1> (az űrlap címe). Egy előtte álló h2 fordított
+                         * címsor-sorrendet adna a képernyőolvasónak.
+                         */}
+                        <p className="text-4xl leading-tight font-bold">
                             Tanulj okosan,
                             <br />
                             minden nap.
-                        </h2>
+                        </p>
                         <p className="text-base leading-relaxed text-white/70">
                             A 10 000 leggyakoribb angol szó — szólista,
-                            flashcard SRS, kvíz, mondatkiegészítés,
-                            AI-segítség és szövegelemzés egy helyen.
+                            flashcard SRS, szövegelemzés, Chrome-bővítmény és
+                            AI-segítség egy helyen.
                         </p>
                     </div>
 
-                    {/* Demo progress card */}
-                    <div className="w-full rounded-2xl bg-white p-5 shadow-xl dark:bg-neutral-800">
+                    {/* Demo progress card — díszítő minta kitalált adatokkal, ezért a
+                        képernyőolvasó számára rejtett. */}
+                    <div
+                        aria-hidden="true"
+                        className="w-full rounded-2xl bg-white p-5 shadow-xl dark:bg-neutral-800"
+                    >
                         <div className="mb-3 flex items-center justify-between">
                             <span className="text-sm font-semibold text-neutral-700 dark:text-neutral-200">
                                 Napi haladás
@@ -90,7 +101,7 @@ export default function AuthSplitLayout({
                     <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-white/60">
                         {[
                             'Ingyenes regisztráció',
-                            'Flashcard SRS & kvíz',
+                            'Flashcard SRS',
                             'AI-segítség',
                             'Nincs hirdetés',
                         ].map((item) => (
@@ -111,7 +122,12 @@ export default function AuthSplitLayout({
 
             {/* Right panel — form */}
             <div className="flex items-center justify-center p-8 lg:p-12">
-                <div className="w-full max-w-lg space-y-6">
+                <div
+                    className={cn(
+                        'w-full space-y-6',
+                        wide ? 'max-w-2xl' : 'max-w-lg',
+                    )}
+                >
                     <Link
                         href={home()}
                         className="flex items-center justify-center gap-2 lg:hidden"
@@ -122,7 +138,7 @@ export default function AuthSplitLayout({
 
                     <div className="space-y-1">
                         <h1 className="text-2xl font-bold">{title}</h1>
-                        <p className="text-muted-foreground text-sm">
+                        <p className="text-sm text-muted-foreground">
                             {description}
                         </p>
                     </div>

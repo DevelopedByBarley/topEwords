@@ -12,6 +12,7 @@ import {
     Volume2,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { ScrollReveal } from '@/components/public/scroll-reveal';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -203,13 +204,34 @@ export function FlashcardScrollSection() {
                     ease: 'none',
                     scrollTrigger: scrub,
                 });
+                /* A cím lassabban sodródik, mint a jelenet — ez adja a mélységet. */
+                gsap.to(q('[data-layer="heading"]'), {
+                    yPercent: -16,
+                    ease: 'none',
+                    scrollTrigger: scrub,
+                });
 
-                tl.from(q('[data-layer="card-wrap"]'), {
-                    yPercent: 14,
-                    scale: 0.9,
+                tl.from(q('[data-layer="title"]'), {
+                    y: 44,
                     opacity: 0,
-                    duration: 1,
+                    duration: 0.7,
                 })
+                    .from(
+                        q('[data-layer="lead"]'),
+                        { y: 32, opacity: 0, duration: 0.7 },
+                        '-=0.5',
+                    )
+                    .from(
+                        q('[data-layer="steps"]'),
+                        { y: 26, opacity: 0, duration: 0.6 },
+                        '-=0.45',
+                    )
+                    .from(q('[data-layer="card-wrap"]'), {
+                        yPercent: 14,
+                        scale: 0.9,
+                        opacity: 0,
+                        duration: 1,
+                    })
                     .from(
                         q('[data-layer="deck-head"]'),
                         { opacity: 0, y: -12, duration: 0.5 },
@@ -421,11 +443,20 @@ export function FlashcardScrollSection() {
                         }}
                     />
 
-                    <div className="relative mx-auto max-w-[640px] text-center">
-                        <h2 className="text-[clamp(28px,3.6vw,42px)] leading-[1.1] font-bold tracking-[-1px] text-[#171717]">
+                    <div
+                        data-layer="heading"
+                        className="relative mx-auto max-w-[640px] text-center"
+                    >
+                        <h2
+                            data-layer="title"
+                            className="text-[clamp(28px,3.6vw,42px)] leading-[1.1] font-bold tracking-[-1px] text-[#171717]"
+                        >
                             Intelligens ismétlési rendszer
                         </h2>
-                        <p className="mx-auto mt-3.5 text-[16px] leading-[1.6] text-[#737373]">
+                        <p
+                            data-layer="lead"
+                            className="mx-auto mt-3.5 text-[16px] leading-[1.6] text-[#737373]"
+                        >
                             Minden értékelés után kiszámolja, mikor kell
                             visszamutatnia a kártyát — ha könnyen ment, tovább
                             vár; ha nehéz volt, hamarabb visszahozza.
@@ -561,7 +592,10 @@ export function FlashcardScrollSection() {
                         </div>
                     </div>
 
-                    <div className="relative -mt-3 flex items-center gap-2.5">
+                    <div
+                        data-layer="steps"
+                        className="relative -mt-3 flex items-center gap-2.5"
+                    >
                         {SCENES.map((label, i) => (
                             <div
                                 key={label}
@@ -606,9 +640,10 @@ export function FlashcardScrollSection() {
             {/* Közös: a flashcard-képességek rácsa */}
             <div className="px-5 pb-24">
                 <div className="mx-auto grid max-w-[1120px] grid-cols-[repeat(auto-fit,minmax(210px,1fr))] gap-3.5">
-                    {FLASH_CAPS.map((c) => (
-                        <div
+                    {FLASH_CAPS.map((c, i) => (
+                        <ScrollReveal
                             key={c.title}
+                            delay={i * 0.06}
                             className="flex items-start gap-2.75 rounded-xl border border-indigo-100 bg-indigo-50 p-4"
                         >
                             <c.icon
@@ -623,7 +658,7 @@ export function FlashcardScrollSection() {
                                     {c.desc}
                                 </div>
                             </div>
-                        </div>
+                        </ScrollReveal>
                     ))}
                 </div>
             </div>

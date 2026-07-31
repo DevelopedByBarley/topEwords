@@ -14,6 +14,7 @@ import {
     ChevronRight,
     Lightbulb,
     AlertCircle,
+    Sparkles,
     Star,
     ListChecks,
     Tv2,
@@ -36,7 +37,7 @@ const sections = [
     // { id: 'szoismetles', label: 'Szóismétlés', icon: RefreshCw },
     { id: 'flashcards', label: 'Flashcards', icon: Brain },
     { id: 'srs', label: 'SRS algoritmus', icon: GitBranch },
-    { id: 'deck-settings', label: 'Deck beállítások', icon: Settings2 },
+    { id: 'deck-settings', label: 'Pakli beállítások', icon: Settings2 },
     { id: 'szovegelemzes', label: 'Szövegelemzés', icon: FileText },
     // { id: 'kviz', label: 'Kvíz', icon: HelpCircle },
     // { id: 'cloze', label: 'Mondatkiegészítés', icon: Zap },
@@ -60,7 +61,7 @@ function Section({
     children: React.ReactNode;
 }) {
     return (
-        <section id={id} className="scroll-mt-6 space-y-5">
+        <section id={id} className="scroll-mt-24 space-y-5">
             <div className="flex items-center gap-3 border-b pb-3">
                 {Icon && (
                     <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -78,7 +79,7 @@ function Sub({
     title,
     children,
 }: {
-    title: string;
+    title: React.ReactNode;
     children: React.ReactNode;
 }) {
     return (
@@ -182,13 +183,14 @@ function Badge({
     color = 'default',
 }: {
     children: React.ReactNode;
-    color?: 'blue' | 'green' | 'orange' | 'purple' | 'default';
+    color?: 'blue' | 'green' | 'orange' | 'purple' | 'rose' | 'default';
 }) {
     const colors = {
         blue: 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300',
         green: 'bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300',
         orange: 'bg-orange-100 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300',
-        purple: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300',
+        purple: 'bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300',
+        rose: 'bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300',
         default: 'bg-muted text-foreground',
     };
 
@@ -223,7 +225,7 @@ function InfoBox({
         },
     };
     const s = styles[type];
-    
+
     return (
         <div
             className={`flex gap-2.5 rounded-xl border px-4 py-3 text-sm ${s.wrap}`}
@@ -234,11 +236,16 @@ function InfoBox({
     );
 }
 
-function PremiumBadge() {
+/**
+ * AI-funkciót jelöl. Szándékosan NEM „Prémium": az AI minden csomagban elérhető
+ * (User::hasAiAccess() mindig igaz), a valódi korlát a havi AI-keret —
+ * Ingyenesen kóstoló, Prón nagyobb keret (config/plans.php: ai_budget_micros).
+ */
+function AiBadge() {
     return (
         <span className="inline-flex items-center gap-1 rounded-md bg-indigo-100 px-2 py-0.5 text-xs font-semibold text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300">
-            <Star className="size-3" />
-            Prémium
+            <Sparkles className="size-3" />
+            AI-keret
         </span>
     );
 }
@@ -300,17 +307,32 @@ export default function Handbook() {
 
     const [activeId, setActiveId] = useState('attekintes');
     const observerRef = useRef<IntersectionObserver | null>(null);
+    const visibleIdsRef = useRef<Set<string>>(new Set());
+    const mobileTocRef = useRef<HTMLDetailsElement>(null);
 
     useEffect(() => {
         // A megfigyelés a viewporthoz igazodik: az oldal a saját görgetősávján
         // fut, nem egy fix magasságú belső dobozban — így ugyanúgy működik a
         // bejelentkezett app-keretben és a vendégeknek szánt publikus keretben.
+        const visibleIds = visibleIdsRef.current;
+
         observerRef.current = new IntersectionObserver(
             (entries) => {
                 for (const entry of entries) {
                     if (entry.isIntersecting) {
-                        setActiveId(entry.target.id);
+                        visibleIds.add(entry.target.id);
+                    } else {
+                        visibleIds.delete(entry.target.id);
                     }
+                }
+
+                // A sávban egyszerre több szekció is bent lehet; ilyenkor mindig
+                // a legfelső számít aktívnak. Enélkül a callback sorrendje dönt,
+                // és a tartalomjegyzék jelölése görgetés közben ugrál.
+                const topmost = sections.find(({ id }) => visibleIds.has(id));
+
+                if (topmost) {
+                    setActiveId(topmost.id);
                 }
             },
             { rootMargin: '-20% 0px -70% 0px' },
@@ -323,8 +345,31 @@ export default function Handbook() {
             }
         });
 
-        return () => observerRef.current?.disconnect();
+        return () => {
+            observerRef.current?.disconnect();
+            visibleIds.clear();
+        };
     }, []);
+
+    /**
+     * Görgetés a szekcióhoz úgy, hogy a hash is a címsorba kerüljön — így egy
+     * szekció linkelhető és megosztható marad. (A natív ugrást azért váltjuk ki,
+     * hogy a görgetés lágy legyen és a mobil tartalomjegyzék becsukódjon.)
+     */
+    function scrollToSection(
+        event: React.MouseEvent<HTMLAnchorElement>,
+        id: string,
+    ) {
+        event.preventDefault();
+        document
+            .getElementById(id)
+            ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        window.history.replaceState(null, '', `#${id}`);
+
+        if (mobileTocRef.current) {
+            mobileTocRef.current.open = false;
+        }
+    }
 
     return (
         <HandbookShell isGuest={!auth.user}>
@@ -336,8 +381,61 @@ export default function Handbook() {
                 />
             </Head>
 
-            <div>
-                <div className="flex gap-0 px-4 py-6 md:px-6">
+            <div className="mx-auto w-full max-w-[2000px] p-4 md:p-6 xl:px-10 2xl:px-16">
+                {/* Hero */}
+                <div
+                    className="relative overflow-hidden rounded-3xl p-6 md:p-8"
+                    style={{
+                        background: 'linear-gradient(135deg,#4338CA,#4F8EEC)',
+                    }}
+                >
+                    <div className="pointer-events-none absolute -top-16 -right-16 size-64 rounded-full bg-white/15 blur-2xl" />
+                    <div className="relative max-w-xl">
+                        <h1 className="text-2xl font-bold tracking-tight text-white md:text-3xl">
+                            Kézikönyv
+                        </h1>
+                        <p className="mt-1.5 text-sm text-white/85 md:text-base">
+                            Minden, amit a TopWords alkalmazásról tudni kell —
+                            lépésről lépésre.
+                        </p>
+                    </div>
+                </div>
+
+                {/* Mobil tartalomjegyzék — a sticky oldalsáv csak lg-től látszik,
+                    enélkül kis kijelzőn végig kellene görgetni a teljes anyagot. */}
+                <details
+                    ref={mobileTocRef}
+                    className="group mt-6 overflow-hidden rounded-2xl border bg-card lg:hidden"
+                >
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-3 text-sm font-semibold">
+                        <span className="flex items-center gap-2">
+                            <ListChecks className="size-4 text-primary" />
+                            Tartalomjegyzék
+                        </span>
+                        <ChevronRight
+                            className="size-4 text-muted-foreground transition-transform group-open:rotate-90 motion-reduce:transition-none"
+                            aria-hidden="true"
+                        />
+                    </summary>
+                    <nav
+                        aria-label="Kézikönyv tartalomjegyzék"
+                        className="grid gap-0.5 border-t p-2 sm:grid-cols-2"
+                    >
+                        {sections.map(({ id, label, icon: Icon }) => (
+                            <a
+                                key={id}
+                                href={`#${id}`}
+                                onClick={(e) => scrollToSection(e, id)}
+                                className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                            >
+                                <Icon className="size-3.5 shrink-0" />
+                                {label}
+                            </a>
+                        ))}
+                    </nav>
+                </details>
+
+                <div className="mt-6 flex gap-0">
                     {/* Sticky TOC sidebar */}
                     <aside className="sticky top-20 mr-10 hidden w-56 shrink-0 self-start lg:block">
                         <nav
@@ -351,15 +449,10 @@ export default function Handbook() {
                                 <a
                                     key={id}
                                     href={`#${id}`}
-                                    onClick={(e) => {
-                                        e.preventDefault();
-                                        document
-                                            .getElementById(id)
-                                            ?.scrollIntoView({
-                                                behavior: 'smooth',
-                                                block: 'start',
-                                            });
-                                    }}
+                                    aria-current={
+                                        activeId === id ? 'true' : undefined
+                                    }
+                                    onClick={(e) => scrollToSection(e, id)}
                                     className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm transition-colors ${
                                         activeId === id
                                             ? 'bg-primary/10 font-medium text-primary'
@@ -375,16 +468,6 @@ export default function Handbook() {
 
                     {/* Main content */}
                     <div className="max-w-3xl min-w-0 flex-1 space-y-14">
-                        <div>
-                            <h1 className="text-3xl font-bold tracking-tight">
-                                Kézikönyv
-                            </h1>
-                            <p className="mt-2 text-muted-foreground">
-                                Minden, amit a TopWords alkalmazásról tudni kell
-                                — lépésről lépésre.
-                            </p>
-                        </div>
-
                         {/* ── Áttekintés ── */}
                         <Section
                             id="attekintes"
@@ -404,7 +487,7 @@ export default function Handbook() {
                                     {
                                         icon: BookOpen,
                                         title: 'Szavak',
-                                        desc: '8 000+ szó hat nehézségi szinten, saját mappákkal',
+                                        desc: '10 000 szó hat gyakorisági szinten, saját mappákkal',
                                     },
                                     {
                                         icon: Brain,
@@ -434,11 +517,35 @@ export default function Handbook() {
                                     items={[
                                         'Nyisd meg az Angol szavak oldalt és nézd meg, melyik szintből ismered a legtöbbet.',
                                         'Jelöld meg a szavakat státusszal (Tudom / Tanulom) — ettől frissül a haladásod.',
-                                        'Hozz létre egy flashcard paklit (decket) és adj hozzá szavakat.',
+                                        'Hozz létre egy flashcard paklit és adj hozzá szavakat.',
                                         'Minden nap kattints a Tanulás gombra — az SRS algoritmus elvégzi a többit.',
                                         'Elemezd a szövegeidet — cikkeket, könyvet, YouTube-videót —, hogy lásd, mennyit értesz belőlük.',
                                     ]}
                                 />
+                            </Sub>
+
+                            <Sub title="Csomagok és az AI-keret">
+                                <P>
+                                    Két csomag van: <strong>Ingyenes</strong> és{' '}
+                                    <strong>Pro</strong>. A kettő ugyanazokat a
+                                    funkciókat tartalmazza — a Pro a kereteket
+                                    oldja fel (korlátlan tanulókártya és pakli,
+                                    napi 50 szövegelemzés, több mentett könyv és
+                                    YouTube-felirat, korlátlan mentés a
+                                    bővítményből).
+                                </P>
+                                <InfoBox type="info">
+                                    Az <strong>AI-funkciók</strong> (szótár,
+                                    kártya-kitöltés, kontextus-magyarázat)
+                                    mindkét csomagban működnek — nincsenek
+                                    lezárva. A korlát a{' '}
+                                    <strong>havi AI-keret</strong>: Ingyenesen
+                                    egy kóstoló, Pro csomaggal jóval nagyobb
+                                    keret. A felhasználásodat a{' '}
+                                    <strong>Beállítások → Előfizetés</strong>{' '}
+                                    oldalon látod. Ezt a kézikönyvben az{' '}
+                                    <AiBadge /> jelölés mutatja.
+                                </InfoBox>
                             </Sub>
 
                             <Sub title="Haladás (főoldal)">
@@ -464,9 +571,9 @@ export default function Handbook() {
                             icon={BookOpen}
                         >
                             <P>
-                                A beépített szótár több mint 8 000 angol szót
-                                tartalmaz, szógyakoriság szerint hat szintbe
-                                rendezve. Minden szóhoz látható a magyar
+                                A beépített szótár a 10 000 leggyakoribb angol
+                                szót tartalmazza, szógyakoriság szerint hat
+                                szintbe rendezve. Minden szóhoz látható a magyar
                                 jelentés, szófaj, ragozási alakok és egy
                                 példamondat.
                             </P>
@@ -515,16 +622,18 @@ export default function Handbook() {
 
                             <Sub title="Szóstátuszok">
                                 <P>
-                                    Minden szóhoz négy státuszt rendelhetsz.
+                                    Minden szóhoz öt státusz közül választhatsz.
                                     Egyszerre csak egy aktív — ha újra
-                                    megnyomod, törlődik.
+                                    megnyomod, törlődik. Ugyanezek a státuszok
+                                    és színek jelennek meg a szövegelemzőben és
+                                    a Chrome bővítményben is.
                                 </P>
                                 <Table
                                     headers={['Státusz', 'Mire jó?']}
                                     rows={[
                                         [
                                             <Badge color="green">Tudom</Badge>,
-                                            'Beleszámít a haladásba és a dashboard %-ba — ha egy szót valóban ismersz, ezt jelöld',
+                                            'Beleszámít a haladásba és a Haladás oldal %-ába — ha egy szót valóban ismersz, ezt jelöld',
                                         ],
                                         [
                                             <Badge color="blue">Tanulom</Badge>,
@@ -532,7 +641,7 @@ export default function Handbook() {
                                         ],
                                         [
                                             <Badge color="orange">
-                                                Mentett
+                                                Később
                                             </Badge>,
                                             'Elmentetted, de még nem foglalkozol vele — "majd egyszer" lista',
                                         ],
@@ -541,6 +650,12 @@ export default function Handbook() {
                                                 Kiejtés
                                             </Badge>,
                                             'A jelentést tudod, de a kiejtést kell még begyakorolni',
+                                        ],
+                                        [
+                                            <Badge color="rose">
+                                                Gyakorlásra
+                                            </Badge>,
+                                            'Külön jelölés azoknak a szavaknak, amelyeket még használni is gyakorolnál',
                                         ],
                                     ]}
                                 />
@@ -573,18 +688,18 @@ export default function Handbook() {
 
                             <Sub
                                 title={
-                                    (
-                                        <span className="flex items-center gap-2">
-                                            AI szótár (Gemini) <PremiumBadge />
-                                        </span>
-                                    ) as unknown as string
+                                    <span className="flex items-center gap-2">
+                                        AI szótár (Gemini) <AiBadge />
+                                    </span>
                                 }
                             >
                                 <P>
-                                    A szó oldalán a lila Gemini gombra kattintva
-                                    az AI automatikusan kitölti a magyar
-                                    jelentést, szinonimákat, ragozási alakokat
-                                    és egy példamondatot. Prémium funkció.
+                                    Saját szó felvételekor (és szerkesztésekor)
+                                    az AI-kitöltés gombbal az AI automatikusan
+                                    kitölti a magyar jelentést, szinonimákat,
+                                    ragozási alakokat és egy példamondatot. A
+                                    funkció minden csomagban elérhető, a havi
+                                    AI-keretedből fogyaszt.
                                 </P>
                             </Sub>
                         </Section>
@@ -660,7 +775,7 @@ export default function Handbook() {
                          *         </InfoBox>
                          *     </Sub>
                          * </Section>
-                        */}
+                         */}
 
                         {/* ── Flashcards ── */}
                         <Section
@@ -670,25 +785,26 @@ export default function Handbook() {
                         >
                             <P>
                                 A flashcard rendszer a TopWords magja. Saját
-                                kártyacsomagokat (decket) hozhatsz létre, minden
-                                kártya két oldalból áll, és az SRS algoritmus
-                                automatikusan ütemezi az ismétléseket.
+                                kártyacsomagokat — <strong>paklikat</strong> —
+                                hozhatsz létre, minden kártya két oldalból áll,
+                                és az SRS algoritmus automatikusan ütemezi az
+                                ismétléseket.
                             </P>
 
-                            <Sub title="Deck létrehozása és mappák">
+                            <Sub title="Pakli létrehozása és mappák">
                                 <Steps
                                     items={[
-                                        'A Flashcards főoldalán kattints az "Új deck" gombra.',
+                                        'A Flashcards főoldalán kattints az "Új pakli" gombra.',
                                         'Adj meg nevet (kötelező) és opcionálisan leírást.',
-                                        'Hozzárendelheted egy mappához is — ez segít az átláthatóságban, ha sok decked van.',
+                                        'Hozzárendelheted egy mappához is — ez segít az átláthatóságban, ha sok paklid van.',
                                     ]}
                                 />
                                 <P>
-                                    A mappákat a{' '}
-                                    <strong>"Mappák kezelése"</strong> gombbal
-                                    kezelheted (átnevezés, törlés, új mappa).
-                                    Egy deck több mappához is rendelhető — a
-                                    kártyákon a mappa ikon jelzi ezt.
+                                    A mappákat a hero sávban lévő{' '}
+                                    <strong>"Mappák"</strong> gombbal kezelheted
+                                    (átnevezés, törlés, új mappa). Egy pakli
+                                    több mappához is rendelhető — a kártyákon a
+                                    mappa ikon jelzi ezt.
                                 </P>
                             </Sub>
 
@@ -712,8 +828,10 @@ export default function Handbook() {
                                 />
                                 <InfoBox type="tip">
                                     CSV importhoz az első oszlop az előlap, a
-                                    második a hátlap. Anki .apkg exportból a
-                                    "Notes as CSV" opcióval tudod kinyerni.
+                                    második a hátlap — vesszővel elválasztva,
+                                    fejléc nélkül, egyszerre legfeljebb 5 000
+                                    sor. Anki .apkg exportból a "Notes as CSV"
+                                    opcióval tudod kinyerni.
                                 </InfoBox>
                             </Sub>
 
@@ -770,11 +888,9 @@ export default function Handbook() {
 
                             <Sub
                                 title={
-                                    (
-                                        <span className="flex items-center gap-2">
-                                            Gemini AI kitöltés <PremiumBadge />
-                                        </span>
-                                    ) as unknown as string
+                                    <span className="flex items-center gap-2">
+                                        Gemini AI kitöltés <AiBadge />
+                                    </span>
                                 }
                             >
                                 <P>
@@ -783,29 +899,39 @@ export default function Handbook() {
                                     AI kitölti a hátlapot (magyar fordítás,
                                     példamondat) — az előlap változatlan marad,
                                     így a saját szövegedet nem írja felül.
-                                    Prémium funkció.
+                                    Minden csomagban elérhető, a havi
+                                    AI-keretedből fogyaszt.
                                 </P>
                             </Sub>
 
                             <Sub title="Egyedi kártya-műveletek">
                                 <P>
-                                    Minden kártya sorában (deck nézetben)
-                                    elérhető néhány gyorsművelet:
+                                    Minden kártya sorában (pakli nézetben) a
+                                    három pontos menüből elérhető néhány
+                                    gyorsművelet:
                                 </P>
                                 <Table
                                     headers={['Művelet', 'Mit csinál?']}
                                     rows={[
                                         [
-                                            'Másolás',
-                                            'Készít egy azonos tartalmú kártyát ugyanabban a deckben',
+                                            'Statisztika',
+                                            'Megmutatja a kártya SRS-adatait: állapot, intervallum, tévesztések',
+                                        ],
+                                        [
+                                            'Másolat létrehozása',
+                                            'Készít egy azonos tartalmú kártyát ugyanabban a pakliban',
                                         ],
                                         [
                                             'Áthelyezés',
-                                            'Átmozgatja a kártyát egy másik deckbe',
+                                            'Átmozgatja a kártyát egy másik pakliba',
                                         ],
                                         [
-                                            'Haladás törlése',
+                                            'Haladás visszaállítása',
                                             'Az SRS állapotot nullázza — a kártya újként kerül a sorba',
+                                        ],
+                                        [
+                                            'Törlés',
+                                            'Véglegesen törli a kártyát',
                                         ],
                                     ]}
                                 />
@@ -813,43 +939,38 @@ export default function Handbook() {
 
                             <Sub
                                 title={
-                                    (
-                                        <span className="flex items-center gap-2">
-                                            Tömeges műveletek{' '}
-                                            <ListChecks className="size-4 text-muted-foreground" />
-                                        </span>
-                                    ) as unknown as string
+                                    <span className="flex items-center gap-2">
+                                        Tömeges műveletek{' '}
+                                        <ListChecks className="size-4 text-muted-foreground" />
+                                    </span>
                                 }
                             >
                                 <P>
-                                    A deck kártyalistájában a bal oldali
+                                    A pakli kártyalistájában a bal oldali
                                     jelölőnégyzetekkel több kártyát is
-                                    kijelölhetsz egyszerre (vagy az "összes
-                                    kijelölése" gombbal mindegyiket). A
-                                    megjelenő műveletsávban:
+                                    kijelölhetsz egyszerre (vagy az{' '}
+                                    <strong>"Összes kijelölése"</strong> gombbal
+                                    mindegyiket). Ekkor az ablak alján
+                                    megjelenik a műveletsáv:
                                 </P>
                                 <Table
                                     headers={['Művelet', 'Magyarázat']}
                                     rows={[
                                         [
-                                            'Törlés',
-                                            'A kijelölt kártyák végleg törlődnek',
+                                            'Haladás törlése',
+                                            'Minden kijelölt kártya SRS állapota nullázódik',
                                         ],
                                         [
-                                            'Irány módosítása',
-                                            'Egyszerre állítod front→back / back→front / mindkét irányra',
-                                        ],
-                                        [
-                                            'Megfordítás',
-                                            'Az előlap és hátlap tartalma felcserélődik minden kijelölt kártyán',
+                                            'Kétirányú kártya',
+                                            'A kijelölt kártyák mindkét irányból kérdeznek. Ha már mind kétirányú, a gomb "Visszaállítás (1 irányú)"-ra vált',
                                         ],
                                         [
                                             'Áthelyezés',
-                                            'A kijelölt kártyák egy másik deckbe kerülnek',
+                                            'A kijelölt kártyák egy másik pakliba kerülnek',
                                         ],
                                         [
-                                            'Haladás törlése',
-                                            'Minden kijelölt kártya SRS állapota nullázódik',
+                                            'Törlés',
+                                            'A kijelölt kártyák végleg törlődnek',
                                         ],
                                     ]}
                                 />
@@ -857,7 +978,7 @@ export default function Handbook() {
 
                             <Sub title="CSV export">
                                 <P>
-                                    A deck oldalán a{' '}
+                                    A pakli oldalán a{' '}
                                     <strong>"CSV export"</strong> gombbal
                                     letöltheted az összes kártyát CSV
                                     formátumban. Az első oszlop az előlap, a
@@ -908,15 +1029,35 @@ export default function Handbook() {
                             <Sub title="Tanulási munkamenet">
                                 <Steps
                                     items={[
-                                        'A deck főoldalán kattints a "Tanulás" gombra — csak akkor aktív, ha van esedékes kártya.',
+                                        'A pakli oldalán kattints a "Tanulás" gombra — csak akkor aktív, ha van esedékes kártya.',
                                         'Megjelenik az előlap — próbáld felidézni a választ.',
-                                        'A "Mutatás" gombra (vagy szóközzel) a hátlap is láthatóvá válik.',
+                                        'Kattints a kártyára (vagy nyomj Space-t / Entert), és a hátlap is láthatóvá válik.',
                                         'Értékeld a felidézést: Újra / Nehéz / Jó / Könnyű.',
                                         'Az algoritmus a választásod alapján ütemezi a következő megjelenést.',
                                     ]}
                                 />
+                                <Sub title="Gyorsbillentyűk">
+                                    <Table
+                                        headers={['Billentyű', 'Mit csinál?']}
+                                        rows={[
+                                            [
+                                                'Space / Enter',
+                                                'Megfordítja a kártyát (megmutatja a hátlapot)',
+                                            ],
+                                            [
+                                                '1 – 4',
+                                                'Értékelés: Újra (1), Nehéz (2), Jó (3), Könnyű (4)',
+                                            ],
+                                            [
+                                                'Backspace',
+                                                'Visszavonja az utolsó értékelést',
+                                            ],
+                                        ]}
+                                    />
+                                </Sub>
                                 <InfoBox type="tip">
-                                    Az Undo gombbal visszavonhatod az utolsó
+                                    A <strong>Visszavonás</strong> gombbal (vagy
+                                    Backspace-szel) visszavonhatod az utolsó
                                     értékelést, ha elütötted.
                                 </InfoBox>
                             </Sub>
@@ -997,33 +1138,45 @@ export default function Handbook() {
                             <Sub title="Hogyan számítja az intervallumot?">
                                 <P>
                                     Minden kártyának van egy{' '}
-                                    <strong>ease factor</strong> értéke (alapból
-                                    250%). Ismétlés állapotban:
+                                    <strong>nehézségi szorzója</strong> (ease,
+                                    alapból 250%). Ismétlés állapotban:
                                 </P>
                                 <Table
                                     headers={[
                                         'Értékelés',
                                         'Következő intervallum (közelítő)',
+                                        'Szorzó',
                                     ]}
                                     rows={[
                                         [
                                             'Újra',
-                                            'Visszaesik tanulásba, majd a tévesztési intervallum % szerint indul újra',
+                                            'Visszaesik tanulásba, majd a tévesztés utáni visszaesés %-a szerint indul újra',
+                                            '−20',
                                         ],
                                         [
                                             'Nehéz',
-                                            'régi × hard_modifier (alap 120%) — az ease csökken 15-tel',
+                                            'régi × nehéz szorzó (alap 120%)',
+                                            '−15',
                                         ],
                                         [
                                             'Jó',
-                                            'régi × ease × interval_modifier (alap 100%)',
+                                            'régi × szorzó × intervallum módosító (alap 100%)',
+                                            'változatlan',
                                         ],
                                         [
                                             'Könnyű',
-                                            'jó_intervallum × easy_bonus (alap 130%) — az ease nő 15-tel',
+                                            'jó intervallum × könnyű bónusz (alap 130%)',
+                                            '+15',
                                         ],
                                     ]}
                                 />
+                                <InfoBox>
+                                    A nehézségi szorzó nem eshet{' '}
+                                    <strong>130% alá</strong> és nem nőhet{' '}
+                                    <strong>999% fölé</strong> — így egy sokat
+                                    tévesztett kártya sem ragad be végtelen
+                                    rövid ismétlésbe.
+                                </InfoBox>
                             </Sub>
 
                             <Sub title="Tanulási lépések">
@@ -1042,14 +1195,15 @@ export default function Handbook() {
                                 />
                             </Sub>
 
-                            <Sub title="Leech — nehéz kártyák">
+                            <Sub title="Problémás kártyák">
                                 <P>
-                                    Ha egy kártya eléri a leech küszöböt (alap 8
-                                    tévesztés), megkapja a "leech" jelzést. Ez
-                                    azt jelzi, hogy az adott kártya különlegesen
-                                    nehéz neked — érdemes átgondolni az
-                                    emlékezési stratégiát: kép, mnemonika,
-                                    kontextus hozzáadása.
+                                    Ha egy kártya eléri a{' '}
+                                    <strong>problémás kártya küszöböt</strong>{' '}
+                                    (alap 8 tévesztés), megkapja a problémás
+                                    jelzést. Ez azt jelzi, hogy az adott kártya
+                                    különlegesen nehéz neked — érdemes
+                                    átgondolni az emlékezési stratégiát: kép,
+                                    mnemonika, kontextus hozzáadása.
                                 </P>
                             </Sub>
                         </Section>
@@ -1057,17 +1211,17 @@ export default function Handbook() {
                         {/* ── Deck beállítások ── */}
                         <Section
                             id="deck-settings"
-                            title="Deck beállítások"
+                            title="Pakli beállítások"
                             icon={Settings2}
                         >
                             <P>
-                                Minden decknek saját beállítása lehet, amely
+                                Minden paklinak lehet saját beállítása, amely
                                 felülírja a globális SRS paramétereket. A
-                                beállítások dialóg a deck oldalán a
+                                beállítások dialóg a pakli oldalán a
                                 "Beállítások" gombbal érhető el.
                             </P>
                             <InfoBox>
-                                Ha nincs egyéni deck beállítás, az algoritmus a
+                                Ha nincs egyéni pakli-beállítás, az algoritmus a
                                 globális (Beállítások → Flashcard beállítások)
                                 értékeket használja. Ha az sincs, a rendszer
                                 alapértékei érvényesek.
@@ -1145,7 +1299,7 @@ export default function Handbook() {
                                     ]}
                                     rows={[
                                         [
-                                            'Kezdő ease',
+                                            'Kezdő nehézség',
                                             '250%',
                                             'Milyen szorzóval indul a kártya a végzés pillanatában',
                                         ],
@@ -1182,17 +1336,40 @@ export default function Handbook() {
                                     ]}
                                     rows={[
                                         [
-                                            'Tévesztés utáni intervallum',
+                                            'Tévesztés utáni visszaesés',
                                             '0%',
                                             'Tévesztés után az előző intervallum hány %-ából indul újra (0% = 1 napról)',
                                         ],
                                         [
-                                            'Leech küszöb',
+                                            'Problémás kártya küszöb',
                                             '8',
-                                            'Ennyi tévesztés után kap a kártya "leech" jelzést',
+                                            'Ennyi tévesztés után kap a kártya problémás jelzést',
                                         ],
                                     ]}
                                 />
+                            </Sub>
+
+                            <Sub title="Egyéb">
+                                <Table
+                                    headers={[
+                                        'Beállítás',
+                                        'Alap',
+                                        'Mit állít?',
+                                    ]}
+                                    rows={[
+                                        [
+                                            'Kártyák keverése',
+                                            'Bekapcsolva',
+                                            'Véletlen sorrendben kérdezi a kártyákat a munkameneten belül — kikapcsolva mindig ugyanabban a sorrendben jönnek',
+                                        ],
+                                    ]}
+                                />
+                                <InfoBox type="tip">
+                                    Ha egy pakli egyéni beállításait törlöd, a
+                                    pakli innentől a globális beállításaidat
+                                    követi — a kártyák és a tanulási haladás nem
+                                    változik.
+                                </InfoBox>
                             </Sub>
                         </Section>
 
@@ -1210,68 +1387,123 @@ export default function Handbook() {
                             </P>
 
                             <Sub title="Szöveg forrásai">
+                                <P>
+                                    A négy forrást a lap tetején lévő fülekkel
+                                    választhatod ki:
+                                </P>
                                 <Table
-                                    headers={['Forrás', 'Hogyan?']}
+                                    headers={['Fül', 'Hogyan?']}
                                     rows={[
                                         [
-                                            'Beillesztett szöveg',
+                                            'Szöveg',
                                             'Másold be a szöveget közvetlenül (max. 15 000 karakter)',
                                         ],
                                         [
-                                            'Weblap URL',
-                                            'Add meg az URL-t — az alkalmazás letölti és feldolgozza a szöveget',
-                                        ],
-                                        [
-                                            'YouTube URL',
+                                            'YouTube',
                                             'A videó angol feliratát automatikusan kinyeri és elemzi',
                                         ],
                                         [
-                                            'Könyv (EPUB)',
-                                            'Feltöltés után oldalankénti navigáció érhető el',
+                                            'Weboldal',
+                                            'Add meg az URL-t — az alkalmazás letölti és feldolgozza a szöveget',
+                                        ],
+                                        [
+                                            'Könyv',
+                                            'EPUB feltöltése (egy fájl max. 3 MB), utána oldalankénti navigáció',
                                         ],
                                     ]}
                                 />
                             </Sub>
 
                             <Sub title="Mit látsz az elemzés után?">
+                                <P>
+                                    A szöveg szavanként ki van emelve, a
+                                    szólistádban rögzített státusz színeivel. A
+                                    jelmagyarázat mindig ott van az elemzés
+                                    fölött:
+                                </P>
+                                <Table
+                                    headers={['Kiemelés', 'Mit jelent?']}
+                                    rows={[
+                                        [
+                                            <Badge color="green">Tudom</Badge>,
+                                            'Ezt a szót már ismerted — beleszámít a megértési %-ba',
+                                        ],
+                                        [
+                                            <Badge color="blue">Tanulom</Badge>,
+                                            'Folyamatban lévő szó',
+                                        ],
+                                        [
+                                            <Badge color="default">
+                                                Top 10 000, de ismeretlen
+                                            </Badge>,
+                                            'Pirossal: a gyakorisági listán szerepel, de nincs még státusza — ezekkel érdemes kezdeni',
+                                        ],
+                                        [
+                                            <Badge color="default">
+                                                Tulajdonnév / ritka szó
+                                            </Badge>,
+                                            'Nincs kiemelve: nem szerepel a Top 10 000-ben (név, szakszó, ritka alak)',
+                                        ],
+                                    ]}
+                                />
+                                <P>
+                                    A Később, Kiejtés és Gyakorlásra színek csak
+                                    akkor jelennek meg a jelmagyarázatban, ha
+                                    ilyen szó elő is fordul a szövegben.
+                                </P>
                                 <Ul
                                     items={[
-                                        'A szöveg szavanként kiemelve: zöld = tudod, kék = tanulod, szürke = ismeretlen',
-                                        'Jobb oldalon a leggyakoribb ismeretlen szavak listája',
+                                        'A leggyakoribb ismeretlen szavak külön listában, gyakoriság szerint rendezve',
                                         'Egy szóra kattintva megjelenik a fordítása és az aktuális státusza',
-                                        'Közvetlenül innen hozzáadhatsz státuszt és flashcard kártyát',
-                                        'A megértési % mutatja, az összes szóhossz hány %-át fedik az ismert szavak',
+                                        'Közvetlenül innen adhatsz státuszt és flashcard kártyát a szóhoz',
+                                        'A megértési % azt mutatja, a szöveg összes szó-előfordulásának hány %-át ismered már',
                                     ]}
                                 />
                             </Sub>
 
                             <Sub
                                 title={
-                                    (
-                                        <span className="flex items-center gap-2">
-                                            AI kontextus magyarázat{' '}
-                                            <PremiumBadge />
-                                        </span>
-                                    ) as unknown as string
+                                    <span className="flex items-center gap-2">
+                                        AI kontextus magyarázat <AiBadge />
+                                    </span>
                                 }
                             >
                                 <P>
-                                    Egy szó részleteinél a Gemini gombra
-                                    kattintva az AI megmagyarázza, mit jelent a
-                                    szó <em>pontosan abban a mondatban</em> —
-                                    nem általánosságban, hanem ahogy az adott
-                                    szövegkörnyezetben használják. Prémium
-                                    funkció.
+                                    Egy szó részleteinél az AI-gombra kattintva
+                                    az AI megmagyarázza, mit jelent a szó{' '}
+                                    <em>pontosan abban a mondatban</em> — nem
+                                    általánosságban, hanem ahogy az adott
+                                    szövegkörnyezetben használják. Minden
+                                    csomagban elérhető, a havi AI-keretedből
+                                    fogyaszt.
                                 </P>
+                            </Sub>
+
+                            <Sub title="Napi és tárhelykorlátok">
+                                <Table
+                                    headers={['Korlát', 'Ingyenes', 'Pro']}
+                                    rows={[
+                                        ['Szövegelemzés / nap', '2', '50'],
+                                        ['Mentett könyv', '1', '3'],
+                                        ['Mentett YouTube-felirat', '3', '40'],
+                                        ['Könyv-tárhely', '30 MB', '30 MB'],
+                                    ]}
+                                />
+                                <InfoBox>
+                                    Egy feltöltött EPUB legfeljebb{' '}
+                                    <strong>3 MB</strong> lehet, a mentett
+                                    könyvek együtt pedig 30 MB-ot foglalhatnak.
+                                    Egy könyv törlésével a tárhely azonnal
+                                    felszabadul.
+                                </InfoBox>
                             </Sub>
 
                             <Sub title="Könyvek kezelése">
                                 <Ul
                                     items={[
-                                        'Feltöltött könyv baloldalon jelenik meg a könyvtárban',
+                                        'A feltöltött könyvek a bal oldali könyvtárban jelennek meg',
                                         'Oldalankénti navigáció nyilakkal vagy lapszám beírásával',
-                                        'Tárhelykorlát: Alap csomagon 3 könyv / 30 MB, Prémiumon 5 könyv / 30 MB',
-                                        'Bármikor törölheted a könyvet — a tárhelyed felszabadul',
+                                        'Bármikor törölheted a könyvet — a felvett szavaid megmaradnak',
                                     ]}
                                 />
                             </Sub>
@@ -1390,7 +1622,7 @@ export default function Handbook() {
                          *         ]}
                          *     />
                          * </Section>
-                        */}
+                         */}
 
                         {/* ── Teljesítmények ── */}
                         <Section
@@ -1399,38 +1631,49 @@ export default function Handbook() {
                             icon={Award}
                         >
                             <P>
-                                A teljesítmény rendszer érmekkel jutalmaz a
+                                A teljesítmény rendszer jelvényekkel jutalmaz a
                                 haladásodért — motivációt ad és vizuálisan
-                                mutatja, mennyit fejlődtél.
+                                mutatja, mennyit fejlődtél. A{' '}
+                                <strong>Teljesítmények</strong> oldalon
+                                csoportonként látod, mit szereztél már meg, és
+                                szűrhetsz a feloldott / hátralévő jelvényekre.
                             </P>
                             <Table
-                                headers={['Kategória', 'Mire kapsz érmet?']}
+                                headers={['Csoport', 'Mire kapsz jelvényt?']}
                                 rows={[
                                     [
-                                        'Szótanulás',
-                                        'X db szó "Tudom" státuszra állítása (50, 200, 500, 1 000...)',
+                                        'Sorozat',
+                                        '3, 7, 14, 30 és 100 egymást követő tanulási nap',
                                     ],
                                     [
-                                        'Streak',
-                                        'Egymást követő napok száma (7, 30, 100 nap...)',
+                                        'Szókincs',
+                                        '10, 50, 100, 500, 1 000 megjelölt szó (bármelyik státusszal)',
                                     ],
                                     [
-                                        'Szövegelemzés',
-                                        'Elemzett szövegek száma',
-                                    ],
-                                    [
-                                        'Flashcard',
-                                        'Tanult kártyák száma és befejezett munkamenetek',
+                                        'Ismert szavak',
+                                        '10, 50, 100, 500, 1 000 „Tudom" státuszú szó',
                                     ],
                                     [
                                         'Szintek',
                                         'Egy teljes gyakorisági szint (pl. Top 1 000) minden szava „Tudom"',
                                     ],
+                                    [
+                                        'Saját szavak',
+                                        'Az első, majd a 10. és 50. saját szó felvétele',
+                                    ],
+                                    [
+                                        'Flashcards',
+                                        'Az első pakli létrehozása, majd 10, 100 és 500 megtanult kártya',
+                                    ],
+                                    [
+                                        'Szövegelemzés',
+                                        'Az első és a 10. elemzés, valamint 90%+ érthetőség egy szövegen',
+                                    ],
                                 ]}
                             />
                             <P>
-                                Az érem megszerzésekor egy értesítő jelenik meg
-                                az alkalmazásban.
+                                A jelvény megszerzésekor egy értesítő jelenik
+                                meg az alkalmazásban.
                             </P>
                         </Section>
 
@@ -1455,14 +1698,12 @@ export default function Handbook() {
                             <InfoBox type="info">
                                 A bővítmény telepítése és használata (keresés,
                                 fordítás, felirat-kiemelés, YouTube/Netflix
-                                átirat) mindenkinek elérhető, Ingyenes
-                                csomaggal is. Csak a{' '}
-                                <strong>
-                                    bővítményből indított írások
-                                </strong>{' '}
-                                (új szó/flashcard felvétele, státusz
-                                módosítása) esnek közös napi keretbe Ingyenes
-                                csomagnál — Pro csomaggal ez is korlátlan.
+                                átirat) mindenkinek elérhető, Ingyenes csomaggal
+                                is. Csak a{' '}
+                                <strong>bővítményből indított írások</strong>{' '}
+                                (új szó/flashcard felvétele, státusz módosítása)
+                                esnek közös napi keretbe Ingyenes csomagnál —
+                                Pro csomaggal ez is korlátlan.
                             </InfoBox>
                             <div className="rounded-2xl border-2 border-indigo-200 bg-linear-to-br from-indigo-50 to-blue-50/80 p-5 dark:border-indigo-800/60 dark:from-indigo-950/30 dark:to-blue-950/10">
                                 <div className="mb-4 flex items-center gap-2">
@@ -1477,7 +1718,9 @@ export default function Handbook() {
                                             <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-red-500 text-white">
                                                 <Youtube className="size-4" />
                                             </div>
-                                            <span className="font-semibold">YouTube</span>
+                                            <span className="font-semibold">
+                                                YouTube
+                                            </span>
                                         </div>
                                         <P>
                                             Videók nézése közben a feliratokat
@@ -1488,27 +1731,33 @@ export default function Handbook() {
                                         <Ul
                                             items={[
                                                 <>
-                                                    <strong>Felirat-kiemelés</strong>{' '}
+                                                    <strong>
+                                                        Felirat-kiemelés
+                                                    </strong>{' '}
                                                     valós időben — zöld, kék,
-                                                    narancs, lila a tanult szavak
-                                                    alatt
+                                                    narancs, lila a tanult
+                                                    szavak alatt
                                                 </>,
                                                 <>
-                                                    <strong>Dupla kattintás</strong>{' '}
+                                                    <strong>
+                                                        Dupla kattintás
+                                                    </strong>{' '}
                                                     a feliraton: fordítás és
                                                     státuszkezelés a videó
                                                     megállítása nélkül
                                                 </>,
                                                 <>
-                                                    <strong>Átirat panel:</strong>{' '}
+                                                    <strong>
+                                                        Átirat panel:
+                                                    </strong>{' '}
                                                     a teljes videó szövege
                                                     oldalpanelben — görgethető,
                                                     kereshető, szavanként
                                                     kattintható
                                                 </>,
                                                 <>
-                                                    Egy kattintással megnyithatod
-                                                    az átiratot{' '}
+                                                    Egy kattintással
+                                                    megnyithatod az átiratot{' '}
                                                     <strong>
                                                         szövegelemzésre
                                                     </strong>{' '}
@@ -1527,35 +1776,42 @@ export default function Handbook() {
                                             <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-red-600 text-white">
                                                 <Tv2 className="size-4" />
                                             </div>
-                                            <span className="font-semibold">Netflix</span>
+                                            <span className="font-semibold">
+                                                Netflix
+                                            </span>
                                         </div>
                                         <P>
                                             Netflix-nézés közben a feliratokat
-                                            ugyanúgy dolgozza fel, mint YouTube-on
-                                            — valós idejű kiemelés és azonnali
-                                            fordítás sorozatnézés közben.
+                                            ugyanúgy dolgozza fel, mint
+                                            YouTube-on — valós idejű kiemelés és
+                                            azonnali fordítás sorozatnézés
+                                            közben.
                                         </P>
                                         <Ul
                                             items={[
                                                 <>
-                                                    <strong>Felirat-kiemelés</strong>{' '}
+                                                    <strong>
+                                                        Felirat-kiemelés
+                                                    </strong>{' '}
                                                     valós időben — zöld, kék,
                                                     narancs, lila aláhúzások a
                                                     tanult szavak alatt
                                                 </>,
                                                 <>
-                                                    <strong>Dupla kattintás</strong>{' '}
+                                                    <strong>
+                                                        Dupla kattintás
+                                                    </strong>{' '}
                                                     a feliraton: fordítás és
                                                     státuszkezelés a sorozat
                                                     megállítása nélkül
                                                 </>,
                                                 <>
                                                     <strong>
-                                                        1–4 billentyűkkel
+                                                        1–5 billentyűkkel
                                                     </strong>{' '}
-                                                    gyorsan állíthatod a státuszt
-                                                    a popup nyitva tartása nélkül
-                                                    is
+                                                    gyorsan állíthatod a
+                                                    státuszt a popup nyitva
+                                                    tartása nélkül is
                                                 </>,
                                             ]}
                                         />
@@ -1592,7 +1848,7 @@ export default function Handbook() {
                                     </>,
                                     <>
                                         <strong>Státuszkezelés helyben</strong>{' '}
-                                        (1–4 billentyűk) — nem kell átváltanod a
+                                        (1–5 billentyűk) — nem kell átváltanod a
                                         TopWords oldalára
                                     </>,
                                     <>
@@ -1617,8 +1873,8 @@ export default function Handbook() {
                                     <>
                                         <P>
                                             A bővítmény a Chrome Web Store-ból
-                                            egyetlen kattintással telepíthető, és
-                                            automatikusan frissül.
+                                            egyetlen kattintással telepíthető,
+                                            és automatikusan frissül.
                                         </P>
                                         <div className="mt-3 mb-4">
                                             <a
@@ -1645,13 +1901,13 @@ export default function Handbook() {
                                 <InfoBox type="warning">
                                     <strong>Fontos:</strong> A bővítmény csak
                                     akkor működik, ha be vagy jelentkezve a
-                                    TopWords-be — különben nem tud kommunikálni a
-                                    rendszerrel.
+                                    TopWords-be — különben nem tud kommunikálni
+                                    a rendszerrel.
                                 </InfoBox>
                                 <InfoBox type="tip">
-                                    Az AI funkciókhoz (fordítás, szókitöltés){' '}
-                                    <strong>Prémium előfizetés</strong>{' '}
-                                    szükséges.
+                                    Az AI-funkciók (AI-kitöltés a keresőben) itt
+                                    is minden csomagban működnek, a havi
+                                    AI-keretedből.
                                 </InfoBox>
                             </Sub>
 
@@ -1667,12 +1923,37 @@ export default function Handbook() {
                                         'Látod a szó magyar fordítását és szófaját',
                                         'Ha már van státusza (pl. "Tanulom"), az is megjelenik',
                                         'A 🔊 gombra kattintva meghallgatod a kiejtést',
-                                        '1–4 billentyűkkel gyorsan beállíthatod a státuszt (ha be vagy jelentkezve)',
+                                        '1–5 billentyűkkel gyorsan beállíthatod a státuszt (ha be vagy jelentkezve)',
                                     ]}
                                 />
                             </Sub>
 
-                            <Sub title="Ctrl+Shift+F keresőpaletta">
+                            <Sub title="Gyorsgesztusok a kiemelt szavakon">
+                                <P>
+                                    A már kiemelt szavakon (weboldalon, YouTube-
+                                    és Netflix-feliraton egyaránt) a popup
+                                    megnyitása nélkül is állíthatsz státuszt:
+                                </P>
+                                <Table
+                                    headers={['Gesztus', 'Mit csinál?']}
+                                    rows={[
+                                        [
+                                            'Egyszeri kattintás',
+                                            'Megnyitja a szó-popupot',
+                                        ],
+                                        [
+                                            'Dupla kattintás',
+                                            'Azonnal „Tudom" státuszt ad (újra rákattintva leveszi)',
+                                        ],
+                                        [
+                                            'Hosszú nyomás (fél másodperc)',
+                                            'Azonnal „Később" státuszt ad',
+                                        ],
+                                    ]}
+                                />
+                            </Sub>
+
+                            <Sub title="Gyors keresőpaletta">
                                 <P>
                                     A{' '}
                                     <kbd className="rounded border px-1.5 py-0.5 font-mono text-xs">
@@ -1681,6 +1962,14 @@ export default function Handbook() {
                                     (Mac:{' '}
                                     <kbd className="rounded border px-1.5 py-0.5 font-mono text-xs">
                                         Cmd+Shift+F
+                                    </kbd>
+                                    ) vagy az{' '}
+                                    <kbd className="rounded border px-1.5 py-0.5 font-mono text-xs">
+                                        Alt+W
+                                    </kbd>{' '}
+                                    (Mac:{' '}
+                                    <kbd className="rounded border px-1.5 py-0.5 font-mono text-xs">
+                                        Option+W
                                     </kbd>
                                     ) billentyűkombinációval bármikor megnyílik
                                     egy gyors keresőablak.
@@ -1718,7 +2007,8 @@ export default function Handbook() {
                                             <span
                                                 className="font-medium"
                                                 style={{
-                                                    backgroundColor: '#22c55e33',
+                                                    backgroundColor:
+                                                        '#22c55e33',
                                                     borderRadius: '3px',
                                                     padding: '1px 6px',
                                                 }}
@@ -1731,7 +2021,8 @@ export default function Handbook() {
                                             <span
                                                 className="font-medium"
                                                 style={{
-                                                    backgroundColor: '#3b82f633',
+                                                    backgroundColor:
+                                                        '#3b82f633',
                                                     borderRadius: '3px',
                                                     padding: '1px 6px',
                                                 }}
@@ -1744,20 +2035,22 @@ export default function Handbook() {
                                             <span
                                                 className="font-medium"
                                                 style={{
-                                                    backgroundColor: '#f9731633',
+                                                    backgroundColor:
+                                                        '#f9731633',
                                                     borderRadius: '3px',
                                                     padding: '1px 6px',
                                                 }}
                                             >
                                                 narancs háttér
                                             </span>,
-                                            'Mentett',
+                                            'Később',
                                         ],
                                         [
                                             <span
                                                 className="font-medium"
                                                 style={{
-                                                    backgroundColor: '#8b5cf633',
+                                                    backgroundColor:
+                                                        '#8b5cf633',
                                                     borderRadius: '3px',
                                                     padding: '1px 6px',
                                                 }}
@@ -1770,7 +2063,8 @@ export default function Handbook() {
                                             <span
                                                 className="font-medium"
                                                 style={{
-                                                    backgroundColor: '#f43f5e33',
+                                                    backgroundColor:
+                                                        '#f43f5e33',
                                                     borderRadius: '3px',
                                                     padding: '1px 6px',
                                                 }}
@@ -1799,8 +2093,8 @@ export default function Handbook() {
 
                             <InfoBox type="info">
                                 <strong>Kompatibilitás:</strong> A bővítmény
-                                Chrome 88+ és Chromium alapú böngészőkben (Edge,
-                                Brave, Arc) is működik.
+                                Chrome 110+ és Chromium alapú böngészőkben
+                                (Edge, Brave, Arc) is működik.
                             </InfoBox>
                         </Section>
 
@@ -1896,7 +2190,7 @@ export default function Handbook() {
                          *         />
                          *     </Sub>
                          * </Section>
-                        */}
+                         */}
 
                         {/* ── Előfizetés & számlázás ── */}
                         <Section
@@ -1905,13 +2199,37 @@ export default function Handbook() {
                             icon={CreditCard}
                         >
                             <P>
-                                A TopWords ingyenes és Prémium csomagban
-                                érhető el. Az ingyenes csomag korlátozott napi
-                                és havi keretekkel (kevesebb flashcard/szólista,
-                                alacsonyabb napi szövegelemzési és AI-keret),
-                                Prémiummal ezek a korlátok feloldódnak, és a
-                                teljes AI-funkcionalitás elérhetővé válik.
+                                A TopWords <strong>Ingyenes</strong> és{' '}
+                                <strong>Pro</strong> csomagban érhető el.
+                                Ugyanazokat a funkciókat kapod mindkettőben — a
+                                különbség a keretekben van.
                             </P>
+                            <Table
+                                headers={['Keret', 'Ingyenes', 'Pro']}
+                                rows={[
+                                    [
+                                        'Tanulókártya / pakli',
+                                        '50 kártya, 5 pakli',
+                                        'Korlátlan',
+                                    ],
+                                    ['Szövegelemzés / nap', '2', '50'],
+                                    [
+                                        'Mentett könyv és YouTube-felirat',
+                                        '1 könyv, 3 felirat',
+                                        '3 könyv, 40 felirat',
+                                    ],
+                                    [
+                                        'Mentés a Chrome-bővítményből / nap',
+                                        '20',
+                                        'Korlátlan',
+                                    ],
+                                    [
+                                        'Havi AI-keret',
+                                        'Kóstoló',
+                                        'Teljes keret',
+                                    ],
+                                ]}
+                            />
 
                             <Sub title="Előfizetés kezelése">
                                 <P>
@@ -1924,7 +2242,7 @@ export default function Handbook() {
                                     headers={['Művelet', 'Mit csinál?']}
                                     rows={[
                                         [
-                                            'Váltás Prémiumra',
+                                            'Váltás Próra',
                                             'Átirányít az árazási oldalra, ahol kiválaszthatod az előfizetést',
                                         ],
                                         [
@@ -1933,7 +2251,7 @@ export default function Handbook() {
                                         ],
                                         [
                                             'Előfizetés lemondása',
-                                            'A már kifizetett időszak végéig minden funkció megmarad, utána automatikusan az ingyenes csomagra vált — a kártyát nem terheljük meg újra',
+                                            'A már kifizetett időszak végéig minden funkció megmarad, utána automatikusan az Ingyenes csomagra vált — a kártyát nem terheljük meg újra',
                                         ],
                                         [
                                             'Lemondás visszavonása',
@@ -1943,7 +2261,7 @@ export default function Handbook() {
                                 />
                                 <InfoBox type="warning">
                                     Ha egy terhelés sikertelen (pl. lejárt
-                                    kártya), a prémium hozzáférés átmenetileg
+                                    kártya), a Pro hozzáférés átmenetileg
                                     szünetel. A Stripe automatikusan
                                     újrapróbálja a terhelést — a{' '}
                                     <strong>Kártya frissítése</strong> gombbal
@@ -1954,7 +2272,9 @@ export default function Handbook() {
 
                             <Sub title="Számlázási adatok és NAV-számlák">
                                 <P>
-                                    A <strong>Beállítások → Számlázási adatok
+                                    A{' '}
+                                    <strong>
+                                        Beállítások → Számlázási adatok
                                     </strong>{' '}
                                     oldalon adhatod meg, hogy magánszemélyként
                                     vagy cégként szeretnél számlázni (cégnél az

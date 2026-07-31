@@ -99,7 +99,7 @@ test('client-sent status and user_id are ignored on create', function () {
 
     $this->post(route('report.store'), [
         'category' => 'bug',
-        'description' => 'Teszt.',
+        'description' => 'Teszt bejelentés.',
         'status' => 'resolved',
         'user_id' => $otherUser->id,
     ])->assertRedirect();
@@ -114,13 +114,13 @@ test('report store endpoint is throttled', function () {
     for ($i = 0; $i < 10; $i++) {
         $this->post(route('report.store'), [
             'category' => 'bug',
-            'description' => "Teszt {$i}.",
+            'description' => "Teszt bejelentés {$i}.",
         ])->assertRedirect();
     }
 
     $this->post(route('report.store'), [
         'category' => 'bug',
-        'description' => 'Teszt 11.',
+        'description' => 'Teszt bejelentés 11.',
     ])->assertStatus(429);
 });
 

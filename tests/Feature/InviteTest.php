@@ -12,6 +12,7 @@ function validRegistration(array $extra = []): array
         'email' => 'teszt@example.com',
         'password' => 'Password123!@#x',
         'password_confirmation' => 'Password123!@#x',
+        'terms' => 'on',
     ], $extra);
 }
 
@@ -67,7 +68,7 @@ test('an invite cannot be consumed beyond max_uses', function () {
     $action->create([
         'name' => 'First', 'email' => 'first@example.com',
         'password' => 'Password123!@#x', 'password_confirmation' => 'Password123!@#x',
-        'invite' => 'ONCE',
+        'terms' => 'on', 'invite' => 'ONCE',
     ]);
 
     expect($invite->fresh()->uses)->toBe(1);
@@ -76,7 +77,7 @@ test('an invite cannot be consumed beyond max_uses', function () {
     expect(fn () => $action->create([
         'name' => 'Second', 'email' => 'second@example.com',
         'password' => 'Password123!@#x', 'password_confirmation' => 'Password123!@#x',
-        'invite' => 'ONCE',
+        'terms' => 'on', 'invite' => 'ONCE',
     ]))->toThrow(ValidationException::class);
 
     expect($invite->fresh()->uses)->toBe(1);

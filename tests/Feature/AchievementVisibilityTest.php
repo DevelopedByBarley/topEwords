@@ -43,6 +43,35 @@ test('a haladás csak a látható teljesítményekből számol', function () {
         ->and($props['totalAchievements'])->toBeLessThan(count(AchievementService::ACHIEVEMENTS));
 });
 
+test('a nézet minden mezőt megkap egy jelvény kirajzolásához', function () {
+    $user = onboardedUser();
+
+    UserAchievement::create([
+        'user_id' => $user->id,
+        'achievement_key' => 'custom_first',
+        'unlocked_at' => now(),
+    ]);
+
+    $props = $this->actingAs($user)->get('/achievements')->viewData('page')['props'];
+
+    $item = collect($props['grouped'])
+        ->flatMap(fn (array $group): array => $group['items'])
+        ->firstWhere('key', 'custom_first');
+
+    // A Teljesítmények oldal ezekre a mezőkre épül: hiányuk néma UI-törés lenne.
+    expect($item)->toHaveKeys(['key', 'title', 'description', 'icon', 'unlocked', 'unlocked_at'])
+        ->and($item['unlocked'])->toBeTrue()
+        ->and($item['unlocked_at'])->toBe(now()->format('Y. m. d.'));
+
+    // A zárolt jelvényeknél nincs dátum — a kártya ilyenkor a lakat-állapotot mutatja.
+    $locked = collect($props['grouped'])
+        ->flatMap(fn (array $group): array => $group['items'])
+        ->firstWhere('key', 'custom_10');
+
+    expect($locked['unlocked'])->toBeFalse()
+        ->and($locked['unlocked_at'])->toBeNull();
+});
+
 test('a kivezetett csoport jelvényeit nem osztja ki a szolgáltatás', function () {
     $user = onboardedUser();
     $user->forceFill(['quiz_completions' => 50])->save();

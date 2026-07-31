@@ -56,6 +56,9 @@
     --color-input: var(--input);
     --color-ring: var(--ring);
 
+    --color-link: var(--link);
+    --color-link-hover: var(--link-hover);
+
     --color-chart-1: var(--chart-1);
     --color-chart-2: var(--chart-2);
     --color-chart-3: var(--chart-3);
@@ -95,6 +98,13 @@
     --border: oklch(0.91 0 0);
     --input: oklch(0.91 0 0);
     --ring: oklch(0.65 0.22 293);
+    /*
+     * Szöveges linkek. A márka-gradiens kékjeiből (#3a3688 → #5566c4 → #4F8EEC)
+     * mindkét témában a kontrasztos végét használjuk: világoson a mély, sötéten
+     * a világos kék. Így a link WCAG AA felett marad a háttéren.
+     */
+    --link: #4a59b5;
+    --link-hover: #3a3688;
     --chart-1: oklch(0.55 0.27 293);
     --chart-2: oklch(0.65 0.22 293);
     --chart-3: oklch(0.8 0.16 85);
@@ -133,6 +143,8 @@
     --border: oklch(0.35 0.02 270);
     --input: oklch(0.35 0.02 270);
     --ring: oklch(0.65 0.22 293);
+    --link: #4f8eec;
+    --link-hover: #8ab8f5;
     --chart-1: oklch(0.65 0.25 293);
     --chart-2: oklch(0.7 0.2 293);
     --chart-3: oklch(0.8 0.16 85);

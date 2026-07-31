@@ -13,4 +13,6 @@ export type AuthLayoutProps = {
     name?: string;
     title?: string;
     description?: string;
+    /** Szélesebb űrlap-oszlop a sokmezős lapokhoz (regisztráció). */
+    wide?: boolean;
 };

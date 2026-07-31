@@ -26,6 +26,7 @@ test('new users can register but are not logged in until they verify their email
         'email' => 'test@example.com',
         'password' => 'password',
         'password_confirmation' => 'password',
+        'terms' => 'on',
     ]);
 
     // E-mail-megerősítés-előbb flow: a regisztráció NEM lépteti be a usert,
@@ -48,6 +49,7 @@ test('registration rejects an individual who submits a tax number', function () 
         'email' => 'indiv@example.com',
         'password' => 'password',
         'password_confirmation' => 'password',
+        'terms' => 'on',
         'billing_type' => 'individual',
         'billing_tax_number' => '12345678-1-01',
         'billing_country' => 'HU',
@@ -68,6 +70,7 @@ test('registration accepts a company with a valid tax number', function () {
         'email' => 'company@example.com',
         'password' => 'password',
         'password_confirmation' => 'password',
+        'terms' => 'on',
         'billing_type' => 'company',
         'billing_tax_number' => '12345678-1-01',
         'billing_company_registration_number' => '01-09-999999',

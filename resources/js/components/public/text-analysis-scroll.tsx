@@ -15,6 +15,7 @@ import {
     X,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { ScrollReveal } from '@/components/public/scroll-reveal';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -131,13 +132,34 @@ export function TextAnalysisScrollSection() {
                     ease: 'none',
                     scrollTrigger: scrub,
                 });
+                /* A cím lassabban sodródik, mint a jelenet — ez adja a mélységet. */
+                gsap.to(q('[data-layer="heading"]'), {
+                    yPercent: -16,
+                    ease: 'none',
+                    scrollTrigger: scrub,
+                });
 
-                tl.from(q('[data-layer="mockup"]'), {
-                    scale: 0.82,
-                    yPercent: 12,
+                tl.from(q('[data-layer="title"]'), {
+                    y: 44,
                     opacity: 0,
-                    duration: 1,
+                    duration: 0.7,
                 })
+                    .from(
+                        q('[data-layer="lead"]'),
+                        { y: 32, opacity: 0, duration: 0.7 },
+                        '-=0.5',
+                    )
+                    .from(
+                        q('[data-layer="steps"]'),
+                        { y: 26, opacity: 0, duration: 0.6 },
+                        '-=0.45',
+                    )
+                    .from(q('[data-layer="mockup"]'), {
+                        scale: 0.82,
+                        yPercent: 12,
+                        opacity: 0,
+                        duration: 1,
+                    })
                     .from(
                         q('[data-layer="subtitle"]'),
                         { opacity: 0, y: 24, duration: 0.6 },
@@ -223,7 +245,7 @@ export function TextAnalysisScrollSection() {
     return (
         <section id="szovegelemzes" ref={rootRef} className="bg-white">
             {/* Mobil: klasszikus, statikus elrendezés */}
-            <div className="px-5 py-24 lg:hidden lg:motion-reduce:block">
+            <div className="px-5 pt-24 pb-12 lg:hidden lg:motion-reduce:block">
                 <div className="mx-auto max-w-[1000px]">
                     <div className="mx-auto max-w-[640px] text-center">
                         <h2 className="text-[clamp(30px,4vw,46px)] leading-[1.1] font-bold tracking-[-1px] text-[#171717]">
@@ -604,26 +626,7 @@ export function TextAnalysisScrollSection() {
                         </div>
                     </div>
 
-                    <div className="mt-11 grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4">
-                        {ANALYZE_BULLETS.map((b) => (
-                            <div
-                                key={b.title}
-                                className="rounded-[14px] border border-neutral-200 bg-[#fafafa] p-5 transition-all duration-250 hover:-translate-y-1.5 hover:shadow-[0_24px_50px_rgba(0,0,0,.12)]"
-                            >
-                                <span className="grid size-10.5 place-items-center rounded-[11px] bg-indigo-100 text-indigo-700">
-                                    <b.icon size={23} />
-                                </span>
-                                <div className="mt-3 text-[15px] font-semibold text-[#171717]">
-                                    {b.title}
-                                </div>
-                                <div className="mt-1.25 text-[13px] leading-[1.5] text-[#737373]">
-                                    {b.desc}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-
-                    <div className="mt-6 rounded-3xl bg-[#171717] p-7.5 shadow-[0_24px_60px_rgba(0,0,0,.24)]">
+                    <div className="mt-10 rounded-3xl bg-[#171717] p-7.5 shadow-[0_24px_60px_rgba(0,0,0,.24)]">
                         <div className="flex flex-wrap gap-2">
                             <span className="rounded-lg bg-indigo-700 px-3.5 py-1.75 text-xs font-semibold text-white">
                                 Szöveg
@@ -723,11 +726,20 @@ export function TextAnalysisScrollSection() {
                         }}
                     />
 
-                    <div className="relative mx-auto max-w-[640px] text-center">
-                        <h2 className="text-[clamp(28px,3.6vw,42px)] leading-[1.1] font-bold tracking-[-1px] text-[#171717]">
+                    <div
+                        data-layer="heading"
+                        className="relative mx-auto max-w-[640px] text-center"
+                    >
+                        <h2
+                            data-layer="title"
+                            className="text-[clamp(28px,3.6vw,42px)] leading-[1.1] font-bold tracking-[-1px] text-[#171717]"
+                        >
                             Elemezz bármilyen angol szöveget
                         </h2>
-                        <p className="mx-auto mt-3.5 text-[16px] leading-[1.6] text-[#737373]">
+                        <p
+                            data-layer="lead"
+                            className="mx-auto mt-3.5 text-[16px] leading-[1.6] text-[#737373]"
+                        >
                             Illeszd be a szöveget, adj meg egy webcímet vagy
                             könyvet — vagy elemezd egyenesen a{' '}
                             <b className="text-[#404040]">YouTube</b> és{' '}
@@ -1031,7 +1043,10 @@ export function TextAnalysisScrollSection() {
                         </div>
                     </div>
 
-                    <div className="relative -mt-3 flex items-center gap-2.5">
+                    <div
+                        data-layer="steps"
+                        className="relative -mt-3 flex items-center gap-2.5"
+                    >
                         {SCENES.map((label, i) => (
                             <div
                                 key={label}
@@ -1073,6 +1088,32 @@ export function TextAnalysisScrollSection() {
                             </div>
                         ))}
                     </div>
+                </div>
+            </div>
+
+            {/*
+             * Közös lezárás mindkét változat alá: desktopon ez a statikus sáv
+             * választja el a pinnelt jelenetet a következő szekció jelenetétől.
+             */}
+            <div className="px-5 pb-24">
+                <div className="mx-auto grid max-w-[1000px] grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4">
+                    {ANALYZE_BULLETS.map((b, i) => (
+                        <ScrollReveal
+                            key={b.title}
+                            delay={i * 0.08}
+                            className="rounded-[14px] border border-neutral-200 bg-[#fafafa] p-5 transition-all duration-250 hover:-translate-y-1.5 hover:shadow-[0_24px_50px_rgba(0,0,0,.12)]"
+                        >
+                            <span className="grid size-10.5 place-items-center rounded-[11px] bg-indigo-100 text-indigo-700">
+                                <b.icon size={23} />
+                            </span>
+                            <div className="mt-3 text-[15px] font-semibold text-[#171717]">
+                                {b.title}
+                            </div>
+                            <div className="mt-1.25 text-[13px] leading-[1.5] text-[#737373]">
+                                {b.desc}
+                            </div>
+                        </ScrollReveal>
+                    ))}
                 </div>
             </div>
         </section>
