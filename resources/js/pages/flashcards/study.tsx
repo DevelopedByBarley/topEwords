@@ -174,11 +174,18 @@ function InfoRow({
 }
 
 /**
- * Az épp leadott értékelést mutatja: a képernyő közepén úszik át a közben már
- * megjelent következő kártya fölött. Szándékosan a nézőponthoz (`fixed`) van
- * kötve, nem a kártyához — hosszú kártyánál a kártya alja kifutna a képből.
+ * Az épp leadott értékelést mutatja: a közben már megjelent következő kártya
+ * felső éléről úszik fel a kártya fölötti sávba. A függőleges nyugalmi helyzetet
+ * a hívó adja (`className`), mert a helye képernyőnként más — a horgony
+ * mindkét helyen nulla magasságú, így nem tol el semmit.
  */
-function RateFlashBadge({ flash }: { flash: RateFlash }) {
+function RateFlashBadge({
+    flash,
+    className,
+}: {
+    flash: RateFlash;
+    className: string;
+}) {
     const button = RATING_BUTTONS.find((b) => b.rating === flash.rating);
 
     if (!button) {
@@ -190,7 +197,7 @@ function RateFlashBadge({ flash }: { flash: RateFlash }) {
     return (
         <div
             aria-hidden="true"
-            className="pointer-events-none fixed inset-0 z-40 flex items-center justify-center px-4"
+            className={`pointer-events-none absolute inset-x-0 z-40 flex justify-center px-4 ${className}`}
         >
             <div
                 className={`flex animate-rate-flash items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold whitespace-nowrap shadow-lg ${button.flashClass}`}
@@ -626,10 +633,16 @@ export default function FlashcardStudy({
         return (
             <>
                 <Head title="Kész!" />
-                {/* Az utolsó kártya értékelése is kap visszajelzést, pedig már
-                    a záróképernyő látszik. */}
-                {flash && <RateFlashBadge key={flash.key} flash={flash} />}
-                <div className="flex min-h-[80vh] flex-col items-center justify-center gap-6 px-4 text-center">
+                <div className="relative flex min-h-[80vh] flex-col items-center justify-center gap-6 px-4 text-center">
+                    {/* Az utolsó kártya értékelése is kap visszajelzést, pedig
+                        már a záróképernyő látszik. */}
+                    {flash && (
+                        <RateFlashBadge
+                            key={flash.key}
+                            flash={flash}
+                            className="top-6"
+                        />
+                    )}
                     <CheckCircle className="size-16 text-green-500" />
                     <div>
                         <h2 className="text-2xl font-bold">Szuper!</h2>
@@ -705,6 +718,22 @@ export default function FlashcardStudy({
                         className="h-full rounded-full bg-primary transition-all duration-500"
                         style={{ width: `${progress}%` }}
                     />
+                </div>
+
+                {/* Az értékelés visszajelzésének horgonya: a haladás-sáv és a
+                    kártya közti sáv. Nulla magasságú, ezért nem tol el semmit.
+                    Kártyaváltáskor a lap tetejére ugrunk, így ez a sáv hosszú
+                    kártyánál is a képen van. */}
+                <div className="relative h-0">
+                    {/* A kulcs a gyors, egymás utáni értékeléseknél újraindítja
+                        az animációt a félbehagyott helyett. */}
+                    {flash && (
+                        <RateFlashBadge
+                            key={flash.key}
+                            flash={flash}
+                            className="-top-6"
+                        />
+                    )}
                 </div>
 
                 {/* Card */}
@@ -905,9 +934,6 @@ export default function FlashcardStudy({
                     )}
                 </div>
             </div>
-            {/* Az értékelés visszajelzése. A kulcs a gyors, egymás utáni
-                értékeléseknél újraindítja az animációt a félbehagyott helyett. */}
-            {flash && <RateFlashBadge key={flash.key} flash={flash} />}
 
             {/* Card info dialog */}
             {current && (

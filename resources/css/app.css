@@ -320,28 +320,29 @@
     }
 }
 
-/* Flashcard tanulás: az értékelés után a gombok helyéről felúszó
-   „ezt nyomtam" visszajelzés, ami átível a következő kártya fölé */
+/* Flashcard tanulás: az értékelés után a következő kártya felső éléről
+   felúszó „ezt nyomtam" visszajelzés. A pálya rövid, mert a kártya fölötti
+   sávban kell maradnia — a nyugalmi helyzetét a szülő horgony adja. */
 @keyframes rate-flash {
     0% {
         opacity: 0;
-        transform: translateY(20px) scale(0.7);
+        transform: translateY(34px) scale(0.7);
     }
-    16% {
+    18% {
         opacity: 1;
-        transform: translateY(6px) scale(1.06);
+        transform: translateY(8px) scale(1.06);
     }
-    28% {
+    30% {
         opacity: 1;
         transform: translateY(0) scale(1);
     }
-    62% {
+    68% {
         opacity: 1;
-        transform: translateY(-62px) scale(1);
+        transform: translateY(-4px) scale(1);
     }
     100% {
         opacity: 0;
-        transform: translateY(-140px) scale(0.9);
+        transform: translateY(-30px) scale(0.94);
     }
 }
 
