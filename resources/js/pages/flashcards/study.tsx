@@ -1,11 +1,15 @@
 import { Head, Link } from '@inertiajs/react';
 import {
     ArrowLeft,
+    Check,
+    CheckCheck,
     CheckCircle,
     Info,
+    Minus,
     Square,
     Undo2,
     Volume2,
+    X,
 } from 'lucide-react';
 import React, {
     useCallback,
@@ -85,6 +89,8 @@ const RATING_BUTTONS = [
         className:
             'bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-950/60',
         textClass: 'text-destructive',
+        flashClass: 'bg-red-500 text-white',
+        Icon: X,
     },
     {
         rating: 2,
@@ -94,6 +100,8 @@ const RATING_BUTTONS = [
         className:
             'bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-300 dark:hover:bg-amber-950/60',
         textClass: 'text-amber-600',
+        flashClass: 'bg-amber-500 text-white',
+        Icon: Minus,
     },
     {
         rating: 3,
@@ -103,6 +111,8 @@ const RATING_BUTTONS = [
         className:
             'bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-950/60',
         textClass: 'text-blue-600',
+        flashClass: 'bg-blue-500 text-white',
+        Icon: Check,
     },
     {
         rating: 4,
@@ -112,8 +122,13 @@ const RATING_BUTTONS = [
         className:
             'bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-950/40 dark:text-green-300 dark:hover:bg-green-950/60',
         textClass: 'text-green-600',
+        flashClass: 'bg-green-600 text-white',
+        Icon: CheckCheck,
     },
 ];
+
+/** Meddig látszik az értékelés visszajelzése — kicsit hosszabb az animációnál. */
+const RATE_FLASH_MS = 950;
 
 function stateLabel(state: string): string {
     return (
@@ -154,6 +169,37 @@ function InfoRow({
         <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">{label}</span>
             {children}
+        </div>
+    );
+}
+
+/**
+ * Az épp leadott értékelést mutatja: a gombok helyéről indul, és felúszik a
+ * közben már megjelent következő kártya fölé.
+ */
+function RateFlashBadge({ flash }: { flash: RateFlash }) {
+    const button = RATING_BUTTONS.find((b) => b.rating === flash.rating);
+
+    if (!button) {
+        return null;
+    }
+
+    const Icon = button.Icon;
+
+    return (
+        <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex justify-center"
+        >
+            <div
+                className={`flex animate-rate-flash items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold whitespace-nowrap shadow-lg ${button.flashClass}`}
+            >
+                <Icon className="size-4" />
+                {button.label}
+                <span className="text-xs font-normal opacity-80">
+                    {flash.preview}
+                </span>
+            </div>
         </div>
     );
 }
@@ -209,6 +255,9 @@ function resolveCardSides(card: Card): {
 
 type HistoryEntry = { id: number; direction: string };
 
+/** Az épp értékelt kártya után felúszó visszajelzés. */
+type RateFlash = { key: number; rating: number; preview: string };
+
 export default function FlashcardStudy({
     deck,
     cards,
@@ -227,6 +276,16 @@ export default function FlashcardStudy({
     const [speakingSide, setSpeakingSide] = useState<
         'question' | 'answer' | null
     >(null);
+    const [flash, setFlash] = useState<RateFlash | null>(null);
+    // Melyik irányból csússzon be a következő kártya: előre értékeléskor,
+    // visszafelé visszavonáskor.
+    const [navDirection, setNavDirection] = useState<'forward' | 'back'>(
+        'forward',
+    );
+    // Minden értékelés új kulcsot kap, így a gyors egymás utáni gombnyomásoknál
+    // az animáció újraindul a régi lefutása helyett.
+    const flashKeyRef = useRef(0);
+    const flashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     // Track in-flight rating fetches keyed by "id-direction" so undo can wait for them
     const pendingRatings = useRef<Map<string, Promise<void>>>(new Map());
     const answerRef = useRef<HTMLDivElement>(null);
@@ -322,6 +381,15 @@ export default function FlashcardStudy({
         [stopSpeaking],
     );
 
+    const clearFlash = useCallback(() => {
+        if (flashTimeoutRef.current) {
+            clearTimeout(flashTimeoutRef.current);
+            flashTimeoutRef.current = null;
+        }
+
+        setFlash(null);
+    }, []);
+
     const handleReveal = useCallback(() => {
         if (!revealed) {
             setRevealed(true);
@@ -342,6 +410,12 @@ export default function FlashcardStudy({
                 return;
             }
 
+            const button = RATING_BUTTONS.find((b) => b.rating === ratingValue);
+
+            if (!button) {
+                return;
+            }
+
             const cardId = current.id;
             const direction = current.study_direction;
             const key = `${cardId}-${direction}`;
@@ -349,7 +423,26 @@ export default function FlashcardStudy({
             stopSpeaking();
             setSubmitting(true);
 
+            // A visszajelzés a gombok helyéről indul, és túléli a kártyaváltást:
+            // a következő kártya fölé úszik fel, hogy látszódjon mit nyomtunk.
+            flashKeyRef.current += 1;
+
+            if (flashTimeoutRef.current) {
+                clearTimeout(flashTimeoutRef.current);
+            }
+
+            setFlash({
+                key: flashKeyRef.current,
+                rating: ratingValue,
+                preview: current.previews[button.previewKey],
+            });
+            flashTimeoutRef.current = setTimeout(() => {
+                flashTimeoutRef.current = null;
+                setFlash(null);
+            }, RATE_FLASH_MS);
+
             // Advance immediately — never block on the network
+            setNavDirection('forward');
             setHistory((prev) => [...prev, { id: cardId, direction }]);
             const next = currentIndex + 1;
 
@@ -421,6 +514,7 @@ export default function FlashcardStudy({
         const key = `${last.id}-${last.direction}`;
 
         stopSpeaking();
+        clearFlash();
         setUndoing(true);
 
         // Wait for any in-flight rating for this card before undoing
@@ -456,6 +550,7 @@ export default function FlashcardStudy({
             setUndoing(false);
         }
 
+        setNavDirection('back');
         setHistory((prev) => prev.slice(0, -1));
         setDone(false);
         // Derive the index from the history instead of decrementing: rating the
@@ -463,10 +558,13 @@ export default function FlashcardStudy({
         // decrement would slip one card back too far (and could go below 0).
         setCurrentIndex(Math.max(0, history.length - 1));
         setRevealed(false);
-    }, [history, undoing, deck.id, stopSpeaking]);
+    }, [history, undoing, deck.id, stopSpeaking, clearFlash]);
 
     // Stop any in-flight speech when leaving the study view.
     useEffect(() => stopSpeaking, [stopSpeaking]);
+
+    // A visszajelzés időzítője ne fusson le a nézet elhagyása után.
+    useEffect(() => clearFlash, [clearFlash]);
 
     // Scroll back to the top after the new card has rendered. Runs before paint
     // so a tall next card never leaves the view stuck at the previous scroll
@@ -607,112 +705,128 @@ export default function FlashcardStudy({
 
                 {/* Card */}
                 <div className="flex flex-1 flex-col gap-4">
-                    {/* Question */}
-                    <div
-                        className="relative flex min-h-64 cursor-pointer flex-col items-center justify-center rounded-3xl bg-card p-5 text-center shadow-sm select-none sm:p-8"
-                        style={
-                            current.color
-                                ? {
-                                      boxShadow: `inset 0 0 0 2px ${current.color}`,
-                                  }
-                                : {}
-                        }
-                        onClick={handleReveal}
-                    >
-                        <div className="absolute top-3 right-3 flex flex-col items-end gap-1">
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setShowInfo(true);
-                                }}
-                                className="rounded-full p-1 text-muted-foreground/50 transition-colors hover:bg-muted hover:text-foreground"
-                                title="Statisztika"
-                            >
-                                <Info className="size-3.5" />
-                            </button>
-                            {current.review.is_leech && (
-                                <span className="text-xs font-medium text-destructive">
-                                    ⚠ leech
-                                </span>
-                            )}
-                            {current.other_side_due_at && (
-                                <span
-                                    className="text-xs text-muted-foreground/60"
-                                    title="A másik irány esedékessége"
+                    {/* A wrapper adja a felúszó visszajelzés vonatkoztatási
+                        pontját: a kérdés-kártya alsó éle. */}
+                    <div className="relative">
+                        {/* Question — a kulcs miatt minden kártyaváltásnál újra
+                        lefut a becsúszó animáció */}
+                        <div
+                            key={`${current.id}-${current.study_direction}`}
+                            className={`relative flex min-h-64 animate-in cursor-pointer flex-col items-center justify-center rounded-3xl bg-card p-5 text-center shadow-sm duration-300 select-none fade-in motion-reduce:animate-none sm:p-8 ${
+                                navDirection === 'forward'
+                                    ? 'slide-in-from-right-6'
+                                    : 'slide-in-from-left-6'
+                            }`}
+                            style={
+                                current.color
+                                    ? {
+                                          boxShadow: `inset 0 0 0 2px ${current.color}`,
+                                      }
+                                    : {}
+                            }
+                            onClick={handleReveal}
+                        >
+                            <div className="absolute top-3 right-3 flex flex-col items-end gap-1">
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setShowInfo(true);
+                                    }}
+                                    className="rounded-full p-1 text-muted-foreground/50 transition-colors hover:bg-muted hover:text-foreground"
+                                    title="Statisztika"
                                 >
-                                    ↔{' '}
-                                    {formatRelativeTime(
-                                        current.other_side_due_at,
+                                    <Info className="size-3.5" />
+                                </button>
+                                {current.review.is_leech && (
+                                    <span className="text-xs font-medium text-destructive">
+                                        ⚠ leech
+                                    </span>
+                                )}
+                                {current.other_side_due_at && (
+                                    <span
+                                        className="text-xs text-muted-foreground/60"
+                                        title="A másik irány esedékessége"
+                                    >
+                                        ↔{' '}
+                                        {formatRelativeTime(
+                                            current.other_side_due_at,
+                                        )}
+                                    </span>
+                                )}
+                            </div>
+                            {sides!.questionSpeak && (
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+
+                                        if (speakingSide === 'question') {
+                                            stopSpeaking();
+                                        } else {
+                                            speak(
+                                                'question',
+                                                sides!.question,
+                                                sides!.questionSpeak,
+                                            );
+                                        }
+                                    }}
+                                    className={`absolute top-3 left-3 rounded-full p-1.5 transition-colors ${
+                                        speakingSide === 'question'
+                                            ? 'bg-primary text-primary-foreground'
+                                            : 'text-muted-foreground/50 hover:bg-muted hover:text-foreground'
+                                    }`}
+                                    title={
+                                        speakingSide === 'question'
+                                            ? 'Leállítás'
+                                            : 'Felolvasás'
+                                    }
+                                >
+                                    {speakingSide === 'question' ? (
+                                        <Square className="size-4 fill-current" />
+                                    ) : (
+                                        <Volume2 className="size-4" />
                                     )}
-                                </span>
+                                </button>
+                            )}
+                            <span className="mb-3 text-xs tracking-wide text-muted-foreground uppercase">
+                                {current.review.state === 'new'
+                                    ? 'Új kártya'
+                                    : current.review.state === 'learning'
+                                      ? 'Tanulás'
+                                      : current.review.state === 'relearning'
+                                        ? 'Újratanulás'
+                                        : `Ismétlés · ${current.review.interval} nap`}
+                            </span>
+                            <RichTextContent
+                                html={sides!.question}
+                                className="text-lg font-semibold"
+                            />
+                            {sides!.questionNotes && (
+                                <RichTextContent
+                                    html={sides!.questionNotes}
+                                    className="mt-3 text-sm text-muted-foreground"
+                                />
+                            )}
+
+                            {!revealed && (
+                                <p className="mt-6 text-xs text-muted-foreground">
+                                    <span className="sm:hidden">
+                                        Koppints a válasz megjelenítéséhez
+                                    </span>
+                                    <span className="hidden sm:inline">
+                                        Kattints vagy nyomj{' '}
+                                        <kbd className="rounded border px-1.5 py-0.5 text-xs">
+                                            Space
+                                        </kbd>{' '}
+                                        a megjelenítéshez
+                                    </span>
+                                </p>
                             )}
                         </div>
-                        {sides!.questionSpeak && (
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
 
-                                    if (speakingSide === 'question') {
-                                        stopSpeaking();
-                                    } else {
-                                        speak(
-                                            'question',
-                                            sides!.question,
-                                            sides!.questionSpeak,
-                                        );
-                                    }
-                                }}
-                                className={`absolute top-3 left-3 rounded-full p-1.5 transition-colors ${
-                                    speakingSide === 'question'
-                                        ? 'bg-primary text-primary-foreground'
-                                        : 'text-muted-foreground/50 hover:bg-muted hover:text-foreground'
-                                }`}
-                                title={
-                                    speakingSide === 'question'
-                                        ? 'Leállítás'
-                                        : 'Felolvasás'
-                                }
-                            >
-                                {speakingSide === 'question' ? (
-                                    <Square className="size-4 fill-current" />
-                                ) : (
-                                    <Volume2 className="size-4" />
-                                )}
-                            </button>
-                        )}
-                        <span className="mb-3 text-xs tracking-wide text-muted-foreground uppercase">
-                            {current.review.state === 'new'
-                                ? 'Új kártya'
-                                : current.review.state === 'learning'
-                                  ? 'Tanulás'
-                                  : current.review.state === 'relearning'
-                                    ? 'Újratanulás'
-                                    : `Ismétlés · ${current.review.interval} nap`}
-                        </span>
-                        <RichTextContent
-                            html={sides!.question}
-                            className="text-lg font-semibold"
-                        />
-                        {sides!.questionNotes && (
-                            <RichTextContent
-                                html={sides!.questionNotes}
-                                className="mt-3 text-sm text-muted-foreground"
-                            />
-                        )}
-
-                        {!revealed && (
-                            <p className="mt-6 text-xs text-muted-foreground">
-                                <span className="sm:hidden">
-                                    Koppints a válasz megjelenítéséhez
-                                </span>
-                                <span className="hidden sm:inline">
-                                    Kattints vagy nyomj{' '}
-                                    <kbd className="rounded border px-1.5 py-0.5 text-xs">
-                                        Space
-                                    </kbd>{' '}
-                                    a megjelenítéshez
-                                </span>
-                            </p>
+                        {/* A kulcs a gyors, egymás utáni értékeléseknél újraindítja
+                        az animációt a félbehagyott helyett. */}
+                        {flash && (
+                            <RateFlashBadge key={flash.key} flash={flash} />
                         )}
                     </div>
 

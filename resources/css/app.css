@@ -1,4 +1,4 @@
-    @import 'tailwindcss';
+@import 'tailwindcss';
 @plugin '@tailwindcss/typography';
 
 @font-face {
@@ -161,85 +161,195 @@
 }
 
 @keyframes streak-pop {
-    0% { transform: scale(0.3) translateY(30px); opacity: 0; }
-    55% { transform: scale(1.18) translateY(-6px); opacity: 1; }
-    75% { transform: scale(0.94) translateY(0); opacity: 1; }
-    100% { transform: scale(1) translateY(0); opacity: 1; }
+    0% {
+        transform: scale(0.3) translateY(30px);
+        opacity: 0;
+    }
+    55% {
+        transform: scale(1.18) translateY(-6px);
+        opacity: 1;
+    }
+    75% {
+        transform: scale(0.94) translateY(0);
+        opacity: 1;
+    }
+    100% {
+        transform: scale(1) translateY(0);
+        opacity: 1;
+    }
 }
 
 @keyframes streak-out {
-    0% { transform: scale(1) translateY(0); opacity: 1; }
-    100% { transform: scale(0.75) translateY(-24px); opacity: 0; }
+    0% {
+        transform: scale(1) translateY(0);
+        opacity: 1;
+    }
+    100% {
+        transform: scale(0.75) translateY(-24px);
+        opacity: 0;
+    }
 }
 
 @keyframes streak-glow-pulse {
-    0%, 100% { opacity: 0.5; transform: scale(1); }
-    50% { opacity: 0.8; transform: scale(1.15); }
+    0%,
+    100% {
+        opacity: 0.5;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.8;
+        transform: scale(1.15);
+    }
 }
 
 /* Landing hero: finom belépő fade + felúszás */
 @keyframes hero-rise {
-    0%   { opacity: 0; transform: translateY(16px); }
-    100% { opacity: 1; transform: translateY(0); }
+    0% {
+        opacity: 0;
+        transform: translateY(16px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 /* Landing hero: lebegő mockup-kártyák + csillag-csillogás */
 @keyframes hero-float-a {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-14px); }
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-14px);
+    }
 }
 
 @keyframes hero-float-b {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-20px); }
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-20px);
+    }
 }
 
 @keyframes hero-float-c {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-10px); }
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-10px);
+    }
 }
 
 @keyframes hero-twinkle {
-    0%, 100% { opacity: 0.25; }
-    50% { opacity: 0.9; }
+    0%,
+    100% {
+        opacity: 0.25;
+    }
+    50% {
+        opacity: 0.9;
+    }
 }
 
 /* Landing: lassú lebegés a hero-glow foltoknak + pulzáló jelvény */
 @keyframes hero-float-slow-a {
-    0%, 100% { transform: translateY(0) rotate(0deg); }
-    50% { transform: translateY(-16px); }
+    0%,
+    100% {
+        transform: translateY(0) rotate(0deg);
+    }
+    50% {
+        transform: translateY(-16px);
+    }
 }
 
 @keyframes hero-float-slow-b {
-    0%, 100% { transform: translateY(0) rotate(0deg); }
-    50% { transform: translateY(-22px) rotate(6deg); }
+    0%,
+    100% {
+        transform: translateY(0) rotate(0deg);
+    }
+    50% {
+        transform: translateY(-22px) rotate(6deg);
+    }
 }
 
 @keyframes hero-pulse {
-    0%, 100% { transform: scale(1); opacity: 1; }
-    50% { transform: scale(1.08); opacity: 0.85; }
+    0%,
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+    50% {
+        transform: scale(1.08);
+        opacity: 0.85;
+    }
 }
 
 /* Landing: haladás-sávok kitöltő animációja belépéskor */
 @keyframes bar-grow {
-    from { transform: scaleX(0); }
-    to { transform: scaleX(1); }
+    from {
+        transform: scaleX(0);
+    }
+    to {
+        transform: scaleX(1);
+    }
 }
 
 /* Landing: szólista auto-váltás visszaszámláló gyűrűje */
 @keyframes ring-countdown {
-    from { stroke-dashoffset: 44; }
-    to { stroke-dashoffset: 0; }
+    from {
+        stroke-dashoffset: 44;
+    }
+    to {
+        stroke-dashoffset: 0;
+    }
 }
 
 /* Landing: szövegelemzés-demó panel tartalomváltásának bejövő animációja */
 @keyframes panel-fade-in {
-    from { opacity: 0; transform: translateY(4px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Flashcard tanulás: az értékelés után a gombok helyéről felúszó
+   „ezt nyomtam" visszajelzés, ami átível a következő kártya fölé */
+@keyframes rate-flash {
+    0% {
+        opacity: 0;
+        transform: translateY(20px) scale(0.7);
+    }
+    16% {
+        opacity: 1;
+        transform: translateY(6px) scale(1.06);
+    }
+    28% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+    62% {
+        opacity: 1;
+        transform: translateY(-62px) scale(1);
+    }
+    100% {
+        opacity: 0;
+        transform: translateY(-140px) scale(0.9);
+    }
 }
 
 @theme {
-    --animate-streak-pop: streak-pop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    --animate-rate-flash: rate-flash 0.9s cubic-bezier(0.22, 1, 0.36, 1)
+        forwards;
+    --animate-streak-pop: streak-pop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1)
+        forwards;
     --animate-streak-out: streak-out 0.35s ease-in forwards;
     --animate-streak-glow: streak-glow-pulse 1s ease-in-out infinite;
     --animate-hero-rise: hero-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -263,7 +373,9 @@
     .animate-hero-float-slow-a,
     .animate-hero-float-slow-b,
     .animate-hero-pulse,
-    .animate-panel-fade-in {
+    .animate-panel-fade-in,
+    /* Marad statikusan látható a visszajelzés, csak nem úszik fel. */
+    .animate-rate-flash {
         animation: none !important;
     }
 }
@@ -279,7 +391,7 @@
 
     /* Prevent iOS auto-zoom on input focus (requires >= 16px font-size) */
     @media (max-width: 767px) {
-        input:not([type="hidden"]),
+        input:not([type='hidden']),
         textarea,
         select,
         [contenteditable] {
