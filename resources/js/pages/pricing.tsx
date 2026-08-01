@@ -69,7 +69,7 @@ const FREE_FEATURES: PlanFeature[] = [
         info: INFO.extensionSave,
     },
     {
-        label: 'AI-kóstoló',
+        label: 'AI-próbahozzáférés',
         info: 'Egy kis havi AI-keret, amivel kipróbálhatod az AI-funkciókat – a Pro csomagban jóval nagyobb kerettel használhatod őket.',
     },
 ];

@@ -18,7 +18,7 @@ export default function OnboardingTour() {
                     popover: {
                         title: '🏠 Haladás',
                         description:
-                            'A főoldalon egy pillantásra látod a teljes haladásodat: hány szót ismersz, hány van folyamatban, mennyi az aktuális streak, és mikor tanultál utoljára. Legfelül a „Folytasd itt” sáv mutatja, mi a következő lépés — például hány flashcard esedékes ma.',
+                            'A főoldalon egy pillantásra látod a haladásodat: hány szót tudsz, hány van folyamatban, mennyi az aktuális sorozatod (streak), és hogy ma tanultál-e már. Alatta szintenként is látod, hol tartasz. A „Folytasd itt” sáv mutatja a következő lépést — például hány flashcard esedékes ma.',
                         side: 'right',
                         align: 'start',
                     },
@@ -28,7 +28,7 @@ export default function OnboardingTour() {
                     popover: {
                         title: '📚 Angol szavak',
                         description:
-                            'A szótárban böngészheted az összes angol szót szint, státusz és mappa szerint szűrve. Minden szóhoz beállíthatod az állapotát (Ismeretlen / Tanulom / Mentett / Kiejtés / Tudom), mappákba rendezheted őket, és AI-segítséggel generálhatsz példamondatokat vagy kiejtést. Tömegesen is módosíthatod a státuszokat, exportálhatsz CSV-be, és törölhetsz szavakat.',
+                            'A szótárban a 10 000 szó között böngészhetsz szint, státusz és mappa szerint szűrve. Minden szóhoz beállíthatod az állapotát (Tudom / Tanulom / Később / Kiejtés / Gyakorlásra), mappákba rendezheted őket, és meghallgathatod a kiejtésüket. Saját szavakat is felvehetsz — ezeket az AI kitölti jelentéssel, szinonimákkal és példamondattal, és bármikor törölheted őket.',
                         side: 'right',
                         align: 'start',
                     },
@@ -38,7 +38,7 @@ export default function OnboardingTour() {
                     popover: {
                         title: '🃏 Flashcards',
                         description:
-                            'Hozz létre saját flashcard paklikat tetszőleges témában. Minden kártyán gazdag szövegszerkesztő áll rendelkezésre: formázás, képek, listák. Az okos ismétlési rendszer (SRS) automatikusan ütemezi, mikor kerüljön ismét elő egy kártya a teljesítményed alapján. A paklikat mappákba rendezheted, és egyenként is szerkesztheted vagy törölheted a kártyákat.',
+                            'Hozz létre saját flashcard paklikat tetszőleges témában. A kártyák szövegét formázhatod: félkövér, dőlt, listák, színek, linkek — és azt is beállíthatod, mit olvasson fel a felolvasó. Az okos ismétlési rendszer (SRS) automatikusan ütemezi, mikor kerüljön ismét elő egy kártya az értékeléseid alapján. A paklikat mappákba rendezheted, a kártyákat pedig szerkesztheted, mozgathatod vagy törölheted.',
                         side: 'right',
                         align: 'start',
                     },
@@ -48,7 +48,7 @@ export default function OnboardingTour() {
                     popover: {
                         title: '🔍 Szövegelemzés',
                         description:
-                            'Illessz be bármilyen angol szöveget vagy tölts fel fájlt, és az alkalmazás azonnal megmutatja, melyik szavakat ismered már és melyeket nem. Az ismeretlen szavakra kattintva egyből hozzáadhatod őket a szótárhoz a megfelelő státusszal. Kiváló módszer könyvek, cikkek vagy dalszövegek feldolgozásához.',
+                            'Illessz be angol szöveget, adj meg egy weboldalt, tölts fel egy EPUB könyvet vagy elemezd egy YouTube-videó feliratát — az alkalmazás megmutatja, mely szavakat ismered már és melyeket nem, és hány százalékát érted az egésznek. Az ismeretlen szavakra kattintva egyből felveheted őket a szótáradba a megfelelő státusszal.',
                         side: 'right',
                         align: 'start',
                     },
@@ -77,7 +77,7 @@ export default function OnboardingTour() {
                     popover: {
                         title: '🌐 Chrome bővítmény',
                         description:
-                            'A Chrome bővítménnyel bármely weboldalon dupla kattintással vagy az Option+W (Windows: Alt+W) gyorsbillentyűvel kereshetsz szavakat. Azonnal látod a fordítást, a státuszt, és közvetlenül a böngészőből adhatod hozzá a szót a szótárhoz — YouTube- és Netflix-feliratokon is.',
+                            'A Chrome bővítménnyel bármely weboldalon kereshetsz szavakat: dupla kattintás + nyomva tartás, vagy az Option+W (Windows: Alt+W), illetve a Ctrl+Shift+F gyorsbillentyű. Azonnal látod a jelentést, a kiejtést és a státuszt, felveheted a szót vagy kártyát készíthetsz belőle — YouTube- és Netflix-feliratokon is.',
                     },
                 },
         ];

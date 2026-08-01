@@ -113,11 +113,18 @@ const EXT_USAGE = [
 //     { n: 5, text: 'Válaszd ki a kicsomagolt mappát' },
 // ];
 
+/*
+ * Szándékosan nincsenek benne a konkrét darabszámok: azok a config/plans.php
+ * `limits.free` kulcsában és a /pricing oldali FREE_FEATURES-ben élnek. A
+ * landingen egy mondat mondja ki, hogy vannak korlátok, a pontos értékekért
+ * pedig a részletes összehasonlításra viszünk — így nem csúszhat szét
+ * háromfelé ugyanaz az adat.
+ */
 const FREE_PLAN = [
     '10 000 szavas szólista',
     'Flashcard SRS, saját deck-ek',
     'Chrome-bővítmény, napi kerettel',
-    'AI-kóstoló havi kerettel',
+    'AI-próbahozzáférés havi kerettel',
 ];
 
 const PRO_PLAN = [
@@ -1054,9 +1061,6 @@ export default function Welcome({
                             }}
                         >
                             <Reveal className="mx-auto mb-14 max-w-[760px] text-center">
-                                <span className="inline-block rounded-full bg-indigo-100 px-3.75 py-1.5 text-xs font-bold tracking-[1.2px] text-indigo-700">
-                                    AI-SEGÍTSÉG
-                                </span>
                                 <h2 className="mt-4.5 text-[clamp(30px,4vw,46px)] leading-[1.1] font-bold tracking-[-1px] text-[#171717]">
                                     Az AI végzi a nehezét helyetted
                                 </h2>
@@ -1263,15 +1267,12 @@ export default function Welcome({
                             }}
                         >
                             <Reveal className="mx-auto mb-14 max-w-[760px] text-center">
-                                <span className="inline-block rounded-full bg-indigo-100 px-3.75 py-1.5 text-xs font-bold tracking-[1.2px] text-indigo-700">
-                                    ÁRAZÁS
-                                </span>
                                 <h2 className="mt-4.5 text-[clamp(30px,4vw,46px)] leading-[1.1] font-bold tracking-[-1px] text-[#171717]">
                                     Válaszd ki a hozzád illő csomagot
                                 </h2>
                                 <p className="mx-auto mt-4 max-w-[560px] text-[17px] leading-[1.6] text-[#737373]">
-                                    Kezdd ingyen — kóstolj bele mindenbe, az
-                                    AI-ba is —, és ha megtetszett, válts Próra a
+                                    Kezdd ingyen — próbálj ki mindent, az AI-t
+                                    is —, és ha megtetszett, válts Próra a
                                     korlátlan használatért.
                                 </p>
                             </Reveal>
@@ -1289,8 +1290,9 @@ export default function Welcome({
                                         </span>
                                     </div>
                                     <p className="mb-5 text-sm leading-[1.6] text-[#737373]">
-                                        Szólista, flashcard, szövegelemző, a
-                                        Chrome-bővítmény és egy kis AI-kóstoló.
+                                        Minden fő funkciót kipróbálhatsz — a
+                                        flashcardokat is —, napi és havi
+                                        korlátokkal.
                                     </p>
                                     <div className="flex flex-1 flex-col gap-2.75">
                                         {FREE_PLAN.map((t) => (
@@ -1362,7 +1364,15 @@ export default function Welcome({
                                 </Reveal>
                             </div>
                             <p className="mx-auto mt-6 text-center text-[13px] text-[#6b6b76]">
-                                Az előfizetés bármikor lemondható.
+                                Az előfizetés bármikor lemondható. Az ingyenes
+                                csomag korlátait tételesen a{' '}
+                                <Link
+                                    href={pricingRoute()}
+                                    className="font-semibold text-[#4a59b5] underline-offset-2 hover:underline"
+                                >
+                                    részletes összehasonlításban
+                                </Link>{' '}
+                                nézheted meg.
                             </p>
                         </section>
 

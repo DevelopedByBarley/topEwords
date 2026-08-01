@@ -18,32 +18,33 @@ gsap.registerPlugin(ScrollTrigger);
 
 /**
  * Az SRS négy értékelési fokozata — a címke, a szín, a következő ismétlés
- * távolsága és az algoritmus viselkedése egy helyen.
+ * távolsága és az algoritmus viselkedése egy helyen. A leírások szándékosan
+ * zsargon nélküliek: a látogató nem tudja, mi az az ease faktor.
  */
 const SRS_STEPS = [
     {
         label: 'Újra',
         color: '#ef4444',
         time: '1 perc',
-        desc: 'Visszakerül a tanulási lépések elejére.',
+        desc: 'Nem jutott eszedbe — pár percen belül újra előkerül.',
     },
     {
         label: 'Nehéz',
         color: '#f59e0b',
         time: '6 nap',
-        desc: 'Kisebb intervallum, csökkenő ease faktor.',
+        desc: 'Épphogy megvolt — a szokásosnál hamarabb kérdez vissza.',
     },
     {
         label: 'Jó',
         color: '#22c55e',
         time: '10 nap',
-        desc: 'Az intervallum nő az ease faktor alapján.',
+        desc: 'Sikerült — a következő ismétlésig hosszabb szünet telik el.',
     },
     {
         label: 'Könnyű',
         color: '#3b82f6',
         time: '15 nap',
-        desc: 'Tovább vár, az ease faktor nő.',
+        desc: 'Azonnal tudtad — jó sokáig nem kerül elő újra.',
     },
 ];
 
@@ -298,9 +299,9 @@ export function FlashcardScrollSection() {
                         Intelligens ismétlési rendszer
                     </h2>
                     <p className="mx-auto mt-4 max-w-[560px] text-[17px] leading-[1.6] text-[#737373]">
-                        Minden értékelés után kiszámolja, mikor kell
-                        visszamutatnia a kártyát — ha könnyen ment, tovább vár;
-                        ha nehéz volt, hamarabb visszahozza.
+                        A kártyák akkor jönnek vissza, amikor épp kezdenéd
+                        elfelejteni őket: amit könnyen felidézel, azt egyre
+                        ritkábban látod — amivel küzdesz, az sűrűn visszatér.
                     </p>
                 </div>
 
@@ -457,9 +458,10 @@ export function FlashcardScrollSection() {
                             data-layer="lead"
                             className="mx-auto mt-3.5 text-[16px] leading-[1.6] text-[#737373]"
                         >
-                            Minden értékelés után kiszámolja, mikor kell
-                            visszamutatnia a kártyát — ha könnyen ment, tovább
-                            vár; ha nehéz volt, hamarabb visszahozza.
+                            A kártyák akkor jönnek vissza, amikor épp kezdenéd
+                            elfelejteni őket: amit könnyen felidézel, azt egyre
+                            ritkábban látod — amivel küzdesz, az sűrűn
+                            visszatér.
                         </p>
                     </div>
 

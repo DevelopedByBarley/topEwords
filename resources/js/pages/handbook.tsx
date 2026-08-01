@@ -239,7 +239,8 @@ function InfoBox({
 /**
  * AI-funkciót jelöl. Szándékosan NEM „Prémium": az AI minden csomagban elérhető
  * (User::hasAiAccess() mindig igaz), a valódi korlát a havi AI-keret —
- * Ingyenesen kóstoló, Prón nagyobb keret (config/plans.php: ai_budget_micros).
+ * Ingyenesen próbahozzáférés, Prón nagyobb keret (config/plans.php:
+ * ai_budget_micros).
  */
 function AiBadge() {
     return (
@@ -539,9 +540,9 @@ export default function Handbook() {
                                     kártya-kitöltés, kontextus-magyarázat)
                                     mindkét csomagban működnek — nincsenek
                                     lezárva. A korlát a{' '}
-                                    <strong>havi AI-keret</strong>: Ingyenesen
-                                    egy kóstoló, Pro csomaggal jóval nagyobb
-                                    keret. A felhasználásodat a{' '}
+                                    <strong>havi AI-keret</strong>: az Ingyenes
+                                    csomag próbahozzáférést kap, a Pro jóval
+                                    nagyobb keretet. A felhasználásodat a{' '}
                                     <strong>Beállítások → Előfizetés</strong>{' '}
                                     oldalon látod. Ezt a kézikönyvben az{' '}
                                     <AiBadge /> jelölés mutatja.

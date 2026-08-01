@@ -53,7 +53,7 @@ export default function AccessTab({ accessUsers }: Props) {
             </h2>
             <div className="space-y-4 rounded-xl border border-zinc-800 bg-zinc-900 p-5">
                 <p className="text-xs text-zinc-500">
-                    Free = napi keretek + kis AI-kóstoló · Pro = korlátlan +
+                    Free = napi keretek + AI-próbahozzáférés · Pro = korlátlan +
                     teljes AI-keret. Az AI minden csomagon elérhető (a havi
                     keret a korlát). A „+1 hó" gomb egy hónap ingyen Prót ad —
                     halmozható, lejáratkor magától visszaáll Free-re.

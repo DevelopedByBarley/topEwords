@@ -248,7 +248,7 @@ export default function Subscription({
                                 használod. Minden fő funkciót kipróbálhatsz, de
                                 napi és havi limitekkel: korlátozott flashcard-
                                 és szólista-szám, kevesebb napi szövegelemzés,
-                                és csak egy kis AI-kóstoló.
+                                és AI-próbahozzáférés kis havi kerettel.
                             </p>
 
                             <div className="mb-4 rounded-lg border border-indigo-200 bg-indigo-50 p-4 dark:border-indigo-800 dark:bg-indigo-950/30">

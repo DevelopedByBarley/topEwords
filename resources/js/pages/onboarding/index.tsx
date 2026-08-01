@@ -2,28 +2,34 @@ import { Head, router } from '@inertiajs/react';
 // A kivezetett diákhoz/pontokhoz tartozó ikonok kikommentelve (2026-07-29):
 // Brain (Kvíz), CalendarCheck (Napi ismétlés), Repeat (Rendhagyó igék),
 // Download / Link2 / MonitorPlay / Play (Player-dia).
+import type { LucideIcon } from 'lucide-react';
 import {
+    ArrowLeftRight,
     BookOpen,
     CheckCircle2,
     ChevronLeft,
     ChevronRight,
     Circle,
+    Highlighter,
     Keyboard,
     Layers,
-    Menu,
+    Lightbulb,
     Monitor,
     Moon,
     MousePointerClick,
-    PencilLine,
     Plus,
     RotateCw,
     ScanText,
+    SlidersHorizontal,
     Sparkles,
     Sun,
+    TextSelect,
     Trophy,
     Tv,
+    Wand2,
     Youtube,
 } from 'lucide-react';
+import type { ComponentType } from 'react';
 import { useState } from 'react';
 import { STATUS_CONFIG } from '@/components/words/types';
 import type { Appearance } from '@/hooks/use-appearance';
@@ -317,22 +323,54 @@ function ExtensionVisual() {
  * Visszahozáskor a kivett dia/pont ide kerül vissza (a PlayerVisual és a
  * hozzá tartozó ikon-importok szándékosan bent maradtak).
  */
-const FEATURE_SLIDES = [
+/**
+ * Egy funkció-kártya az onboarding dián. Az `ai: true` jelölteket AI-jelvény és
+ * indigó kiemelés különbözteti meg — ugyanaz a vizuális nyelv, mint a
+ * kézikönyv AiBadge-én.
+ */
+type SlideFeature = {
+    Icon: LucideIcon;
+    title: string;
+    desc: string;
+    ai?: boolean;
+};
+
+type FeatureSlide = {
+    id: string;
+    title: string;
+    subtitle: string;
+    Visual: ComponentType;
+    features: SlideFeature[];
+};
+
+const FEATURE_SLIDES: FeatureSlide[] = [
     {
         id: 'vocab',
         title: 'A szókincsed, egy helyen',
-        subtitle: 'A 10 000 leggyakoribb angol szó, öt státusszal követve.',
+        subtitle: '10 000 angol szó, öt státusszal követve.',
         Visual: WordListVisual,
         features: [
             {
                 Icon: BookOpen,
-                title: 'Top 10 000 szó',
-                desc: 'Gyakoriság szerint rendezett szólista szintekkel, szűrőkkel és mappákkal — jelöld a szavakat öt státusszal.',
+                title: '10 000 szó',
+                desc: 'Hat szintre bontott szólista a Top 1 000-től, szűrőkkel és saját mappákkal — a szavakat öt státusszal jelölöd.',
             },
             {
                 Icon: Plus,
                 title: 'Saját szavak',
-                desc: 'Vedd fel a top 10 000-en kívüli szavaidat is, és tanuld őket ugyanúgy, mint a többit.',
+                desc: 'Vedd fel a 10 000-en kívüli szavaidat is, és tanuld őket ugyanúgy, mint a többit.',
+            },
+            {
+                Icon: Sparkles,
+                title: 'AI-kitöltés',
+                ai: true,
+                desc: 'Saját szó felvételekor az AI kitölti a magyar jelentést, a szinonimákat, a ragozott alakokat és egy példamondatot — a végső szó a tiéd.',
+            },
+            {
+                Icon: Lightbulb,
+                title: 'Szó infók',
+                ai: true,
+                desc: 'Egy kattintásra megmutatja, milyen helyzetekben használják a szót, mennyire hivatalos, és példamondatokat is ad hozzá.',
             },
         ],
     },
@@ -348,9 +386,20 @@ const FEATURE_SLIDES = [
                 desc: 'Intelligens ismétlés: a kártyák akkor jönnek elő, amikor épp felejtenéd őket. Importálhatsz a szólistából vagy CSV-ből is.',
             },
             {
-                Icon: PencilLine,
-                title: 'AI mondat-ellenőrzés',
-                desc: 'Írj saját mondatot egy szóval, és az AI megmondja, természetes-e — így nem csak felismered, hanem használod is a szót.',
+                Icon: ArrowLeftRight,
+                title: 'Kétirányú kártyák',
+                desc: 'Ugyanazt a kártyát tanulhatod angolról magyarra és vissza — a két irány külön ütemezést kap, így a felismerés és az előhívás külön erősödik.',
+            },
+            {
+                Icon: Wand2,
+                title: 'Kártya-kitöltés',
+                ai: true,
+                desc: 'Írd be a szót, és az AI megcsinálja a kártya mindkét oldalát — jelentéssel és példamondattal, hogy ne kelljen gépelned.',
+            },
+            {
+                Icon: SlidersHorizontal,
+                title: 'Saját tempó',
+                desc: 'Paklinként állítható, hány új kártya és ismétlés jöjjön naponta, és milyen gyorsan nyúljanak az intervallumok — vagy hagyd az alapértelmezetten.',
             },
         ],
     },
@@ -358,13 +407,13 @@ const FEATURE_SLIDES = [
         id: 'analysis',
         title: 'Lásd, mennyit értesz',
         subtitle:
-            'Bármilyen szöveg vagy videó — azonnali érthetőségi százalék.',
+            'Szöveg, weboldal, könyv vagy YouTube-felirat — azonnali érthetőségi százalék.',
         Visual: AnalysisVisual,
         features: [
             {
                 Icon: ScanText,
-                title: 'Szöveg- és videóelemzés',
-                desc: 'Illessz be angol szöveget, URL-t vagy YouTube-videót, és lásd, hány százalékát érted — a szavak a státuszod szerint színeződnek.',
+                title: 'Négyféle forrás',
+                desc: 'Illessz be angol szöveget, adj meg egy weboldalt, tölts fel egy könyvet vagy elemezd egy YouTube-videó feliratát — a szavak a státuszod szerint színeződnek.',
             },
             {
                 Icon: Trophy,
@@ -383,27 +432,32 @@ const FEATURE_SLIDES = [
             {
                 Icon: MousePointerClick,
                 title: 'Dupla kattintás + tartás',
-                desc: 'Bármely weboldalon dupla kattints egy szóra és tartsd nyomva — azonnal megjelenik a jelentés és a státusz gombok.',
+                desc: 'Bármely oldalon dupla kattints egy szóra és tartsd nyomva: jön a jelentés, a kiejtés és a státusz gombok — és egy kattintással tanulókártyát is készíthetsz belőle.',
             },
             {
                 Icon: Keyboard,
-                title: 'Option+W gyorsbillentyű',
-                desc: 'Az Option+W (Mac) / Alt+W (Windows) megnyit egy keresőmezőt — gépeld be a szót, és máris ott a jelentése.',
+                title: 'Gyorsbillentyűs kereső',
+                desc: 'Option+W (Mac) / Alt+W vagy Ctrl+Shift+F: bárhol felugrik a kereső — gépeld be a szót, és ott a jelentése.',
             },
             {
-                Icon: Menu,
-                title: 'Jobb kattintás menü',
-                desc: 'Jelölj ki egy szót, jobb klikk → „Szó keresése", és megnyílik a TopWords az adott szóra szűrve.',
+                Icon: TextSelect,
+                title: 'Kifejezések Shift-tel',
+                desc: 'Shift + kattintás több szóra egész kifejezést jelöl ki, a Shift elengedésekor pedig megjelenik a fordítása.',
+            },
+            {
+                Icon: Highlighter,
+                title: 'Kiemelés az oldalon',
+                desc: 'Bekapcsolva a bővítmény olvasás közben kiemeli a szavaidat — a linkeket, gombokat és beviteli mezőket szándékosan kihagyja.',
             },
             {
                 Icon: ScanText,
-                title: 'Oldal elemzése egy kattintással',
-                desc: 'Az extension ikonjára kattintva az aktuális oldal szövege egyből megnyílik a szövegelemzőben.',
+                title: 'Oldal elemzése és statisztikája',
+                desc: 'A bővítmény ikonjára kattintva egy gombbal átküldheted az oldalt a szövegelemzőbe, vagy helyben megnézheted, hány szót ismersz belőle. Jobb klikkel is megy.',
             },
             {
                 Icon: Youtube,
                 title: 'YouTube és Netflix feliratok',
-                desc: 'Elemezd a videók és sorozatok feliratát, és nézd meg, mennyit értenél belőle a szókincseddel.',
+                desc: 'A felirat szavai kattinthatóvá válnak nézés közben: jelentés és státusz egy koppintásra. YouTube-on a teljes átiratot is átfuthatod.',
             },
         ],
     },
@@ -528,7 +582,7 @@ export default function Onboarding({
                             <div className="flex flex-col gap-3">
                                 <button
                                     onClick={() => setStep('test')}
-                                    className="w-full rounded-full bg-linear-to-br from-green-400 to-green-500 font-bold text-green-950 shadow-[0_4px_0_0_var(--color-green-600)] transition-all hover:brightness-105 active:translate-y-0.75 px-6 py-4"
+                                    className="w-full rounded-full bg-linear-to-br from-green-400 to-green-500 px-6 py-4 font-bold text-green-950 shadow-[0_4px_0_0_var(--color-green-600)] transition-all hover:brightness-105 active:translate-y-0.75"
                                 >
                                     Igen, csináljuk meg
                                 </button>
@@ -621,7 +675,7 @@ export default function Onboarding({
                                             });
                                         }
                                     }}
-                                    className="flex w-full items-center justify-center gap-2 rounded-full bg-linear-to-br from-green-400 to-green-500 font-bold text-green-950 shadow-[0_4px_0_0_var(--color-green-600)] transition-all hover:brightness-105 active:translate-y-0.75 px-6 py-3.5"
+                                    className="flex w-full items-center justify-center gap-2 rounded-full bg-linear-to-br from-green-400 to-green-500 px-6 py-3.5 font-bold text-green-950 shadow-[0_4px_0_0_var(--color-green-600)] transition-all hover:brightness-105 active:translate-y-0.75"
                                 >
                                     {isLastLevel
                                         ? 'Eredmény megtekintése'
@@ -719,7 +773,7 @@ export default function Onboarding({
                                         setApplyResults(true);
                                         setStep('features');
                                     }}
-                                    className="w-full rounded-full bg-linear-to-br from-green-400 to-green-500 font-bold text-green-950 shadow-[0_4px_0_0_var(--color-green-600)] transition-all hover:brightness-105 active:translate-y-0.75 px-6 py-4"
+                                    className="w-full rounded-full bg-linear-to-br from-green-400 to-green-500 px-6 py-4 font-bold text-green-950 shadow-[0_4px_0_0_var(--color-green-600)] transition-all hover:brightness-105 active:translate-y-0.75"
                                 >
                                     Érvényesítem – az ismert szavak bejelölve
                                     lesznek
@@ -777,22 +831,36 @@ export default function Onboarding({
                                         </p>
                                     </div>
 
-                                    <div className="mb-6 grid gap-2 sm:grid-cols-2">
+                                    {/* Egyetlen funkciónál ne maradjon üres féloszlop. */}
+                                    <div
+                                        className={`mb-6 grid gap-3 ${slide.features.length > 1 ? 'sm:grid-cols-2' : ''}`}
+                                    >
                                         {slide.features.map(
-                                            ({ Icon, title, desc }) => (
+                                            ({ Icon, title, desc, ai }) => (
                                                 <div
                                                     key={title}
-                                                    className="rounded-xl border bg-card p-4"
+                                                    className="relative overflow-hidden rounded-2xl border bg-card p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
                                                 >
-                                                    <div className="mb-2 flex items-center gap-2">
-                                                        <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10">
-                                                            <Icon className="size-4 text-primary" />
+                                                    {/* Halvány sarok-fény az onboarding zöld akcentusából. */}
+                                                    <div
+                                                        aria-hidden="true"
+                                                        className="pointer-events-none absolute -top-10 -right-10 size-24 rounded-full bg-green-500/15 blur-2xl"
+                                                    />
+                                                    <div className="relative mb-2 flex items-center gap-2.5">
+                                                        <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-primary/20 to-primary/5 ring-1 ring-primary/15">
+                                                            <Icon className="size-4.5 text-primary" />
                                                         </div>
                                                         <p className="text-sm font-semibold">
                                                             {title}
                                                         </p>
+                                                        {ai && (
+                                                            <span className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-md bg-indigo-100 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-indigo-700 uppercase dark:bg-indigo-950/50 dark:text-indigo-300">
+                                                                <Sparkles className="size-2.5" />
+                                                                AI
+                                                            </span>
+                                                        )}
                                                     </div>
-                                                    <p className="text-xs text-muted-foreground">
+                                                    <p className="relative text-xs leading-relaxed text-muted-foreground">
                                                         {desc}
                                                     </p>
                                                 </div>
@@ -839,7 +907,7 @@ export default function Onboarding({
                                                     behavior: 'smooth',
                                                 });
                                             }}
-                                            className="flex flex-1 items-center justify-center gap-2 rounded-full bg-linear-to-br from-green-400 to-green-500 font-bold text-green-950 shadow-[0_4px_0_0_var(--color-green-600)] transition-all hover:brightness-105 active:translate-y-0.75 px-6 py-3.5"
+                                            className="flex flex-1 items-center justify-center gap-2 rounded-full bg-linear-to-br from-green-400 to-green-500 px-6 py-3.5 font-bold text-green-950 shadow-[0_4px_0_0_var(--color-green-600)] transition-all hover:brightness-105 active:translate-y-0.75"
                                         >
                                             {isLastSlide
                                                 ? 'Tovább a témához'
@@ -910,7 +978,7 @@ export default function Onboarding({
                             <button
                                 onClick={submit}
                                 disabled={submitting}
-                                className="w-full rounded-full bg-linear-to-br from-green-400 to-green-500 font-bold text-green-950 shadow-[0_4px_0_0_var(--color-green-600)] transition-all hover:brightness-105 active:translate-y-0.75 px-6 py-4 disabled:opacity-50"
+                                className="w-full rounded-full bg-linear-to-br from-green-400 to-green-500 px-6 py-4 font-bold text-green-950 shadow-[0_4px_0_0_var(--color-green-600)] transition-all hover:brightness-105 active:translate-y-0.75 disabled:opacity-50"
                             >
                                 {submitting ? 'Mentés...' : 'Kezdjük el →'}
                             </button>

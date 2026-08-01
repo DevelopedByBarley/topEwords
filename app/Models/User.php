@@ -161,7 +161,7 @@ class User extends Authenticatable implements MustVerifyEmail
     }
 
     /**
-     * AI minden csomagon elérhető — a Free is kap kóstolót. A valódi korlát a
+     * AI minden csomagon elérhető — a Free is kap próbahozzáférést. A valódi korlát a
      * havi költségkeret (aiMonthlyLimit): a Free kicsi, a Pro nagyobb keretet
      * kap, és az AiUsageService ezt tartatja be. Ezért ez mindig igaz.
      */
@@ -187,7 +187,7 @@ class User extends Authenticatable implements MustVerifyEmail
 
     /**
      * The user's monthly AI cost budget in micro-dollars (1e6 = $1). Csomag
-     * szerint (config/plans.php: ai_budget_micros) — a Free kis kóstolót, a Pro
+     * szerint (config/plans.php: ai_budget_micros) — a Free próbahozzáférést, a Pro
      * a teljes keretet kapja. Per-user felülírás: ai_credit_limit. `null` =
      * korlátlan (admin).
      */
