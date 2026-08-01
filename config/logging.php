@@ -73,6 +73,22 @@ return [
             'replace_placeholders' => true,
         ],
 
+        /*
+         * Kimenő levelek naplója (App\Listeners\LogSentMail).
+         *
+         * Külön fájlban él, hogy egy „nem jött meg az e-mail" bejelentés egyetlen
+         * grep-pel eldönthető legyen: elküldte-e az app, mikor, kinek és milyen
+         * Message-ID-vel — utóbbival a szolgáltató kimenő naplójában kereshető
+         * tovább. Címzett e-mail-címeket tartalmaz, ezért rövid a megőrzés.
+         */
+        'mail' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/mail.log'),
+            'level' => 'info',
+            'days' => env('LOG_MAIL_DAYS', 30),
+            'replace_placeholders' => true,
+        ],
+
         'slack' => [
             'driver' => 'slack',
             'url' => env('LOG_SLACK_WEBHOOK_URL'),

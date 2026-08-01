@@ -21,7 +21,13 @@ Route::middleware(['auth', 'verified', EnsureOnboardingComplete::class])->group(
     // Szó-írások (státusz, fontosság, saját szó CRUD) közös percenkénti sapkája:
     // minden hívás streak-update + achievement-ellenőrzést futtat, és az Origint
     // elhagyó szkriptelt extension-kvóta-kerülésnek is ez a plafonja.
-    Route::middleware('throttle:60,1,word-writes')->group(function () {
+    //
+    // A korábbi 60/perc (= 1/mp) a normál használatba lógott bele: a szólistán
+    // végigmenve, sorra státuszozva a felhasználó másodpercenként több szót is
+    // megjelöl, és 429-et kapott. 300/perc (5/mp) bőven a kézi tempó fölött van,
+    // de a szkriptelt tömeges íráson még mindig fog. Ha valaki mégis eléri, a
+    // bootstrap/app.php 429-kezelője flash-üzenetet ad a nyers hibalap helyett.
+    Route::middleware('throttle:300,1,word-writes')->group(function () {
         Route::post('words/{word}/status', [WordController::class, 'status'])->name('words.status');
         Route::post('words/{word}/importance', [WordController::class, 'importance'])->name('words.importance');
 
