@@ -1153,10 +1153,13 @@ PROMPT;
 
     public function practiceCheck(Request $request): JsonResponse
     {
-        // A "Szabad írás" egyelőre admin-only WIP-funkció; a GET oldal
-        // (WordController::practice) is admin-gate-elt, ezért a POST végpontnak
-        // is ugyanazt kell kényszerítenie, különben API-n bárki elérné.
-        abort_unless(Gate::check('admin'), 403);
+        // A gate eredetileg a KÜLÖNÁLLÓ, admin-only WIP `words/practice` oldalt
+        // védte, de az induláskor kivezetésre került. A végpont két ÉLŐ,
+        // mindenki számára elérhető felületet szolgál ki (a szólista
+        // PracticeModal-ját és a flashcard-oldal szabad-írás dobozát), ezért a
+        // többi AI-végponttal azonos gate a helyes — az admin-only változat
+        // minden nem-admin felhasználónak 403-at adott.
+        abort_unless(Gate::check('admin') || $request->user()?->hasAiAccess(), 403);
 
         if ($limited = $this->aiLimitGuard($request)) {
             return $limited;

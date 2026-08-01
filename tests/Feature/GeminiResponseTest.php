@@ -314,10 +314,19 @@ test('a practiceCheck strukturált sémát küld és üres grammar_issues-t szű
     Http::assertSent(fn ($request) => ($request['generationConfig']['responseSchema']['properties']['grammar_issues']['type'] ?? null) === 'ARRAY');
 });
 
-test('nem-admin felhasználó nem érheti el a practiceCheck-et (admin-only WIP)', function () {
-    // A "Szabad írás" egyelőre admin-only; a POST végpontnak a GET oldallal
-    // azonos gate-et kell kényszerítenie, hogy API-n se szivárogjon ki.
-    Http::fake();
+test('nem-admin felhasználó is elérheti a practiceCheck-et', function () {
+    // Őrszem: a végpontot két ÉLŐ felület hívja (szólista PracticeModal +
+    // flashcard szabad-írás doboz), ezért NEM admin-only. A korábbi
+    // admin-gate minden rendes felhasználónak 403-at adott.
+    Http::fake(['generativelanguage.googleapis.com/*' => Http::response([
+        'candidates' => [['content' => ['parts' => [['text' => json_encode([
+            'words' => [['word' => 'run', 'used' => true, 'correct' => true, 'feedback_hu' => 'Jól használtad!']],
+            'grammar_issues' => [],
+            'overall_hu' => 'Ügyes vagy!',
+            'corrected_text' => null,
+        ])]]]]],
+        'usageMetadata' => ['promptTokenCount' => 150, 'candidatesTokenCount' => 80],
+    ])]);
 
     $user = User::factory()->create(['ai_access' => true]);
 
@@ -326,9 +335,8 @@ test('nem-admin felhasználó nem érheti el a practiceCheck-et (admin-only WIP)
             'words' => [['word' => 'run', 'meaning_hu' => 'fut']],
             'text' => 'I run every morning before work.',
         ])
-        ->assertForbidden();
-
-    Http::assertNothingSent();
+        ->assertSuccessful()
+        ->assertJson(['overall_hu' => 'Ügyes vagy!']);
 });
 
 test('a nem hitelesített kérés a practiceCheck-en 401-et kap', function () {
