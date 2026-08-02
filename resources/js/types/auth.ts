@@ -17,8 +17,23 @@ export type User = {
     [key: string]: unknown;
 };
 
+/**
+ * A csomag-állapot, ahogy a `HandleInertiaRequests` minden oldalra kiküldi.
+ * `null` vendégként.
+ */
+export type Subscription = {
+    plan: 'free' | 'premium';
+    hasActiveAccess: boolean;
+    isSubscribed: boolean;
+    isPremium: boolean;
+    hasAiAccess: boolean;
+    isOnTrial: boolean;
+};
+
 export type Auth = {
     user: User;
+    isAdmin: boolean;
+    subscription: Subscription | null;
 };
 
 export type TwoFactorSetupData = {

@@ -9,6 +9,13 @@ use Illuminate\Support\Facades\DB;
 class AiUsageService
 {
     /**
+     * A keret-figyelmeztetés küszöbe százalékban: ez alatt nem szólítjuk meg a
+     * felhasználót. Állandó keret-kijelző szándékosan nincs — a keret akkor
+     * érdekes, amikor tényleg fogy.
+     */
+    public const WARNING_THRESHOLD_PERCENT = 80;
+
+    /**
      * Whether the user may make another AI call this period. This is a fast,
      * non-atomic pre-check for UX (so the UI can show a 429 immediately); the
      * authoritative, race-safe enforcement happens in reserve().
@@ -128,6 +135,34 @@ class AiUsageService
             'reset_at' => $this->nextReset()->toIso8601String(),
             'unlimited' => $limit === null,
             'percent' => $limit && $limit > 0 ? min(100, (int) round($used / $limit * 100)) : 0,
+        ];
+    }
+
+    /**
+     * A keret-figyelmeztetés adatai minden belső oldal fejlécébe, vagy `null`,
+     * ha nincs mit jelezni (korlátlan keret, vagy a küszöb alatti használat).
+     *
+     * A megjelenített szám a MARADÉK százalék, és felfelé kerekít: amíg akár
+     * egyetlen mikro-dollár van a keretben, „1%" jelenik meg, nem „0%" —
+     * különben a felhasználó kimerültnek hinné a még használható keretet.
+     *
+     * @return array{level: 'low'|'exhausted', remaining_percent: int, reset_at: string}|null
+     */
+    public function warning(User $user): ?array
+    {
+        $snapshot = $this->snapshot($user);
+
+        if ($snapshot['unlimited'] || $snapshot['percent'] < self::WARNING_THRESHOLD_PERCENT) {
+            return null;
+        }
+
+        $limit = (int) $snapshot['limit'];
+        $remaining = (int) $snapshot['remaining'];
+
+        return [
+            'level' => $remaining === 0 ? 'exhausted' : 'low',
+            'remaining_percent' => $limit > 0 ? (int) ceil($remaining / $limit * 100) : 0,
+            'reset_at' => $snapshot['reset_at'],
         ];
     }
 

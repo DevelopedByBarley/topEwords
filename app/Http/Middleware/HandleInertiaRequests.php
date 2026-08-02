@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\AiUsageService;
 use App\Support\Billing;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -9,6 +10,8 @@ use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
 {
+    public function __construct(private AiUsageService $aiUsage) {}
+
     /**
      * The root template that's loaded on the first page visit.
      *
@@ -60,6 +63,14 @@ class HandleInertiaRequests extends Middleware
                     ];
                 })() : null,
             ],
+            // Csak akkor tartalmaz adatot, ha a havi AI-keret fogyni kezdett
+            // (AiUsageService::WARNING_THRESHOLD_PERCENT) — egyébként `null`, és a
+            // banner nem jelenik meg. Lazy closure: a keret-számláló periódus-váltó
+            // resetjét (resetIfDue) így csak a tényleges Inertia-renderek futtatják,
+            // nem minden web-request.
+            'aiBudgetWarning' => fn () => $request->user() !== null
+                ? $this->aiUsage->warning($request->user())
+                : null,
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'billingEnabled' => Billing::enabled(),
             // `null`, amíg a store-listing nem él — ilyenkor a bővítmény-banner

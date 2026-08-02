@@ -7,8 +7,12 @@ declare module '@inertiajs/core' {
             auth: Auth;
             sidebarOpen: boolean;
             billingEnabled: boolean;
-            /** Chrome Web Store-link; `null`, amíg a listing nem él. */
             extensionStoreUrl: string | null;
+            aiBudgetWarning: {
+                level: 'low' | 'exhausted';
+                remaining_percent: number;
+                reset_at: string;
+            } | null;
             flash: {
                 streakTriggered: number | null;
                 success: string | null;
