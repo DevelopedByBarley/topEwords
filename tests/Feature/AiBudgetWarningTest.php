@@ -2,6 +2,7 @@
 
 use App\Models\User;
 use App\Services\AiUsageService;
+use Illuminate\Support\Facades\Http;
 
 /**
  * Az AI-keret figyelmeztetése megosztott propon (`aiBudgetWarning`) megy minden
@@ -97,4 +98,75 @@ test('vendégként a prop null, nem hasal el a hiányzó felhasználón', functi
     $this->get('/')
         ->assertSuccessful()
         ->assertInertia(fn ($page) => $page->where('aiBudgetWarning', null));
+});
+
+/*
+|--------------------------------------------------------------------------
+| Élő frissítés: az AI-végpontok válasza (`ai.budget` middleware)
+|--------------------------------------------------------------------------
+|
+| A megosztott prop csak oldalváltáskor frissül, ezért a keretet fogyasztó
+| végpontok a válaszukban is visszaadják a hívás UTÁNI keret-állapotot — így a
+| sáv a keret elfogyásának pillanatában megjelenik, extra kérés nélkül.
+*/
+
+/**
+ * A Gemini-válasz mockolása. inTok=300 + outTok=250 a gemini-2.5-flash-lite
+ * áraival 130 mikro-dollár tényleges költség.
+ */
+function fakeGeminiForBudget(array $json): void
+{
+    config(['services.gemini.api_key' => 'test-key']);
+
+    Http::fake([
+        'generativelanguage.googleapis.com/*' => Http::response([
+            'candidates' => [
+                ['content' => ['parts' => [['text' => json_encode($json)]]]],
+            ],
+            'usageMetadata' => [
+                'promptTokenCount' => 300,
+                'candidatesTokenCount' => 250,
+                'totalTokenCount' => 550,
+            ],
+        ]),
+    ]);
+}
+
+test('a sikeres AI-hívás válasza tartalmazza a keret-állapotot, küszöb alatt null-ként', function () {
+    fakeGeminiForBudget(['meaning_hu' => 'teszt', 'part_of_speech' => 'noun']);
+
+    $this->actingAs(userWithAiUsage(0))
+        ->getJson(route('text-analysis.gemini-lookup', ['word' => 'test']))
+        ->assertSuccessful()
+        ->assertJson(['ai_budget_warning' => null]);
+});
+
+test('a küszöb fölötti hívás válasza a hívás utáni „low" állapotot adja', function () {
+    fakeGeminiForBudget(['meaning_hu' => 'teszt', 'part_of_speech' => 'noun']);
+
+    // A küszöb fölött, de a becsült foglalás még belefér a keretbe.
+    $used = (int) floor(freeAiLimit() * 0.875);
+
+    $this->actingAs(userWithAiUsage($used))
+        ->getJson(route('text-analysis.gemini-lookup', ['word' => 'test']))
+        ->assertSuccessful()
+        ->assertJsonPath('ai_budget_warning.level', 'low');
+});
+
+test('a keret-kimerülés 429-es válasza is közli az „exhausted" állapotot', function () {
+    Http::fake();
+
+    $this->actingAs(userWithAiUsage(freeAiLimit()))
+        ->getJson(route('text-analysis.gemini-lookup', ['word' => 'test']))
+        ->assertStatus(429)
+        ->assertJsonPath('ai_budget_warning.level', 'exhausted');
+
+    Http::assertNothingSent();
+});
+
+test('a keretet nem fogyasztó végpont válaszába nem kerül bele a kulcs', function () {
+    $this->actingAs(userWithAiUsage(freeAiLimit()))
+        ->getJson(route('text-analysis.word-lookup', ['word' => 'test']))
+        ->assertSuccessful()
+        ->assertJsonMissingPath('ai_budget_warning');
 });

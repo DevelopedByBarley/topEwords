@@ -1,3 +1,4 @@
+import type { AiBudgetWarning } from '@/types/ai';
 import type { Auth } from '@/types/auth';
 
 declare module '@inertiajs/core' {
@@ -8,11 +9,7 @@ declare module '@inertiajs/core' {
             sidebarOpen: boolean;
             billingEnabled: boolean;
             extensionStoreUrl: string | null;
-            aiBudgetWarning: {
-                level: 'low' | 'exhausted';
-                remaining_percent: number;
-                reset_at: string;
-            } | null;
+            aiBudgetWarning: AiBudgetWarning | null;
             flash: {
                 streakTriggered: number | null;
                 success: string | null;

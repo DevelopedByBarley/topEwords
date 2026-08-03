@@ -13,6 +13,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import { absorbAiBudget } from '@/lib/ai-budget';
 import { withMinDuration } from '@/lib/min-duration';
 import {
     store as storeCard,
@@ -85,6 +86,8 @@ export default function CardForm({
                 ),
             );
             const data = await res.json();
+
+            absorbAiBudget(data);
 
             if (data.error) {
                 setGeminiError(

@@ -1,8 +1,10 @@
 import { Link, usePage } from '@inertiajs/react';
 import { Sparkles, TriangleAlert, X } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { onAiBudgetUpdate } from '@/lib/ai-budget';
 import { pricing } from '@/routes';
 import { edit as editSubscription } from '@/routes/subscription';
+import type { AiBudgetWarning } from '@/types';
 
 const STORAGE_KEY = 'tw-ai-budget-dismissed';
 
@@ -25,12 +27,32 @@ export default function AiBudgetBanner() {
             return null;
         }
     });
+    // Az AI-hívások válaszából érkező élő állapot, azzal a megosztott proppal
+    // együtt, ami mellé érkezett. A prop cseréje (oldalváltás) így magától
+    // elavulttá teszi az élő értéket — a szerver-adat a frissebb.
+    const [live, setLive] = useState<{
+        basedOn: AiBudgetWarning | null;
+        value: AiBudgetWarning | null;
+    } | null>(null);
 
-    if (!aiBudgetWarning) {
+    useEffect(
+        () =>
+            onAiBudgetUpdate((value) =>
+                setLive({ basedOn: aiBudgetWarning, value }),
+            ),
+        [aiBudgetWarning],
+    );
+
+    const warning =
+        live !== null && live.basedOn === aiBudgetWarning
+            ? live.value
+            : aiBudgetWarning;
+
+    if (!warning) {
         return null;
     }
 
-    const { level, remaining_percent, reset_at } = aiBudgetWarning;
+    const { level, remaining_percent, reset_at } = warning;
     const currentKey = `${level}:${reset_at}`;
 
     if (dismissedKey === currentKey) {

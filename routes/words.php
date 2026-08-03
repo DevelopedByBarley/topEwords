@@ -56,14 +56,14 @@ Route::middleware(['auth', 'verified', EnsureOnboardingComplete::class])->group(
     // Route::get('irregular-verbs', [IrregularVerbController::class, 'index'])->name('irregular-verbs.index');
 
     // Marad: a szövegelemző mondat-ellenőrzője nem gyakorlási felület.
-    Route::post('words/sentence-check', [TextAnalysisController::class, 'sentenceCheck'])->name('words.sentence-check')->middleware('throttle:30,1,ta-ai');
+    Route::post('words/sentence-check', [TextAnalysisController::class, 'sentenceCheck'])->name('words.sentence-check')->middleware(['throttle:30,1,ta-ai', 'ai.budget']);
 
     // Marad: a KÜLÖNÁLLÓ words/practice OLDAL kivezetve, de ez a végpont NEM
     // csak azé volt — a szólista soraiba (PracticeModal) és a flashcard-oldal
     // szabad-írás dobozába is be van építve, és mindkettő ÉLŐ felület. A hívók
     // hardcode-olt fetch('/words/practice/check')-et használnak, nem Wayfindert,
     // ezért a route kikommentelése némán 404-et okozott mindkét helyen.
-    Route::post('words/practice/check', [TextAnalysisController::class, 'practiceCheck'])->name('words.practice.check')->middleware('throttle:30,1,words-practice');
+    Route::post('words/practice/check', [TextAnalysisController::class, 'practiceCheck'])->name('words.practice.check')->middleware(['throttle:30,1,words-practice', 'ai.budget']);
 
     // Szó-mappák
     Route::post('folders', [FolderController::class, 'store'])->name('folders.store');

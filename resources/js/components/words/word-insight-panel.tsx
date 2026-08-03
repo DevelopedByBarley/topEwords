@@ -1,6 +1,7 @@
 import { Info, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { absorbAiBudget } from '@/lib/ai-budget';
 import { withMinDuration } from '@/lib/min-duration';
 
 interface InsightData {
@@ -36,6 +37,8 @@ export default function WordInsightPanel({ word }: { word: string }) {
                 ),
             );
             const json = await res.json();
+
+            absorbAiBudget(json);
 
             if (!res.ok || json.error) {
                 setError(json.error ?? 'Hiba történt.');

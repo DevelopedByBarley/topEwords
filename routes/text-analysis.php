@@ -15,10 +15,13 @@ Route::middleware(['auth', 'verified', EnsureOnboardingComplete::class])->group(
     Route::delete('text-analysis/youtube/{transcript}', [TextAnalysisController::class, 'deleteYoutube'])->name('text-analysis.youtube.destroy');
     Route::post('text-analysis/analyze', [TextAnalysisController::class, 'analyze'])->name('text-analysis.analyze')->middleware('throttle:30,1,ta-analyze');
     Route::get('text-analysis/word-lookup', [TextAnalysisController::class, 'wordLookup'])->name('text-analysis.word-lookup');
-    Route::get('text-analysis/gemini-lookup', [TextAnalysisController::class, 'geminiWordLookup'])->name('text-analysis.gemini-lookup')->middleware('throttle:30,1,ta-ai');
-    Route::get('text-analysis/gemini-flashcard', [TextAnalysisController::class, 'geminiFlashcard'])->name('text-analysis.gemini-flashcard')->middleware('throttle:30,1,ta-ai');
+    // Az AI-keretet fogyasztó végpontok az `ai.budget` middleware-rel a friss
+    // keret-állapotot is visszaadják, hogy a fejléc-sáv azonnal frissüljön. A
+    // gemini-models nem költ keretet, ezért ott nincs rá szükség.
+    Route::get('text-analysis/gemini-lookup', [TextAnalysisController::class, 'geminiWordLookup'])->name('text-analysis.gemini-lookup')->middleware(['throttle:30,1,ta-ai', 'ai.budget']);
+    Route::get('text-analysis/gemini-flashcard', [TextAnalysisController::class, 'geminiFlashcard'])->name('text-analysis.gemini-flashcard')->middleware(['throttle:30,1,ta-ai', 'ai.budget']);
     Route::get('text-analysis/gemini-models', [TextAnalysisController::class, 'geminiListModels'])->name('text-analysis.gemini-models')->middleware('throttle:30,1,ta-ai');
-    Route::get('text-analysis/word-insight', [TextAnalysisController::class, 'wordInsight'])->name('text-analysis.word-insight')->middleware('throttle:30,1,ta-ai');
+    Route::get('text-analysis/word-insight', [TextAnalysisController::class, 'wordInsight'])->name('text-analysis.word-insight')->middleware(['throttle:30,1,ta-ai', 'ai.budget']);
 
     // Könyvek (EPUB/PDF feltöltés és olvasás)
     Route::get('text-analysis/books', [TextAnalysisController::class, 'listBooks'])->name('text-analysis.books.index');

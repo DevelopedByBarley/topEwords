@@ -9,6 +9,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
+import { absorbAiBudget } from '@/lib/ai-budget';
 
 export interface PracticeWord {
     word: string;
@@ -81,6 +82,8 @@ export default function PracticeModal({ word, onClose }: PracticeModalProps) {
                 body: JSON.stringify({ words: [word], text: text.trim() }),
             });
             const data = await res.json();
+
+            absorbAiBudget(data);
 
             if (!res.ok || data.error) {
                 setError(data.error ?? 'Ismeretlen hiba.');

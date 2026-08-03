@@ -28,6 +28,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import { absorbAiBudget } from '@/lib/ai-budget';
 import { httpErrorMessage, postJson } from '@/lib/http';
 import { withMinDuration } from '@/lib/min-duration';
 import {
@@ -279,6 +280,7 @@ export default function WordLookupDialog({
             if (baseFormOverride && baseFormOverride !== lookupResult.word) {
                 body.extra_forms = lookupResult.word;
             }
+
             (Object.keys(customWordForm) as (keyof CustomWordForm)[]).forEach(
                 (k) => {
                     const v = customWordForm[k];
@@ -338,6 +340,8 @@ export default function WordLookupDialog({
                 }),
             );
             const data = await res.json().catch(() => ({}));
+
+            absorbAiBudget(data);
 
             if (!res.ok || data.error) {
                 setGeminiNotice(geminiErrorMessage(res.status, data));

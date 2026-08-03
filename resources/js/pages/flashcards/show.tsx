@@ -58,6 +58,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { absorbAiBudget } from '@/lib/ai-budget';
 import { calibrate, index, show, study } from '@/routes/flashcards';
 import { skip as skipCalibration } from '@/routes/flashcards/calibrate';
 import {
@@ -165,6 +166,8 @@ export default function FlashcardShow({
                 }),
             });
             const data = await res.json();
+
+            absorbAiBudget(data);
 
             if (!res.ok || data.error) {
                 setPracticeError(data.error ?? 'Ismeretlen hiba.');

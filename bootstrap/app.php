@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\AttachAiBudgetWarning;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\SecurityHeaders;
@@ -24,6 +25,9 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'abilities' => CheckAbilities::class,
+            // Az AI-keretet fogyasztó végpontok válaszába teszi a friss
+            // keret-állapotot, hogy a fejléc-sáv azonnal frissüljön.
+            'ai.budget' => AttachAiBudgetWarning::class,
         ]);
 
         $middleware->validateCsrfTokens(except: ['stripe/*']);

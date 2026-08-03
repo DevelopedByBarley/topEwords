@@ -56,6 +56,7 @@ import WordInsightPanel from '@/components/words/word-insight-panel';
 import WordProgressCard from '@/components/words/word-progress-card';
 import WordRow from '@/components/words/word-row';
 import type { UnifiedItem } from '@/components/words/word-row';
+import { absorbAiBudget } from '@/lib/ai-budget';
 import { httpErrorMessage } from '@/lib/http';
 import { withMinDuration } from '@/lib/min-duration';
 import {
@@ -685,6 +686,8 @@ export default function WordsIndex({
                 ),
             );
             const data = await res.json().catch(() => ({}));
+
+            absorbAiBudget(data);
 
             // A 429-es AI-keret válaszban az `error` gépi kód (ai_limit), az
             // emberi szöveg a `message`-ben jön; a többi hibaágon az `error`
