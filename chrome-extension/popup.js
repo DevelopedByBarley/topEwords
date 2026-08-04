@@ -2,6 +2,21 @@ const APP_URL = 'https://topwords.eu';
 
 chrome.runtime.sendMessage({ type: 'REFRESH_BADGE' });
 
+const STATUS_COLORS = {
+    learning: '#3b82f6',
+    saved: '#f97316',
+    known: '#22c55e',
+    pronunciation: '#8b5cf6',
+    practice: '#f43f5e',
+};
+const STATUS_LABELS = {
+    known: 'Tudom',
+    learning: 'Tanulom',
+    saved: 'Mentett',
+    pronunciation: 'Kiejtés',
+    practice: 'Gyakorlásra',
+};
+
 // ── Mac/Win gyorsbillentyű felirat ───────────────────────────────────────────
 // A modál mindkét nyelvi blokkjában szerepel a módosító billentyű, ezért az
 // összes előfordulást állítjuk.
@@ -86,165 +101,168 @@ document.getElementById('open-ta-btn').addEventListener('click', () => {
     });
 });
 
-// ── Kiemelés kapcsoló ────────────────────────────────────────────────────────
+// ── Szókereső ────────────────────────────────────────────────────────────────
+//
+// A bővítmény EGYETLEN olyan keresője, amely minden lapon elérhető: nem content
+// scriptből fut, hanem innen, a popupból hívja a szervert — így a böngésző saját
+// lapjain is működik. Az 1.29 óta ez váltja ki az oldalankénti szókeresést.
+//
+// A találatokat DOM-API-val építjük (textContent), nem innerHTML-lel: a popup
+// bővítmény-privilégiumú lap, a jelentés-szövegek pedig user-tartalmat is
+// hordozhatnak (saját szavak), ezért ide nyers HTML nem kerülhet be.
 
-const highlightBtn = document.getElementById('highlight-btn');
+const searchInput = document.getElementById('word-search');
+const searchResults = document.getElementById('search-results');
 
-function updateHighlightBtn(enabled) {
-    highlightBtn.classList.toggle('active', enabled);
-    highlightBtn.setAttribute('aria-checked', String(enabled));
+let searchDebounce = null;
+// A válaszok sorrendje nem garantált: csak a legutóbb indított kérés renderelhet,
+// különben egy lassabb, korábbi keresés felülírná a frissebb találatokat.
+let searchSeq = 0;
+
+function searchMessage(text) {
+    const el = document.createElement('div');
+    el.className = 'search-msg';
+    el.textContent = text;
+
+    searchResults.replaceChildren(el);
 }
 
-chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
-    if (!tab?.id) {
+function statusBadge(status) {
+    const badge = document.createElement('span');
+    badge.className = 'search-badge';
+    badge.style.background = STATUS_COLORS[status];
+    badge.textContent = STATUS_LABELS[status];
+
+    return badge;
+}
+
+function searchResultItem(result) {
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = 'search-item';
+
+    const main = document.createElement('div');
+    main.className = 'search-main';
+
+    const word = document.createElement('div');
+    word.className = 'search-word';
+    word.textContent = result.word ?? '';
+
+    const meaning = document.createElement('div');
+    meaning.className = 'search-meaning';
+    meaning.textContent = result.meaning_hu ?? '';
+
+    main.append(word, meaning);
+    item.append(main);
+
+    if (result.is_custom) {
+        const badge = document.createElement('span');
+        badge.className = 'search-badge custom';
+        badge.textContent = 'saját';
+        item.append(badge);
+    }
+
+    if (result.status && STATUS_LABELS[result.status]) {
+        item.append(statusBadge(result.status));
+    }
+
+    item.addEventListener('click', () => openInTopWords(result.word ?? ''));
+
+    return item;
+}
+
+function openInTopWords(word) {
+    chrome.tabs.create({
+        url: `${APP_URL}/words?search=${encodeURIComponent(word)}`,
+    });
+}
+
+function renderSearchResults(results) {
+    if (!results.length) {
+        searchMessage('Nincs találat. Az Entert megnyomva a TopWords-ben keresheted tovább.');
+
         return;
     }
 
-    chrome.tabs.sendMessage(tab.id, { type: 'GET_HL_STATE' }, (resp) => {
-        if (chrome.runtime.lastError) {
-            return;
-        }
+    searchResults.replaceChildren(...results.map(searchResultItem));
+}
 
-        updateHighlightBtn(resp?.enabled ?? false);
-    });
-});
+function runSearch(query) {
+    const seq = ++searchSeq;
 
-highlightBtn.addEventListener('click', () => {
-    chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
-        if (!tab?.id) {
-            return;
-        }
+    fetch(`${APP_URL}/extension/search?q=${encodeURIComponent(query)}`, {
+        credentials: 'include',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            Accept: 'application/json',
+        },
+    })
+        .then((r) => r.json().catch(() => null))
+        .then((data) => {
+            // Közben újabb keresés indult — ezt a választ eldobjuk.
+            if (seq !== searchSeq) {
+                return;
+            }
 
-        chrome.tabs.sendMessage(
-            tab.id,
-            { type: 'TOGGLE_HIGHLIGHT' },
-            (resp) => {
-                if (chrome.runtime.lastError) {
-                    return;
-                }
-
-                updateHighlightBtn(resp?.enabled ?? false);
-            },
-        );
-    });
-});
-
-// ── Oldal statisztikák ───────────────────────────────────────────────────────
-
-const statsBtn = document.getElementById('stats-btn');
-const statsResult = document.getElementById('stats-result');
-
-const STATUS_COLORS = {
-    learning: '#3b82f6',
-    saved: '#f97316',
-    known: '#22c55e',
-    pronunciation: '#8b5cf6',
-    practice: '#f43f5e',
-};
-const STATUS_LABELS = {
-    known: 'Tudom',
-    learning: 'Tanulom',
-    saved: 'Mentett',
-    pronunciation: 'Kiejtés',
-    practice: 'Gyakorlásra',
-};
-
-statsBtn.addEventListener('click', () => {
-    statsBtn.disabled = true;
-    statsBtn.textContent = 'Számolás…';
-
-    chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
-        if (!tab?.id) {
-            resetStatsBtn();
-
-            return;
-        }
-
-        chrome.tabs.sendMessage(tab.id, { type: 'GET_PAGE_STATS' }, (resp) => {
-            if (chrome.runtime.lastError) {
-                renderStats(null, 'no-content');
+            if (data?.error === 'unauthenticated') {
+                searchMessage('Jelentkezz be a TopWords-be a kereséshez.');
 
                 return;
             }
 
-            renderStats(resp?.stats, resp?.error);
+            if (!data || data.error) {
+                searchMessage('Hiba történt — próbáld újra.');
+
+                return;
+            }
+
+            renderSearchResults(data.results ?? []);
+        })
+        .catch(() => {
+            if (seq === searchSeq) {
+                searchMessage('Nincs kapcsolat a TopWords-szel.');
+            }
         });
-    });
+}
+
+searchInput.addEventListener('input', () => {
+    clearTimeout(searchDebounce);
+    const query = searchInput.value.trim();
+
+    if (!query) {
+        // A futó kérés válasza se rendereljen az üres mező alá.
+        searchSeq += 1;
+        searchResults.replaceChildren();
+
+        return;
+    }
+
+    searchMessage('Keresés…');
+    searchDebounce = setTimeout(() => runSearch(query), 250);
 });
 
-function resetStatsBtn() {
-    statsBtn.disabled = false;
-    statsBtn.textContent = '📊 Oldal statisztikái';
-}
+// Enter: az első találat megnyitása; találat nélkül a szólista keresője nyílik meg,
+// ahol a szó saját szóként is felvehető.
+searchInput.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') {
+        return;
+    }
 
-function renderStats(stats, error) {
-    statsBtn.style.display = 'none';
-    statsResult.style.display = 'block';
+    const query = searchInput.value.trim();
 
-    if (error === 'unauthenticated') {
-        statsResult.innerHTML =
-            '<div class="stats-msg">Jelentkezz be a TopWords-be a statisztikákhoz.</div>';
+    if (!query) {
+        return;
+    }
+
+    const first = searchResults.querySelector('.search-item');
+
+    if (first) {
+        first.click();
 
         return;
     }
 
-    if (error === 'no-content') {
-        statsResult.innerHTML =
-            '<div class="stats-msg">Ezen az oldalon nem elérhető (frissítsd az oldalt, vagy böngészőbeli belső oldal).</div>';
+    openInTopWords(query);
+});
 
-        return;
-    }
-
-    if (!stats) {
-        statsResult.innerHTML =
-            '<div class="stats-msg">Nem sikerült betölteni.</div>';
-
-        return;
-    }
-
-    const withStatus =
-        (stats.known ?? 0) +
-        (stats.learning ?? 0) +
-        (stats.saved ?? 0) +
-        (stats.pronunciation ?? 0) +
-        (stats.practice ?? 0);
-    const pct =
-        stats.total > 0 ? Math.round((withStatus / stats.total) * 100) : 0;
-
-    const barSegments = Object.keys(STATUS_LABELS)
-        .map((key) => {
-            const count = stats[key] ?? 0;
-
-            if (!count || !stats.total) {
-                return '';
-            }
-
-            const width = ((count / stats.total) * 100).toFixed(1);
-
-            return `<span style="width:${width}%;background:${STATUS_COLORS[key]}"></span>`;
-        })
-        .join('');
-
-    const rows = Object.entries(STATUS_LABELS)
-        .map(([key, label]) => {
-            const count = stats[key] ?? 0;
-
-            if (!count) {
-                return '';
-            }
-
-            return `<div class="stat-line">
-            <span class="stat-dot" style="background:${STATUS_COLORS[key]}"></span>
-            <span class="stat-name">${label}</span>
-            <span class="stat-count">${count}</span>
-        </div>`;
-        })
-        .join('');
-
-    statsResult.innerHTML = `
-        <div class="stats-header">${stats.total} egyedi angol szó az oldalon</div>
-        <div class="stats-bar">${barSegments}</div>
-        ${rows || '<div class="stats-msg">Még egyik szónak sincs státusza.</div>'}
-        <div class="stats-total">Státusszal jelölve: ${withStatus} szó (${pct}%)</div>
-    `;
-}
+searchInput.focus();

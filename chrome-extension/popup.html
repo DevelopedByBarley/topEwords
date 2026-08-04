@@ -18,7 +18,23 @@
 
     <div id="login-banner" class="login-banner" style="display:none">
         <span>Nem vagy bejelentkezve.</span>
-        <a href="https://topwords.eu/login" target="_blank" class="login-link">Bejelentkezés →</a>
+        <a href="https://topwords.eu/login" target="_blank" rel="noopener noreferrer" class="login-link">Bejelentkezés →</a>
+    </div>
+
+    <!--
+        Szókereső. Ez a bővítmény egyetlen olyan felülete, amely MINDEN lapon
+        elérhető (a böngésző saját lapjain is), mert nem content scriptből, hanem
+        innen, a popupból hívja a szervert. Az 1.29 óta ez váltja ki az oldalankénti
+        szókeresést, amit az `<all_urls>` content script kivezetésével elhagytunk.
+    -->
+    <div class="search-box">
+        <div class="search-wrap">
+            <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+            </svg>
+            <input id="word-search" type="text" placeholder="Keress egy angol szót…" autocomplete="off" spellcheck="false" aria-label="Szókeresés">
+        </div>
+        <div id="search-results" class="search-results"></div>
     </div>
 
     <div class="actions">
@@ -27,24 +43,9 @@
             Oldal szövegelemzése
         </button>
         <div class="action-row">
-            <a href="https://topwords.eu/words" class="btn-secondary" target="_blank">Szótár</a>
-            <a href="https://topwords.eu/dashboard" class="btn-secondary" target="_blank">Irányítópult</a>
+            <a href="https://topwords.eu/words" class="btn-secondary" target="_blank" rel="noopener noreferrer">Szótár</a>
+            <a href="https://topwords.eu/dashboard" class="btn-secondary" target="_blank" rel="noopener noreferrer">Irányítópult</a>
         </div>
-    </div>
-
-    <div class="toggle-row">
-        <div>
-            <div class="toggle-label">Kiemelés az oldalon</div>
-            <div class="toggle-desc">Aláhúzza az ismert szavaidat</div>
-        </div>
-        <button id="highlight-btn" class="switch" role="switch" aria-checked="false" aria-label="Kiemelés az oldalon">
-            <span class="switch-knob"></span>
-        </button>
-    </div>
-
-    <div class="page-stats" id="page-stats">
-        <button id="stats-btn" class="btn-stats">📊 Oldal statisztikái</button>
-        <div id="stats-result" class="stats-result" style="display:none"></div>
     </div>
 
     <div class="footer">
@@ -77,41 +78,42 @@
                 <div class="lang-block" data-lang="hu">
                     <section>
                         <h2>Mire való</h2>
-                        <p>Angol szavak keresése bármely weboldalon és YouTube/Netflix feliratban. A státuszaid a topwords.eu-fiókodba mentődnek, így a haladásod minden eszközön ugyanaz.</p>
+                        <p>Angol szavak keresése <strong>YouTube- és Netflix-feliratban</strong>, illetve a fenti keresőből bármikor. A státuszaid a topwords.eu-fiókodba mentődnek, így a haladásod minden eszközön ugyanaz.</p>
+                    </section>
+
+                    <section>
+                        <h2>Kereső (minden lapon)</h2>
+                        <p>A bővítmény ikonjára kattintva a fenti mezőbe írj be egy angol szót. A találatra kattintva a szó megnyílik a TopWords-ben, ahol státuszt is adhatsz neki. Ez akkor is működik, ha épp a böngésző saját lapján vagy.</p>
+                    </section>
+
+                    <section>
+                        <h2>YouTube / Netflix felirat</h2>
+                        <ul>
+                            <li>Kattintás egy felirat-szóra — jelentés</li>
+                            <li>Dupla kattintás — „Tudom"</li>
+                            <li>Hosszú nyomás — „Később"</li>
+                            <li><kbd>Shift</kbd> + kattintás több szóra kijelöli a kifejezést; a <kbd>Shift</kbd> elengedésekor megnyílik a fordítás</li>
+                        </ul>
+                        <p class="note">A felirat-sávot a lejátszó vezérlősorában lévő <strong>TW</strong> gombbal kapcsolod be. YouTube-on a teljes átirat is megnyitható a mellette lévő gombbal.</p>
                     </section>
 
                     <section>
                         <h2>Gyorsbillentyűk</h2>
                         <ul>
-                            <li><kbd class="js-mod">Alt</kbd> + <kbd>W</kbd> — szókereső megnyitása</li>
-                            <li><kbd>1</kbd>–<kbd>4</kbd> — státusz beállítása nyitott szónál</li>
+                            <li><kbd class="js-mod">Alt</kbd> + <kbd>W</kbd> — szókereső a videó fölött (YouTube/Netflix)</li>
+                            <li><kbd>1</kbd>–<kbd>5</kbd> — státusz beállítása nyitott szónál</li>
                             <li><kbd>Esc</kbd> — bezárás</li>
                         </ul>
                     </section>
 
                     <section>
-                        <h2>Egérrel</h2>
-                        <ul>
-                            <li>Dupla kattintás + nyomva tartás egy szón — jelentés</li>
-                            <li>Jobb katt kijelölt szón → „Szó keresése"</li>
-                        </ul>
-                    </section>
-
-                    <section>
-                        <h2>Kiemelés az oldalon</h2>
-                        <p>Színnel jelöli azokat a szavakat, amelyeknek már adtál státuszt. Kiemelt szón a <strong>dupla kattintás</strong> „Tudom"-ra, a <strong>hosszú nyomás</strong> „Később"-re állít.</p>
-                        <p class="note">A kiemelés <strong>szándékosan kihagyja a linkeket, gombokat, menüket és beviteli mezőket</strong>, hogy ne zavarja az oldal használatát: a navigáció ne törjön el, és véletlenül se kattints félre.</p>
-                        <p class="note">Olyan oldalakon is megmarad, amelyek kattintásra nem töltik újra a lapot. YouTube-on és Netflixen betöltéskor magától inaktív marad, mert ott a felirat-funkció veszi át a szerepét.</p>
-                    </section>
-
-                    <section>
-                        <h2>YouTube / Netflix felirat</h2>
-                        <p><kbd>Shift</kbd> + kattintás több szóra kijelöli a kifejezést; a <kbd>Shift</kbd> elengedésekor megnyílik a fordítás.</p>
+                        <h2>Bárhol a böngészőben</h2>
+                        <p>Jelölj ki egy szót bármelyik oldalon, majd <strong>jobb katt → „Szó keresése"</strong> — a szó megnyílik a TopWords-ben. Az <strong>„Oldal szövegelemzése"</strong> gomb a jelenlegi oldalt nyitja meg a szövegelemzőben.</p>
                     </section>
 
                     <section>
                         <h2>Adatvédelem</h2>
-                        <p>Az oldal szövege a böngésződben marad, <strong>nem küldjük el sehova</strong>. Csak azt a szót kapja meg a topwords.eu szervere, amit ténylegesen kikeresel. Az oldal címe is csak akkor megy el, ha te indítod az „Oldal szövegelemzése" gombot.</p>
+                        <p>A bővítmény <strong>nem olvassa a meglátogatott oldalak szövegét</strong>. Csak azt a szót kapja meg a topwords.eu szervere, amit ténylegesen kikeresel. A YouTube/Netflix feliratát a böngésződben dolgozza fel. Az oldal címe is csak akkor megy el, ha te indítod az „Oldal szövegelemzése" gombot vagy a jobb gombos menüt.</p>
                     </section>
 
                     <section>
@@ -129,41 +131,42 @@
                 <div class="lang-block" data-lang="en" hidden>
                     <section>
                         <h2>What it does</h2>
-                        <p>Look up English words on any web page and in YouTube/Netflix subtitles. Your word statuses are saved to your topwords.eu account, so your progress is the same on every device.</p>
+                        <p>Look up English words in <strong>YouTube and Netflix subtitles</strong>, or any time from the search box above. Your word statuses are saved to your topwords.eu account, so your progress is the same on every device.</p>
+                    </section>
+
+                    <section>
+                        <h2>Search (works on every tab)</h2>
+                        <p>Click the extension icon and type an English word into the box above. Clicking a result opens the word in TopWords, where you can also give it a status. This works even on the browser's own pages.</p>
+                    </section>
+
+                    <section>
+                        <h2>YouTube / Netflix subtitles</h2>
+                        <ul>
+                            <li>Click a subtitle word — shows its meaning</li>
+                            <li>Double-click — sets “known”</li>
+                            <li>Long press — sets “saved for later”</li>
+                            <li><kbd>Shift</kbd> + clicking several words selects a phrase; releasing <kbd>Shift</kbd> opens the translation</li>
+                        </ul>
+                        <p class="note">Turn the subtitle bar on with the <strong>TW</strong> button in the player's control bar. On YouTube the full transcript can be opened with the button next to it.</p>
                     </section>
 
                     <section>
                         <h2>Keyboard shortcuts</h2>
                         <ul>
-                            <li><kbd class="js-mod">Alt</kbd> + <kbd>W</kbd> — open the word search</li>
-                            <li><kbd>1</kbd>–<kbd>4</kbd> — set the status of the open word</li>
+                            <li><kbd class="js-mod">Alt</kbd> + <kbd>W</kbd> — word search over the video (YouTube/Netflix)</li>
+                            <li><kbd>1</kbd>–<kbd>5</kbd> — set the status of the open word</li>
                             <li><kbd>Esc</kbd> — close</li>
                         </ul>
                     </section>
 
                     <section>
-                        <h2>With the mouse</h2>
-                        <ul>
-                            <li>Double-click a word and hold — shows its meaning</li>
-                            <li>Right-click a selected word → “Look up word”</li>
-                        </ul>
-                    </section>
-
-                    <section>
-                        <h2>Highlighting on the page</h2>
-                        <p>Marks the words you have already given a status. On a highlighted word, <strong>double-click</strong> sets “known” and a <strong>long press</strong> sets “saved for later”.</p>
-                        <p class="note">Highlighting <strong>deliberately skips links, buttons, menus and input fields</strong> so it never gets in the way of using the site: navigation stays intact and you cannot mis-click.</p>
-                        <p class="note">It also survives on sites that do not reload the page when you follow a link. On YouTube and Netflix it stays off on load, because the subtitle feature takes over there.</p>
-                    </section>
-
-                    <section>
-                        <h2>YouTube / Netflix subtitles</h2>
-                        <p><kbd>Shift</kbd> + clicking several words selects a phrase; releasing <kbd>Shift</kbd> opens the translation.</p>
+                        <h2>Anywhere in the browser</h2>
+                        <p>Select a word on any page, then <strong>right-click → “Look up word”</strong> — it opens in TopWords. The <strong>“Analyse page text”</strong> button opens the current page in the text analyser.</p>
                     </section>
 
                     <section>
                         <h2>Privacy</h2>
-                        <p>Page text stays in your browser and is <strong>never transmitted</strong>. Only the individual word you actually look up is sent to the topwords.eu server. The page URL is sent only when you start the “Analyse page text” action yourself.</p>
+                        <p>The extension <strong>does not read the text of the pages you visit</strong>. Only the individual word you actually look up is sent to the topwords.eu server. YouTube/Netflix subtitles are processed inside your browser. The page URL is sent only when you start the “Analyse page text” action or the right-click menu yourself.</p>
                     </section>
 
                     <section>

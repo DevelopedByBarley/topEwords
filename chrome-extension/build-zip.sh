@@ -12,6 +12,11 @@ OUT="topwords-extension-${VERSION}.zip"
 # Csak a bővítményhez tartozó fájlok kerülnek a csomagba.
 # A content script több, fókuszált modulra van bontva a src/ alatt — a betöltési
 # sorrendet a manifest.json content_scripts.js tömbje rögzíti.
+#
+# A src/page-highlight.js SZÁNDÉKOSAN nincs a listán: az 1.29-cel kivezettük az
+# `<all_urls>` content scriptet, és vele az oldal-kiemelést, ezért ez a modul nem
+# töltődik be sehol. A fájl a repóban marad, hogy a visszahozás egy manifest-
+# bejegyzés legyen (a teljes 1.28-as állapot: `ext-1.28-all-urls` tag).
 FILES=(
     manifest.json
     background.js
@@ -21,7 +26,6 @@ FILES=(
     src/lookup-popup.js
     src/search-modal.js
     src/flashcard-modal.js
-    src/page-highlight.js
     src/youtube.js
     src/netflix.js
     popup.html

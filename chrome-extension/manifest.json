@@ -1,8 +1,8 @@
 {
     "manifest_version": 3,
     "name": "TopWords",
-    "version": "1.28",
-    "description": "English word lookup on any page and on YouTube/Netflix subtitles, with optional AI explanations and vocabulary progress tracking.",
+    "version": "1.29",
+    "description": "English word lookup in YouTube and Netflix subtitles, with optional AI explanations and vocabulary progress tracking.",
     "homepage_url": "https://topwords.eu",
     "minimum_chrome_version": "110",
     "permissions": ["activeTab", "contextMenus", "storage"],
@@ -26,7 +26,7 @@
     },
     "content_scripts": [
         {
-            "matches": ["<all_urls>"],
+            "matches": ["https://www.youtube.com/*"],
             "js": [
                 "src/shared.js",
                 "src/styles.js",
@@ -34,18 +34,22 @@
                 "src/lookup-popup.js",
                 "src/search-modal.js",
                 "src/flashcard-modal.js",
-                "src/page-highlight.js"
+                "src/youtube.js"
             ],
             "run_at": "document_idle"
         },
         {
-            "matches": ["https://www.youtube.com/*"],
-            "js": ["src/youtube.js"],
-            "run_at": "document_idle"
-        },
-        {
             "matches": ["https://www.netflix.com/*"],
-            "js": ["src/youtube.js", "src/netflix.js"],
+            "js": [
+                "src/shared.js",
+                "src/styles.js",
+                "src/tokenizer.js",
+                "src/lookup-popup.js",
+                "src/search-modal.js",
+                "src/flashcard-modal.js",
+                "src/youtube.js",
+                "src/netflix.js"
+            ],
             "run_at": "document_idle"
         }
     ]
