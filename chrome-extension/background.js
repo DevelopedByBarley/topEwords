@@ -55,19 +55,6 @@ function fetchJson(url, options = {}) {
         .catch(() => ({ error: 'network' }));
 }
 
-// ── Badge ─────────────────────────────────────────────────────────────────────
-
-function refreshBadge() {
-    fetchJson(`${APP_URL}/extension/badge`).then((data) => {
-        const count = data?.count ?? 0;
-
-        chrome.action.setBadgeText({
-            text: count > 0 ? String(count) : '',
-        });
-        chrome.action.setBadgeBackgroundColor({ color: '#3b82f6' });
-    });
-}
-
 // ── Státusz-cache ─────────────────────────────────────────────────────────────
 // A szó→státusz térképet (GET_STATUSES) gyorsítótárazzuk, hogy az oldalkiemelés, a
 // videófeliratok, a statisztika és a reconcile-tickek ne kérjék le minden alkalommal
@@ -186,11 +173,11 @@ chrome.runtime.onInstalled.addListener(() => {
         });
     });
 
-    refreshBadge();
+    // A korábbi verziók számlálót írtak az ikonra. A badge-szöveg túléli a
+    // frissítést, ezért egyszer letöröljük — különben egy régi szám örökre
+    // ott ragadna az ikonon.
+    chrome.action.setBadgeText({ text: '' });
 });
-
-// Badge frissítése böngészőindításkor is (az onInstalled csak telepítéskor fut)
-chrome.runtime.onStartup.addListener(refreshBadge);
 
 // Context menu click handler
 chrome.contextMenus.onClicked.addListener((info, tab) => {
@@ -269,7 +256,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                 }
 
                 await patchStatusCache(data.forms, data.status ?? null);
-                refreshBadge();
 
                 sendResponse({ ok: true, status: data.status ?? null });
             });
@@ -394,7 +380,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             // rákövetkező GET_STATUSES-e már a friss térképet lássa), így a
             // teljes újraletöltés elmarad.
             await patchStatusCache(data.forms, data.status ?? null);
-            refreshBadge();
 
             sendResponse({ ok: true, status: data.status ?? null });
         });
@@ -456,9 +441,5 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         ).then((data) => sendResponse(data));
 
         return true;
-    }
-
-    if (msg.type === 'REFRESH_BADGE') {
-        refreshBadge();
     }
 });

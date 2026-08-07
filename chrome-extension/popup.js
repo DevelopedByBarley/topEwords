@@ -1,7 +1,5 @@
 const APP_URL = 'https://topwords.eu';
 
-chrome.runtime.sendMessage({ type: 'REFRESH_BADGE' });
-
 const STATUS_COLORS = {
     learning: '#3b82f6',
     saved: '#f97316',
