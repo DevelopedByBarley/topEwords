@@ -49,6 +49,18 @@ function sendMsg(msg, callback) {
     }
 }
 
+// Az AI-válaszok szerveroldalon cache-eltek, így egy cache-találat szinte
+// azonnal visszatér — annyira gyorsan, hogy látszik, nem futott valódi modell.
+// Ez a min. késleltetés ott tartja a töltő állapotot. (Másolat: src/shared.js —
+// a popup nem tölti be a content script moduljait.)
+function sendMsgMinDelay(msg, ms, callback) {
+    const start = Date.now();
+
+    sendMsg(msg, (response) => {
+        setTimeout(() => callback(response), Math.max(0, ms - (Date.now() - start)));
+    });
+}
+
 // A content scriptek extErrorMessage-ével azonos szövegek (src/shared.js) — a
 // popup nem tölti be azt a modult, ezért itt külön áll.
 function errorMessage(error, fallback) {
@@ -259,6 +271,13 @@ let closeOpenResult = null;
 // Egyszerre csak egy státusz-mentés futhat. A gyors, egymás utáni kattintások
 // különben átfedő kéréseket indítanának — ugyanaz a zár, mint a felirat-popupban.
 let statusSaveInFlight = false;
+
+// A keresés válaszából frissülő jogosultságok. Csak a FELÜLET igazodik hozzájuk
+// (mit mutatunk meg) — a tényleges kaput mindig a szerver adja: a felvitel a
+// verified + throttle:ext-write + canWriteFromExtension() hármason, az AI-hívás
+// a throttle:ta-ai + ai.budget middleware-en megy át.
+let searchCanWrite = false;
+let searchHasAi = false;
 
 /**
  * Egy találat sora a lenyitható részletezővel: jelentés, példamondat, az 5
@@ -626,20 +645,568 @@ function searchResultItem(result) {
     return row;
 }
 
+// ── Felvitel új szóként ──────────────────────────────────────────────────────
+//
+// Ha a keresés nem hozott PONTOS találatot, a lista végén felajánljuk a beírt
+// szó felvitelét saját szóként. A mezőkészlet és a viselkedés a felirat-kereső
+// űrlapjáéval azonos (src/search-modal.js), csak DOM-API-val építve — a popup
+// bővítmény-privilégiumú lap, ide nyers HTML nem kerülhet.
+
+function formField(placeholder) {
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'form-input';
+    input.placeholder = placeholder;
+
+    return input;
+}
+
+function formRow(...fields) {
+    const row = document.createElement('div');
+    row.className = 'form-row';
+    row.append(...fields);
+
+    return row;
+}
+
+/**
+ * Szófaj-specifikus alak-blokk. Alapból rejtett: a `updateFormSections()`
+ * nyitja ki, ha az adott szófaj van kiválasztva vagy a „További alakok" be van
+ * kapcsolva.
+ */
+function formSection(label, ...fields) {
+    const section = document.createElement('div');
+    section.className = 'form-section';
+    section.hidden = true;
+    section.append(detailText('form-section-label', label), ...fields);
+
+    return section;
+}
+
+/**
+ * Helyi státusz-választó a felviteli űrlaphoz: nem ment azonnal, az értéket a
+ * „Hozzáadás" viszi el. (A találat-panel státusz-sora ezzel szemben minden
+ * kattintásra menteni akar, ezért ott külön kód áll.)
+ */
+function statusPicker(initial) {
+    const row = document.createElement('div');
+    row.className = 'status-row';
+
+    let selected = initial;
+
+    const buttons = Object.entries(STATUS_LABELS).map(([status, label]) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'status-btn';
+        btn.textContent = label;
+        btn.addEventListener('click', () => {
+            selected = selected === status ? null : status;
+            paint();
+        });
+
+        return { status, btn };
+    });
+
+    function paint() {
+        buttons.forEach(({ status, btn }) => {
+            const isActive = selected === status;
+
+            btn.classList.toggle('active', isActive);
+            btn.style.background = isActive ? STATUS_COLORS[status] : '';
+            btn.style.borderColor = isActive ? STATUS_COLORS[status] : '';
+            btn.style.color = isActive ? '#fff' : '';
+        });
+    }
+
+    row.append(...buttons.map(({ btn }) => btn));
+    paint();
+
+    return {
+        row,
+        get value() {
+            return selected;
+        },
+    };
+}
+
+/** Helyi fontosság-választó a felviteli űrlaphoz — lásd statusPicker(). */
+function importancePicker() {
+    const row = document.createElement('div');
+    row.className = 'importance-row';
+
+    let selected = null;
+
+    const stars = [1, 2, 3, 4, 5].map((value) => {
+        const star = document.createElement('button');
+        star.type = 'button';
+        star.className = 'imp-star';
+        star.textContent = '★';
+        star.setAttribute('aria-label', `${value} csillag`);
+        star.addEventListener('click', () => {
+            selected = selected === value ? null : value;
+            paint();
+        });
+
+        return { value, star };
+    });
+
+    function paint() {
+        stars.forEach(({ value, star }) => {
+            star.classList.toggle('on', value <= (selected ?? 0));
+        });
+    }
+
+    row.append(...stars.map(({ star }) => star));
+
+    return {
+        row,
+        get value() {
+            return selected;
+        },
+    };
+}
+
+/**
+ * Az AI-tartalom mellett kötelező tájékoztató — a content scriptek
+ * AI_DISCLAIMER_HTML-jével azonos szöveg (src/shared.js).
+ */
+function aiDisclaimer() {
+    const note = document.createElement('div');
+    note.className = 'ai-note';
+
+    const terms = document.createElement('a');
+    terms.href = `${APP_URL}/terms`;
+    terms.target = '_blank';
+    terms.rel = 'noopener noreferrer';
+    terms.textContent = 'ÁSZF';
+
+    note.append(
+        document.createTextNode(
+            '✨ A tartalmat külső AI-szolgáltató (Google Gemini) generálta. Az AI ' +
+                'tévedhet — mentés előtt ellenőrizd. A TopWords a generált tartalom ' +
+                'helyességéért felelősséget nem vállal. ',
+        ),
+        terms,
+    );
+
+    return note;
+}
+
+function upgradeHint() {
+    const hint = document.createElement('a');
+    hint.className = 'upgrade-hint';
+    hint.href = `${APP_URL}/pricing`;
+    hint.target = '_blank';
+    hint.rel = 'noopener noreferrer';
+    hint.textContent =
+        '🔒 Elérted a bővítmény napi ingyenes keretét — holnap folytathatod, vagy válts Prora →';
+
+    return hint;
+}
+
+/**
+ * A lista végén álló „felvitel új szóként" sor. Ugyanúgy lenyitható, mint egy
+ * találat, de a panelben űrlap áll: szófaj, jelentések, példamondatok, a három
+ * alak-blokk, státusz és fontosság — opcionális AI-kitöltéssel.
+ */
+function addWordItem(query) {
+    // A felvett szó. Az AI lemmatizálhatja (pl. „helped" → „help"); ilyenkor
+    // erre áll át, az eredeti alak pedig extra_forms-ként megy el, hogy a
+    // szó-felismerés arra is találjon.
+    let word = query;
+    let extraForm = null;
+
+    const row = document.createElement('div');
+    row.className = 'search-row';
+
+    const head = document.createElement('button');
+    head.type = 'button';
+    head.className = 'search-item';
+    head.setAttribute('aria-expanded', 'false');
+
+    const wordText = detailText('search-word', word);
+    const subtitle = detailText('search-meaning', 'Felvitel saját szóként');
+
+    const main = document.createElement('div');
+    main.className = 'search-main';
+    main.append(wordText, subtitle);
+
+    const badges = document.createElement('span');
+    badges.className = 'search-badges';
+    badges.append(detailText('search-badge new', 'új'));
+
+    const chevron = detailText('search-chev', '▾');
+    chevron.setAttribute('aria-hidden', 'true');
+
+    head.append(main, badges, chevron);
+
+    const detail = document.createElement('div');
+    detail.className = 'search-detail';
+    detail.hidden = true;
+
+    function setOpen(open) {
+        detail.hidden = !open;
+        row.classList.toggle('open', open);
+        head.setAttribute('aria-expanded', String(open));
+    }
+
+    head.addEventListener('click', () => {
+        const open = detail.hidden;
+
+        if (closeOpenResult) {
+            closeOpenResult();
+        }
+
+        setOpen(open);
+        closeOpenResult = open ? () => setOpen(false) : null;
+
+        if (open) {
+            row.scrollIntoView({ block: 'start' });
+        }
+    });
+
+    row.append(head, detail);
+
+    // Betelt napi keret: a felvitel ilyenkor nem megy, a szerver 403-mal
+    // utasítaná el — űrlap helyett csak a keret-hint jelenik meg.
+    if (!searchCanWrite) {
+        detail.append(upgradeHint());
+
+        return row;
+    }
+
+    const feedback = detailText('add-feedback', '');
+    feedback.hidden = true;
+
+    function showFeedback(text, tone) {
+        feedback.textContent = text;
+        feedback.className = `add-feedback ${tone}`;
+        feedback.hidden = false;
+    }
+
+    // ── Mezők ───────────────────────────────────────────────────────────────
+
+    const posSelect = document.createElement('select');
+    posSelect.className = 'form-input';
+    posSelect.append(
+        new Option('Szófaj (opcionális)', ''),
+        ...Object.entries(POS_LABELS).map(([value, label]) => new Option(label, value)),
+    );
+
+    const meaningField = formField('Magyar jelentés');
+    const extraField = formField('További jelentések');
+    const synonymsField = formField('Szinonimák (pl. consent, accept)');
+    const exampleEnField = formField('Példamondat (angol)');
+    const exampleHuField = formField('Példamondat (magyar)');
+
+    const formBaseField = formField('Alap (to ...)');
+    const verbPastField = formField('Múlt idő');
+    const verbParticipleField = formField('Bef. igenév');
+    const verbProgressiveField = formField('Folyamatos (-ing)');
+    const verbThirdField = formField('E/3 jelen');
+
+    const irregularCheck = document.createElement('input');
+    irregularCheck.type = 'checkbox';
+
+    const irregularLabel = document.createElement('label');
+    irregularLabel.className = 'form-check';
+    irregularLabel.append(irregularCheck, document.createTextNode(' Rendhagyó ige'));
+
+    const verbSection = formSection(
+        'Igealakok',
+        formRow(formBaseField, verbPastField),
+        formRow(verbParticipleField, verbProgressiveField),
+        verbThirdField,
+        irregularLabel,
+    );
+
+    const nounPluralField = formField('Többes szám');
+    const nounSection = formSection('Főnév', nounPluralField);
+
+    const adjComparativeField = formField('Középfok');
+    const adjSuperlativeField = formField('Felsőfok');
+    const adjSection = formSection('Fokozás', formRow(adjComparativeField, adjSuperlativeField));
+
+    // Egy szó több szófaj alakjait is hordozhatja (pl. „interest" → főnév +
+    // igealakok), mert a szó-felismerés a szófajtól függetlenül mind a kilenc
+    // alak-oszlopot olvassa. Az elsődleges szófaj blokkja mindig látszik; a
+    // többit a „További alakok" kapcsoló nyitja ki.
+    let showOtherForms = false;
+
+    function updateFormSections() {
+        const pos = posSelect.value;
+
+        verbSection.hidden = !(pos === 'verb' || showOtherForms);
+        nounSection.hidden = !(pos === 'noun' || showOtherForms);
+        adjSection.hidden = !(pos === 'adj' || showOtherForms);
+    }
+
+    posSelect.addEventListener('change', updateFormSections);
+
+    const otherChevron = detailText('form-toggle-chev', '▾');
+    otherChevron.setAttribute('aria-hidden', 'true');
+
+    const otherToggle = document.createElement('button');
+    otherToggle.type = 'button';
+    otherToggle.className = 'form-toggle';
+    otherToggle.append(otherChevron, document.createTextNode('További alakok (más szófaj)'));
+    otherToggle.addEventListener('click', () => {
+        showOtherForms = !showOtherForms;
+        otherChevron.classList.toggle('open', showOtherForms);
+        updateFormSections();
+    });
+
+    const fields = document.createElement('div');
+    fields.className = 'form-fields';
+    fields.append(
+        posSelect,
+        meaningField,
+        extraField,
+        synonymsField,
+        exampleEnField,
+        exampleHuField,
+        verbSection,
+        nounSection,
+        adjSection,
+        otherToggle,
+    );
+
+    detail.append(fields);
+
+    // ── AI-kitöltés ─────────────────────────────────────────────────────────
+
+    if (searchHasAi) {
+        const aiButton = document.createElement('button');
+        aiButton.type = 'button';
+        aiButton.className = 'ai-fill-btn';
+        aiButton.textContent = '✨ AI kitöltés';
+
+        aiButton.addEventListener('click', () => {
+            aiButton.disabled = true;
+            aiButton.textContent = '⏳ Töltés…';
+            feedback.hidden = true;
+
+            sendMsgMinDelay({ type: 'GEMINI_LOOKUP', word }, 2000, (response) => {
+                aiButton.disabled = false;
+                aiButton.textContent = '✨ AI kitöltés';
+
+                if (response?.error === 'ai_limit') {
+                    showFeedback(
+                        response.message ?? 'Elérted a havi AI-felhasználási kereted.',
+                        'warn',
+                    );
+
+                    return;
+                }
+
+                if (!response || response.error) {
+                    showFeedback(
+                        errorMessage(
+                            response?.error,
+                            'Az AI-kitöltés nem sikerült — próbáld újra.',
+                        ),
+                        'warn',
+                    );
+
+                    return;
+                }
+
+                // Az AI nem létező szónak ítélte (elgépelés / halandzsa).
+                if (response.is_real_word === false) {
+                    showFeedback(
+                        response.message ??
+                            'Ez nem tűnik valódi angol szónak. Ellenőrizd a helyesírást.',
+                        'warn',
+                    );
+
+                    return;
+                }
+
+                // A beírt szó ragozott alak volt: az AI az alapszóra
+                // lemmatizált, és minden mezőt arra töltött ki.
+                if (response.normalized_from_input) {
+                    const original = word;
+
+                    word = response.base_form;
+                    extraForm = original;
+                    wordText.textContent = word;
+                    showFeedback(
+                        `A(z) „${original}" a(z) „${word}" ragozott alakja — az alapszóból indultunk ki.`,
+                        'info',
+                    );
+                }
+
+                const setValue = (field, value) => {
+                    if (value) {
+                        field.value = value;
+                    }
+                };
+
+                const pos = response.part_of_speech ?? '';
+
+                if (pos) {
+                    posSelect.value = pos;
+                }
+
+                setValue(meaningField, response.meaning_hu);
+                setValue(extraField, response.extra_meanings);
+                setValue(synonymsField, response.synonyms);
+                setValue(exampleEnField, response.example_en);
+                setValue(exampleHuField, response.example_hu);
+
+                // Minden visszakapott alakot kitöltünk, a szófajtól függetlenül.
+                setValue(verbPastField, response.verb_past);
+                setValue(verbParticipleField, response.verb_past_participle);
+                setValue(verbProgressiveField, response.verb_present_participle);
+                setValue(verbThirdField, response.verb_third_person);
+                setValue(nounPluralField, response.noun_plural);
+                setValue(adjComparativeField, response.adj_comparative);
+                setValue(adjSuperlativeField, response.adj_superlative);
+                irregularCheck.checked = Boolean(response.is_irregular);
+
+                // Ha az elsődleges szófajon kívüli alak is érkezett, nyissuk ki
+                // a „További alakok" szekciót, hogy a felhasználó lássa.
+                const filledOther =
+                    (pos !== 'verb' &&
+                        (response.verb_past ||
+                            response.verb_past_participle ||
+                            response.verb_present_participle ||
+                            response.verb_third_person)) ||
+                    (pos !== 'noun' && response.noun_plural) ||
+                    (pos !== 'adj' && (response.adj_comparative || response.adj_superlative));
+
+                if (filledOther && !showOtherForms) {
+                    showOtherForms = true;
+                    otherChevron.classList.add('open');
+                }
+
+                updateFormSections();
+            });
+        });
+
+        const aiRow = document.createElement('div');
+        aiRow.className = 'ai-row';
+        aiRow.append(aiButton);
+
+        detail.prepend(aiRow);
+        detail.append(aiDisclaimer());
+    }
+
+    // ── Státusz, fontosság, mentés ──────────────────────────────────────────
+
+    const status = statusPicker('known');
+    const importance = importancePicker();
+
+    const addButton = document.createElement('button');
+    addButton.type = 'button';
+    addButton.className = 'add-btn';
+    addButton.textContent = 'Hozzáadás';
+
+    addButton.addEventListener('click', () => {
+        const meaning = meaningField.value.trim();
+
+        // A jelentés kötelező — a szerver is elutasítaná üresen.
+        if (!meaning) {
+            showFeedback('A magyar jelentés megadása kötelező.', 'warn');
+            meaningField.focus();
+
+            return;
+        }
+
+        addButton.disabled = true;
+        addButton.textContent = '…';
+
+        const trimmed = (field) => field.value.trim() || null;
+
+        sendMsg(
+            {
+                type: 'ADD_WORD',
+                csrf: csrfToken,
+                word,
+                meaning_hu: meaning,
+                extra_meanings: trimmed(extraField),
+                synonyms: trimmed(synonymsField),
+                part_of_speech: posSelect.value || null,
+                example_en: trimmed(exampleEnField),
+                example_hu: trimmed(exampleHuField),
+                form_base: trimmed(formBaseField),
+                verb_past: trimmed(verbPastField),
+                verb_past_participle: trimmed(verbParticipleField),
+                verb_present_participle: trimmed(verbProgressiveField),
+                verb_third_person: trimmed(verbThirdField),
+                is_irregular: irregularCheck.checked,
+                noun_plural: trimmed(nounPluralField),
+                adj_comparative: trimmed(adjComparativeField),
+                adj_superlative: trimmed(adjSuperlativeField),
+                extra_forms: extraForm,
+                status: status.value,
+                importance: importance.value,
+            },
+            (response) => {
+                if (response?.ok) {
+                    // A szó bekerült — az űrlapnak nincs többé dolga, csak a
+                    // visszajelzés marad. (A sor fejléce a felvett — esetleg
+                    // lemmatizált — alakot mutatja.)
+                    subtitle.textContent = 'Hozzáadva a saját szavaidhoz';
+                    detail.replaceChildren(feedback);
+                    showFeedback(`„${word}" hozzáadva!`, 'ok');
+
+                    return;
+                }
+
+                addButton.disabled = false;
+                addButton.textContent = 'Hozzáadás';
+
+                if (response?.error === 'duplicate') {
+                    showFeedback('Már szerepel a saját szavaid között.', 'warn');
+
+                    return;
+                }
+
+                showFeedback(
+                    errorMessage(response?.error, 'Nem sikerült menteni — próbáld újra.'),
+                    'error',
+                );
+            },
+        );
+    });
+
+    detail.append(
+        detailText('detail-label', 'Státusz'),
+        status.row,
+        detailText('detail-label', 'Fontosság'),
+        importance.row,
+        addButton,
+        feedback,
+    );
+
+    return row;
+}
+
 function openInTopWords(word) {
     chrome.tabs.create({
         url: `${APP_URL}/words?search=${encodeURIComponent(word)}`,
     });
 }
 
-function renderSearchResults(results) {
-    if (!results.length) {
-        searchMessage('Nincs találat. Az Entert megnyomva a TopWords-ben keresheted tovább.');
+function renderSearchResults(results, query) {
+    const nodes = results.map(searchResultItem);
 
-        return;
+    // A felvitelt csak akkor ajánljuk fel, ha a beírt szó PONTOSAN nincs a
+    // találatok között — a prefix-egyezés (pl. „goo" → „good, goose") nem
+    // számít találatnak arra, amit a felhasználó beírt.
+    const lower = query.toLowerCase();
+    const exactMatch = results.some((result) => (result.word ?? '').toLowerCase() === lower);
+
+    if (!exactMatch) {
+        if (!results.length) {
+            nodes.push(detailText('search-msg', 'Nincs találat a szótárban.'));
+        }
+
+        nodes.push(addWordItem(query));
     }
 
-    setSearchResults(...results.map(searchResultItem));
+    setSearchResults(...nodes);
 }
 
 function runSearch(query) {
@@ -671,12 +1238,16 @@ function runSearch(query) {
                 return;
             }
 
-            // A státusz/fontosság mentése ezzel a tokennel megy ki.
+            // A státusz/fontosság mentése és a felvitel ezzel a tokennel megy ki.
             if (data.csrf) {
                 csrfToken = data.csrf;
             }
 
-            renderSearchResults(data.results ?? []);
+            searchCanWrite = data.can_write === true;
+            // Az adminnak a webes felületen is jár az AI, keret nélkül.
+            searchHasAi = data.has_ai_access === true || data.is_admin === true;
+
+            renderSearchResults(data.results ?? [], query);
         })
         .catch(() => {
             if (seq === searchSeq) {
@@ -701,8 +1272,9 @@ searchInput.addEventListener('input', () => {
     searchDebounce = setTimeout(() => runSearch(query), 250);
 });
 
-// Enter: az első találat lenyitása (ugyanaz, mint a kattintás); találat nélkül a
-// szólista keresője nyílik meg, ahol a szó saját szóként is felvehető.
+// Enter: az első sor lenyitása (ugyanaz, mint a kattintás). Pontos találat
+// híján az utolsó sor a felviteli űrlap, tehát az Enter is elvezet oda; a
+// TopWords-re csak akkor lépünk ki, ha egyetlen sor sincs (pl. hiba után).
 searchInput.addEventListener('keydown', (e) => {
     if (e.key !== 'Enter') {
         return;

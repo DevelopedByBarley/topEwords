@@ -330,6 +330,13 @@ body {
     color: var(--tw-primary);
 }
 
+/* A lista végén álló „felvitel új szóként" sor jelölője. */
+.search-badge.new {
+    border: 1px dashed var(--tw-line-strong);
+    background: #fff;
+    color: var(--tw-faint);
+}
+
 .search-msg {
     padding: 7px 8px;
     font-size: 11px;
@@ -439,6 +446,177 @@ body {
 .form-arrow {
     font-size: 11px;
     color: var(--tw-faint);
+}
+
+/* ── Felviteli űrlap ───────────────────────────────────────────────────────── */
+
+.form-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.form-fields[hidden] {
+    display: none;
+}
+
+.form-input {
+    width: 100%;
+    min-width: 0;
+    padding: 5px 8px;
+    border: 1px solid var(--tw-line-strong);
+    border-radius: 6px;
+    background: #fff;
+    font-family: inherit;
+    font-size: 11px;
+    color: var(--tw-ink);
+}
+
+.form-input:focus {
+    outline: none;
+    border-color: var(--tw-primary);
+}
+
+.form-row {
+    display: flex;
+    gap: 4px;
+}
+
+.form-section {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 6px 7px;
+    border-radius: 6px;
+    background: #fff;
+}
+
+/* A [hidden] alapértelmezését felül kell írni, mert a display: flex erősebb. */
+.form-section[hidden] {
+    display: none;
+}
+
+.form-section-label {
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--tw-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.form-check {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    color: var(--tw-muted);
+    cursor: pointer;
+}
+
+.form-toggle {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    align-self: flex-start;
+    padding: 2px 0;
+    border: none;
+    background: none;
+    font-family: inherit;
+    font-size: 11px;
+    color: var(--tw-muted);
+    cursor: pointer;
+}
+
+.form-toggle-chev {
+    font-size: 9px;
+    transform: rotate(-90deg);
+    transition: transform 0.15s;
+}
+
+.form-toggle-chev.open {
+    transform: none;
+}
+
+.ai-row {
+    display: flex;
+}
+
+.ai-fill-btn {
+    padding: 3px 10px;
+    border: 1px solid var(--tw-primary-soft);
+    border-radius: 20px;
+    background: #faf5ff;
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--tw-primary);
+    cursor: pointer;
+}
+
+.ai-fill-btn:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+.ai-note {
+    font-size: 9px;
+    line-height: 1.45;
+    color: var(--tw-faint);
+}
+
+.ai-note a {
+    color: var(--tw-primary);
+}
+
+.add-btn {
+    align-self: flex-start;
+    margin-top: 2px;
+    padding: 5px 14px;
+    border: none;
+    border-radius: 20px;
+    background: var(--tw-primary);
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 600;
+    color: #fff;
+    cursor: pointer;
+}
+
+.add-btn:hover:not(:disabled) {
+    background: var(--tw-primary-dark);
+}
+
+.add-btn:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+.add-feedback {
+    font-size: 11px;
+    line-height: 1.4;
+}
+
+.add-feedback.ok {
+    color: #16a34a;
+}
+
+.add-feedback.warn {
+    color: #ea580c;
+}
+
+.add-feedback.info {
+    color: #2563eb;
+}
+
+.add-feedback.error {
+    color: #dc2626;
+}
+
+.upgrade-hint {
+    font-size: 11px;
+    line-height: 1.45;
+    color: #b45309;
+    text-decoration: none;
 }
 
 .detail-example {
