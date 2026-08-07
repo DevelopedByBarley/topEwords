@@ -228,13 +228,26 @@ body {
 }
 
 .search-results {
-    /* Kb. 4 sor után görget, hogy a popup ne nyúljon el a képernyő aljáig. */
-    max-height: 176px;
+    /* Egy lenyitott találat is elfér benne; utána görget, hogy a popup ne
+       nyúljon el a képernyő aljáig. */
+    max-height: 340px;
     overflow-y: auto;
 }
 
 .search-results:not(:empty) {
     margin-top: 8px;
+}
+
+.search-row.open {
+    border-radius: 10px;
+    background: var(--tw-surface);
+}
+
+/* Lenyitva a teljes jelentés látszik — a sor egyben a részletező „jelentés"
+   sora is, így nem kell a panelben megismételni. */
+.search-row.open .search-meaning {
+    white-space: normal;
+    overflow: visible;
 }
 
 .search-item {
@@ -254,6 +267,24 @@ body {
 
 .search-item:hover {
     background: var(--tw-surface);
+}
+
+.search-badges {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    flex-shrink: 0;
+}
+
+.search-chev {
+    flex-shrink: 0;
+    font-size: 10px;
+    color: var(--tw-faint);
+    transition: transform 0.15s;
+}
+
+.search-row.open .search-chev {
+    transform: rotate(180deg);
 }
 
 .search-main {
@@ -293,6 +324,136 @@ body {
     padding: 7px 8px;
     font-size: 11px;
     color: var(--tw-faint);
+}
+
+/* ── Lenyitott találat ────────────────────────────────────────────────────── */
+
+.search-detail {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 2px 9px 10px;
+}
+
+.search-detail[hidden] {
+    display: none;
+}
+
+.detail-extra,
+.detail-synonyms {
+    font-size: 11px;
+    line-height: 1.45;
+    color: var(--tw-muted);
+}
+
+.detail-example {
+    padding: 6px 8px;
+    border-left: 2px solid var(--tw-primary-soft);
+    border-radius: 0 6px 6px 0;
+    background: #fff;
+    font-size: 11px;
+    line-height: 1.5;
+}
+
+.example-en {
+    color: #475569;
+    font-style: italic;
+}
+
+.example-hu {
+    color: var(--tw-faint);
+}
+
+.detail-label {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--tw-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-top: 2px;
+}
+
+.status-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+/* Mentés közben: a gombok halványak, a további kattintást a JS-zár dobja el. */
+.status-row.saving {
+    opacity: 0.55;
+    pointer-events: none;
+}
+
+.status-btn {
+    padding: 4px 8px;
+    border: 1px solid var(--tw-line-strong);
+    border-radius: 20px;
+    background: #fff;
+    font-family: inherit;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--tw-muted);
+    cursor: pointer;
+    transition:
+        background 0.15s,
+        border-color 0.15s,
+        color 0.15s;
+}
+
+.status-btn:hover:not(.active) {
+    border-color: var(--tw-primary);
+    color: var(--tw-primary);
+}
+
+.importance-row {
+    display: flex;
+    gap: 2px;
+}
+
+.imp-star {
+    padding: 0 1px;
+    border: none;
+    background: none;
+    font-size: 15px;
+    line-height: 1.1;
+    color: var(--tw-line-strong);
+    cursor: pointer;
+    transition: color 0.15s;
+}
+
+.imp-star.on {
+    color: #f59e0b;
+}
+
+.imp-star:hover {
+    color: #fbbf24;
+}
+
+.detail-error {
+    padding: 6px 8px;
+    border-radius: 6px;
+    background: #fef2f2;
+    font-size: 10px;
+    line-height: 1.45;
+    color: #b91c1c;
+}
+
+.detail-error[hidden] {
+    display: none;
+}
+
+.detail-open {
+    margin-top: 2px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--tw-primary);
+    text-decoration: none;
+}
+
+.detail-open:hover {
+    text-decoration: underline;
+    text-underline-offset: 2px;
 }
 
 /* ── Lábléc ───────────────────────────────────────────────────────────────── */

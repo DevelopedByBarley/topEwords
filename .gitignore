@@ -33,6 +33,8 @@ yarn-error.log
 
 # Chrome extension build artifacts
 chrome-extension/*.zip
+# A build-zip.sh kicsomagolt kimenete: bitre azonos a forrással, csak a CWS-feltöltéshez kell.
+chrome-extension/topwords-extension-*/
 # Player desktop builds (100+ MB each) — served from an auth-gated route via
 # storage/app/private/downloads on the VPS, uploaded out-of-band, never committed to the repo.
 storage/app/private/downloads/topwords-player-*.dmg

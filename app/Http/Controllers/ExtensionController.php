@@ -577,6 +577,10 @@ class ExtensionController extends Controller
         $lower = strtolower($q);
         $like = addcslashes($q, '%_\\');
 
+        // A jelentésen túl a szinonimák, a példamondatok és a fontosság is a
+        // találattal együtt megy ki: a bővítmény popupja a találatot lenyitva
+        // ezekből építi a részletező panelt (státuszozás + csillagozás egy
+        // kattintással), így nem kell szavanként egy második kérés.
         $words = Word::where('word', 'LIKE', $like.'%')
             ->orWhere(function ($query) use ($lower) {
                 foreach (WordStatusFormExpander::FORM_COLUMNS as $column) {
@@ -585,25 +589,36 @@ class ExtensionController extends Controller
             })
             ->orderBy('rank')
             ->limit(10)
-            ->get(['id', 'word', 'meaning_hu', 'extra_meanings', 'part_of_speech', 'rank']);
+            ->get(['id', 'word', 'meaning_hu', 'extra_meanings', 'synonyms', 'part_of_speech', 'rank', 'example_en', 'example_hu']);
 
         $wordIds = $words->pluck('id');
 
-        $statuses = DB::table('user_word')
+        $marks = DB::table('user_word')
             ->where('user_id', $userId)
             ->whereIn('word_id', $wordIds)
-            ->pluck('status', 'word_id');
+            ->get(['word_id', 'status', 'importance'])
+            ->keyBy('word_id');
 
-        $results = $words->map(fn ($w) => [
-            'id' => $w->id,
-            'is_custom' => false,
-            'word' => $w->word,
-            'meaning_hu' => $w->meaning_hu,
-            'extra_meanings' => $w->extra_meanings,
-            'part_of_speech' => $w->part_of_speech,
-            'rank' => $w->rank,
-            'status' => $statuses->get($w->id),
-        ]);
+        $results = $words->map(function ($w) use ($marks) {
+            $mark = $marks->get($w->id);
+
+            return [
+                'id' => $w->id,
+                'is_custom' => false,
+                'word' => $w->word,
+                'meaning_hu' => $w->meaning_hu,
+                'extra_meanings' => $w->extra_meanings,
+                'synonyms' => $w->synonyms,
+                'part_of_speech' => $w->part_of_speech,
+                'rank' => $w->rank,
+                'example_en' => $w->example_en,
+                'example_hu' => $w->example_hu,
+                'status' => $mark?->status,
+                // A pivot nyers query builderből jön, ahol a PDO a számot
+                // stringként is adhatja — a kliens szigorúan int-et vár.
+                'importance' => $mark?->importance === null ? null : (int) $mark->importance,
+            ];
+        });
 
         $customs = UserCustomWord::where('user_id', $userId)
             ->where(function ($q2) use ($like, $lower) {
@@ -614,7 +629,7 @@ class ExtensionController extends Controller
                 }
             })
             ->limit(5)
-            ->get(['id', 'word', 'meaning_hu', 'extra_meanings', 'part_of_speech', 'status']);
+            ->get(['id', 'word', 'meaning_hu', 'extra_meanings', 'synonyms', 'part_of_speech', 'example_en', 'example_hu', 'status', 'importance']);
 
         $customResults = $customs->map(fn ($c) => [
             'id' => $c->id,
@@ -622,9 +637,13 @@ class ExtensionController extends Controller
             'word' => $c->word,
             'meaning_hu' => $c->meaning_hu,
             'extra_meanings' => $c->extra_meanings,
+            'synonyms' => $c->synonyms,
             'part_of_speech' => $c->part_of_speech,
             'rank' => null,
+            'example_en' => $c->example_en,
+            'example_hu' => $c->example_hu,
             'status' => $c->status,
+            'importance' => $c->importance,
         ]);
 
         return response()->json([

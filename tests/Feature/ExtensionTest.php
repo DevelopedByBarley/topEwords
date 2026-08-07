@@ -747,3 +747,71 @@ test('search finds a custom word by its extra_forms', function () {
 
     expect(collect($results)->pluck('word'))->toContain('successful');
 });
+
+// A popup lenyitható találata ezekből a mezőkből építi a részletező panelt
+// (jelentés, példamondat, státusz-gombok, fontosság-csillagok) — ezért a
+// keresésnek egy körben, második kérés nélkül vissza kell adnia mindet.
+test('search returns the details the popup expands, including importance', function () {
+    $apple = Word::where('word', 'apple')->first();
+    $this->user->knownWords()->attach($apple->id, ['status' => 'learning', 'importance' => 3]);
+
+    $result = collect(
+        $this->actingAs($this->user)
+            ->getJson(route('extension.search', ['q' => 'apple']))
+            ->assertSuccessful()
+            ->json('results')
+    )->firstWhere('word', 'apple');
+
+    expect($result)->toMatchArray([
+        'is_custom' => false,
+        'meaning_hu' => 'alma',
+        'synonyms' => 'fruit',
+        'example_en' => 'I ate an apple.',
+        'example_hu' => 'Megettem egy almát.',
+        'status' => 'learning',
+        'importance' => 3,
+    ]);
+});
+
+test('search returns a marked word without importance as null', function () {
+    $apple = Word::where('word', 'apple')->first();
+    $this->user->knownWords()->attach($apple->id, ['status' => 'known']);
+
+    $result = collect(
+        $this->actingAs($this->user)
+            ->getJson(route('extension.search', ['q' => 'apple']))
+            ->assertSuccessful()
+            ->json('results')
+    )->firstWhere('word', 'apple');
+
+    expect($result['status'])->toBe('known')
+        ->and($result['importance'])->toBeNull();
+});
+
+test('search returns the details of a custom word too', function () {
+    $this->user->customWords()->create([
+        'word' => 'apricot',
+        'meaning_hu' => 'sárgabarack',
+        'synonyms' => 'fruit',
+        'example_en' => 'The apricot is ripe.',
+        'example_hu' => 'A sárgabarack megérett.',
+        'status' => 'saved',
+        'importance' => 5,
+    ]);
+
+    $result = collect(
+        $this->actingAs($this->user)
+            ->getJson(route('extension.search', ['q' => 'apricot']))
+            ->assertSuccessful()
+            ->json('results')
+    )->firstWhere('word', 'apricot');
+
+    expect($result)->toMatchArray([
+        'is_custom' => true,
+        'synonyms' => 'fruit',
+        'example_en' => 'The apricot is ripe.',
+        'example_hu' => 'A sárgabarack megérett.',
+        'status' => 'saved',
+        'importance' => 5,
+    ]);
+});
