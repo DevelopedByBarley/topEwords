@@ -339,11 +339,94 @@ body {
     display: none;
 }
 
-.detail-extra,
-.detail-synonyms {
+.detail-extra {
     font-size: 11px;
     line-height: 1.45;
     color: var(--tw-muted);
+}
+
+/* Gyakorisági rang / szófaj / rendhagyóság és a szinonimák — a weboldal
+   szó-részletezőjének chipjei, a panel méretéhez húzva. */
+.detail-meta,
+.detail-synonyms {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.detail-chip {
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: var(--tw-line);
+    font-size: 10px;
+    color: var(--tw-muted);
+}
+
+.detail-chip.pos {
+    background: var(--tw-primary-soft);
+    color: var(--tw-primary-dark);
+    font-weight: 600;
+}
+
+.detail-chip.irregular {
+    background: #fef3c7;
+    color: #b45309;
+    font-weight: 600;
+}
+
+.synonym-chip {
+    padding: 2px 8px;
+    border: 1px solid var(--tw-line-strong);
+    border-radius: 999px;
+    background: var(--tw-surface);
+    font-size: 11px;
+    color: var(--tw-muted);
+}
+
+/* ── Szóalakok ─────────────────────────────────────────────────────────────── */
+
+.detail-forms {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+/* Két oszlop: a weboldal háromoszlopos rácsa nem férne el a 300 px-es panelen. */
+.form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+}
+
+.form-arrows {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+}
+
+.form-cell {
+    min-width: 0;
+    padding: 4px 7px;
+    border-radius: 6px;
+    background: var(--tw-surface);
+}
+
+.form-cell-label {
+    font-size: 9px;
+    color: var(--tw-faint);
+}
+
+.form-cell-value {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--tw-ink);
+    overflow-wrap: anywhere;
+}
+
+.form-arrow {
+    font-size: 11px;
+    color: var(--tw-faint);
 }
 
 .detail-example {

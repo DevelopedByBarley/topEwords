@@ -135,6 +135,97 @@ test('search treats like wildcards literally', function () {
     expect($response['results'])->toBeEmpty();
 });
 
+// A popup részletező panelje ezekből az alakokból építi az „Igealakok",
+// „Többes szám" és „Fokozás" blokkot. A globális és a saját szó külön
+// lekérdezésből jön, ezért mindkét ágat külön őrizzük.
+test('lookup exposes the inflected forms of a global word', function () {
+    Word::create([
+        'word' => 'test',
+        'meaning_hu' => 'teszt',
+        'part_of_speech' => 'noun',
+        'form_base' => 'test',
+        'verb_past' => 'tested',
+        'verb_past_participle' => 'tested',
+        'verb_present_participle' => 'testing',
+        'verb_third_person' => 'tests',
+        'noun_plural' => 'tests',
+        'is_irregular' => false,
+        'rank' => 835,
+    ]);
+
+    $this->actingAs($this->user)
+        ->getJson(route('extension.lookup', ['word' => 'test']))
+        ->assertSuccessful()
+        ->assertJson([
+            'found' => true,
+            'form_base' => 'test',
+            'verb_past' => 'tested',
+            'verb_past_participle' => 'tested',
+            'verb_present_participle' => 'testing',
+            'verb_third_person' => 'tests',
+            'noun_plural' => 'tests',
+            'is_irregular' => false,
+            'rank' => 835,
+        ]);
+});
+
+test('lookup exposes the inflected forms of a custom word', function () {
+    $this->user->customWords()->create([
+        'word' => 'serendipity',
+        'meaning_hu' => 'véletlen szerencse',
+        'noun_plural' => 'serendipities',
+        'is_irregular' => true,
+    ]);
+
+    $this->actingAs($this->user)
+        ->getJson(route('extension.lookup', ['word' => 'serendipity']))
+        ->assertSuccessful()
+        ->assertJson([
+            'found' => true,
+            'is_custom' => true,
+            'noun_plural' => 'serendipities',
+            'is_irregular' => true,
+        ]);
+});
+
+test('search exposes the inflected forms of both global and custom words', function () {
+    Word::create([
+        'word' => 'good',
+        'meaning_hu' => 'jó',
+        'part_of_speech' => 'adj',
+        'adj_comparative' => 'better',
+        'adj_superlative' => 'best',
+        'is_irregular' => true,
+        'rank' => 50,
+    ]);
+
+    $this->user->customWords()->create([
+        'word' => 'goose',
+        'meaning_hu' => 'liba',
+        'noun_plural' => 'geese',
+    ]);
+
+    $results = collect(
+        $this->actingAs($this->user)
+            ->getJson(route('extension.search', ['q' => 'goo']))
+            ->assertSuccessful()
+            ->json('results')
+    )->keyBy('word');
+
+    expect($results['good'])
+        ->toMatchArray([
+            'adj_comparative' => 'better',
+            'adj_superlative' => 'best',
+            'is_irregular' => true,
+        ])
+        ->and($results['goose'])
+        ->toMatchArray([
+            'is_custom' => true,
+            'noun_plural' => 'geese',
+            'is_irregular' => false,
+        ]);
+});
+
 test('add-word creates a custom word', function () {
     $this->actingAs($this->user)
         ->postJson(route('extension.add-word'), [

@@ -16,6 +16,20 @@ const STATUS_LABELS = {
     pronunciation: 'Kiejtés',
     practice: 'Gyakorlásra',
 };
+// A weboldal POS_LABELS térképével azonos (components/words/types.ts): a szó-
+// részletező ugyanazokat a szófaj-címkéket mutassa a panelben, mint az appban.
+const POS_LABELS = {
+    verb: 'ige',
+    noun: 'főnév',
+    adj: 'melléknév',
+    adv: 'határozószó',
+    prep: 'elöljáró',
+    conj: 'kötőszó',
+    det: 'névelő',
+    pron: 'névmás',
+    num: 'számnév',
+    interj: 'indulatszó',
+};
 
 // A session-CSRF-token a szerver olvasó válaszaiból jön (lookup / search), és a
 // státusz/fontosság mentéséhez kell. Két helyen frissül, ezért itt, közösen áll.
@@ -194,6 +208,52 @@ function detailText(className, text) {
     return el;
 }
 
+/**
+ * Egy szóalak-cella: fölül halvány címke, alatta maga az alak.
+ */
+function formCell(label, value) {
+    const cell = document.createElement('div');
+    cell.className = 'form-cell';
+    cell.append(
+        detailText('form-cell-label', label),
+        detailText('form-cell-value', value),
+    );
+
+    return cell;
+}
+
+/**
+ * Szóalak-blokk a webes szó-részletező mintájára (Igealakok / Többes szám /
+ * Fokozás). Csak a kitöltött alakok kerülnek bele. A `arrows` elrendezés a
+ * képzés irányát mutatja (alap → képzett alak), a rácsos a párhuzamos alakokat
+ * — utóbbi a 300 px-es panelen kétoszlopos, szemben a weboldal háromoszloposával.
+ *
+ * A `/`-szeparált változatokat (pl. „got/gotten") nyersen jelenítjük meg, épp
+ * úgy, ahogy a weboldal — így a két felület ugyanazt mutatja.
+ */
+function formBlock(title, entries, { arrows = false } = {}) {
+    const body = document.createElement('div');
+    body.className = arrows ? 'form-arrows' : 'form-grid';
+
+    entries
+        .filter(([, value]) => value)
+        .forEach(([label, value], index) => {
+            if (arrows && index > 0) {
+                const separator = detailText('form-arrow', '→');
+                separator.setAttribute('aria-hidden', 'true');
+                body.append(separator);
+            }
+
+            body.append(formCell(label, value));
+        });
+
+    const block = document.createElement('div');
+    block.className = 'detail-forms';
+    block.append(detailText('detail-label', title), body);
+
+    return block;
+}
+
 // Egyszerre egy találat van nyitva: a 300 px-es panel különben átláthatatlanul
 // elnyúlna. Itt a nyitott találat becsukó függvénye áll (null = nincs nyitva).
 let closeOpenResult = null;
@@ -273,12 +333,48 @@ function searchResultItem(result) {
     // A fő jelentés a sorban áll (lenyitva teljes terjedelmében látszik, lásd a
     // .search-row.open szabályt), ezért a panel csak a többletet mutatja.
 
+    // Gyakorisági rang, szófaj, rendhagyóság — ugyanaz a három jelölő, mint a
+    // webes szó-részletező fejlécében. Saját szónál nincs rang.
+    const meta = document.createElement('div');
+    meta.className = 'detail-meta';
+
+    if (result.rank) {
+        meta.append(detailText('detail-chip', `#${result.rank}`));
+    }
+
+    if (result.part_of_speech) {
+        meta.append(
+            detailText(
+                'detail-chip pos',
+                POS_LABELS[result.part_of_speech] ?? result.part_of_speech,
+            ),
+        );
+    }
+
+    if (result.is_irregular) {
+        meta.append(detailText('detail-chip irregular', 'rendhagyó'));
+    }
+
+    if (meta.childElementCount) {
+        detail.append(meta);
+    }
+
     if (result.extra_meanings) {
         detail.append(detailText('detail-extra', result.extra_meanings));
     }
 
     if (result.synonyms) {
-        detail.append(detailText('detail-synonyms', `≈ ${result.synonyms}`));
+        const synonyms = document.createElement('div');
+        synonyms.className = 'detail-synonyms';
+        synonyms.append(
+            ...result.synonyms
+                .split(',')
+                .map((synonym) => synonym.trim())
+                .filter(Boolean)
+                .map((synonym) => detailText('synonym-chip', synonym)),
+        );
+
+        detail.append(synonyms);
     }
 
     if (result.example_en) {
@@ -291,6 +387,54 @@ function searchResultItem(result) {
         }
 
         detail.append(example);
+    }
+
+    // ── Szóalakok ───────────────────────────────────────────────────────────
+    //
+    // Ugyanaz a három blokk, mint a webes szó-részletezőben, és ugyanazzal a
+    // feltétellel: a szófajtól FÜGGETLENÜL látszik, ha a szó hordozza az alakot
+    // (pl. az „interest" főnév is, ige is). Az alakok a keresés válaszával
+    // együtt érkeznek, ezért ez sem indít újabb kérést.
+
+    const baseForm = result.form_base || result.word || '';
+
+    if (result.verb_past) {
+        detail.append(
+            formBlock('Igealakok', [
+                ['Alap', baseForm],
+                ['Múlt idő', result.verb_past],
+                ['Befejezett igenév', result.verb_past_participle],
+                ['Folyamatos (-ing)', result.verb_present_participle],
+                ['E/3 jelen', result.verb_third_person],
+            ]),
+        );
+    }
+
+    if (result.noun_plural) {
+        detail.append(
+            formBlock(
+                'Többes szám',
+                [
+                    ['Egyes szám', baseForm],
+                    ['Többes szám', result.noun_plural],
+                ],
+                { arrows: true },
+            ),
+        );
+    }
+
+    if (result.adj_comparative) {
+        detail.append(
+            formBlock(
+                'Fokozás',
+                [
+                    ['Alapfok', baseForm],
+                    ['Középfok', result.adj_comparative],
+                    ['Felsőfok', result.adj_superlative],
+                ],
+                { arrows: true },
+            ),
+        );
     }
 
     // ── Státusz ─────────────────────────────────────────────────────────────
@@ -469,7 +613,10 @@ function searchResultItem(result) {
         closeOpenResult = open ? () => setOpen(false) : null;
 
         if (open) {
-            row.scrollIntoView({ block: 'nearest' });
+            // A szóalak-blokkokkal a nyitott találat magasabb, mint a lista
+            // látható sávja, ezért a tetejére görgetünk (a 'nearest' csak az
+            // alját hozná be, és a szó maga kicsúszna felül).
+            row.scrollIntoView({ block: 'start' });
         }
     });
 

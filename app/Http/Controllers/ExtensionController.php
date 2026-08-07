@@ -42,6 +42,47 @@ class ExtensionController extends Controller
         return $request->hasSession() ? csrf_token() : null;
     }
 
+    /**
+     * A részletező panelhez kiadott szóalak-oszlopok. Mindkettő szó-táblán
+     * (words, user_custom_words) megvannak, így a kliensnek nem kell elágaznia
+     * a globális és a saját szó között. Ezek az oszlopok amúgy is részt vesznek
+     * a keresés WHERE-ágában, a SELECT-be emelésük nem jár új lekérdezéssel.
+     *
+     * @var list<string>
+     */
+    private const DETAIL_FORM_COLUMNS = [
+        'form_base',
+        'verb_past',
+        'verb_past_participle',
+        'verb_present_participle',
+        'verb_third_person',
+        'is_irregular',
+        'noun_plural',
+        'adj_comparative',
+        'adj_superlative',
+        'extra_forms',
+    ];
+
+    /**
+     * A szóalak-mezők a válaszhoz. Az `is_irregular` a `words` táblán nullable
+     * tinyInteger, a `user_custom_words`-ön boolean, és egyik modell sem castolja
+     * — a kliens szigorúan boolt vár, ezért itt egységesítjük.
+     *
+     * @return array<string, string|bool|null>
+     */
+    private function formDetails(Word|UserCustomWord $word): array
+    {
+        $details = [];
+
+        foreach (self::DETAIL_FORM_COLUMNS as $column) {
+            $details[$column] = $word->{$column};
+        }
+
+        $details['is_irregular'] = (bool) $details['is_irregular'];
+
+        return $details;
+    }
+
     public function lookup(Request $request): JsonResponse
     {
         if (! $request->user()) {
@@ -65,7 +106,7 @@ class ExtensionController extends Controller
             foreach (WordStatusFormExpander::FORM_COLUMNS as $column) {
                 WordFormVariants::orWhereFormMatches($q, $column, $lower);
             }
-        })->first(['id', 'word', 'meaning_hu', 'extra_meanings', 'synonyms', 'part_of_speech', 'rank', 'example_en', 'example_hu']);
+        })->first(array_merge(['id', 'word', 'meaning_hu', 'extra_meanings', 'synonyms', 'part_of_speech', 'rank', 'example_en', 'example_hu'], self::DETAIL_FORM_COLUMNS));
 
         if ($match) {
             $pivot = $request->user()->knownWords()
@@ -90,6 +131,7 @@ class ExtensionController extends Controller
                 'csrf' => $this->csrfTokenIfSession($request),
                 'has_active_access' => $hasActiveAccess,
                 'can_write' => $canWrite,
+                ...$this->formDetails($match),
             ]);
         }
 
@@ -108,7 +150,7 @@ class ExtensionController extends Controller
                             });
                     });
             })
-            ->first(['id', 'word', 'meaning_hu', 'extra_meanings', 'synonyms', 'part_of_speech', 'example_en', 'example_hu', 'status', 'importance']);
+            ->first(array_merge(['id', 'word', 'meaning_hu', 'extra_meanings', 'synonyms', 'part_of_speech', 'example_en', 'example_hu', 'status', 'importance'], self::DETAIL_FORM_COLUMNS));
 
         if ($custom) {
             return response()->json([
@@ -128,6 +170,7 @@ class ExtensionController extends Controller
                 'csrf' => $this->csrfTokenIfSession($request),
                 'has_active_access' => $hasActiveAccess,
                 'can_write' => $canWrite,
+                ...$this->formDetails($custom),
             ]);
         }
 
@@ -589,7 +632,7 @@ class ExtensionController extends Controller
             })
             ->orderBy('rank')
             ->limit(10)
-            ->get(['id', 'word', 'meaning_hu', 'extra_meanings', 'synonyms', 'part_of_speech', 'rank', 'example_en', 'example_hu']);
+            ->get(array_merge(['id', 'word', 'meaning_hu', 'extra_meanings', 'synonyms', 'part_of_speech', 'rank', 'example_en', 'example_hu'], self::DETAIL_FORM_COLUMNS));
 
         $wordIds = $words->pluck('id');
 
@@ -617,6 +660,7 @@ class ExtensionController extends Controller
                 // A pivot nyers query builderből jön, ahol a PDO a számot
                 // stringként is adhatja — a kliens szigorúan int-et vár.
                 'importance' => $mark?->importance === null ? null : (int) $mark->importance,
+                ...$this->formDetails($w),
             ];
         });
 
@@ -629,7 +673,7 @@ class ExtensionController extends Controller
                 }
             })
             ->limit(5)
-            ->get(['id', 'word', 'meaning_hu', 'extra_meanings', 'synonyms', 'part_of_speech', 'example_en', 'example_hu', 'status', 'importance']);
+            ->get(array_merge(['id', 'word', 'meaning_hu', 'extra_meanings', 'synonyms', 'part_of_speech', 'example_en', 'example_hu', 'status', 'importance'], self::DETAIL_FORM_COLUMNS));
 
         $customResults = $customs->map(fn ($c) => [
             'id' => $c->id,
@@ -644,6 +688,7 @@ class ExtensionController extends Controller
             'example_hu' => $c->example_hu,
             'status' => $c->status,
             'importance' => $c->importance,
+            ...$this->formDetails($c),
         ]);
 
         return response()->json([
