@@ -238,9 +238,19 @@ body {
     margin-top: 8px;
 }
 
+/* A kiválasztott szó halvány lila alapot és bal oldali sávot kap. A korábbi
+   --tw-surface nem vált el a hover-árnyalattól, így nem látszott, melyik
+   találat van nyitva. */
 .search-row.open {
     border-radius: 10px;
-    background: var(--tw-surface);
+    background: var(--tw-primary-soft);
+    box-shadow: inset 3px 0 0 var(--tw-primary);
+}
+
+/* A hover a nyitott soron nem festhet fölé — különben a kiemelés eltűnne,
+   amint az egér a sorra ér. */
+.search-row.open .search-item:hover {
+    background: none;
 }
 
 /* Lenyitva a teljes jelentés látszik — a sor egyben a részletező „jelentés"
@@ -354,16 +364,18 @@ body {
     gap: 4px;
 }
 
+/* A panel a nyitott sor lila alapján ül, ezért a kártyák és chipek fehérek —
+   a szürke árnyalatok (--tw-surface, --tw-line) elmosódnának rajta. */
 .detail-chip {
     padding: 1px 7px;
     border-radius: 999px;
-    background: var(--tw-line);
+    background: #fff;
     font-size: 10px;
     color: var(--tw-muted);
 }
 
 .detail-chip.pos {
-    background: var(--tw-primary-soft);
+    background: #fff;
     color: var(--tw-primary-dark);
     font-weight: 600;
 }
@@ -378,7 +390,7 @@ body {
     padding: 2px 8px;
     border: 1px solid var(--tw-line-strong);
     border-radius: 999px;
-    background: var(--tw-surface);
+    background: #fff;
     font-size: 11px;
     color: var(--tw-muted);
 }
@@ -409,7 +421,7 @@ body {
     min-width: 0;
     padding: 4px 7px;
     border-radius: 6px;
-    background: var(--tw-surface);
+    background: #fff;
 }
 
 .form-cell-label {
