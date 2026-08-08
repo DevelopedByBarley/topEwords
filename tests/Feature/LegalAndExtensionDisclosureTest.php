@@ -65,6 +65,9 @@ test('az adatkezelési tájékoztató megnevezi az adatfeldolgozókat, kitöltet
         ->toContain('Gemini API')
         ->toContain('Billingo')
         ->toContain('Rackhost')
+        // A Ploi nem tárol külön adatot, de rendszergazdai hozzáférése van a
+        // szerverhez, ezért a GDPR 13. cikk szerinti címzett-felsorolásban a helye.
+        ->toContain('Ploi')
         ->not->toContain('[tárhelyszolgáltató');
 });
 

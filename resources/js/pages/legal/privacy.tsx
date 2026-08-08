@@ -359,6 +359,22 @@ export default function Privacy() {
                                 rendszerüzenetek (e-mailek) kiküldése céljából.
                                 Az adatok az Európai Unió területén tárolódnak.
                             </li>
+                            <li>
+                                <strong className="text-foreground">
+                                    Ploi
+                                </strong>{' '}
+                                (szerver-üzemeltetés) – Ploi B.V. (Hollandia) –
+                                a szerver adminisztrációja, a frissítések
+                                telepítése és a hibakeresés céljából. A Ploi a
+                                szolgáltatáshoz{' '}
+                                <strong className="text-foreground">
+                                    nem tárol külön személyes adatot
+                                </strong>
+                                , de adminisztratív (rendszergazdai)
+                                hozzáféréssel rendelkezik a szerverhez, ezért
+                                adatfeldolgozóként nevezzük meg. Az adatok az
+                                Európai Unió területén maradnak.
+                            </li>
                         </ul>
                         <p className="mt-3 text-muted-foreground">
                             Egyes szolgáltatók (pl. Stripe, Google) az Európai

@@ -77,8 +77,11 @@ találat-részletező a popup keresőben; 1.31 — szóalakok a részletezőben.
       „Rackhost Informatikai Zrt. (székhely: 6722 Szeged, Tisza Lajos körút 41., Magyarország)".
       Forrás: Nemzeti Cégtár / Céginfo (adószám 25333572-2-06, cégjegyzékszám 06-10-000489).
       ⚠️ **Vesd össze a rackhost.hu impresszumával**, mielőtt élesbe megy — cégadat változhat.
-- [ ] **Ploi mint sub-processzor.** A Ploi (ploi.io, Hollandia) adminisztratív hozzáféréssel bír a
-      szerverhez. Döntsd el, felvesszük-e adatfeldolgozóként (jogilag védhetőbb, ha igen).
+- [x] ~~**Ploi mint sub-processzor.**~~ **KÉSZ** (2026-08-08): felvettük adatfeldolgozóként az
+      Adatkezelési tájékoztató 5. pontjába (Ploi B.V., Hollandia — szerver-adminisztráció,
+      rendszergazdai hozzáférés, külön adattárolás nélkül). EU-n belüli, így nem kell hozzá
+      harmadik országbeli garancia. Őrszem-teszt védi (`LegalAndExtensionDisclosureTest` →
+      *„az adatkezelési tájékoztató megnevezi az adatfeldolgozókat…"*).
 - [ ] **Naplómegőrzés.** A tájékoztató legfeljebb 12 hónapot ígér, de a `.env`-ben `LOG_STACK=single`
       → a `laravel.log` sosem forog. Élesben állítsd:
       `LOG_STACK=daily` és `LOG_DAILY_DAYS=365`, majd `php artisan config:cache`.
