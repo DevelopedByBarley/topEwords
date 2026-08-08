@@ -6,6 +6,7 @@ use App\Models\Word;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Route;
 
 beforeEach(function () {
     // Alap: Pro (korlátlan) felhasználó, hogy a bővítmény írás-végpontjai
@@ -422,7 +423,7 @@ test('reads stay free for everyone: a free user can still look up words', functi
     $this->actingAs(User::factory()->create())
         ->getJson(route('extension.lookup', ['word' => 'apple']))
         ->assertSuccessful()
-        ->assertJson(['found' => true, 'word' => 'apple', 'has_active_access' => false]);
+        ->assertJson(['found' => true, 'word' => 'apple']);
 });
 
 test('lookup reports can_write:true for a free user with quota remaining', function () {
@@ -432,7 +433,7 @@ test('lookup reports can_write:true for a free user with quota remaining', funct
     $this->actingAs(User::factory()->create())
         ->getJson(route('extension.lookup', ['word' => 'apple']))
         ->assertSuccessful()
-        ->assertJson(['found' => true, 'has_active_access' => false, 'can_write' => true]);
+        ->assertJson(['found' => true, 'can_write' => true]);
 });
 
 test('lookup reports can_write:false once a free user exhausts the daily write quota', function () {
@@ -602,16 +603,29 @@ test('statuses excludes periphrastic comparatives so they are not treated as phr
     expect($response->json('statuses'))->not->toHaveKey('most desperate');
 });
 
-test('badge counts learning words including custom ones', function () {
-    $apple = Word::where('word', 'apple')->first();
-    $this->user->knownWords()->attach($apple->id, ['status' => 'learning']);
-    $this->user->customWords()->create(['word' => 'serendipity', 'status' => 'learning']);
-    $this->user->customWords()->create(['word' => 'other', 'status' => 'known']);
+test('the retired badge endpoint is gone', function () {
+    // A számláló-badge-et a 43b7621 kivezette az ikonról; a szerveroldali
+    // /extension/badge végpont sem maradt, mert a kliens egyetlen kódútja
+    // sem hívja. Őrszem: ne kerüljön vissza észrevétlenül.
+    expect(Route::has('extension.badge'))->toBeFalse();
 
     $this->actingAs($this->user)
-        ->getJson(route('extension.badge'))
+        ->getJson('/extension/badge')
+        ->assertNotFound();
+});
+
+test('the extension payload no longer ships the unused has_active_access flag', function () {
+    // A jogosultság-jelet a can_write / has_ai_access adja; a has_active_access
+    // mezőt senki nem olvasta (bővítmény, player, web), ezért kivezettük.
+    $this->actingAs($this->user)
+        ->getJson(route('extension.lookup', ['word' => 'apple']))
         ->assertSuccessful()
-        ->assertJson(['count' => 2]);
+        ->assertJsonMissingPath('has_active_access');
+
+    $this->actingAs($this->user)
+        ->getJson(route('extension.search', ['q' => 'app']))
+        ->assertSuccessful()
+        ->assertJsonMissingPath('has_active_access');
 });
 
 test('frequent extension reads do not exhaust the add-word limit', function () {

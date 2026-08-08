@@ -7,6 +7,10 @@
 
 let fcDecksCache = null;
 
+// Az AI-gomb feliratát a betöltés közbeni "⏳" után is vissza kell állítani,
+// ezért egy helyen tartjuk (különben a második kattintásra más szöveg állna ott).
+const AI_BUTTON_LABEL = '✨ AI flashcard';
+
 function showFcFeedback(el, text, color) {
     if (!el) {
         return;
@@ -182,7 +186,7 @@ function flashcardFormHtml(data, info) {
 
         <div class="fc-actions">
             <button data-fc-save class="fc-save">Mentés</button>
-            ${hasAi ? `<button data-fc-ai class="fc-ai">✨ AI flashcard</button>` : ''}
+            ${hasAi ? `<button data-fc-ai class="fc-ai">${AI_BUTTON_LABEL}</button>` : ''}
             <div data-fc-feedback class="fc-feedback" style="display:none"></div>
         </div>
     `;
@@ -218,7 +222,7 @@ function wireFlashcardForm(root, data, csrf, onBack) {
             2000,
             (resp) => {
                 aiBtn.disabled = false;
-                aiBtn.textContent = '✨ AI';
+                aiBtn.textContent = AI_BUTTON_LABEL;
 
                 if (resp?.error === 'ai_limit') {
                     showFcFeedback(

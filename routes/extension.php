@@ -12,7 +12,6 @@ Route::middleware('throttle:120,1,ext-read')->group(function () {
     Route::get('extension/lookup', [ExtensionController::class, 'lookup'])->name('extension.lookup');
     Route::get('extension/search', [ExtensionController::class, 'search'])->name('extension.search');
     Route::get('extension/statuses', [ExtensionController::class, 'statuses'])->name('extension.statuses');
-    Route::get('extension/badge', [ExtensionController::class, 'badge'])->name('extension.badge');
     Route::get('extension/decks', [ExtensionController::class, 'decks'])->name('extension.decks');
 });
 

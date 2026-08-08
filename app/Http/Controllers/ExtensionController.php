@@ -89,7 +89,6 @@ class ExtensionController extends Controller
             return response()->json(['error' => 'unauthenticated'], 401);
         }
 
-        $hasActiveAccess = $request->user()->hasActiveAccess();
         $canWrite = $request->user()->canWriteFromExtension();
 
         $word = $this->normalizePhraseWhitespace($request->string('word')->value());
@@ -129,7 +128,6 @@ class ExtensionController extends Controller
                 'status' => $pivot?->status,
                 'importance' => $pivot?->importance,
                 'csrf' => $this->csrfTokenIfSession($request),
-                'has_active_access' => $hasActiveAccess,
                 'can_write' => $canWrite,
                 ...$this->formDetails($match),
             ]);
@@ -168,13 +166,12 @@ class ExtensionController extends Controller
                 'status' => $custom->status,
                 'importance' => $custom->importance,
                 'csrf' => $this->csrfTokenIfSession($request),
-                'has_active_access' => $hasActiveAccess,
                 'can_write' => $canWrite,
                 ...$this->formDetails($custom),
             ]);
         }
 
-        return response()->json(['found' => false, 'word' => $word, 'csrf' => $this->csrfTokenIfSession($request), 'has_active_access' => $hasActiveAccess, 'can_write' => $canWrite]);
+        return response()->json(['found' => false, 'word' => $word, 'csrf' => $this->csrfTokenIfSession($request), 'can_write' => $canWrite]);
     }
 
     public function addWord(Request $request): JsonResponse
@@ -584,24 +581,6 @@ class ExtensionController extends Controller
         ]);
     }
 
-    public function badge(Request $request): JsonResponse
-    {
-        if (! $request->user()) {
-            return response()->json(['count' => 0]);
-        }
-
-        $count = DB::table('user_word')
-            ->where('user_id', $request->user()->id)
-            ->where('status', 'learning')
-            ->count();
-
-        $customCount = UserCustomWord::where('user_id', $request->user()->id)
-            ->where('status', 'learning')
-            ->count();
-
-        return response()->json(['count' => $count + $customCount]);
-    }
-
     public function search(Request $request): JsonResponse
     {
         if (! $request->user()) {
@@ -614,7 +593,6 @@ class ExtensionController extends Controller
             return response()->json(['results' => [], 'csrf' => $this->csrfTokenIfSession($request)]);
         }
 
-        $hasActiveAccess = $request->user()->hasActiveAccess();
         $userId = $request->user()->id;
 
         $lower = strtolower($q);
@@ -693,7 +671,6 @@ class ExtensionController extends Controller
 
         return response()->json([
             'results' => $results->concat($customResults)->values(),
-            'has_active_access' => $hasActiveAccess,
             'can_write' => $request->user()->canWriteFromExtension(),
             'has_ai_access' => $request->user()->hasAiAccess(),
             'is_admin' => Gate::check('admin'),
