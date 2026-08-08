@@ -82,15 +82,45 @@ találat-részletező a popup keresőben; 1.31 — szóalakok a részletezőben.
 - [ ] **Naplómegőrzés.** A tájékoztató legfeljebb 12 hónapot ígér, de a `.env`-ben `LOG_STACK=single`
       → a `laravel.log` sosem forog. Élesben állítsd:
       `LOG_STACK=daily` és `LOG_DAILY_DAYS=365`, majd `php artisan config:cache`.
-- [ ] **Ügyvédi átnézés.** A szövegek tartalmilag rendben vannak és a valós működést írják le, de a
-      végleges kiadás előtt érdemes jogásszal átfuttatni (különösen az elállás és a felelősség-
-      korlátozás fejezeteket).
+      ⚠️ **A próba-kiadás ezt NEM váltja ki:** a vállalás az első valódi — akár meghívott —
+      felhasználótól él, a javítás pedig két env-sor. Tedd bele a deploy `.env`-jébe.
+- [ ] **Ügyvédi átnézés.** ⏸️ **ELHALASZTVA** (2026-08-08-i döntés): a próba-kiadás meghívás
+      alapú, fizetős előfizetés nincs (a Stripe nem éles), így az átnézés fő tárgya — az **elállás**
+      és a **felelősség-korlátozás** fejezet — még nem él.
+      **Trigger, amikor újra elő kell venni:** a Stripe éles kulcsokra váltása, illetve az első
+      fizetős előfizetés — nem a store-publikálás.
 
 ---
 
 ## 3. Chrome Web Store Developer Dashboard — kitöltendő mezők
 
 Ezek bemásolhatók. (Feltöltendő csomag: `chrome-extension/topwords-extension-1.31.zip`)
+
+### Próba-kiadás (meghívás alapú) — mi lazul és mi nem
+
+Az első kiadás **nem publikus**: meghívott tesztelőknek megy. Ez kevesebb marketing-munkát jelent,
+de a store-oldali kötelezettségek nagy részét **nem** írja el.
+
+- [ ] **Láthatóság: `Private`, nem `Unlisted`.** Az *Unlisted* csak annyit jelent, hogy nem jön ki
+      keresésre — a **linkkel bárki telepítheti**, nincs hozzáférés-kontroll. A meghívás alapú
+      terjesztés a **Private**: előre fel kell vinni a tesztelői Google-fiókokat, és a tesztelők
+      száma korlátos. Döntsd el tudatosan, melyiket akarod; ha az Unlisted, akkor mondjuk ki, hogy
+      nincs hozzáférés-kontroll.
+
+**NEM lazul** (a review a láthatóságtól függetlenül lefut, unlisted és private csomagon is):
+
+- a **teszt-fiók** (1. szakasz) — a reviewer ugyanúgy be akar lépni;
+- **Single purpose** és a **permission justification**-ok;
+- **leírás = valós működés** — ez az a szabály, amit az 1.29-es szűkítés után a legkönnyebb elvéteni;
+- **privacy practices** + a 3 certification + **privacy policy URL**;
+- a fejlesztői fiók **5 USD díja** és a **megerősített publisher e-mail**.
+
+**Lazul** (csak a meghívottak látják, elég a funkcionális minimum):
+
+- a screenshotok lehetnek egyszerű, funkcionális képek a csiszolt marketing-anyag helyett
+  (a darabszám-minimum viszont marad);
+- a **listing nyelve** (lásd lent) gyakorlatilag mindegy;
+- a promo-szöveg és a kategória-finomhangolás.
 
 ### Single purpose
 > TopWords helps Hungarian learners of English build vocabulary: it looks up English words in
@@ -127,6 +157,7 @@ Ezek bemásolhatók. (Feltöltendő csomag: `chrome-extension/topwords-extension
       angolul hirdetett, magyarul működő terméket látnak a felhasználók.
       Az 1.28 óta a popup súgó-modálja **HU/EN kapcsolóval** kétnyelvű, tehát a reviewer a
       bővítményen belül is angolul olvashat mindent — a listing nyelvi döntése ettől független.
+      *(A meghívás alapú próba-kiadásnál ez elhanyagolható — lásd a szakasz elején.)*
 - [ ] Képernyőképek (1280×800 vagy 640×400), legalább 1 db, ideálisan 3–5. **Csak létező funkciót
       mutass** — nem létező funkciót bemutató kép elutasítási ok, és az 1.29 óta ezek NEM
       készíthetők: „szó-popup egy cikken", oldal-kiemelés, ikon-badge számláló. Használható jelenetek:
