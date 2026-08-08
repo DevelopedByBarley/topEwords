@@ -608,16 +608,26 @@ class WordController extends Controller
             return $this->importanceToggleResponse($request, null);
         }
 
-        $request->user()->knownWords()->syncWithoutDetaching([$word->id => ['status' => 'known', 'importance' => $importance]]);
+        // Ez az ág ÚJ 'known' szót vesz fel, ezért ugyanúgy a napi extension-írás
+        // keretbe számít, mint a status felvétele — különben a csillagozás keret
+        // nélküli felvételi út lenne (EXT-M1). Meglévő jelölés módosítása (a fenti
+        // ág) nem fogyaszt keretet. A player ikertestvére ugyanez: PL-M1,
+        // ExtensionController::updateImportance.
+        if ($limitResponse = $this->reserveExtensionStatusWrite($request)) {
+            return $limitResponse;
+        }
+
+        try {
+            $request->user()->knownWords()->syncWithoutDetaching([$word->id => ['status' => 'known', 'importance' => $importance]]);
+        } catch (\Throwable $e) {
+            $this->refundExtensionStatusWrite($request);
+
+            throw $e;
+        }
 
         return $this->importanceToggleResponse($request, $importance);
     }
 
-    /**
-     * A felhasználói keresőszövegben lévő LIKE-joker karaktereket (`%`, `_`, `\`)
-     * irodalmi karakterként kezeli, hogy ne torzítsák a találatokat. A visszaadott
-     * mintát `ESCAPE '\'` záradékkal kell használni (MySQL és SQLite is támogatja).
-     */
     private function likeEscape(string $value): string
     {
         return str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $value);

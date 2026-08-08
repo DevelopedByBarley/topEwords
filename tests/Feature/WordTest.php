@@ -512,6 +512,91 @@ test('inertia importance request still receives a redirect, not JSON', function 
     expect($this->user->knownWords()->wherePivot('importance', 2)->where('word_id', $word->id)->exists())->toBeTrue();
 });
 
+test('extension-origin importance write on an unmarked word consumes the daily extension quota', function () {
+    // EXT-M1: ez az ág új 'known' sort hoz létre, ezért ugyanúgy a keretbe számít,
+    // mint a státusz-felvétel — különben a csillagozás keret nélküli felvételi út.
+    $word = Word::where('word', 'the')->first();
+
+    $this->postJson(route('words.importance', $word), ['importance' => 3], ['Origin' => 'chrome-extension://abcdefghijklmnop'])
+        ->assertOk()
+        ->assertJson(['ok' => true, 'importance' => 3]);
+
+    expect($this->user->extensionWritesToday())->toBe(1);
+});
+
+test('extension-origin importance write on an unmarked word is blocked once the quota is exhausted', function () {
+    $word = Word::where('word', 'the')->first();
+    $limit = $this->user->planLimit('extension_writes_per_day');
+    Cache::put("extension_writes_daily_{$this->user->id}_".today()->format('Y-m-d'), $limit, now()->endOfDay());
+
+    $this->postJson(route('words.importance', $word), ['importance' => 3], ['Origin' => 'chrome-extension://abcdefghijklmnop'])
+        ->assertForbidden()
+        ->assertJson(['error' => 'plan']);
+
+    expect($this->user->knownWords()->where('word_id', $word->id)->exists())->toBeFalse();
+});
+
+test('extension-origin importance change on an already saved word stays free over the exhausted quota', function () {
+    // Meglévő jelölés módosítása nem vesz fel új szót, ezért nem fogyaszt keretet.
+    $word = Word::where('word', 'the')->first();
+    $this->user->knownWords()->attach($word->id, ['status' => 'learning']);
+    $limit = $this->user->planLimit('extension_writes_per_day');
+    Cache::put("extension_writes_daily_{$this->user->id}_".today()->format('Y-m-d'), $limit, now()->endOfDay());
+
+    $this->postJson(route('words.importance', $word), ['importance' => 4], ['Origin' => 'chrome-extension://abcdefghijklmnop'])
+        ->assertOk()
+        ->assertJson(['ok' => true, 'importance' => 4]);
+
+    expect($this->user->knownWords()->wherePivot('importance', 4)->where('word_id', $word->id)->exists())->toBeTrue()
+        ->and($this->user->extensionWritesToday())->toBe($limit);
+});
+
+test('web importance writes do not consume the extension quota', function () {
+    $word = Word::where('word', 'the')->first();
+    $limit = $this->user->planLimit('extension_writes_per_day');
+    Cache::put("extension_writes_daily_{$this->user->id}_".today()->format('Y-m-d'), $limit, now()->endOfDay());
+
+    $this->postJson(route('words.importance', $word), ['importance' => 3], ['Origin' => config('app.url')])
+        ->assertOk()
+        ->assertJson(['ok' => true]);
+
+    expect($this->user->knownWords()->where('word_id', $word->id)->exists())->toBeTrue()
+        ->and($this->user->extensionWritesToday())->toBe($limit);
+});
+
+test('extension-origin importance write refunds the quota when the pivot write throws', function () {
+    $word = Word::where('word', 'the')->first();
+
+    // Az első knownWords()-hívás a meglévő jelölés lekérdezése (ez még a foglalás
+    // ELŐTT fut) — csak a második, a tényleges pivot-írás dobjon, különben a teszt
+    // a foglalásig sem jutna el, és a refundot nem is vizsgálná.
+    $user = $this->user;
+    $calls = 0;
+    $mock = Mockery::mock($user)->makePartial();
+    $mock->shouldReceive('knownWords')->andReturnUsing(function () use ($user, &$calls) {
+        $calls++;
+
+        if ($calls === 1) {
+            return $user->knownWords();
+        }
+
+        throw new RuntimeException('DB down');
+    });
+    $this->actingAs($mock);
+
+    $this->withoutExceptionHandling();
+
+    try {
+        $this->postJson(route('words.importance', $word), ['importance' => 3], ['Origin' => 'chrome-extension://abcdefghijklmnop']);
+    } catch (RuntimeException $e) {
+        // várt
+    }
+
+    // A foglalás lefutott (increment), majd a hiba után a refund visszaadta.
+    expect($calls)->toBeGreaterThan(1)
+        ->and($user->extensionWritesToday())->toBe(0);
+});
+
 test('words can be filtered by importance', function () {
     $words = Word::whereIn('word', ['the', 'of'])->get()->keyBy('word');
     $this->user->knownWords()->attach($words['the']->id, ['status' => 'known', 'importance' => 5]);
