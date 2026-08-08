@@ -399,6 +399,16 @@ function startNfxControlsObserver() {
         pending = true;
         requestAnimationFrame(() => {
             pending = false;
+
+            // Ez a leggyorsabb navigáció-jelzőnk: a Netflix filmváltáskor
+            // alaposan átrendezi a DOM-ot, így az observer szinte azonnal
+            // megszólal (lásd a startNfxNavWatch magyarázatát). Ha volt
+            // útvonal-váltás, a handleNfxNavChange már le is bontotta és
+            // újrainicializálta a felületet — nincs mit összehangolni.
+            if (handleNfxNavChange()) {
+                return;
+            }
+
             reconcileNfxLyrics();
         });
     });
@@ -453,17 +463,30 @@ function initNfxSubtitles(attempt = 0) {
     });
 }
 
-// A Netflix SPA-nak nincs dedikált navigációs eseménye. A History API-t
-// (pushState/replaceState/popstate) hookoljuk az azonnali észleléshez; a lassú
-// (2 mp-es) poll csak biztonsági háló olyan navigációkra, amiket a History-hook
-// esetleg kihagyna. Így másodpercenkénti pörgés helyett a poll idle-ben alig dolgozik.
+// A Netflix SPA-nak nincs dedikált navigációs eseménye (a YouTube
+// `yt-navigate-finish`-ének nincs itt párja), a History API becsomagolása pedig
+// NEM járható út: a content script izolált világban fut, ezért a
+// `history.pushState` felülírása csak a SAJÁT világunk objektumát cseréli le — az
+// oldal a maga érintetlen példányát hívja, a wrapper sosem sülne el. Csak olyan
+// jelre támaszkodhatunk, ami a közös DOM-on át is megérkezik:
+//   • popstate — vissza/előre gomb (valódi DOM-esemény, világhatáron átjön),
+//   • a lejátszó-observer (startNfxControlsObserver) — filmváltáskor a Netflix
+//     alaposan átrendezi a DOM-ot, így ez gyakorlatilag azonnal jelez.
+// A 2 mp-es poll a végső háló: az observer csak /watch oldalon fut, ezért a
+// lejátszóból KIlépést és a visszatérést ő veszi észre.
 let nfxLastPath = location.pathname + location.search;
 
+/**
+ * Újrainicializálja a felületet, ha közben elnavigáltak.
+ *
+ * @returns {boolean} true, ha volt útvonal-váltás (a hívónak ilyenkor már nincs
+ * teendője: a régi menet le van bontva, az új init elindult).
+ */
 function handleNfxNavChange() {
     const path = location.pathname + location.search;
 
     if (path === nfxLastPath) {
-        return;
+        return false;
     }
 
     nfxLastPath = path;
@@ -475,6 +498,8 @@ function handleNfxNavChange() {
         // Az init maga várja ki a lejátszót (poll), nem kell fix késleltetés.
         initNfxSubtitles();
     }
+
+    return true;
 }
 
 function startNfxNavWatch() {
@@ -482,27 +507,14 @@ function startNfxNavWatch() {
         return;
     }
 
-    // Azonnali észlelés: a History API metódusait becsomagoljuk, és a popstate-re
-    // is figyelünk. A patch idempotens (a __nfxPatched flag védi az ismételt
-    // csomagolástól, ha a script kétszer futna le).
-    if (!history.__nfxPatched) {
-        const wrap = (name) => {
-            const original = history[name];
-            history[name] = function (...args) {
-                const result = original.apply(this, args);
-                handleNfxNavChange();
+    // Vissza/előre gomb. A pushState-tel indított navigációt nem ez fogja meg,
+    // hanem a lejátszó-observer (lásd fent).
+    window.addEventListener('popstate', handleNfxNavChange);
 
-                return result;
-            };
-        };
-        wrap('pushState');
-        wrap('replaceState');
-        window.addEventListener('popstate', handleNfxNavChange);
-        history.__nfxPatched = true;
-    }
-
-    // Biztonsági háló: ritka (2 mp) poll a History-hook által esetleg elszalasztott
-    // navigációkra. Kikapcs esetén magától leáll.
+    // Végső háló: ritka (2 mp) poll azokra a váltásokra, amiket sem a popstate,
+    // sem a lejátszó-observer nem lát — jellemzően a /watch oldalról kilépés és
+    // az oda visszatérés, mert az observer csak a lejátszón fut. Kikapcs esetén
+    // magától leáll.
     nfxNavInterval = setInterval(() => {
         if (!extAlive()) {
             clearInterval(nfxNavInterval);
