@@ -173,7 +173,7 @@ export default function Achievements({
                                     : 'Tanulás közben automatikusan gyűjtöd a jelvényeket. Itt látod, mit szereztél már meg, és mi vár még rád.'}
                             </p>
                         </div>
-                        <div className="flex w-full shrink-0 flex-col gap-2 rounded-2xl bg-white/15 px-5 py-4 ring-1 ring-white/20 backdrop-blur-sm sm:w-64">
+                        <div className="flex w-full shrink-0 flex-col gap-2 rounded-2xl bg-white/15 px-5 py-4 ring-1 ring-white/20 sm:w-64">
                             <div className="flex items-baseline justify-between gap-2">
                                 <span className="text-4xl font-bold text-white tabular-nums">
                                     {totalUnlocked}

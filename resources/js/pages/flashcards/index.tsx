@@ -216,7 +216,7 @@ export default function FlashcardsIndex({
                         </div>
 
                         {decks.length > 0 && (
-                            <div className="flex shrink-0 flex-col items-center gap-0.5 rounded-2xl bg-white/15 px-5 py-4 text-center ring-1 ring-white/20 backdrop-blur-sm">
+                            <div className="flex shrink-0 flex-col items-center gap-0.5 rounded-2xl bg-white/15 px-5 py-4 text-center ring-1 ring-white/20">
                                 {dueSummary === null ? (
                                     <>
                                         <span className="h-10 w-16 animate-pulse rounded bg-white/25" />

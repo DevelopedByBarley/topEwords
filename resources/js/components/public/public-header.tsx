@@ -58,7 +58,7 @@ export function PublicHeader({
             className={
                 isTransparent
                     ? 'relative z-20'
-                    : 'sticky top-0 z-50 border-b border-border bg-background/85 backdrop-blur-md'
+                    : 'sticky top-0 z-50 border-b border-border bg-background md:bg-background/85 md:backdrop-blur-md'
             }
         >
             <div className="mx-auto flex max-w-300 items-center gap-3 px-5 py-4">
@@ -151,7 +151,7 @@ export function PublicHeader({
                     aria-label="Fő navigáció (mobil)"
                     className={`flex flex-col gap-1 px-5 pb-4 lg:hidden ${
                         isTransparent
-                            ? 'mx-4 mb-2 rounded-2xl border border-white/15 bg-indigo-950/85 pt-3 backdrop-blur-md'
+                            ? 'mx-4 mb-2 rounded-2xl border border-white/15 bg-indigo-950 pt-3'
                             : 'mx-auto max-w-300 border-t border-border pt-3'
                     }`}
                 >

@@ -938,7 +938,7 @@ export default function WordsIndex({
                                 Saját szó hozzáadása
                             </button>
                         </div>
-                        <div className="flex shrink-0 flex-col items-center gap-0.5 rounded-2xl bg-white/15 px-5 py-4 ring-1 ring-white/20 backdrop-blur-sm">
+                        <div className="flex shrink-0 flex-col items-center gap-0.5 rounded-2xl bg-white/15 px-5 py-4 ring-1 ring-white/20">
                             <div className="flex items-baseline gap-2">
                                 <span className="text-4xl font-bold text-white tabular-nums">
                                     {listedTotal.toLocaleString()}

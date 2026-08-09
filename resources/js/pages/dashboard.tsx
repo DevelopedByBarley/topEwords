@@ -51,14 +51,39 @@ interface Props {
     dueFlashcards?: { cards: number; decks: number };
 }
 
-const LEVEL_COLORS: Record<string, { bar: string; bg: string; text: string }> = {
-    green:  { bar: 'bg-green-500',  bg: 'bg-green-50 dark:bg-green-950/20',  text: 'text-green-700 dark:text-green-400' },
-    blue:   { bar: 'bg-blue-500',   bg: 'bg-blue-50 dark:bg-blue-950/20',    text: 'text-blue-700 dark:text-blue-400' },
-    yellow: { bar: 'bg-yellow-500', bg: 'bg-yellow-50 dark:bg-yellow-950/20',text: 'text-yellow-700 dark:text-yellow-400' },
-    orange: { bar: 'bg-orange-500', bg: 'bg-orange-50 dark:bg-orange-950/20',text: 'text-orange-700 dark:text-orange-400' },
-    purple: { bar: 'bg-indigo-500', bg: 'bg-indigo-50 dark:bg-indigo-950/20',text: 'text-indigo-700 dark:text-indigo-400' },
-    red:    { bar: 'bg-red-500',    bg: 'bg-red-50 dark:bg-red-950/20',      text: 'text-red-700 dark:text-red-400' },
-};
+const LEVEL_COLORS: Record<string, { bar: string; bg: string; text: string }> =
+    {
+        green: {
+            bar: 'bg-green-500',
+            bg: 'bg-green-50 dark:bg-green-950/20',
+            text: 'text-green-700 dark:text-green-400',
+        },
+        blue: {
+            bar: 'bg-blue-500',
+            bg: 'bg-blue-50 dark:bg-blue-950/20',
+            text: 'text-blue-700 dark:text-blue-400',
+        },
+        yellow: {
+            bar: 'bg-yellow-500',
+            bg: 'bg-yellow-50 dark:bg-yellow-950/20',
+            text: 'text-yellow-700 dark:text-yellow-400',
+        },
+        orange: {
+            bar: 'bg-orange-500',
+            bg: 'bg-orange-50 dark:bg-orange-950/20',
+            text: 'text-orange-700 dark:text-orange-400',
+        },
+        purple: {
+            bar: 'bg-indigo-500',
+            bg: 'bg-indigo-50 dark:bg-indigo-950/20',
+            text: 'text-indigo-700 dark:text-indigo-400',
+        },
+        red: {
+            bar: 'bg-red-500',
+            bg: 'bg-red-50 dark:bg-red-950/20',
+            text: 'text-red-700 dark:text-red-400',
+        },
+    };
 
 /**
  * Kerekítés helyett „<1%”, amíg van már ismert szó: 10 000-es nevezőnél az
@@ -92,10 +117,7 @@ function ProgressBar({
             aria-label={label}
             className={className}
         >
-            <div
-                className={barClassName}
-                style={{ width: `${percent}%` }}
-            />
+            <div className={barClassName} style={{ width: `${percent}%` }} />
         </div>
     );
 }
@@ -131,10 +153,14 @@ function StatTile({
     };
 
     return (
-        <div className={`flex flex-col gap-1 rounded-2xl p-3 ring-1 ring-inset ${tones[tone]}`}>
+        <div
+            className={`flex flex-col gap-1 rounded-2xl p-3 ring-1 ring-inset ${tones[tone]}`}
+        >
             <div className="flex items-center gap-1.5">
                 <Icon className={`size-3.5 ${text[tone]}`} />
-                <span className={`text-xs font-medium ${labelText[tone]}`}>{label}</span>
+                <span className={`text-xs font-medium ${labelText[tone]}`}>
+                    {label}
+                </span>
             </div>
             <span className={`text-2xl font-bold tabular-nums ${text[tone]}`}>
                 {value.toLocaleString()}
@@ -194,10 +220,16 @@ export default function Dashboard({
 }: Props) {
     const totalLearning = levelStats.reduce((s, l) => s + l.learning, 0);
     const totalSaved = levelStats.reduce((s, l) => s + l.saved, 0);
-    const totalPronunciation = levelStats.reduce((s, l) => s + l.pronunciation, 0);
-    const isNewUser = totalKnown === 0 && totalLearning === 0 && customStats.total === 0;
+    const totalPronunciation = levelStats.reduce(
+        (s, l) => s + l.pronunciation,
+        0,
+    );
+    const isNewUser =
+        totalKnown === 0 && totalLearning === 0 && customStats.total === 0;
     const customPercent =
-        customStats.total > 0 ? Math.round((customStats.known / customStats.total) * 100) : 0;
+        customStats.total > 0
+            ? Math.round((customStats.known / customStats.total) * 100)
+            : 0;
     // A sorozat akkor is „élő”, ha az utolsó aktivitás tegnap volt — ilyenkor
     // ma még meg kell tartani, ezért ez a nap a legfontosabb üzenet az oldalon.
     const streakAtRisk = streak > 0 && !studiedToday;
@@ -210,13 +242,17 @@ export default function Dashboard({
                 {/* Hero */}
                 <div
                     className="relative overflow-hidden rounded-3xl p-6 md:p-8"
-                    style={{ background: 'linear-gradient(135deg,#4338CA,#4F8EEC)' }}
+                    style={{
+                        background: 'linear-gradient(135deg,#4338CA,#4F8EEC)',
+                    }}
                 >
                     <div className="pointer-events-none absolute -top-16 -right-16 size-64 rounded-full bg-white/15 blur-2xl" />
-                    <div className="pointer-events-none absolute -bottom-24 right-28 size-48 rounded-full bg-white/10 blur-2xl" />
+                    <div className="pointer-events-none absolute right-28 -bottom-24 size-48 rounded-full bg-white/10 blur-2xl" />
                     <div className="relative flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
                         <div className="max-w-xl">
-                            <h1 className="text-2xl font-bold tracking-tight text-white md:text-3xl">Haladás</h1>
+                            <h1 className="text-2xl font-bold tracking-tight text-white md:text-3xl">
+                                Haladás
+                            </h1>
                             <p className="mt-1.5 text-sm text-white/85 md:text-base">
                                 {isNewUser
                                     ? 'Kezdd a szólistával: jelöld meg, mely szavakat ismered már — innentől mindent itt követhetsz nyomon.'
@@ -229,14 +265,18 @@ export default function Dashboard({
                                 Szavak böngészése
                             </Link>
                         </div>
-                        <div className="flex shrink-0 flex-col items-center gap-0.5 rounded-2xl bg-white/15 px-5 py-4 ring-1 ring-white/20 backdrop-blur-sm">
+                        <div className="flex shrink-0 flex-col items-center gap-0.5 rounded-2xl bg-white/15 px-5 py-4 ring-1 ring-white/20">
                             <div className="flex items-baseline gap-2">
-                                <span className="text-4xl font-bold tabular-nums text-white">
+                                <span className="text-4xl font-bold text-white tabular-nums">
                                     {formatPercent(totalPercent, totalKnown)}
                                 </span>
-                                <span className="text-sm font-medium text-white/80">kész</span>
+                                <span className="text-sm font-medium text-white/80">
+                                    kész
+                                </span>
                             </div>
-                            <span className="text-xs text-white/70">a Top 10 000 szóból</span>
+                            <span className="text-xs text-white/70">
+                                a Top 10 000 szóból
+                            </span>
                         </div>
                     </div>
                 </div>
@@ -257,7 +297,8 @@ export default function Dashboard({
                                 ) : dueFlashcards.cards > 0 ? (
                                     <>
                                         <span className="font-semibold text-foreground">
-                                            {dueFlashcards.cards.toLocaleString()} kártya
+                                            {dueFlashcards.cards.toLocaleString()}{' '}
+                                            kártya
                                         </span>{' '}
                                         esedékes ma{' '}
                                         {dueFlashcards.decks > 1
@@ -288,7 +329,9 @@ export default function Dashboard({
                             }
                             href={
                                 totalLearning > 0
-                                    ? wordsIndex({ query: { status: 'learning' } }).url
+                                    ? wordsIndex({
+                                          query: { status: 'learning' },
+                                      }).url
                                     : wordsIndex().url
                             }
                         />
@@ -310,7 +353,9 @@ export default function Dashboard({
                             <span
                                 className={`flex size-9 items-center justify-center rounded-xl ${streak > 0 ? 'bg-orange-500/15' : 'bg-muted'}`}
                             >
-                                <Flame className={`size-5 ${streak > 0 ? 'text-orange-500' : 'text-muted-foreground'}`} />
+                                <Flame
+                                    className={`size-5 ${streak > 0 ? 'text-orange-500' : 'text-muted-foreground'}`}
+                                />
                             </span>
                             <span className="font-semibold">Napi sorozat</span>
                         </div>
@@ -320,10 +365,14 @@ export default function Dashboard({
                             >
                                 {streak}
                             </span>
-                            <span className="text-sm text-muted-foreground">nap</span>
+                            <span className="text-sm text-muted-foreground">
+                                nap
+                            </span>
                         </div>
                     </div>
-                    <p className={`mt-1 text-sm ${streakAtRisk ? 'font-medium text-amber-700 dark:text-amber-400' : 'text-muted-foreground'}`}>
+                    <p
+                        className={`mt-1 text-sm ${streakAtRisk ? 'font-medium text-amber-700 dark:text-amber-400' : 'text-muted-foreground'}`}
+                    >
                         {streak === 0
                             ? 'Jelölj meg egy szót a sorozatod elindításához!'
                             : streakAtRisk
@@ -347,11 +396,13 @@ export default function Dashboard({
                         <div>
                             <span className="font-semibold">Összesen</span>
                             <p className="text-xs text-muted-foreground">
-                                A Top 10 000 listás szó — a saját szavaid külön szerepelnek lent.
+                                A Top 10 000 listás szó — a saját szavaid külön
+                                szerepelnek lent.
                             </p>
                         </div>
-                        <span className="shrink-0 text-sm font-bold tabular-nums text-muted-foreground">
-                            {totalKnown.toLocaleString()} / {totalWords.toLocaleString()}
+                        <span className="shrink-0 text-sm font-bold text-muted-foreground tabular-nums">
+                            {totalKnown.toLocaleString()} /{' '}
+                            {totalWords.toLocaleString()}
                         </span>
                     </div>
                     <ProgressBar
@@ -361,10 +412,30 @@ export default function Dashboard({
                         barClassName="h-3 rounded-full bg-linear-to-r from-indigo-600 to-indigo-800 transition-all duration-500"
                     />
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                        <StatTile icon={CheckCheck} label="Tudom" value={totalKnown} tone="green" />
-                        <StatTile icon={Clock} label="Tanulom" value={totalLearning} tone="blue" />
-                        <StatTile icon={BookMarked} label="Később" value={totalSaved} tone="orange" />
-                        <StatTile icon={Mic} label="Kiejtés" value={totalPronunciation} tone="indigo" />
+                        <StatTile
+                            icon={CheckCheck}
+                            label="Tudom"
+                            value={totalKnown}
+                            tone="green"
+                        />
+                        <StatTile
+                            icon={Clock}
+                            label="Tanulom"
+                            value={totalLearning}
+                            tone="blue"
+                        />
+                        <StatTile
+                            icon={BookMarked}
+                            label="Később"
+                            value={totalSaved}
+                            tone="orange"
+                        />
+                        <StatTile
+                            icon={Mic}
+                            label="Kiejtés"
+                            value={totalPronunciation}
+                            tone="indigo"
+                        />
                     </div>
                 </div>
 
@@ -381,11 +452,17 @@ export default function Dashboard({
                                     key={level.level}
                                     className="rounded-3xl border border-dashed border-neutral-300 p-5 dark:border-neutral-700"
                                 >
-                                    <span className={`text-xs font-bold tracking-wider uppercase ${colors.text}`}>
+                                    <span
+                                        className={`text-xs font-bold tracking-wider uppercase ${colors.text}`}
+                                    >
                                         {level.level}. szint
                                     </span>
-                                    <p className="font-semibold">{level.label}</p>
-                                    <p className="mt-3 text-xs text-muted-foreground">Hamarosan elérhető</p>
+                                    <p className="font-semibold">
+                                        {level.label}
+                                    </p>
+                                    <p className="mt-3 text-xs text-muted-foreground">
+                                        Hamarosan elérhető
+                                    </p>
                                 </div>
                             );
                         }
@@ -393,21 +470,34 @@ export default function Dashboard({
                         return (
                             <Link
                                 key={level.level}
-                                href={wordsIndex({ query: { level: level.level } })}
+                                href={wordsIndex({
+                                    query: { level: level.level },
+                                })}
                                 className={`group flex flex-col rounded-3xl border border-neutral-200 p-5 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg dark:border-neutral-700 ${isComplete ? colors.bg : 'bg-white dark:bg-card'}`}
                             >
                                 <div className="mb-1 flex items-start justify-between gap-2">
                                     <div>
                                         <div className="flex items-center gap-2">
-                                            <span className={`text-xs font-bold tracking-wider uppercase ${colors.text}`}>
+                                            <span
+                                                className={`text-xs font-bold tracking-wider uppercase ${colors.text}`}
+                                            >
                                                 {level.level}. szint
                                             </span>
-                                            {isComplete && <Trophy className="size-4 text-yellow-500" />}
+                                            {isComplete && (
+                                                <Trophy className="size-4 text-yellow-500" />
+                                            )}
                                         </div>
-                                        <span className="font-semibold">{level.label}</span>
+                                        <span className="font-semibold">
+                                            {level.label}
+                                        </span>
                                     </div>
-                                    <span className={`text-2xl font-bold tabular-nums ${isComplete ? colors.text : ''}`}>
-                                        {formatPercent(level.percent, level.known)}
+                                    <span
+                                        className={`text-2xl font-bold tabular-nums ${isComplete ? colors.text : ''}`}
+                                    >
+                                        {formatPercent(
+                                            level.percent,
+                                            level.known,
+                                        )}
                                     </span>
                                 </div>
 
@@ -421,7 +511,8 @@ export default function Dashboard({
                                 <div className="mb-3 grid grid-cols-2 gap-2">
                                     <div className="flex flex-col gap-0.5">
                                         <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                                            <CheckCheck className="size-3 text-green-500" /> Tudom
+                                            <CheckCheck className="size-3 text-green-500" />{' '}
+                                            Tudom
                                         </span>
                                         <span className="text-base font-bold tabular-nums">
                                             {level.known.toLocaleString()}
@@ -432,25 +523,36 @@ export default function Dashboard({
                                     </div>
                                     <div className="flex flex-col gap-0.5">
                                         <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                                            <Clock className="size-3 text-blue-500" /> Tanulom
+                                            <Clock className="size-3 text-blue-500" />{' '}
+                                            Tanulom
                                         </span>
-                                        <span className="text-base font-bold tabular-nums">{level.learning.toLocaleString()}</span>
+                                        <span className="text-base font-bold tabular-nums">
+                                            {level.learning.toLocaleString()}
+                                        </span>
                                     </div>
                                     <div className="flex flex-col gap-0.5">
                                         <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                                            <BookMarked className="size-3 text-orange-500" /> Később
+                                            <BookMarked className="size-3 text-orange-500" />{' '}
+                                            Később
                                         </span>
-                                        <span className="text-base font-bold tabular-nums">{level.saved.toLocaleString()}</span>
+                                        <span className="text-base font-bold tabular-nums">
+                                            {level.saved.toLocaleString()}
+                                        </span>
                                     </div>
                                     <div className="flex flex-col gap-0.5">
                                         <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                                            <Mic className="size-3 text-indigo-500" /> Kiejtés
+                                            <Mic className="size-3 text-indigo-500" />{' '}
+                                            Kiejtés
                                         </span>
-                                        <span className="text-base font-bold tabular-nums">{level.pronunciation.toLocaleString()}</span>
+                                        <span className="text-base font-bold tabular-nums">
+                                            {level.pronunciation.toLocaleString()}
+                                        </span>
                                     </div>
                                 </div>
 
-                                <span className={`mt-auto text-xs font-medium ${colors.text} group-hover:underline group-hover:underline-offset-2`}>
+                                <span
+                                    className={`mt-auto text-xs font-medium ${colors.text} group-hover:underline group-hover:underline-offset-2`}
+                                >
                                     Ugrás erre a szintre →
                                 </span>
                             </Link>
@@ -466,17 +568,23 @@ export default function Dashboard({
                                 <NotebookPen className="size-4 text-indigo-700 dark:text-indigo-400" />
                             </span>
                             <div>
-                                <span className="font-semibold">Saját szavak</span>
+                                <span className="font-semibold">
+                                    Saját szavak
+                                </span>
                                 {customStats.total > 0 && (
                                     <p className="text-xs text-muted-foreground">
-                                        {customStats.total.toLocaleString()} szó · {customStats.known.toLocaleString()} ismert
+                                        {customStats.total.toLocaleString()} szó
+                                        · {customStats.known.toLocaleString()}{' '}
+                                        ismert
                                     </p>
                                 )}
                             </div>
                         </div>
                         {customStats.total > 0 && (
                             <Link
-                                href={wordsIndex({ query: { source: 'custom' } })}
+                                href={wordsIndex({
+                                    query: { source: 'custom' },
+                                })}
                                 className="shrink-0 text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
                             >
                                 Kezelés →
@@ -487,9 +595,12 @@ export default function Dashboard({
                     {customStats.total === 0 ? (
                         <div className="rounded-2xl border border-dashed p-6 text-center">
                             <NotebookPen className="mx-auto mb-2 size-8 text-muted-foreground/50" />
-                            <p className="text-sm font-medium text-muted-foreground">Még nincs saját szavad</p>
+                            <p className="text-sm font-medium text-muted-foreground">
+                                Még nincs saját szavad
+                            </p>
                             <p className="mt-1 text-xs text-muted-foreground">
-                                Adj hozzá szavakat, amiket külön szeretnél nyomon követni.
+                                Adj hozzá szavakat, amiket külön szeretnél
+                                nyomon követni.
                             </p>
                             <Link
                                 href={wordsIndex({ query: { add: '' } })}
@@ -509,27 +620,39 @@ export default function Dashboard({
                             <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-4">
                                 <div className="flex items-center justify-between gap-2 sm:justify-start">
                                     <dt className="flex items-center gap-1 text-muted-foreground">
-                                        <CheckCheck className="size-3.5 text-green-500" /> Tudom
+                                        <CheckCheck className="size-3.5 text-green-500" />{' '}
+                                        Tudom
                                     </dt>
-                                    <dd className="font-bold tabular-nums">{customStats.known.toLocaleString()}</dd>
+                                    <dd className="font-bold tabular-nums">
+                                        {customStats.known.toLocaleString()}
+                                    </dd>
                                 </div>
                                 <div className="flex items-center justify-between gap-2 sm:justify-start">
                                     <dt className="flex items-center gap-1 text-muted-foreground">
-                                        <Clock className="size-3.5 text-blue-500" /> Tanulom
+                                        <Clock className="size-3.5 text-blue-500" />{' '}
+                                        Tanulom
                                     </dt>
-                                    <dd className="font-bold tabular-nums">{customStats.learning.toLocaleString()}</dd>
+                                    <dd className="font-bold tabular-nums">
+                                        {customStats.learning.toLocaleString()}
+                                    </dd>
                                 </div>
                                 <div className="flex items-center justify-between gap-2 sm:justify-start">
                                     <dt className="flex items-center gap-1 text-muted-foreground">
-                                        <BookMarked className="size-3.5 text-orange-500" /> Később
+                                        <BookMarked className="size-3.5 text-orange-500" />{' '}
+                                        Később
                                     </dt>
-                                    <dd className="font-bold tabular-nums">{customStats.saved.toLocaleString()}</dd>
+                                    <dd className="font-bold tabular-nums">
+                                        {customStats.saved.toLocaleString()}
+                                    </dd>
                                 </div>
                                 <div className="flex items-center justify-between gap-2 sm:justify-start">
                                     <dt className="flex items-center gap-1 text-muted-foreground">
-                                        <Mic className="size-3.5 text-indigo-500" /> Kiejtés
+                                        <Mic className="size-3.5 text-indigo-500" />{' '}
+                                        Kiejtés
                                     </dt>
-                                    <dd className="font-bold tabular-nums">{customStats.pronunciation.toLocaleString()}</dd>
+                                    <dd className="font-bold tabular-nums">
+                                        {customStats.pronunciation.toLocaleString()}
+                                    </dd>
                                 </div>
                             </dl>
                         </>
@@ -547,7 +670,10 @@ export default function Dashboard({
                 >
                     <div>
                         <p className="text-xs text-muted-foreground">
-                            Készítette: <span className="font-semibold text-foreground">codebarley.hu</span>
+                            Készítette:{' '}
+                            <span className="font-semibold text-foreground">
+                                codebarley.hu
+                            </span>
                         </p>
                         <p className="mt-0.5 text-xs text-muted-foreground">
                             Webfejlesztés, projektek és cikkek — nézz be!

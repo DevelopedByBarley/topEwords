@@ -136,7 +136,7 @@ function VideoCard({ video, index }: { video: Video; index: number }) {
     return (
         <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white dark:border-neutral-700 dark:bg-neutral-900">
             <div className="relative aspect-video bg-neutral-900">
-                <span className="absolute top-2.5 left-2.5 rounded-md bg-black/60 px-2 py-0.5 text-[11px] font-semibold text-white backdrop-blur-sm">
+                <span className="absolute top-2.5 left-2.5 rounded-md bg-black/60 px-2 py-0.5 text-[11px] font-semibold text-white">
                     {video.category}
                 </span>
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-neutral-400">
@@ -145,7 +145,7 @@ function VideoCard({ video, index }: { video: Video; index: number }) {
                         Hamarosan
                     </span>
                 </div>
-                <div className="absolute right-2.5 bottom-2.5 flex items-center gap-1 rounded-md bg-black/60 px-2 py-0.5 text-[11px] font-semibold text-white backdrop-blur-sm">
+                <div className="absolute right-2.5 bottom-2.5 flex items-center gap-1 rounded-md bg-black/60 px-2 py-0.5 text-[11px] font-semibold text-white">
                     <Clock className="size-3" />
                     {video.duration}
                 </div>

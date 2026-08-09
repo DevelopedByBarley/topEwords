@@ -1,5 +1,3 @@
-import { gsap } from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import {
     AlarmClock,
     ArrowRight,
@@ -13,8 +11,7 @@ import {
     Volume2,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-
-gsap.registerPlugin(ScrollTrigger);
+import { gsap, ScrollTrigger } from '@/lib/scroll-trigger';
 
 type Status = 'Tudom' | 'Tanulom' | 'Később' | 'Kiejtés' | 'Gyakorlásra';
 

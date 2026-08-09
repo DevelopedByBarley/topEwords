@@ -1,5 +1,3 @@
-import { gsap } from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import {
     ArrowRight,
     CheckCircle2,
@@ -16,8 +14,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { ScrollReveal } from '@/components/public/scroll-reveal';
-
-gsap.registerPlugin(ScrollTrigger);
+import { gsap, ScrollTrigger } from '@/lib/scroll-trigger';
 
 /**
  * A jelenet lépései — a pinnelt desktop-változat alatt futó jelző címkéi.

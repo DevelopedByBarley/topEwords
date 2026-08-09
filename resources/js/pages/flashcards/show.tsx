@@ -804,7 +804,7 @@ export default function FlashcardShow({
             {/* Tömeges műveletek — rögzítve az ablak aljához, hogy a lista
                 bármely pontjáról elérhető legyen kigörgetés nélkül. */}
             {someSelected && (
-                <div className="fixed inset-x-0 bottom-0 z-40 animate-in border-t bg-background/95 px-4 py-3 shadow-[0_-4px_16px_-8px_rgb(0_0_0/0.25)] backdrop-blur duration-150 slide-in-from-bottom-2">
+                <div className="fixed inset-x-0 bottom-0 z-40 animate-in border-t bg-background px-4 py-3 shadow-[0_-4px_16px_-8px_rgb(0_0_0/0.25)] duration-150 slide-in-from-bottom-2 md:bg-background/95 md:backdrop-blur">
                     <div className="mx-auto flex max-w-[2000px] flex-wrap items-center gap-1.5">
                         <span className="text-xs font-medium text-muted-foreground tabular-nums">
                             {selectedIds.size} kijelölve

@@ -1,5 +1,3 @@
-import { gsap } from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import {
     Download,
     Layers,
@@ -13,8 +11,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { ScrollReveal } from '@/components/public/scroll-reveal';
-
-gsap.registerPlugin(ScrollTrigger);
+import { gsap, ScrollTrigger } from '@/lib/scroll-trigger';
 
 /**
  * Az SRS négy értékelési fokozata — a címke, a szín, a következő ismétlés

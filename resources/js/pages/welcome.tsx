@@ -507,7 +507,7 @@ export default function Welcome({
                                             e.preventDefault();
                                             goToSection('funkciok');
                                         }}
-                                        className="inline-flex items-center gap-2.5 rounded-full border border-white/[0.22] bg-white/[0.08] px-6.5 py-3.75 font-sans text-[15px] font-medium text-white backdrop-blur-md transition-colors hover:bg-white/[0.18]"
+                                        className="inline-flex items-center gap-2.5 rounded-full border border-white/[0.22] bg-white/[0.08] px-6.5 py-3.75 font-sans text-[15px] font-medium text-white transition-colors hover:bg-white/[0.18] md:backdrop-blur-md"
                                     >
                                         <ChevronDown size={20} />
                                         Funkciók
@@ -687,7 +687,7 @@ export default function Welcome({
 
                                 {/* analyzer preview */}
                                 <div className="animate-hero-float-c">
-                                    <div className="w-[250px] rounded-[22px] border border-white/[0.28] bg-indigo-800/55 p-5.5 shadow-[0_26px_60px_rgba(49,46,129,.35)] backdrop-blur-[14px]">
+                                    <div className="w-[250px] rounded-[22px] border border-white/[0.28] bg-indigo-800/90 p-5.5 shadow-[0_26px_60px_rgba(49,46,129,.35)] md:bg-indigo-800/55 md:backdrop-blur-[14px]">
                                         <span className="inline-flex items-center gap-1.5 rounded-full bg-green-300/20 px-3 py-1.25 text-xs font-semibold text-green-200">
                                             <FileSearch size={15} />
                                             Szövegelemzés
