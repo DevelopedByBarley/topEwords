@@ -267,7 +267,7 @@ test('word write endpoints carry the shared per-user throttle limiter', function
         $route = Route::getRoutes()->getByName($name);
 
         expect($route)->not->toBeNull()
-            ->and($route->middleware())->toContain('throttle:60,1,word-writes');
+            ->and($route->middleware())->toContain('throttle:300,1,word-writes');
     }
 });
 
