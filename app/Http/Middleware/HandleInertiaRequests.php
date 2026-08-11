@@ -44,9 +44,6 @@ class HandleInertiaRequests extends Middleware
             ...parent::share($request),
             'name' => config('app.name'),
             'auth' => [
-                // Explicit whitelist — never share the raw model, which would leak
-                // billing (stripe_id, pm_last_four) and entitlement internals to every
-                // page. Plan state is exposed via the `subscription` block below.
                 'user' => $request->user()?->only(['id', 'name', 'email', 'email_verified_at']),
                 'isAdmin' => $request->user() ? Gate::check('admin', $request->user()) : false,
                 'subscription' => $request->user() ? (function () use ($request) {
@@ -63,18 +60,11 @@ class HandleInertiaRequests extends Middleware
                     ];
                 })() : null,
             ],
-            // Csak akkor tartalmaz adatot, ha a havi AI-keret fogyni kezdett
-            // (AiUsageService::WARNING_THRESHOLD_PERCENT) — egyébként `null`, és a
-            // banner nem jelenik meg. Lazy closure: a keret-számláló periódus-váltó
-            // resetjét (resetIfDue) így csak a tényleges Inertia-renderek futtatják,
-            // nem minden web-request.
             'aiBudgetWarning' => fn () => $request->user() !== null
                 ? $this->aiUsage->warning($request->user())
                 : null,
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'billingEnabled' => Billing::enabled(),
-            // `null`, amíg a store-listing nem él — ilyenkor a bővítmény-banner
-            // és a sidebar-menüpont „hamarosan" állapotot mutat a link helyett.
             'extensionStoreUrl' => config('extension.store_url'),
             'flash' => [
                 'streakTriggered' => session('streak_triggered'),
