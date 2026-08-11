@@ -104,6 +104,8 @@ test('admin can create and revoke invites', function () {
     expect($invite)->not->toBeNull();
     expect($invite->max_uses)->toBe(3);
     expect($invite->code)->not->toBeEmpty();
+    expect($invite->expires_at)->not->toBeNull();
+    expect($invite->expires_at->isBetween(now()->addDays(6), now()->addDays(8)))->toBeTrue();
 
     $this->actingAs($admin)
         ->delete(route('admin.invites.destroy', $invite))
