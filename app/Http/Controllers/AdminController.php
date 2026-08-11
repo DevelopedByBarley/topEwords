@@ -62,11 +62,8 @@ class AdminController extends Controller
                 'email' => $u->email,
                 'plan' => $u->currentPlan(),
                 'plan_override' => $u->plan_override,
-                // Valódi (fizető) Stripe-előfizetés van-e, és milyen csomag — az
-                // admin felülírástól / próbaidőtől / lifetime-tól függetlenül.
                 'subscribed' => $u->activeSubscription() !== null,
                 'subscription_plan' => $u->subscriptionPlan(),
-                // Aktív generikus próbaidő (admin-adta ingyen hónap) vége, ha van.
                 'trial_ends_at' => $u->onTrial() ? $u->trial_ends_at->toIso8601String() : null,
             ]);
 
@@ -90,6 +87,7 @@ class AdminController extends Controller
             ->latest()
             ->limit(100)
             ->get();
+
 
         return Inertia::render('admin/index', [
             'stats' => [

@@ -44,3 +44,19 @@ export type TwoFactorSetupData = {
 export type TwoFactorSecretKey = {
     secretKey: string;
 };
+
+export type LoginPageProps = {
+    status?: string;
+    canResetPassword: boolean;
+    canRegister: boolean;
+};
+
+export type RegisterPageProps = {
+    inviteOnly?: boolean;
+    invite?: string;
+};
+
+export type ResetPasswordPageProps = {
+    token: string;
+    email: string;
+};

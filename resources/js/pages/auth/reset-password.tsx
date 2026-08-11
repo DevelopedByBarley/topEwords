@@ -6,13 +6,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import { update } from '@/routes/password';
+import type { ResetPasswordPageProps } from '@/types/auth';
 
-type Props = {
-    token: string;
-    email: string;
-};
-
-export default function ResetPassword({ token, email }: Props) {
+export default function ResetPassword({
+    token,
+    email,
+}: ResetPasswordPageProps) {
     return (
         <>
             <Head title="Jelszó visszaállítása" />

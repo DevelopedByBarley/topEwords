@@ -2,25 +2,9 @@ import { router } from '@inertiajs/react';
 import { Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Input } from '@/components/ui/input';
+import type { Invite, InvitesTabProps } from '@/types/admin';
 
-interface Invite {
-    id: number;
-    code: string;
-    label: string | null;
-    uses: number;
-    max_uses: number;
-    expires_at: string | null;
-    usable: boolean;
-    url: string;
-    used_by: string[];
-}
-
-interface Props {
-    invites: Invite[];
-    inviteOnly: boolean;
-}
-
-export default function InvitesTab({ invites, inviteOnly }: Props) {
+export default function InvitesTab({ invites, inviteOnly }: InvitesTabProps) {
     const [inviteLabel, setInviteLabel] = useState('');
     const [inviteMaxUses, setInviteMaxUses] = useState('1');
     const [inviteExpires, setInviteExpires] = useState('');

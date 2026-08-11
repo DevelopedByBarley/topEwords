@@ -416,7 +416,7 @@ export default function Welcome({
 
                     <main id="main">
                         <section
-                            className="relative overflow-hidden px-5 pt-22 pb-[200px]"
+                            className="relative overflow-hidden px-5 pt-22 pb-[200px] xl:pt-16 xl:pb-[120px]"
                             style={{
                                 background:
                                     'linear-gradient(180deg,#20276B 0%,#3a3688 14%,#6548AC 30%,#5566c4 44%,#4F8EEC 66%,#4F8EEC 100%)',

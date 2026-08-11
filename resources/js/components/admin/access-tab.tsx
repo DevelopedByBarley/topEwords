@@ -4,23 +4,9 @@ import { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { set as setAccess } from '@/routes/admin/access';
 import { grant as grantFreeMonth } from '@/routes/admin/free-month';
+import type { AccessTabProps } from '@/types/admin';
 
-interface AccessUser {
-    id: number;
-    name: string;
-    email: string;
-    plan: 'free' | 'premium';
-    plan_override: 'premium' | null;
-    subscribed: boolean;
-    subscription_plan: 'premium' | null;
-    trial_ends_at: string | null;
-}
-
-interface Props {
-    accessUsers: AccessUser[];
-}
-
-export default function AccessTab({ accessUsers }: Props) {
+export default function AccessTab({ accessUsers }: AccessTabProps) {
     const [accessSearch, setAccessSearch] = useState('');
 
     const q = accessSearch.trim().toLowerCase();

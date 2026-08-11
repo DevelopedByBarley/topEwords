@@ -11,18 +11,14 @@ import { Spinner } from '@/components/ui/spinner';
 import { register } from '@/routes';
 import { store } from '@/routes/login';
 import { request } from '@/routes/password';
+import type { LoginPageProps } from '@/types/auth';
 
-type Props = {
-    status?: string;
-    canResetPassword: boolean;
-    canRegister: boolean;
-};
 
 export default function Login({
     status,
     canResetPassword,
     canRegister,
-}: Props) {
+}: LoginPageProps) {
     return (
         <>
             <Head title="Bejelentkezés" />

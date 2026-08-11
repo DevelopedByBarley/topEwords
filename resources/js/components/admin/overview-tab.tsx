@@ -8,42 +8,7 @@ import {
     TrendingUp,
     Users,
 } from 'lucide-react';
-
-interface Stats {
-    totalUsers: number;
-    verifiedUsers: number;
-    usersThisWeek: number;
-    usersThisMonth: number;
-    activeToday: number;
-    totalWordStatuses: number;
-    known: number;
-    learning: number;
-    saved: number;
-    pronunciation: number;
-}
-
-interface User {
-    name: string;
-    email: string;
-    streak: number;
-    last_activity_date: string | null;
-    created_at?: string;
-    email_verified_at?: string | null;
-    known_words_count?: number;
-}
-
-interface RegistrationDay {
-    date: string;
-    count: number;
-}
-
-interface Props {
-    stats: Stats;
-    topStreaks: User[];
-    recentUsers: User[];
-    mostActive: User[];
-    registrationsByDay: RegistrationDay[];
-}
+import type { OverviewTabProps } from '@/types/admin';
 
 export default function OverviewTab({
     stats,
@@ -51,7 +16,7 @@ export default function OverviewTab({
     recentUsers,
     mostActive,
     registrationsByDay,
-}: Props) {
+}: OverviewTabProps) {
     const maxDayCount = Math.max(...registrationsByDay.map((d) => d.count), 1);
 
     return (

@@ -6,79 +6,7 @@ import InvitesTab from '@/components/admin/invites-tab';
 import OverviewTab from '@/components/admin/overview-tab';
 import ReportsTab from '@/components/admin/reports-tab';
 import AppLogoIcon from '@/components/app-logo-icon';
-
-interface Stats {
-    totalUsers: number;
-    verifiedUsers: number;
-    usersThisWeek: number;
-    usersThisMonth: number;
-    activeToday: number;
-    totalWordStatuses: number;
-    known: number;
-    learning: number;
-    saved: number;
-    pronunciation: number;
-}
-
-interface User {
-    name: string;
-    email: string;
-    streak: number;
-    last_activity_date: string | null;
-    created_at?: string;
-    email_verified_at?: string | null;
-    known_words_count?: number;
-}
-
-interface RegistrationDay {
-    date: string;
-    count: number;
-}
-
-interface AccessUser {
-    id: number;
-    name: string;
-    email: string;
-    plan: 'free' | 'premium';
-    plan_override: 'premium' | null;
-    subscribed: boolean;
-    subscription_plan: 'premium' | null;
-    trial_ends_at: string | null;
-}
-
-interface Invite {
-    id: number;
-    code: string;
-    label: string | null;
-    uses: number;
-    max_uses: number;
-    expires_at: string | null;
-    usable: boolean;
-    url: string;
-    used_by: string[];
-}
-
-interface Report {
-    id: number;
-    category: 'bug' | 'missing_feature' | 'word_data' | 'other';
-    description: string;
-    status: 'open' | 'resolved';
-    created_at: string;
-    user: { id: number; name: string; email: string } | null;
-    word: { id: number; word: string } | null;
-}
-
-interface Props {
-    stats: Stats;
-    topStreaks: User[];
-    recentUsers: User[];
-    mostActive: User[];
-    registrationsByDay: RegistrationDay[];
-    accessUsers: AccessUser[];
-    invites: Invite[];
-    inviteOnly: boolean;
-    reports: Report[];
-}
+import type { AdminIndexPageProps } from '@/types/admin';
 
 const TABS = [
     { key: 'overview', label: 'Áttekintés', icon: Gauge },
@@ -99,7 +27,7 @@ export default function AdminIndex({
     invites,
     inviteOnly,
     reports,
-}: Props) {
+}: AdminIndexPageProps) {
     const [activeTab, setActiveTab] = useState<TabKey>('overview');
     const openReportsCount = reports.filter(
         (r) => r.status === 'open',

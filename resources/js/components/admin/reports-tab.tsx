@@ -8,16 +8,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { updateStatus as updateReportStatus } from '@/routes/admin/reports';
-
-interface Report {
-    id: number;
-    category: 'bug' | 'missing_feature' | 'word_data' | 'other';
-    description: string;
-    status: 'open' | 'resolved';
-    created_at: string;
-    user: { id: number; name: string; email: string } | null;
-    word: { id: number; word: string } | null;
-}
+import type { Report, ReportsTabProps } from '@/types/admin';
 
 const REPORT_CATEGORY_LABELS: Record<Report['category'], string> = {
     bug: 'Hiba',
@@ -26,11 +17,7 @@ const REPORT_CATEGORY_LABELS: Record<Report['category'], string> = {
     other: 'Egyéb',
 };
 
-interface Props {
-    reports: Report[];
-}
-
-export default function ReportsTab({ reports }: Props) {
+export default function ReportsTab({ reports }: ReportsTabProps) {
     const [selectedReport, setSelectedReport] = useState<Report | null>(null);
 
     function toggleReportStatus(report: Report) {
