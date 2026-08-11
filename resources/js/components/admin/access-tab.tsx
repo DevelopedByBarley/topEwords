@@ -24,11 +24,7 @@ export default function AccessTab({ accessUsers }: AccessTabProps) {
     }
 
     function giveFreeMonth(email: string) {
-        router.post(
-            grantFreeMonth().url,
-            { email },
-            { preserveScroll: true },
-        );
+        router.post(grantFreeMonth(email).url, {}, { preserveScroll: true });
     }
 
     return (

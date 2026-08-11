@@ -197,7 +197,7 @@ test('admin can grant a free month by email', function () {
     $target = User::factory()->create();
 
     $this->actingAs($admin)
-        ->post(route('admin.free-month.grant'), ['email' => $target->email])
+        ->post(route('admin.free-month.grant', $target))
         ->assertRedirect()
         ->assertSessionHas('success');
 
@@ -213,7 +213,7 @@ test('granting a free month stacks on an active trial', function () {
     $target = User::factory()->create(['trial_ends_at' => now()->addDays(10)]);
 
     $this->actingAs($admin)
-        ->post(route('admin.free-month.grant'), ['email' => $target->email]);
+        ->post(route('admin.free-month.grant', $target));
 
     expect($target->refresh()->trial_ends_at->toDateString())
         ->toBe(now()->addDays(10)->addMonth()->toDateString());
@@ -226,7 +226,7 @@ test('granting a free month after an expired trial starts from now', function ()
     $target = User::factory()->create(['trial_ends_at' => now()->subMonths(3)]);
 
     $this->actingAs($admin)
-        ->post(route('admin.free-month.grant'), ['email' => $target->email]);
+        ->post(route('admin.free-month.grant', $target));
 
     expect($target->refresh()->trial_ends_at->toDateString())
         ->toBe(now()->addMonth()->toDateString());
@@ -238,7 +238,7 @@ test('non-admin cannot grant a free month', function () {
     $target = User::factory()->create();
 
     $this->actingAs($user)
-        ->post(route('admin.free-month.grant'), ['email' => $target->email])
+        ->post(route('admin.free-month.grant', $target))
         ->assertForbidden();
 
     expect($target->refresh()->trial_ends_at)->toBeNull();

@@ -5,9 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\Invite;
 use App\Models\Report;
 use App\Models\User;
+use App\Services\AdminDashboardService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -15,101 +15,20 @@ use Inertia\Response;
 
 class AdminController extends Controller
 {
+    public function __construct(private AdminDashboardService $dashboard) {}
+
     public function index(): Response
     {
-        $totalUsers = User::count();
-        $verifiedUsers = User::whereNotNull('email_verified_at')->count();
-        $usersThisWeek = User::where('created_at', '>=', now()->startOfWeek())->count();
-        $usersThisMonth = User::where('created_at', '>=', now()->startOfMonth())->count();
-        $activeToday = User::whereDate('last_activity_date', today())->count();
-
-        $totalWordStatuses = DB::table('user_word')->count();
-        $statusCounts = DB::table('user_word')
-            ->select('status', DB::raw('count(*) as count'))
-            ->groupBy('status')
-            ->pluck('count', 'status');
-
-        $topStreaks = User::where('streak', '>', 0)
-            ->orderByDesc('streak')
-            ->limit(10)
-            ->get(['name', 'email', 'streak', 'last_activity_date']);
-
-        $recentUsers = User::latest()
-            ->limit(20)
-            ->get(['name', 'email', 'created_at', 'email_verified_at', 'streak', 'last_activity_date']);
-
-        $mostActive = User::withCount('knownWords')
-            ->orderByDesc('known_words_count')
-            ->limit(10)
-            ->get(['id', 'name', 'email', 'streak']);
-
-        $registrationsByDay = User::select(
-            DB::raw('DATE(created_at) as date'),
-            DB::raw('count(*) as count')
-        )
-            ->where('created_at', '>=', now()->subDays(30))
-            ->groupBy('date')
-            ->orderBy('date')
-            ->get();
-
-        // Teljes userlista a hozzáférés-kezelőhöz — az effektív csomaggal
-        $accessUsers = User::with('subscriptions')
-            ->orderBy('name')
-            ->get(['id', 'name', 'email', 'plan_override', 'lifetime_access', 'trial_ends_at'])
-            ->map(fn (User $u) => [
-                'id' => $u->id,
-                'name' => $u->name,
-                'email' => $u->email,
-                'plan' => $u->currentPlan(),
-                'plan_override' => $u->plan_override,
-                'subscribed' => $u->activeSubscription() !== null,
-                'subscription_plan' => $u->subscriptionPlan(),
-                'trial_ends_at' => $u->onTrial() ? $u->trial_ends_at->toIso8601String() : null,
-            ]);
-
-        $invites = Invite::withCount('users')
-            ->with('users:id,invite_id,email')
-            ->latest()
-            ->get()
-            ->map(fn (Invite $i) => [
-                'id' => $i->id,
-                'code' => $i->code,
-                'label' => $i->label,
-                'uses' => $i->uses,
-                'max_uses' => $i->max_uses,
-                'expires_at' => $i->expires_at?->toIso8601String(),
-                'usable' => $i->isUsable(),
-                'url' => url('/register').'?invite='.$i->code,
-                'used_by' => $i->users->pluck('email')->all(),
-            ]);
-
-        $reports = Report::with(['user:id,name,email', 'word:id,word'])
-            ->latest()
-            ->limit(100)
-            ->get();
-
-
         return Inertia::render('admin/index', [
-            'stats' => [
-                'totalUsers' => $totalUsers,
-                'verifiedUsers' => $verifiedUsers,
-                'usersThisWeek' => $usersThisWeek,
-                'usersThisMonth' => $usersThisMonth,
-                'activeToday' => $activeToday,
-                'totalWordStatuses' => $totalWordStatuses,
-                'known' => $statusCounts['known'] ?? 0,
-                'learning' => $statusCounts['learning'] ?? 0,
-                'saved' => $statusCounts['saved'] ?? 0,
-                'pronunciation' => $statusCounts['pronunciation'] ?? 0,
-            ],
-            'topStreaks' => $topStreaks,
-            'recentUsers' => $recentUsers,
-            'mostActive' => $mostActive,
-            'registrationsByDay' => $registrationsByDay,
-            'accessUsers' => $accessUsers,
-            'invites' => $invites,
+            'stats' => $this->dashboard->stats(),
+            'topStreaks' => $this->dashboard->topStreaks(),
+            'recentUsers' => $this->dashboard->recentUsers(),
+            'mostActive' => $this->dashboard->mostActive(),
+            'registrationsByDay' => $this->dashboard->registrationsByDay(),
+            'accessUsers' => $this->dashboard->accessUsers(),
+            'invites' => $this->dashboard->invites(),
             'inviteOnly' => (bool) config('registration.invite_only'),
-            'reports' => $reports,
+            'reports' => $this->dashboard->reports(),
         ]);
     }
 
@@ -132,7 +51,7 @@ class AdminController extends Controller
             'code' => $code,
             'label' => $data['label'] ?? null,
             'max_uses' => $data['max_uses'],
-            'expires_at' => $data['expires_at'] ?? null,
+            'expires_at' => $data['expires_at'] ?? now()->addDays(7),
         ]);
 
         return back()->with('success', "Meghívókód létrehozva: {$code}");
@@ -145,10 +64,6 @@ class AdminController extends Controller
         return back()->with('success', 'Meghívókód visszavonva.');
     }
 
-    /**
-     * Csomag-felülírás kiosztása vagy visszavonása email alapján.
-     * 'none' visszaállítja az alapértelmezettre (Stripe előfizetés dönt).
-     */
     public function setAccess(Request $request): RedirectResponse
     {
         $data = $request->validate([
@@ -169,24 +84,18 @@ class AdminController extends Controller
     }
 
     /**
-     * Egy hónap ingyenes Pro kiosztása email alapján, a generikus próbaidővel
+     * Egy hónap ingyenes Pro kiosztása, a generikus próbaidővel
      * (users.trial_ends_at — a currentPlan() az onTrial()-on át már figyeli).
      * Halmozható: aktív próbaidőnél annak végéhez ad egy hónapot, egyébként
      * mostantól számít; lejáratkor a fiók magától visszaáll Free-re.
      */
-    public function grantFreeMonth(Request $request): RedirectResponse
+    public function grantFreeMonth(User $user): RedirectResponse
     {
-        $data = $request->validate([
-            'email' => ['required', 'email', 'exists:users,email'],
-        ]);
-
-        $user = User::where('email', $data['email'])->firstOrFail();
-
         $base = $user->onTrial() ? $user->trial_ends_at : now();
         $user->trial_ends_at = $base->copy()->addMonth();
         $user->save();
 
-        $until = $user->trial_ends_at->timezone(config('app.timezone'))->isoFormat('YYYY. MM. DD.');
+        $until = $user->trial_ends_at->isoFormat('YYYY. MM. DD.');
 
         return back()->with('success', "{$user->name} +1 hónap ingyen Prót kapott ({$until}-ig).");
     }
