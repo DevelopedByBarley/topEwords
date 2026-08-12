@@ -16,6 +16,17 @@ let searchHasAi = false;
 let searchCanWrite = false;
 let searchResultsData = [];
 let searchSelIdx = -1;
+// Egyszerre csak egy státusz-, illetve fontosság-mentés futhat (a lookup-popup.js
+// és a popup.js azonos zárja). A szerver toggle-szemantikájú: ugyanannak a
+// státusznak az újraküldése leveszi (background.js: UPDATE_STATUS) — dupla
+// kattintásnál a két átfedő kérés közül az első beállítaná, a második levenné,
+// miközben az optimistic UI a beállítottat mutatja. A zár eldobja a második
+// kattintást, amíg az előző mentés be nem fejeződik.
+//
+// Modul-szintű, nem a handleren belüli: a hiba-ág showSearchDetail()-lel
+// újrarendereli a részletezőt, ezért a lokális flag minden hibánál elvesznék.
+let statusSaveInFlight = false;
+let importanceSaveInFlight = false;
 
 function toggleSearch() {
     if (searchHost) {
@@ -785,8 +796,14 @@ function showSearchDetail(data) {
         openFlashcardModal(data, searchCsrf);
     });
 
+    const statusRow = detail.querySelector('.detail-statuses');
+
     detail.querySelectorAll('.status-btn').forEach((btn) => {
         btn.addEventListener('click', () => {
+            if (statusSaveInFlight) {
+                return;
+            }
+
             const newStatus = btn.dataset.status;
             const isSame = btn.classList.contains('active');
             const prev = data;
@@ -808,6 +825,9 @@ function showSearchDetail(data) {
 
             data = { ...data, status: isSame ? null : newStatus };
 
+            statusSaveInFlight = true;
+            statusRow?.classList.add('saving');
+
             sendMsg(
                 {
                     type: 'UPDATE_STATUS',
@@ -817,6 +837,9 @@ function showSearchDetail(data) {
                     csrf: searchCsrf,
                 },
                 (resp) => {
+                    statusSaveInFlight = false;
+                    statusRow?.classList.remove('saving');
+
                     if (resp?.ok) {
                         refreshVocabHighlights();
 
@@ -839,12 +862,19 @@ function showSearchDetail(data) {
 
     impRow?.querySelectorAll('.imp-star').forEach((star) => {
         star.addEventListener('click', () => {
+            if (importanceSaveInFlight) {
+                return;
+            }
+
             const n = parseInt(star.dataset.star);
             const prevImportance = data.importance ?? null;
             const next = prevImportance === n ? null : n;
 
             paintStars(impRow, next);
             data = { ...data, importance: next };
+
+            importanceSaveInFlight = true;
+            impRow.classList.add('saving');
 
             sendMsg(
                 {
@@ -855,6 +885,9 @@ function showSearchDetail(data) {
                     csrf: searchCsrf,
                 },
                 (resp) => {
+                    importanceSaveInFlight = false;
+                    impRow.classList.remove('saving');
+
                     if (!resp?.ok) {
                         // Sikertelen mentés → előző érték visszaállítása
                         data = { ...data, importance: prevImportance };

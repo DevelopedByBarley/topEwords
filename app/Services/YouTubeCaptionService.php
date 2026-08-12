@@ -25,6 +25,23 @@ class YouTubeCaptionService
     private const MISS_CACHE_TTL_MINUTES = 15;
 
     /**
+     * Ezekről a hostokról töltünk le feliratfájlt (SSRF-1).
+     *
+     * A cél-URL a YouTube válaszából jön (`captionTracks[].baseUrl`), tehát egy
+     * megbízhatónak FELTÉTELEZETT partner adatából — de a feltételezés nem
+     * védelem: a lánc nem blind, a letöltött tartalom parseolt szegmensekként
+     * visszamegy a kliensnek, így egy elrontott/mérgezett `baseUrl` exfiltrációs
+     * csatorna lenne (pl. cloud metadata endpoint). Az allowlist + a
+     * redirect-tilalom ezt a bizalmat cseréli ellenőrzésre.
+     */
+    private const CAPTION_HOST_ALLOWLIST = [
+        'www.youtube.com',
+        'youtube.com',
+        'm.youtube.com',
+        'www.youtube-nocookie.com',
+    ];
+
+    /**
      * A caption-letöltés közben már lekért watch-oldalból kinyert cím, hogy a
      * fetchTranscript ne töltse le még egyszer ugyanazt az oldalt a címért.
      */
@@ -379,15 +396,23 @@ class YouTubeCaptionService
      * felirat ugyanúgy „nincs használható felirat" ágra fut, mint bármely más
      * letöltési hiba — nem szivárog ki kezeletlen 500-asként.
      *
-     * @throws \RuntimeException ha a letöltött törzs átlépi a MAX_CAPTION_BYTES-t
+     * A cél-hostot allowlist szűri, és a kérés NEM követ átirányítást (SSRF-1):
+     * enélkül a Guzzle default 5 hopot követne — `http`-re és belső címre is —,
+     * vagyis az allowlist egyetlen `Location:` fejléccel megkerülhető lenne.
+     *
+     * @throws \RuntimeException ha a letöltött törzs átlépi a MAX_CAPTION_BYTES-t,
+     *                           vagy ha a cél-host nincs az allowlistán
      */
     private function fetchCaptionBody(string $url): Response
     {
+        $this->assertAllowedCaptionUrl($url);
+
         $sizeGuard = function ($handle, int $downloadTotal, int $downloaded): int {
             return ($downloadTotal > self::MAX_CAPTION_BYTES || $downloaded > self::MAX_CAPTION_BYTES) ? 1 : 0;
         };
 
         $response = Http::timeout(15)
+            ->withoutRedirecting()
             ->withOptions(['curl' => [
                 CURLOPT_NOPROGRESS => false,
                 CURLOPT_PROGRESSFUNCTION => $sizeGuard,
@@ -403,6 +428,33 @@ class YouTubeCaptionService
         }
 
         return $response;
+    }
+
+    /**
+     * A feliratfájl cél-URL-jének ellenőrzése letöltés előtt (SSRF-1).
+     *
+     * Csak `https` és csak allowlistás YouTube-host megy át. A séma-ellenőrzés
+     * nem formalitás: `http`-n a válasz — és vele a lekért tartalom — hálózati
+     * megfigyelőnek is kiadható, a `file://`/`gopher://` sémák pedig egészen más
+     * osztályú kérést jelentenének.
+     *
+     * @throws \RuntimeException ha a séma nem https, vagy a host nincs az allowlistán
+     */
+    private function assertAllowedCaptionUrl(string $url): void
+    {
+        $parts = parse_url($url);
+
+        if ($parts === false || ! isset($parts['host'])) {
+            throw new \RuntimeException('Érvénytelen felirat-URL.');
+        }
+
+        if (($parts['scheme'] ?? null) !== 'https') {
+            throw new \RuntimeException('A felirat-URL csak https lehet.');
+        }
+
+        if (! in_array(strtolower($parts['host']), self::CAPTION_HOST_ALLOWLIST, true)) {
+            throw new \RuntimeException('A felirat-URL nem a YouTube-ra mutat.');
+        }
     }
 
     /**

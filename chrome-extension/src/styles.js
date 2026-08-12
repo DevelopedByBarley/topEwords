@@ -442,6 +442,12 @@ const SEARCH_CSS = `
         margin-bottom: 10px;
     }
 
+    .detail-statuses.saving,
+    .importance-row.saving {
+        opacity: 0.55;
+        pointer-events: none;
+    }
+
     .status-btn {
         display: inline-flex;
         align-items: center;

@@ -3,6 +3,7 @@
 use App\Models\User;
 use App\Models\UserCustomWord;
 use App\Models\Word;
+use App\Services\YouTubeCaptionService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -738,6 +739,104 @@ test('youtube transcript returns timestamped segments for premium users', functi
                 ['t' => 2, 'x' => 'second line'],
             ],
         ]);
+});
+
+// ── SSRF guard (felirat-lánc, SSRF-1) ────────────────────────────────────────
+//
+// A feliratfájl cél-URL-je a YouTube válaszából jön (`captionTracks[].baseUrl`),
+// tehát egy megbízhatónak FELTÉTELEZETT partner adatából. A lánc viszont nem
+// blind: a letöltött tartalom parseolt szegmensekként visszamegy a kliensnek,
+// ezért egy nem-YouTube `baseUrl` exfiltrációs csatorna lenne. Ezek az őrszem-
+// tesztek a `fetchCaptionBody` allowlistjét és redirect-tilalmát védik.
+
+/**
+ * Watch-oldal HTML a page-scraping ághoz, a megadott `baseUrl`-lel.
+ * A timedtext- és az innertube-ág üresen felel, hogy a lánc eddig eljusson.
+ */
+function watchPageWithCaptionUrl(string $baseUrl): string
+{
+    return '<html><head><title>Test Video - YouTube</title></head><body><script>'
+        .'var x = {"captionTracks":[{"baseUrl":"'.$baseUrl.'","languageCode":"en"}]};'
+        .'</script></body></html>';
+}
+
+test('SSRF-1: the caption chain refuses a baseUrl pointing off YouTube', function () {
+    Http::fake([
+        '*api/timedtext*' => Http::response(''),
+        '*youtubei/v1/player*' => Http::response(''),
+        '*youtube.com/watch*' => Http::response(
+            watchPageWithCaptionUrl('http://169.254.169.254/latest/meta-data/')
+        ),
+        '*' => Http::response('SECRET_TOKEN=abc123 leaked metadata body'),
+    ]);
+
+    $this->actingAs($this->user)
+        ->getJson(route('extension.youtube-transcript', ['v' => 'abcdefghijk']))
+        ->assertStatus(422)
+        ->assertJson(['error' => 'no_captions']);
+
+    // A lényeg: a metadata-host felé EGYETLEN kérés sem indult.
+    Http::assertNotSent(fn ($request) => str_contains($request->url(), '169.254.169.254'));
+});
+
+test('SSRF-1: the caption chain refuses a plain-http YouTube baseUrl', function () {
+    Http::fake([
+        '*api/timedtext*' => Http::response(''),
+        '*youtubei/v1/player*' => Http::response(''),
+        '*youtube.com/watch*' => Http::response(
+            watchPageWithCaptionUrl('http://www.youtube.com/api/timedtext?v=abcdefghijk')
+        ),
+        '*' => Http::response(''),
+    ]);
+
+    $this->actingAs($this->user)
+        ->getJson(route('extension.youtube-transcript', ['v' => 'abcdefghijk']))
+        ->assertStatus(422);
+
+    Http::assertNotSent(fn ($request) => str_starts_with($request->url(), 'http://'));
+});
+
+test('SSRF-1: the caption download disables redirect following', function () {
+    // Enélkül a Guzzle default 5 hopot követne — `http`-re és belső címre is —,
+    // vagyis az allowlist egyetlen `Location:` fejléccel megkerülhető lenne.
+    //
+    // A `Http::fake()` nem játszik le valódi redirect-láncot, ezért a fake-elt
+    // válasz nem bizonyítana semmit: közvetlenül a kimenő kérés beállítását
+    // mérjük a `PendingRequest`-en (ugyanaz a módszer, amivel az audit a
+    // hiányzó `allow_redirects`-et kimutatta).
+    $method = new ReflectionMethod(YouTubeCaptionService::class, 'fetchCaptionBody');
+    $source = file($method->getFileName());
+    $body = implode('', array_slice(
+        $source,
+        $method->getStartLine() - 1,
+        $method->getEndLine() - $method->getStartLine() + 1,
+    ));
+
+    expect($body)->toContain('withoutRedirecting()');
+
+    // És hogy ez a futó kliensen is érvényes: a Guzzle `allow_redirects`
+    // opciója false-ra van állítva.
+    $pending = Http::timeout(15)->withoutRedirecting();
+    $options = (new ReflectionProperty($pending, 'options'))->getValue($pending);
+
+    expect($options['allow_redirects'])->toBeFalse();
+});
+
+test('SSRF-1: a legitimate YouTube caption baseUrl still works', function () {
+    // A guard nem lehet olyan szigorú, hogy a valós utat is elvágja.
+    Http::fake([
+        '*api/timedtext*' => Http::response('{"events":[{"tStartMs":0,"segs":[{"utf8":"allowed host"}]}]}'),
+        '*youtubei/v1/player*' => Http::response(''),
+        '*youtube.com/watch*' => Http::response(
+            watchPageWithCaptionUrl('https://www.youtube.com/api/timedtext?v=abcdefghijk&lang=en')
+        ),
+        '*' => Http::response(''),
+    ]);
+
+    $this->actingAs($this->user)
+        ->getJson(route('extension.youtube-transcript', ['v' => 'abcdefghijk']))
+        ->assertSuccessful()
+        ->assertJsonPath('segments.0.x', 'allowed host');
 });
 
 test('L1: an unverified user cannot write via the extension write endpoints', function () {

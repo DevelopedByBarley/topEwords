@@ -153,13 +153,16 @@ function fakeYoutubeCaptions(int $lines = 120): void
         $events[] = ['tStartMs' => $i * 3000, 'segs' => [['utf8' => "the quick dog line {$i}"]]];
     }
 
+    // A `baseUrl` allowlistás YouTube-hostra mutat, mert az éles válasz is olyat
+    // ad, és a `fetchCaptionBody` SSRF-guardja csak ilyet tölt le (SSRF-1).
+    // Fiktív host (pl. `caption.test`) itt nem valósághű: a guard elvetné.
     Http::fake([
         'https://www.youtube.com/youtubei/v1/player*' => Http::response([
             'captions' => ['playerCaptionsTracklistRenderer' => ['captionTracks' => [
-                ['languageCode' => 'en', 'baseUrl' => 'https://caption.test/track'],
+                ['languageCode' => 'en', 'baseUrl' => 'https://www.youtube.com/api/timedtext?v=abcdefghijk&lang=en'],
             ]]],
         ]),
-        'https://caption.test/*' => Http::response(json_encode(['events' => $events]), 200),
+        'https://www.youtube.com/api/timedtext*' => Http::response(json_encode(['events' => $events]), 200),
         'https://www.youtube.com/watch*' => Http::response(
             '<html><head><title>My Video - YouTube</title></head><body>"INNERTUBE_API_KEY":"AIzaTest123"</body></html>'
         ),
@@ -225,10 +228,10 @@ test('an oversized caption download is refused, not parsed (CAP-2)', function ()
     Http::fake([
         'https://www.youtube.com/youtubei/v1/player*' => Http::response([
             'captions' => ['playerCaptionsTracklistRenderer' => ['captionTracks' => [
-                ['languageCode' => 'en', 'baseUrl' => 'https://caption.test/track'],
+                ['languageCode' => 'en', 'baseUrl' => 'https://www.youtube.com/api/timedtext?v=abcdefghijk&lang=en'],
             ]]],
         ]),
-        'https://caption.test/*' => Http::response(str_repeat('x', 8 * 1024 * 1024 + 1), 200),
+        'https://www.youtube.com/api/timedtext*' => Http::response(str_repeat('x', 8 * 1024 * 1024 + 1), 200),
         'https://www.youtube.com/watch*' => Http::response(
             '<html><head><title>Huge Video - YouTube</title></head><body>"INNERTUBE_API_KEY":"AIzaTest123"</body></html>'
         ),
@@ -253,10 +256,10 @@ test('a caption exactly at the cap is still accepted (CAP-2 határeset)', functi
     Http::fake([
         'https://www.youtube.com/youtubei/v1/player*' => Http::response([
             'captions' => ['playerCaptionsTracklistRenderer' => ['captionTracks' => [
-                ['languageCode' => 'en', 'baseUrl' => 'https://caption.test/track'],
+                ['languageCode' => 'en', 'baseUrl' => 'https://www.youtube.com/api/timedtext?v=abcdefghijk&lang=en'],
             ]]],
         ]),
-        'https://caption.test/*' => Http::response(str_repeat('x', 8 * 1024 * 1024), 200),
+        'https://www.youtube.com/api/timedtext*' => Http::response(str_repeat('x', 8 * 1024 * 1024), 200),
         'https://www.youtube.com/watch*' => Http::response(
             '<html><head><title>Edge Video - YouTube</title></head><body>"INNERTUBE_API_KEY":"AIzaTest123"</body></html>'
         ),
