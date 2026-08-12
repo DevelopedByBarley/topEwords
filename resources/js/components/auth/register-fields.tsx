@@ -28,9 +28,11 @@ export default function RegisterFields({
     const [billingRequested, setBillingRequested] = useState(false);
     const [sameAsAccount, setSameAsAccount] = useState(false);
     const [isCompany, setIsCompany] = useState(false);
+
     const hasBillingError = Object.keys(errors).some((field) =>
         field.startsWith('billing_'),
     );
+    
     const billingOpen = billingRequested || hasBillingError;
 
     const passwordsMatch = password !== '' && password === passwordConfirmation;
@@ -313,7 +315,7 @@ export default function RegisterFields({
                     A regisztráció után <strong>megerősítő e-mailt</strong>{' '}
                     küldünk. A belépéshez kattints a benne lévő linkre.
                 </AuthNotice>
-                
+
                 <div className="grid gap-2">
                     <div className="flex items-start gap-3">
                         <Checkbox

@@ -16,7 +16,11 @@ let nfxBarHost = null;
 let nfxToggleHost = null;
 let nfxLastCaptionText = '';
 let nfxNavInterval = null;
+let nfxTitleObserver = null;
 let nfxNoticeShown = false;
+// Sikerült-e valaha felirat-szöveget olvasni ezen a menetben (youtube.js:
+// ytCaptionTextSeen párja). Ez a bizonyíték dönti el, kell-e értesítés.
+let nfxCaptionTextSeen = false;
 // Navigáció/újrainicializálás versenyhelyzetei ellen (lásd youtube.js ytNavToken).
 let nfxNavToken = 0;
 
@@ -187,10 +191,37 @@ function showNfxBarNotice(text) {
     }, 6000);
 }
 
+/**
+ * A felirat-szöveg kiolvasása.
+ *
+ * Szándékosan NEM `innerText`: az a megjelenített szöveget adja vissza, ezért
+ * kikényszeríti a layout újraszámolását (forced reflow) — observer-callbackben,
+ * frame-enként ez drága. A `textContent` viszont nem tesz sortörést a sorok
+ * közé, ezért a többsoros feliratnál összeragadnának a szavak; így soronként
+ * (`.player-timedtext-text-container`) járjuk be, és magunk fűzzük össze.
+ * Ugyanaz a minta, mint a YouTube-ágban (youtube.js: .ytp-caption-segment).
+ */
 function readNfxCaptionText() {
     const container = document.querySelector('.player-timedtext');
 
-    return container ? container.innerText.trim() : '';
+    if (!container) {
+        return '';
+    }
+
+    const lines = container.querySelectorAll(
+        '.player-timedtext-text-container',
+    );
+
+    if (!lines.length) {
+        // Ismeretlen/megváltozott felirat-DOM — a teljes szöveg a végső háló.
+        return container.textContent.trim();
+    }
+
+    return Array.from(lines)
+        .map((line) => line.textContent.trim())
+        .filter(Boolean)
+        .join(' ')
+        .trim();
 }
 
 function startNfxObserver() {
@@ -198,6 +229,7 @@ function startNfxObserver() {
 
     let lastText = '';
     nfxNoticeShown = false;
+    nfxCaptionTextSeen = false;
 
     nfxObserver = new MutationObserver(() => {
         if (!extAlive()) {
@@ -215,6 +247,12 @@ function startNfxObserver() {
             return;
         }
 
+        // Az első kiolvasott szöveg a bizonyíték, hogy a felirat BE VAN
+        // kapcsolva és a DOM olvasható — innentől nincs helye értesítésnek.
+        if (text) {
+            nfxCaptionTextSeen = true;
+        }
+
         lastText = text;
         renderNfxBar(text);
     });
@@ -226,14 +264,38 @@ function startNfxObserver() {
         characterData: true,
     });
 
-    // Ha pár másodperc után sincs felirat-szöveg, a felhasználónak be kell
-    // kapcsolnia a Netflix feliratot — ezt nem tudjuk megbízhatóan automatizálni.
-    setTimeout(() => {
-        if (nfxEnabled && !readNfxCaptionText() && !nfxNoticeShown) {
-            nfxNoticeShown = true;
-            showNfxBarNotice('Kapcsold be a feliratot a Netflixen (CC).');
+    // Értesítés CSAK akkor, ha a teljes ablak alatt EGYSZER sem sikerült
+    // felirat-szöveget olvasni.
+    //
+    // A korábbi változat 4 mp után egyetlen pillanatképet nézett: ha épp nem
+    // hangzott el semmi (főcím, zene, csönd a videó elején), tévesen kiírta a
+    // „kapcsold be a feliratot" üzenetet, majd az első valódi feliratnál a sáv
+    // magától elindult — vagyis az üzenet szemlátomást hazudott. A bizonyíték-
+    // alapú flaggel (nfxCaptionTextSeen) ez nem fordulhat elő: a néma szakasz
+    // csak késlelteti a döntést, nem hamisítja meg.
+    //
+    // 15 mp: ennyi idő alatt egy tipikus főcím/intro már túl van, tehát ha
+    // eddig sincs szöveg, az tényleg kikapcsolt (vagy olvashatatlan) felirat.
+    const noticeToken = nfxNavToken;
+    let elapsed = 0;
+    const noticeTimer = setInterval(() => {
+        elapsed += 1000;
+
+        const stale =
+            !extAlive() ||
+            noticeToken !== nfxNavToken ||
+            !nfxEnabled ||
+            !isNetflixWatchPage();
+
+        if (stale || nfxCaptionTextSeen || nfxNoticeShown || elapsed >= 15000) {
+            clearInterval(noticeTimer);
+
+            if (!stale && !nfxCaptionTextSeen && !nfxNoticeShown) {
+                nfxNoticeShown = true;
+                showNfxBarNotice('Kapcsold be a feliratot a Netflixen (CC).');
+            }
         }
-    }, 4000);
+    }, 1000);
 }
 
 // ── Lebegő be/ki kapcsoló a lejátszón ──
@@ -373,12 +435,37 @@ function disableNfxLyrics() {
     nfxBarHost?.remove();
     nfxBarHost = null;
     nfxLastCaptionText = '';
+    nfxCaptionTextSeen = false;
+    nfxNoticeShown = false;
     showNfxNativeCaptions();
 }
 
 // A lejátszó vezérlősora/DOM-ja gyakran újrarenderelődik — egy könnyű,
 // frame-enként összevont observerrel tartjuk életben a kapcsolót és a sávot.
 let nfxControlsObserver = null;
+// Melyik node-ot figyeli épp az observer; a lejátszó megjelenésekor átcsatolunk.
+let nfxControlsObserverTarget = null;
+
+/**
+ * A vezérlő-observer hatóköre.
+ *
+ * SZÁNDÉKOSAN NEM a `document.body` + `subtree: true`: a Netflix lejátszó DOM-ja
+ * lejátszás közben folyamatosan mutálódik, így a callback frame-enként lefutna
+ * (mérve: EXTENSION_AUDIT_2026-08-11.md, CL-1). A lejátszó-konténerre szűkítve
+ * ugyanazt a munkát végzi, nagyságrendekkel kevesebb értesítésből — ez a
+ * YouTube-ág bevált mintája (youtube.js: #movie_player).
+ *
+ * Amíg a lejátszó nincs a DOM-ban, a `body` KÖZVETLEN gyerekeit figyeljük
+ * (`subtree: false`) — ez olcsó, és elég ahhoz, hogy a lejátszó megjelenését
+ * észrevegyük.
+ */
+function nfxControlsObserverScope() {
+    const player = nfxPlayerContainer();
+
+    return player
+        ? { target: player, options: { childList: true, subtree: true } }
+        : { target: document.body, options: { childList: true } };
+}
 
 function startNfxControlsObserver() {
     nfxControlsObserver?.disconnect();
@@ -388,6 +475,7 @@ function startNfxControlsObserver() {
         if (!extAlive()) {
             nfxControlsObserver?.disconnect();
             nfxControlsObserver = null;
+            nfxControlsObserverTarget = null;
 
             return;
         }
@@ -400,23 +488,26 @@ function startNfxControlsObserver() {
         requestAnimationFrame(() => {
             pending = false;
 
-            // Ez a leggyorsabb navigáció-jelzőnk: a Netflix filmváltáskor
-            // alaposan átrendezi a DOM-ot, így az observer szinte azonnal
-            // megszólal (lásd a startNfxNavWatch magyarázatát). Ha volt
-            // útvonal-váltás, a handleNfxNavChange már le is bontotta és
-            // újrainicializálta a felületet — nincs mit összehangolni.
-            if (handleNfxNavChange()) {
+            // A navigáció-észlelést a title-observer és a poll viszi
+            // (startNfxNavWatch); itt csak arra ügyelünk, hogy egy közben
+            // lebontott menet után ne hangoljunk össze semmit.
+            if (!extAlive() || !isNetflixWatchPage()) {
                 return;
+            }
+
+            // Ha közben megjelent a lejátszó, átcsatolunk rá a body-ról —
+            // innentől a szűk hatókör érvényes.
+            if (nfxPlayerContainer() !== nfxControlsObserverTarget) {
+                startNfxControlsObserver();
             }
 
             reconcileNfxLyrics();
         });
     });
 
-    nfxControlsObserver.observe(document.body, {
-        childList: true,
-        subtree: true,
-    });
+    const { target, options } = nfxControlsObserverScope();
+    nfxControlsObserverTarget = nfxPlayerContainer();
+    nfxControlsObserver.observe(target, options);
 }
 
 function destroyNfxSubtitles() {
@@ -424,11 +515,14 @@ function destroyNfxSubtitles() {
     nfxObserver = null;
     nfxControlsObserver?.disconnect();
     nfxControlsObserver = null;
+    nfxControlsObserverTarget = null;
     nfxBarHost?.remove();
     nfxBarHost = null;
     nfxToggleHost?.remove();
     nfxToggleHost = null;
     nfxLastCaptionText = '';
+    nfxCaptionTextSeen = false;
+    nfxNoticeShown = false;
     showNfxNativeCaptions();
 }
 
@@ -470,10 +564,11 @@ function initNfxSubtitles(attempt = 0) {
 // oldal a maga érintetlen példányát hívja, a wrapper sosem sülne el. Csak olyan
 // jelre támaszkodhatunk, ami a közös DOM-on át is megérkezik:
 //   • popstate — vissza/előre gomb (valódi DOM-esemény, világhatáron átjön),
-//   • a lejátszó-observer (startNfxControlsObserver) — filmváltáskor a Netflix
-//     alaposan átrendezi a DOM-ot, így ez gyakorlatilag azonnal jelez.
-// A 2 mp-es poll a végső háló: az observer csak /watch oldalon fut, ezért a
-// lejátszóból KIlépést és a visszatérést ő veszi észre.
+//   • a <title> cseréje — a Netflix minden navigációnál átírja a lap címét, és
+//     ez EGYETLEN node figyelését igényli, szemben a korábbi body-szintű
+//     subtree-observerrel (lásd startNfxTitleWatch).
+// A 2 mp-es poll a végső háló arra az esetre, ha a cím nem változna (pl. két
+// epizód azonos címmel), illetve a /watch oldalról kilépésre.
 let nfxLastPath = location.pathname + location.search;
 
 /**
@@ -502,23 +597,58 @@ function handleNfxNavChange() {
     return true;
 }
 
+/**
+ * Navigáció-észlelés a lap címéből.
+ *
+ * A `<title>` szövegcseréje a Netflix minden útvonal-váltásánál megtörténik, és
+ * egyetlen node figyelésébe kerül — ezért vette át ezt a szerepet a korábbi
+ * body-szintű subtree-observertől (CL-1). A `<title>` elemet a Netflix ki is
+ * cserélheti, ezért a `<head>`-et figyeljük `subtree: true`-val: a head
+ * mutáció-forgalma elhanyagolható a body-éhoz képest.
+ */
+function startNfxTitleWatch() {
+    if (nfxTitleObserver || !document.head) {
+        return;
+    }
+
+    nfxTitleObserver = new MutationObserver(() => {
+        if (!extAlive()) {
+            nfxTitleObserver?.disconnect();
+            nfxTitleObserver = null;
+
+            return;
+        }
+
+        handleNfxNavChange();
+    });
+
+    nfxTitleObserver.observe(document.head, {
+        childList: true,
+        subtree: true,
+        characterData: true,
+    });
+}
+
 function startNfxNavWatch() {
     if (nfxNavInterval) {
         return;
     }
 
     // Vissza/előre gomb. A pushState-tel indított navigációt nem ez fogja meg,
-    // hanem a lejátszó-observer (lásd fent).
+    // hanem a title-observer (lásd fent).
     window.addEventListener('popstate', handleNfxNavChange);
 
+    startNfxTitleWatch();
+
     // Végső háló: ritka (2 mp) poll azokra a váltásokra, amiket sem a popstate,
-    // sem a lejátszó-observer nem lát — jellemzően a /watch oldalról kilépés és
-    // az oda visszatérés, mert az observer csak a lejátszón fut. Kikapcs esetén
-    // magától leáll.
+    // sem a title-observer nem lát — pl. ha két epizód címe azonos, illetve a
+    // /watch oldalról kilépés. Kikapcs esetén magától leáll.
     nfxNavInterval = setInterval(() => {
         if (!extAlive()) {
             clearInterval(nfxNavInterval);
             nfxNavInterval = null;
+            nfxTitleObserver?.disconnect();
+            nfxTitleObserver = null;
 
             return;
         }

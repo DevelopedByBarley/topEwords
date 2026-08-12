@@ -32,9 +32,6 @@ class AdminController extends Controller
         ]);
     }
 
-    /**
-     * Új meghívókód generálása (egyéni kód, opcionális címkével/lejárattal).
-     */
     public function storeInvite(Request $request): RedirectResponse
     {
         $data = $request->validate([
@@ -64,6 +61,7 @@ class AdminController extends Controller
         return back()->with('success', 'Meghívókód visszavonva.');
     }
 
+
     public function setAccess(Request $request): RedirectResponse
     {
         $data = $request->validate([
@@ -83,12 +81,6 @@ class AdminController extends Controller
         return back()->with('success', $message);
     }
 
-    /**
-     * Egy hónap ingyenes Pro kiosztása, a generikus próbaidővel
-     * (users.trial_ends_at — a currentPlan() az onTrial()-on át már figyeli).
-     * Halmozható: aktív próbaidőnél annak végéhez ad egy hónapot, egyébként
-     * mostantól számít; lejáratkor a fiók magától visszaáll Free-re.
-     */
     public function grantFreeMonth(User $user): RedirectResponse
     {
         $base = $user->onTrial() ? $user->trial_ends_at : now();

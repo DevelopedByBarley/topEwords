@@ -416,7 +416,8 @@
       "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); [print\\(p['name'],p['version']\\) for p in d['packages'] if p['name']=='laravel/cashier']\")",
       "Bash(python3 -m json.tool)",
       "Bash(sort -t: -k1 -n)",
-      "Bash(php -r '$r=json_decode\\(file_get_contents\\(\"php://stdin\"\\),true\\); foreach\\($r as $x\\){ if\\(strpos\\($x[\"uri\"],\"stripe/\"\\)===0\\){ echo $x[\"method\"].\" \".$x[\"uri\"].\" => \".$x[\"action\"].\" [\".implode\\(\",\",$x[\"middleware\"]??[]\\).\"]\\\\n\"; }}')"
+      "Bash(php -r '$r=json_decode\\(file_get_contents\\(\"php://stdin\"\\),true\\); foreach\\($r as $x\\){ if\\(strpos\\($x[\"uri\"],\"stripe/\"\\)===0\\){ echo $x[\"method\"].\" \".$x[\"uri\"].\" => \".$x[\"action\"].\" [\".implode\\(\",\",$x[\"middleware\"]??[]\\).\"]\\\\n\"; }}')",
+      "Bash(php -d memory_limit=512M vendor/bin/pest tests/Feature/ZzAuditProbe2Test.php --compact)"
     ],
     "additionalDirectories": [
       "/private/tmp",

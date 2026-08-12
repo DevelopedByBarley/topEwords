@@ -26,8 +26,7 @@ class ResetUserPassword implements ResetsUserPasswords
             'password' => $input['password'],
         ])->save();
 
-        // A reset tipikusan a „kompromittált fiók" belépője — a player
-        // Bearer-tokenek ne éljék túl az új jelszót.
+        
         $user->revokePlayerTokens();
     }
 }

@@ -13,7 +13,6 @@ import { store } from '@/routes/login';
 import { request } from '@/routes/password';
 import type { LoginPageProps } from '@/types/auth';
 
-
 export default function Login({
     status,
     canResetPassword,

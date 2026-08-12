@@ -28,14 +28,10 @@ class CreateNewUser implements CreatesNewUsers
         $rules = [
             ...$this->profileRules(),
             'password' => $this->passwordRules(),
-            // Az ÁSZF és az adatkezelési tájékoztató elfogadása kötelező. A szabály
-            // szerver oldalon is áll: a kliens oldali pipa csak a kényelmes út, a
-            // közvetlen POST sem hozhat létre elfogadás nélküli fiókot.
             'terms' => ['accepted'],
-            // Regisztrációkor a számlázás opcionális (a checkout előtt úgyis kötelező lesz),
-            // ezért required: false. A szabályok a BillingUpdateRequest-tel közös trait-ből jönnek.
             ...$this->billingRules(required: false),
         ];
+
 
         if ($inviteOnly) {
             $rules['invite'] = ['required', 'string', function ($attribute, $value, $fail) {
@@ -56,10 +52,6 @@ class CreateNewUser implements CreatesNewUsers
             $invite = null;
 
             if ($inviteOnly) {
-                // Lock the invite row and re-check usability inside the transaction.
-                // The validation closure above is only a UX pre-check; without this
-                // lock two concurrent registrations could both pass it before either
-                // records its use, exceeding max_uses (TOCTOU).
                 $invite = Invite::where('code', $input['invite'])->lockForUpdate()->first();
 
                 if (! $invite || ! $invite->isUsable()) {
@@ -88,10 +80,8 @@ class CreateNewUser implements CreatesNewUsers
                 ...$billingFields,
             ]);
 
-            // New accounts start on the free plan — no automatic trial. A trial is
-            // granted only on subscribe (Stripe trial; see PricingController::checkout).
             if ($invite !== null) {
-                $user->forceFill(['invite_id' => $invite->id])->save(); // not mass-assignable
+                $user->forceFill(['invite_id' => $invite->id])->save(); 
                 $invite->increment('uses');
             }
 
