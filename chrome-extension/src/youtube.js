@@ -244,7 +244,7 @@ function ensureYtBar() {
     ytBarHost.id = 'tw-yt-bar-host';
     Object.assign(ytBarHost.style, {
         position: 'absolute',
-        bottom: '60px',
+        bottom: '76px',
         left: '50%',
         transform: 'translateX(-50%)',
         zIndex: '2147483646',
