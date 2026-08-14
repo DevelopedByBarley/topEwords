@@ -18,15 +18,6 @@ Route::middleware(['auth', 'verified', EnsureOnboardingComplete::class])->group(
     Route::get('words/search', [WordController::class, 'search'])->name('words.search');
     Route::patch('words/{word}', [WordController::class, 'update'])->name('words.update')->middleware('can:admin');
 
-    // Szó-írások (státusz, fontosság, saját szó CRUD) közös percenkénti sapkája:
-    // minden hívás streak-update + achievement-ellenőrzést futtat, és az Origint
-    // elhagyó szkriptelt extension-kvóta-kerülésnek is ez a plafonja.
-    //
-    // A korábbi 60/perc (= 1/mp) a normál használatba lógott bele: a szólistán
-    // végigmenve, sorra státuszozva a felhasználó másodpercenként több szót is
-    // megjelöl, és 429-et kapott. 300/perc (5/mp) bőven a kézi tempó fölött van,
-    // de a szkriptelt tömeges íráson még mindig fog. Ha valaki mégis eléri, a
-    // bootstrap/app.php 429-kezelője flash-üzenetet ad a nyers hibalap helyett.
     Route::middleware('throttle:300,1,word-writes')->group(function () {
         Route::post('words/{word}/status', [WordController::class, 'status'])->name('words.status');
         Route::post('words/{word}/importance', [WordController::class, 'importance'])->name('words.importance');
@@ -39,33 +30,11 @@ Route::middleware(['auth', 'verified', EnsureOnboardingComplete::class])->group(
         Route::delete('custom-words/{customWord}', [UserCustomWordController::class, 'destroy'])->name('custom-words.destroy');
     });
 
-    // Gyakorlások: szabad írás, mondatkiegészítés, kvíz
-    //
-    // INDULÁSKOR KIVEZETVE (2026-07-26): a kvíz, a mondatkiegészítés, a szabad
-    // írás és a rendhagyó igék nem részei az induló feature-körnek. A kód NEM
-    // törölt, csak elérhetetlen: a route-ok kikommentelve, a sidebar-linkek
-    // elrejtve. Ezek a felületek a biztonsági auditból is KI VANNAK ZÁRVA,
-    // amíg nem kerülnek vissza. Visszahozáskor a route-okat itt kell
-    // visszakommentelni, és a hozzájuk tartozó Wayfinder-akciókat újragenerálni.
-    //
-    // Route::get('words/practice', [WordController::class, 'practice'])->name('words.practice');
-    // Route::get('words/cloze', [ClozeController::class, 'index'])->name('words.cloze')->middleware('throttle:60,1,words-play');
-    // Route::post('words/cloze/complete', [ClozeController::class, 'complete'])->name('words.cloze.complete')->middleware('throttle:30,1,words-cloze');
-    // Route::get('words/quiz', [WordController::class, 'quiz'])->name('words.quiz')->middleware('throttle:60,1,words-play');
-    // Route::post('words/quiz/complete', [QuizController::class, 'complete'])->name('words.quiz.complete')->middleware('throttle:30,1,words-quiz');
-    // Route::get('irregular-verbs', [IrregularVerbController::class, 'index'])->name('irregular-verbs.index');
-
-    // Marad: a szövegelemző mondat-ellenőrzője nem gyakorlási felület.
     Route::post('words/sentence-check', [TextAnalysisController::class, 'sentenceCheck'])->name('words.sentence-check')->middleware(['throttle:30,1,ta-ai', 'ai.budget']);
 
-    // Marad: a KÜLÖNÁLLÓ words/practice OLDAL kivezetve, de ez a végpont NEM
-    // csak azé volt — a szólista soraiba (PracticeModal) és a flashcard-oldal
-    // szabad-írás dobozába is be van építve, és mindkettő ÉLŐ felület. A hívók
-    // hardcode-olt fetch('/words/practice/check')-et használnak, nem Wayfindert,
-    // ezért a route kikommentelése némán 404-et okozott mindkét helyen.
     Route::post('words/practice/check', [TextAnalysisController::class, 'practiceCheck'])->name('words.practice.check')->middleware(['throttle:30,1,words-practice', 'ai.budget']);
 
-    // Szó-mappák
+    // Folders
     Route::post('folders', [FolderController::class, 'store'])->name('folders.store');
     Route::patch('folders/{folder}', [FolderController::class, 'update'])->name('folders.update');
     Route::delete('folders/{folder}', [FolderController::class, 'destroy'])->name('folders.destroy');

@@ -119,6 +119,38 @@ body {
     text-decoration: underline;
 }
 
+/* Az angol tükörfordítás halványabb: a magyar marad a vezető szöveg, de a
+   bíráló számára ugyanabban a sávban ott az értelmezés. */
+.banner-en {
+    opacity: 0.75;
+}
+
+/* Offline sáv. Szándékosan más tónus (piros), mint a login sávé (sárga): a
+   kettő egyszerre sosem látszik, de a bíráló első pillantásra el tudja
+   különíteni a „lépj be" és a „nem érem el a szervert" helyzetet. */
+.offline-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 9px 14px;
+    background: #fef2f2;
+    border-bottom: 1px solid #fecaca;
+    font-size: 12px;
+    color: #991b1b;
+}
+
+.offline-link {
+    color: #b91c1c;
+    font-weight: 600;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.offline-link:hover {
+    text-decoration: underline;
+}
+
 /* ── Műveletek ────────────────────────────────────────────────────────────── */
 
 .actions {

@@ -80,7 +80,13 @@ function errorMessage(error, fallback) {
 // A modál mindkét nyelvi blokkjában szerepel a módosító billentyű, ezért az
 // összes előfordulást állítjuk.
 
-const modifierKey = navigator.platform.includes('Mac') ? 'Option' : 'Alt';
+// A navigator.platform elavult, de a userAgentData nem mindenhol elérhető
+// (és Chrome-on kívül sem garantált), ezért az új API-t próbáljuk előbb, és
+// csak utána esünk vissza a régire.
+const isMac = navigator.userAgentData
+    ? navigator.userAgentData.platform === 'macOS'
+    : navigator.platform.includes('Mac');
+const modifierKey = isMac ? 'Option' : 'Alt';
 document.querySelectorAll('.js-mod').forEach((el) => {
     el.textContent = modifierKey;
 });
@@ -149,7 +155,11 @@ fetch(`${APP_URL}/extension/lookup?word=the`, {
         }
     })
     .catch(() => {
-        // Nincs kapcsolat — nem mutatunk bannert, a funkciók maguk jeleznek.
+        // A szerver egyáltalán nem válaszol (hálózati hiba, tűzfal, leállás).
+        // Korábban ez az ág néma volt, és a popup üresen indult: a kereső nem
+        // adott találatot, de semmi nem mondta meg, miért. Kimondjuk az okot,
+        // különben törött bővítménynek látszik.
+        document.getElementById('offline-banner').style.display = 'flex';
     });
 
 // ── Szövegelemzés gomb ───────────────────────────────────────────────────────

@@ -42,15 +42,8 @@ import {
     POS_LABELS,
     speak,
     wordToFormData,
-} from '@/components/words/types';
-import type {
-    CustomWord,
-    Word,
-    WordFormData,
-    WordStatus,
-} from '@/components/words/types';
+} from '@/components/words/word-config';
 import WordFilters from '@/components/words/word-filters';
-import type { WordFilterPatch } from '@/components/words/word-filters';
 import WordFormFields from '@/components/words/word-form-fields';
 import WordInsightPanel from '@/components/words/word-insight-panel';
 import WordProgressCard from '@/components/words/word-progress-card';
@@ -77,72 +70,15 @@ import {
     status,
     update as updateWord,
 } from '@/routes/words';
+import type {
+    Word,
+    WordFilterPatch,
+    WordFormData,
+    WordsIndexPageProps,
+    WordStatus,
+} from '@/types/words';
 
-interface PaginationLink {
-    url: string | null;
-    label: string;
-    active: boolean;
-}
-
-interface PaginatedWords {
-    data: Word[];
-    current_page: number;
-    last_page: number;
-    per_page: number;
-    total: number;
-    links: PaginationLink[];
-}
-
-interface Folder {
-    id: number;
-    name: string;
-    words_count: number;
-}
-
-interface FlashcardDeck {
-    id: number;
-    name: string;
-}
-
-interface Props {
-    words: PaginatedWords;
-    filters: {
-        search: string;
-        letter: string;
-        level: number | null;
-        status: string;
-        importance: number | null;
-        folder: number | null;
-        /** 'custom' = csak a saját szavak; üres = a teljes lista. */
-        source: string;
-        per_page: number;
-    };
-    stats: {
-        total: number;
-        known: number;
-        learning: number;
-        saved: number;
-        pronunciation: number;
-        practice: number;
-    };
-    customWords: CustomWord[];
-    customStats: {
-        total: number;
-        known: number;
-        learning: number;
-        saved: number;
-        pronunciation: number;
-        practice: number;
-    };
-    markedPages: number[];
-    completedPages: number[];
-    markedLetters: string[];
-    folders: Folder[];
-    wordFolderIds: Record<number, number[]>;
-    flashcardDecks: FlashcardDeck[];
-}
-
-/** A backend `WordController::ALLOWED_PER_PAGE` értékei. */
+/** A backend `WordIndexFilters::ALLOWED_PER_PAGE` értékei. */
 const PER_PAGE_OPTIONS = [20, 50, 100, 200, 300, 400, 500, 1000] as const;
 
 const STORAGE_KEY = 'words_filters';
@@ -161,7 +97,7 @@ export default function WordsIndex({
     folders,
     wordFolderIds,
     flashcardDecks,
-}: Props) {
+}: WordsIndexPageProps) {
     const [search, setSearch] = useState(filters.search);
     const [selectedWordId, setSelectedWordId] = useState<number | null>(null);
     const [flipMode, setFlipMode] = useState(false);

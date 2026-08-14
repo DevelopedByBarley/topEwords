@@ -4,11 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Concerns\TogglesWordStatus;
 use App\Models\Folder;
-use App\Models\User;
 use App\Models\UserCustomWord;
 use App\Models\Word;
 use App\Services\AchievementService;
-use Illuminate\Database\Eloquent\Collection;
+use App\Services\WordIndexFilters;
+use App\Services\WordPageMarkers;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -21,73 +21,21 @@ class WordController extends Controller
 {
     use TogglesWordStatus;
 
-    private const ALLOWED_PER_PAGE = [20, 50, 100, 200, 300, 400, 500, 1000];
-
-    private const DEFAULT_PER_PAGE = 50;
-
     public function index(Request $request): Response
     {
-        $search = $request->string('search')->trim()->lower()->value();
-        $letter = $request->string('letter')->trim()->upper()->value();
-        $level = $request->integer('level') ?: null;
-        $statusFilter = $request->string('status')->trim()->lower()->value();
-        $importanceFilter = $request->integer('importance') ?: null;
-        $folderId = $request->integer('folder') ?: null;
-        // A forrás-szűrés a kliensen történik (a saját szavak külön propban
-        // érkeznek), a szerver csak visszaadja az érvényes értéket, hogy a
-        // nézet URL-ből visszaállítható és megosztható legyen.
-        $source = $request->string('source')->trim()->lower()->value() === 'custom' ? 'custom' : '';
-        $perPage = in_array((int) $request->input('per_page'), self::ALLOWED_PER_PAGE)
-            ? (int) $request->input('per_page')
-            : self::DEFAULT_PER_PAGE;
-
+        $filters = WordIndexFilters::fromRequest($request);
         $user = $request->user();
+        $perPage = $filters->perPage();
 
-        /**
-         * A user_word pivotot query builderrel érjük el Eloquent helyett: a teljes
-         * jelölés-térkép betöltése (10k szónál 10k modell-példány) helyett minden
-         * felhasználás célzott lekérdezés (aggregátum, subquery vagy oldalnyi sor).
-         */
-        $pivot = fn () => DB::table('user_word')->where('user_id', $user->id);
-
-        $folderWordIds = $folderId !== null
-            ? Folder::where('id', $folderId)->where('user_id', $user->id)
-                ->first()
-                ?->words()
-                ->pluck('words.id')
-                ->all() ?? []
-            : null;
-
-        // Base query without letter filter — used for markedLetters so all letter buttons can be annotated.
-        // Substring-egyezés (mint a saját szavaknál és a keresőmező-végponton) — ugyanarra a beírásra
-        // ugyanaz a találati logika mindkét listán. A collation case-insensitive, ezért nincs szükség
-        // uppercase-normalizálásra (a $search már lowercase, sor 30).
-        $baseWithoutLetter = Word::query()
-            ->when($search !== '', fn ($q) => $q->whereRaw('word LIKE ? ESCAPE ?', ['%'.$this->likeEscape($search).'%', '\\']))
-            ->when($level !== null, fn ($q) => $q->where('level', $level))
-            ->when($statusFilter !== '', fn ($q) => $q->whereIn('id', $pivot()->where('status', $statusFilter)->select('word_id')))
-            ->when($importanceFilter !== null, fn ($q) => $q->whereIn('id', $pivot()->where('importance', $importanceFilter)->select('word_id')))
-            ->when($folderWordIds !== null, fn ($q) => $q->whereIn('id', $folderWordIds));
-
-        // Full query including the active letter filter — used for pagination and word list
-        $baseQuery = (clone $baseWithoutLetter)
-            ->when($search === '' && $letter !== '' && $letter !== 'ALL', fn ($q) => $q->whereRaw('word LIKE ? ESCAPE ?', [$this->likeEscape($letter).'%', '\\']));
-
-        /**
-         * Az alábbi propok closure-ök: az Inertia csak akkor értékeli ki őket, ha a
-         * (partial) válaszban tényleg szerepelnek — így pl. egy only:[words,stats]
-         * reload nem tölti be a mappákat, saját szavakat és a flashcard-deckeket.
-         * A megosztott köztes értékek kérésen belül memoizáltak.
-         */
         $words = null;
-        $getWords = function () use (&$words, $baseQuery, $perPage, $pivot) {
+        $getWords = function () use (&$words, $filters, $perPage) {
             if ($words !== null) {
                 return $words;
             }
 
-            $paginated = (clone $baseQuery)->orderBy('rank')->paginate($perPage)->withQueryString();
+            $paginated = $filters->baseQuery()->orderBy('rank')->paginate($perPage)->withQueryString();
 
-            $pageMarks = $pivot()
+            $pageMarks = $filters->pivot()
                 ->whereIn('word_id', collect($paginated->items())->pluck('id'))
                 ->get(['word_id', 'status', 'importance'])
                 ->keyBy('word_id');
@@ -116,23 +64,20 @@ class WordController extends Controller
             ]);
         };
 
-        // A jelölt szó-id-k halmaza és a szűrt lista teljes sorrendje csak a
-        // lapozó-annotációkhoz kell; jelölés híján az id-pluck is megspórolódik.
-        $markedIdSet = null;
-        $getMarkedIdSet = function () use (&$markedIdSet, $pivot) {
-            return $markedIdSet ??= $pivot()->pluck('word_id')->flip();
-        };
-
-        $orderedIds = null;
-        $getOrderedIds = function () use (&$orderedIds, $baseQuery) {
-            return $orderedIds ??= (clone $baseQuery)->orderBy('rank')->pluck('id')->values();
+        $markers = null;
+        $getMarkers = function () use (&$markers, $filters, $perPage): WordPageMarkers {
+            return $markers ??= new WordPageMarkers(
+                $filters->markedIds(),
+                $filters->orderedIds(),
+                $perPage,
+            );
         };
 
         return Inertia::render('words/index', [
             'words' => $getWords,
-            'filters' => ['search' => $search, 'letter' => $letter, 'level' => $level, 'status' => $statusFilter, 'importance' => $importanceFilter, 'folder' => $folderId, 'source' => $source, 'per_page' => $perPage],
-            'stats' => function () use ($pivot) {
-                $statusCounts = $pivot()->selectRaw('status, COUNT(*) as cnt')->groupBy('status')->pluck('cnt', 'status');
+            'filters' => $filters->toArray(),
+            'stats' => function () use ($filters) {
+                $statusCounts = $filters->pivot()->selectRaw('status, COUNT(*) as cnt')->groupBy('status')->pluck('cnt', 'status');
 
                 return [
                     'total' => Word::count(),
@@ -143,7 +88,7 @@ class WordController extends Controller
                     'practice' => (int) ($statusCounts['practice'] ?? 0),
                 ];
             },
-            'customWords' => fn () => $this->filteredCustomWords($user, $search, $letter, $statusFilter, $importanceFilter, $folderId),
+            'customWords' => fn () => $filters->customWords(),
             'customStats' => function () use ($user) {
                 $counts = $user->customWords()->toBase()->reorder()->selectRaw('status, COUNT(*) as cnt')->groupBy('status')->pluck('cnt', 'status');
 
@@ -156,40 +101,9 @@ class WordController extends Controller
                     'practice' => (int) ($counts['practice'] ?? 0),
                 ];
             },
-            'markedPages' => function () use ($getMarkedIdSet, $getOrderedIds, $perPage) {
-                $marked = $getMarkedIdSet();
-
-                if ($marked->isEmpty()) {
-                    return [];
-                }
-
-                return $getOrderedIds()
-                    ->map(fn ($id, $index) => $marked->has($id) ? intdiv($index, $perPage) + 1 : null)
-                    ->filter()
-                    ->unique()
-                    ->values()
-                    ->all();
-            },
-            'completedPages' => function () use ($getMarkedIdSet, $getOrderedIds, $perPage) {
-                $marked = $getMarkedIdSet();
-
-                if ($marked->isEmpty()) {
-                    return [];
-                }
-
-                return $getOrderedIds()
-                    ->chunk($perPage)
-                    ->map(fn ($chunk, $index) => $chunk->every(fn ($id) => $marked->has($id)) ? $index + 1 : null)
-                    ->filter()
-                    ->values()
-                    ->all();
-            },
-            'markedLetters' => fn () => (clone $baseWithoutLetter)
-                ->whereIn('id', $pivot()->select('word_id'))
-                ->selectRaw('UPPER(SUBSTR(word, 1, 1)) as letter')
-                ->distinct()
-                ->pluck('letter')
-                ->all(),
+            'markedPages' => fn () => $getMarkers()->markedPages(),
+            'completedPages' => fn () => $getMarkers()->completedPages(),
+            'markedLetters' => fn () => $filters->markedLetters(),
             'folders' => fn () => $user->folders()->withCount('words')->get()
                 ->map(fn (Folder $folder) => [
                     'id' => $folder->id,
@@ -206,32 +120,6 @@ class WordController extends Controller
                 ->all(),
             'flashcardDecks' => fn () => $user->flashcardDecks()->orderBy('name')->get(['id', 'name']),
         ]);
-    }
-
-    /**
-     * A szűrőknek megfelelő saját szavak a fő listába fésüléshez — a szűrés
-     * SQL-ben fut, így nem töltjük be a teljes állományt minden kéréshez.
-     * Mappa-szűrőnél üres, mert a saját szavak nem rendelhetők mappához.
-     *
-     * @return Collection<int, UserCustomWord>
-     */
-    private function filteredCustomWords(User $user, string $search, string $letter, string $statusFilter, ?int $importanceFilter, ?int $folderId): Collection
-    {
-        if ($folderId !== null) {
-            return new Collection;
-        }
-
-        return $user->customWords()
-            ->when($search !== '', fn ($q) => $q->whereRaw('word LIKE ? ESCAPE ?', ['%'.$this->likeEscape($search).'%', '\\']))
-            ->when($letter !== '' && $letter !== 'ALL', fn ($q) => $q->whereRaw('word LIKE ? ESCAPE ?', [$this->likeEscape($letter).'%', '\\']))
-            ->when($statusFilter !== '', fn ($q) => $q->where('status', $statusFilter))
-            ->when($importanceFilter !== null, fn ($q) => $q->where('importance', $importanceFilter))
-            ->get([
-                'id', 'word', 'meaning_hu', 'extra_meanings', 'synonyms', 'part_of_speech',
-                'example_en', 'example_hu', 'status', 'importance', 'form_base', 'verb_past',
-                'verb_past_participle', 'verb_present_participle', 'verb_third_person',
-                'is_irregular', 'noun_plural', 'adj_comparative', 'adj_superlative', 'extra_forms',
-            ]);
     }
 
     public function search(Request $request): JsonResponse
@@ -289,234 +177,6 @@ class WordController extends Controller
         return Inertia::render('words/practice', [
             'preWords' => array_values(array_filter(array_map('strval', $preWords))),
             'practiceWords' => $practiceWords,
-        ]);
-    }
-
-    public function quiz(Request $request): Response
-    {
-        $status = $request->string('status')->trim()->lower()->value();
-        $level = $request->integer('level') ?: null;
-        $folderId = $request->integer('folder') ?: null;
-        $user = $request->user();
-        // Per-round quiz cap from the plan (null = unlimited on premium); 500 is
-        // the technical ceiling since the word queries below fetch at most 500.
-        $roundLimit = $user->planLimit('quiz_per_round');
-        $maxCount = $roundLimit ?? 500;
-        $count = min(max((int) $request->input('count', 0), 0), $maxCount);
-
-        // Parse comma-separated ids param for manual word selection.
-        // A kézi kiválasztás is plafonos: Free-n a plan-limit, prémiumon az
-        // 500-as technikai plafon — kraftolt ?ids= URL-lel sem kérhető
-        // korlátlan whereIn + óriás payload.
-        $idsParam = $request->string('ids')->trim()->value();
-        $selectedIds = $idsParam !== '' ? array_filter(array_map('trim', explode(',', $idsParam))) : [];
-        if (count($selectedIds) > $maxCount) {
-            $selectedIds = array_slice($selectedIds, 0, $maxCount);
-        }
-        $selectedRegularIds = array_values(array_map('intval', array_filter($selectedIds, fn ($id) => ! str_starts_with($id, 'custom_'))));
-        $selectedCustomIds = array_values(array_map(fn ($id) => (int) substr($id, 7), array_filter($selectedIds, fn ($id) => str_starts_with($id, 'custom_'))));
-
-        $wordStatuses = $user->knownWords()
-            ->pluck('user_word.status', 'words.id')
-            ->all();
-
-        $folders = $user->folders()->withCount('words')->get()
-            ->map(fn (Folder $folder) => [
-                'id' => $folder->id,
-                'name' => $folder->name,
-                'words_count' => $folder->words_count,
-            ]);
-
-        $folderWordIds = $folderId !== null
-            ? Folder::where('id', $folderId)->where('user_id', $user->id)
-                ->first()
-                ?->words()
-                ->pluck('words.id')
-                ->all() ?? []
-            : null;
-
-        $query = Word::whereNotNull('meaning_hu');
-
-        if (in_array($status, ['known', 'learning', 'saved', 'pronunciation', 'practice'])) {
-            $ids = array_keys(array_filter($wordStatuses, fn ($s) => $s === $status));
-            $query->whereIn('id', $ids);
-        } elseif ($status === 'marked') {
-            $query->whereIn('id', array_keys($wordStatuses));
-        }
-
-        if ($level !== null) {
-            $query->where('level', $level);
-        }
-
-        if ($folderWordIds !== null) {
-            $query->whereIn('id', $folderWordIds);
-        }
-
-        // Custom words are included when no level/folder filter is active
-        $includeCustom = $level === null && $folderWordIds === null;
-        $customWordQuery = $includeCustom
-            ? UserCustomWord::where('user_id', $user->id)->whereNotNull('meaning_hu')
-            : null;
-
-        if ($customWordQuery && in_array($status, ['known', 'learning', 'saved', 'pronunciation', 'practice'])) {
-            $customWordQuery->where('status', $status);
-        }
-
-        $customAvailable = $customWordQuery?->count() ?? 0;
-        $available = $query->count() + $customAvailable;
-
-        // In setup mode (count=0, no ids): return selectable word list for manual picking
-        $selectableWords = [];
-        if ($count === 0 && count($selectedIds) === 0) {
-            $regularSelectable = (clone $query)
-                ->orderBy('rank')
-                ->limit(500)
-                ->get(['id', 'word', 'meaning_hu', 'rank'])
-                ->map(fn (Word $w) => [
-                    'id' => $w->id,
-                    'word' => $w->word,
-                    'meaning_hu' => $w->meaning_hu,
-                    'rank' => $w->rank,
-                    'status' => $wordStatuses[$w->id] ?? null,
-                    'is_custom' => false,
-                ]);
-
-            $customSelectable = $customWordQuery
-                ? (clone $customWordQuery)->orderBy('word')->limit(200)->get(['id', 'word', 'meaning_hu', 'status'])
-                    ->map(fn (UserCustomWord $w) => [
-                        'id' => 'custom_'.$w->id,
-                        'word' => $w->word,
-                        'meaning_hu' => $w->meaning_hu,
-                        'rank' => null,
-                        'status' => $w->status,
-                        'is_custom' => true,
-                    ])
-                : collect();
-
-            $selectableWords = $regularSelectable->concat($customSelectable)->values()->all();
-        }
-
-        $words = [];
-
-        // Determine the effective count: either from ids or from count param
-        $useSelectedIds = count($selectedIds) > 0;
-        $effectiveCount = $useSelectedIds ? count($selectedIds) : $count;
-
-        if ($effectiveCount > 0 && ($available > 0 || $useSelectedIds)) {
-            if ($useSelectedIds) {
-                // Use exactly the selected word IDs
-                $quizWords = count($selectedRegularIds) > 0
-                    ? Word::whereIn('id', $selectedRegularIds)->whereNotNull('meaning_hu')->get(['id', 'word', 'meaning_hu', 'part_of_speech', 'form_base', 'verb_past', 'verb_past_participle', 'verb_present_participle', 'verb_third_person', 'is_irregular', 'noun_plural', 'adj_comparative', 'adj_superlative', 'example_en', 'example_hu', 'synonyms', 'rank'])
-                    : collect();
-
-                $customQuizWords = count($selectedCustomIds) > 0
-                    ? UserCustomWord::where('user_id', $user->id)->whereIn('id', $selectedCustomIds)->whereNotNull('meaning_hu')->get(['id', 'word', 'meaning_hu', 'part_of_speech', 'example_en', 'status'])
-                    : collect();
-            } else {
-                // Proportionally split count between regular and custom words
-                $customShare = $available > 0 ? (int) round($count * ($customAvailable / $available)) : 0;
-                $regularShare = $count - $customShare;
-
-                $quizWords = (clone $query)->inRandomOrder()->limit($regularShare)->get(['id', 'word', 'meaning_hu', 'part_of_speech', 'form_base', 'verb_past', 'verb_past_participle', 'verb_present_participle', 'verb_third_person', 'is_irregular', 'noun_plural', 'adj_comparative', 'adj_superlative', 'example_en', 'example_hu', 'synonyms', 'rank']);
-
-                $customQuizWords = $customWordQuery
-                    ? (clone $customWordQuery)->inRandomOrder()->limit($customShare)->get(['id', 'word', 'meaning_hu', 'part_of_speech', 'example_en', 'status'])
-                    : collect();
-            }
-
-            $decoyPool = Word::whereNotNull('meaning_hu')
-                ->whereNotIn('id', $quizWords->pluck('id'))
-                ->inRandomOrder()
-                ->limit($effectiveCount * 5)
-                ->pluck('meaning_hu')
-                ->merge($customQuizWords->pluck('meaning_hu'))
-                ->unique()
-                ->shuffle()
-                ->values()
-                ->all();
-
-            /**
-             * Walk the pool with a cursor so every word gets fresh decoys; skip
-             * candidates matching the correct meaning, because different words
-             * can share the same Hungarian translation.
-             */
-            $decoyCursor = 0;
-            $buildOptions = function (string $meaning) use (&$decoyCursor, $decoyPool): array {
-                $decoys = [];
-                $poolSize = count($decoyPool);
-                for ($scanned = 0; $scanned < $poolSize && count($decoys) < 3; $scanned++) {
-                    $candidate = $decoyPool[$decoyCursor % $poolSize];
-                    $decoyCursor++;
-                    if ($candidate !== $meaning && ! in_array($candidate, $decoys, true)) {
-                        $decoys[] = $candidate;
-                    }
-                }
-
-                return collect([$meaning, ...$decoys])->shuffle()->values()->all();
-            };
-
-            $regularMapped = $quizWords->map(fn (Word $word) => [
-                'id' => $word->id,
-                'word' => $word->word,
-                'meaning_hu' => $word->meaning_hu,
-                'part_of_speech' => $word->part_of_speech,
-                'form_base' => $word->form_base,
-                'verb_past' => $word->verb_past,
-                'verb_past_participle' => $word->verb_past_participle,
-                'verb_present_participle' => $word->verb_present_participle,
-                'verb_third_person' => $word->verb_third_person,
-                'is_irregular' => $word->is_irregular,
-                'noun_plural' => $word->noun_plural,
-                'adj_comparative' => $word->adj_comparative,
-                'adj_superlative' => $word->adj_superlative,
-                'example_en' => $word->example_en,
-                'example_hu' => $word->example_hu,
-                'synonyms' => $word->synonyms,
-                'rank' => $word->rank,
-                'status' => $wordStatuses[$word->id] ?? null,
-                'is_custom' => false,
-                'options' => $buildOptions($word->meaning_hu),
-            ]);
-
-            $customMapped = $customQuizWords->values()->map(fn (UserCustomWord $word) => [
-                'id' => 'custom_'.$word->id,
-                'word' => $word->word,
-                'meaning_hu' => $word->meaning_hu,
-                'part_of_speech' => $word->part_of_speech,
-                'form_base' => null,
-                'verb_past' => null,
-                'verb_past_participle' => null,
-                'verb_present_participle' => null,
-                'verb_third_person' => null,
-                'is_irregular' => null,
-                'noun_plural' => null,
-                'adj_comparative' => null,
-                'adj_superlative' => null,
-                'example_en' => $word->example_en,
-                'example_hu' => null,
-                'synonyms' => null,
-                'rank' => null,
-                'status' => $word->status,
-                'is_custom' => true,
-                'options' => $buildOptions($word->meaning_hu),
-            ]);
-
-            $words = $regularMapped->concat($customMapped)->shuffle()->values()->all();
-        }
-
-        return Inertia::render('words/quiz', [
-            'words' => $words,
-            'available' => $available,
-            'folders' => $folders,
-            'selectableWords' => $selectableWords,
-            'filters' => [
-                'status' => $status,
-                'level' => $level,
-                'folder' => $folderId,
-                'count' => $count,
-                'ids' => implode(',', $selectedIds),
-            ],
-            'freeQuizLimit' => $roundLimit,
         ]);
     }
 

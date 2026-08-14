@@ -31,7 +31,7 @@ import {
 } from 'lucide-react';
 import type { ComponentType } from 'react';
 import { useState } from 'react';
-import { STATUS_CONFIG } from '@/components/words/types';
+import { STATUS_CONFIG } from '@/components/words/word-config';
 import type { Appearance } from '@/hooks/use-appearance';
 import { useAppearance } from '@/hooks/use-appearance';
 // import { show as showDownload } from '@/routes/downloads';

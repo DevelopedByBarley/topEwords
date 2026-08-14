@@ -16,9 +16,26 @@
         </button>
     </div>
 
+    <!--
+        A két sáv kétnyelvű (HU / EN): bejelentkezés nélkül ez a popup első és
+        egyetlen üzenete, és ezt látja a Chrome Web Store bírálója is, aki nem
+        tud magyarul. A súgó-modál nyelvváltója ezekre nem hat — a bíráló a
+        modál megnyitása nélkül is meg kell értse, mi a teendő.
+    -->
     <div id="login-banner" class="login-banner" style="display:none">
-        <span>Nem vagy bejelentkezve.</span>
-        <a href="https://topwords.eu/login" target="_blank" rel="noopener noreferrer" class="login-link">Bejelentkezés →</a>
+        <span>Nem vagy bejelentkezve. <span class="banner-en">/ Not signed in.</span></span>
+        <a href="https://topwords.eu/login" target="_blank" rel="noopener noreferrer" class="login-link">Bejelentkezés / Sign in →</a>
+    </div>
+
+    <!--
+        Offline sáv. Ha a topwords.eu egyáltalán nem válaszol (tűzfal, régió-
+        blokk, leállás), a popup korábban némán üres maradt: a kereső nem adott
+        találatot, és semmi nem mondta meg, miért. A bírálónál ez „törött
+        bővítmény" benyomást kelt, ezért az ok itt kimondva jelenik meg.
+    -->
+    <div id="offline-banner" class="offline-banner" style="display:none">
+        <span>Nincs kapcsolat a TopWords-szel. <span class="banner-en">/ Cannot reach TopWords.</span></span>
+        <a href="https://topwords.eu" target="_blank" rel="noopener noreferrer" class="offline-link">topwords.eu →</a>
     </div>
 
     <!--

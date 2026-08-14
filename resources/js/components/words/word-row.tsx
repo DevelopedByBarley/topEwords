@@ -1,8 +1,12 @@
 import { Info, Sparkles, Volume2 } from 'lucide-react';
 import { memo } from 'react';
 import StatusButtons from '@/components/words/status-buttons';
-import { speak, statusRowBg, statusRowText } from '@/components/words/types';
-import type { CustomWord, Word, WordStatus } from '@/components/words/types';
+import {
+    speak,
+    statusRowBg,
+    statusRowText,
+} from '@/components/words/word-config';
+import type { CustomWord, Word, WordStatus } from '@/types/words';
 
 export type UnifiedItem =
     | { type: 'custom'; data: CustomWord }

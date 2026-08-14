@@ -1,5 +1,5 @@
 import { NotebookPen, Plus } from 'lucide-react';
-import { STATUS_CONFIG } from '@/components/words/types';
+import { STATUS_CONFIG } from '@/components/words/word-config';
 
 export interface WordStats {
     total: number;

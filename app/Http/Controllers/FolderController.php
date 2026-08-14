@@ -10,10 +10,6 @@ use Illuminate\Validation\Rule;
 
 class FolderController extends Controller
 {
-    /**
-     * Per-user mappa-plafon: bőven a valós használat fölött, de megfogja a
-     * szkriptelt tömeges létrehozást (DB/render-terhelés).
-     */
     private const MAX_FOLDERS_PER_USER = 100;
 
     public function store(Request $request): RedirectResponse

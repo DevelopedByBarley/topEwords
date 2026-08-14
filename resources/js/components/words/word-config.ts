@@ -1,80 +1,11 @@
 import { BookMarked, CheckCheck, Clock, Mic, PenLine } from 'lucide-react';
-
-export type WordStatus =
-    | 'known'
-    | 'learning'
-    | 'saved'
-    | 'pronunciation'
-    | 'practice'
-    | null;
-
-export interface Word {
-    id: number;
-    word: string;
-    rank: number;
-    meaning_hu: string | null;
-    extra_meanings: string | null;
-    synonyms: string | null;
-    part_of_speech: string | null;
-    form_base: string | null;
-    verb_past: string | null;
-    verb_past_participle: string | null;
-    verb_present_participle: string | null;
-    verb_third_person: string | null;
-    is_irregular: number | null;
-    noun_plural: string | null;
-    adj_comparative: string | null;
-    adj_superlative: string | null;
-    example_en: string | null;
-    example_hu: string | null;
-    status: WordStatus;
-    importance: number | null;
-}
-
-export interface CustomWord {
-    id: number;
-    word: string;
-    meaning_hu: string | null;
-    extra_meanings: string | null;
-    synonyms: string | null;
-    part_of_speech: string | null;
-    example_en: string | null;
-    example_hu: string | null;
-    status: WordStatus;
-    importance: number | null;
-    form_base: string | null;
-    verb_past: string | null;
-    verb_past_participle: string | null;
-    verb_present_participle: string | null;
-    verb_third_person: string | null;
-    is_irregular: boolean | null;
-    noun_plural: string | null;
-    adj_comparative: string | null;
-    adj_superlative: string | null;
-    extra_forms: string | null;
-}
-
-export type WordFormData = {
-    word: string;
-    meaning_hu: string;
-    extra_meanings: string;
-    synonyms: string;
-    part_of_speech: string;
-    example_en: string;
-    example_hu: string;
-    form_base: string;
-    verb_past: string;
-    verb_past_participle: string;
-    verb_present_participle: string;
-    verb_third_person: string;
-    is_irregular: boolean;
-    noun_plural: string;
-    adj_comparative: string;
-    adj_superlative: string;
-    extra_forms: string;
-    status: WordStatus;
-    importance: number | null;
-};
+import type {
+    CustomWord,
+    StatusConfigEntry,
+    Word,
+    WordFormData,
+    WordStatus,
+} from '@/types/words';
 
 export const EMPTY_WORD_FORM: WordFormData = {
     word: '',
@@ -143,20 +74,6 @@ export const LEVELS = [
     { value: 5, label: '6 001 – 8 000' },
     { value: 6, label: '8 001 – 10 000' },
 ] as const;
-
-export interface StatusConfigEntry {
-    value: Exclude<WordStatus, null>;
-    label: string;
-    icon: typeof CheckCheck;
-    pillActive: string;
-    pillHover: string;
-    rowBg: string;
-    rowText: string;
-    filterActive: string;
-    filterHover: string;
-    /** A haladás-kártya statisztika-csempéjének gyűrűje, ha rá van szűrve. */
-    tileRing: string;
-}
 
 export const STATUS_CONFIG: StatusConfigEntry[] = [
     {

@@ -16,27 +16,8 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { FilterChip, FilterGroup } from '@/components/words/filter-chip';
-import { LEVELS, STATUS_CONFIG } from '@/components/words/types';
-
-export interface WordFilterValues {
-    search: string;
-    letter: string;
-    level: number | null;
-    status: string;
-    importance: number | null;
-    folder: number | null;
-    source: string;
-    per_page: number;
-}
-
-/** Csak azokat a kulcsokat lehet módosítani, amelyeket a szülő navigate-je ismer. */
-export type WordFilterPatch = Partial<WordFilterValues> & { page?: number };
-
-interface Folder {
-    id: number;
-    name: string;
-    words_count: number;
-}
+import { LEVELS, STATUS_CONFIG } from '@/components/words/word-config';
+import type { Folder, WordFilterPatch, WordFilterValues } from '@/types/words';
 
 interface WordFiltersProps {
     filters: WordFilterValues;
