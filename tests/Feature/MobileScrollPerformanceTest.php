@@ -100,3 +100,32 @@ test('PERF-2: minden GSAP-fogyasztó a közös modulon át regisztrál', functio
         'Közvetlen gsap-import a @/lib/scroll-trigger helyett: '.implode(', ', $direct)
     );
 });
+
+/*
+ * PERF-3 lelet: a paklinézetben a „Több betöltése" korlátlanul halmozza a
+ * sorokat, a hero visszaszámlálója viszont ötmásodpercenként állapotot írt —
+ * vagyis rendszeresen újrarenderelt minden betöltött kártyasort. Ha ez épp
+ * görgetés közben futott le, a hosszú JS-task megette a frame-budgetet.
+ */
+test('PERF-3: a kártyasor memoizált', function () {
+    $source = file_get_contents(resource_path('js/components/flashcards/card-row.tsx'));
+
+    expect($source)->toContain('export default memo(CardRow)');
+});
+
+test('PERF-3: a paklinézet nem ad inline függvényt a memoizált kártyasornak', function () {
+    /*
+     * A `memo` csak akkor fog, ha a lefelé adott propok referenciája is
+     * állandó: egy inline arrow (`onEdit={(c) => …}`) minden szülő-renderben
+     * új függvény, és ezzel újrarendereli az összes sort.
+     */
+    $source = file_get_contents(resource_path('js/pages/flashcards/show.tsx'));
+
+    preg_match('/<CardRow\b(.*?)\/>/s', $source, $match);
+
+    expect($match)->not->toBeEmpty('A <CardRow /> hívás nem található a paklinézetben.');
+    expect($match[1])->not->toContain(
+        '=>',
+        'Inline arrow a CardRow propjai közt — ez kiüti a sor memoizálását.'
+    );
+});

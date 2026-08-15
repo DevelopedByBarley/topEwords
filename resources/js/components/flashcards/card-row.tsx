@@ -10,7 +10,7 @@ import {
     Sparkles,
     Trash2,
 } from 'lucide-react';
-import React, { useState } from 'react';
+import React, { memo, useState } from 'react';
 import MoveConfirmDialog from '@/components/flashcards/move-confirm-dialog';
 import {
     STATE_LABELS,
@@ -39,7 +39,7 @@ import {
     update as updateCard,
 } from '@/routes/flashcards/cards';
 
-export default function CardRow({
+function CardRow({
     card,
     deck,
     otherDecks,
@@ -350,3 +350,10 @@ export default function CardRow({
         </>
     );
 }
+
+/**
+ * Egy paklinézetben több száz sor is a DOM-ban lehet (a „Több betöltése"
+ * halmoz), ezért a sor memoizált: a szülő állapotváltozásai — például a hero
+ * visszaszámlálója — nem renderelik újra az egész listát.
+ */
+export default memo(CardRow);

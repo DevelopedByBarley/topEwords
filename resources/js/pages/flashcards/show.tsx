@@ -17,7 +17,7 @@ import {
     Trash2,
     X,
 } from 'lucide-react';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import CardForm from '@/components/flashcards/card-form';
 import CardPreviewDialog from '@/components/flashcards/card-preview-dialog';
 import CardRow from '@/components/flashcards/card-row';
@@ -193,7 +193,18 @@ export default function FlashcardShow({
             setEditingCard(card);
         }
     }, [flash?.importedCardId, flashcards]);
-    const [now, setNow] = useState(() => Date.now());
+    /**
+     * A kártyasorok esedékesség-címkéi ("3 nap múlva") nem másodperc-pontosak,
+     * ezért nem időzítőről frissülnek: a referenciaidő akkor számol újra,
+     * amikor a lista maga is (szerver-oldali frissüléskor). Így a hero
+     * visszaszámlálója nem rendereli újra az összes betöltött kártyasort.
+     */
+    const [listNow, setListNow] = useState(() => Date.now());
+
+    useEffect(() => {
+        setListNow(Date.now());
+    }, [flashcards]);
+
     const [secondsUntilDue, setSecondsUntilDue] = useState<number | null>(
         () => {
             if (!nextDueAt) {
@@ -207,17 +218,18 @@ export default function FlashcardShow({
         },
     );
 
+    const hasDueCards = newDueCount + reviewDueCount > 0;
+
     useEffect(() => {
+        // A visszaszámláló csak akkor látszik, ha nincs esedékes kártya —
+        // különben az időzítő fölöslegesen dolgozna.
+        if (!nextDueAt || hasDueCards) {
+            return;
+        }
+
         const tick = () => {
-            const ts = Date.now();
-            setNow(ts);
-
-            if (!nextDueAt) {
-                return;
-            }
-
             const remaining = Math.round(
-                (new Date(nextDueAt).getTime() - ts) / 1000,
+                (new Date(nextDueAt).getTime() - Date.now()) / 1000,
             );
 
             if (remaining <= 0) {
@@ -232,7 +244,7 @@ export default function FlashcardShow({
         const id = setInterval(tick, 5000);
 
         return () => clearInterval(id);
-    }, [nextDueAt]);
+    }, [nextDueAt, hasDueCards]);
 
     const [showSettings, setShowSettings] = useState(false);
     const [search, setSearch] = useState('');
@@ -248,44 +260,49 @@ export default function FlashcardShow({
     const PAGE_SIZE = 50;
     const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
-    const filtered = (flashcards ?? []).filter((card) => {
-        if (stateFilter) {
-            const s = card.review?.state ?? 'new';
+    const filtered = useMemo(() => {
+        return (flashcards ?? []).filter((card) => {
+            if (stateFilter) {
+                const s = card.review?.state ?? 'new';
 
-            if (s !== stateFilter) {
-                return false;
+                if (s !== stateFilter) {
+                    return false;
+                }
+            }
+
+            if (search) {
+                const q = search.toLowerCase();
+
+                return (
+                    card.front.toLowerCase().includes(q) ||
+                    card.back.toLowerCase().includes(q)
+                );
+            }
+
+            return true;
+        });
+    }, [flashcards, search, stateFilter]);
+
+    const visibleCards = useMemo(
+        () => filtered.slice(0, visibleCount),
+        [filtered, visibleCount],
+    );
+
+    const stateCounts = useMemo(() => {
+        const counts = { new: 0, learning: 0, review: 0, relearning: 0 };
+
+        for (const card of flashcards ?? []) {
+            const state = card.review?.state ?? 'new';
+
+            if (state in counts) {
+                counts[state as keyof typeof counts] += 1;
             }
         }
 
-        if (search) {
-            const q = search.toLowerCase();
+        return counts;
+    }, [flashcards]);
 
-            return (
-                card.front.toLowerCase().includes(q) ||
-                card.back.toLowerCase().includes(q)
-            );
-        }
-
-        return true;
-    });
-
-    const visibleCards = filtered.slice(0, visibleCount);
-
-    const stateCounts = {
-        new: (flashcards ?? []).filter(
-            (c) => !c.review || c.review.state === 'new',
-        ).length,
-        learning: (flashcards ?? []).filter(
-            (c) => c.review?.state === 'learning',
-        ).length,
-        review: (flashcards ?? []).filter((c) => c.review?.state === 'review')
-            .length,
-        relearning: (flashcards ?? []).filter(
-            (c) => c.review?.state === 'relearning',
-        ).length,
-    };
-
-    const handleSelect = (id: number, checked: boolean) => {
+    const handleSelect = useCallback((id: number, checked: boolean) => {
         setSelectedIds((prev) => {
             const next = new Set(prev);
 
@@ -297,7 +314,7 @@ export default function FlashcardShow({
 
             return next;
         });
-    };
+    }, []);
 
     const allFilteredSelected =
         filtered.length > 0 && filtered.every((c) => selectedIds.has(c.id));
@@ -319,6 +336,26 @@ export default function FlashcardShow({
     };
 
     const clearSelection = () => setSelectedIds(new Set());
+
+    /**
+     * A kártyasorok `React.memo`-val vannak kihagyva az újrarenderelésből —
+     * ez csak akkor működik, ha a lefelé adott függvények referenciája is
+     * állandó marad.
+     */
+    const handleEditCard = useCallback((card: Flashcard) => {
+        setEditingCard(card);
+        setShowNewForm(false);
+    }, []);
+
+    const handlePreviewCard = useCallback((card: Flashcard) => {
+        setListNow(Date.now());
+        setPreviewCard(card);
+    }, []);
+
+    const handleStatsCard = useCallback((card: Flashcard) => {
+        setListNow(Date.now());
+        setStatsCard(card);
+    }, []);
 
     const bulkAction = (
         url: string,
@@ -763,18 +800,15 @@ export default function FlashcardShow({
                                     card={card}
                                     deck={deck}
                                     otherDecks={otherDecks}
-                                    onEdit={(c) => {
-                                        setEditingCard(c);
-                                        setShowNewForm(false);
-                                    }}
-                                    onPreview={(c) => setPreviewCard(c)}
+                                    onEdit={handleEditCard}
+                                    onPreview={handlePreviewCard}
                                     onPractice={
                                         isAdmin ? openPracticeModal : undefined
                                     }
-                                    onStats={(c) => setStatsCard(c)}
+                                    onStats={handleStatsCard}
                                     selected={selectedIds.has(card.id)}
                                     onSelect={handleSelect}
-                                    now={now}
+                                    now={listNow}
                                 />
                             ))}
                             {visibleCount < filtered.length && (
@@ -938,7 +972,7 @@ export default function FlashcardShow({
                 <CardStatsDialog
                     card={statsCard}
                     onClose={() => setStatsCard(null)}
-                    now={now}
+                    now={listNow}
                 />
             )}
 
@@ -951,7 +985,7 @@ export default function FlashcardShow({
                         setEditingCard(previewCard);
                         setShowNewForm(false);
                     }}
-                    now={now}
+                    now={listNow}
                 />
             )}
 
