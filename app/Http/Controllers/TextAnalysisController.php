@@ -10,6 +10,7 @@ use App\Models\YoutubeTranscript;
 use App\Services\AchievementService;
 use App\Services\AiCacheService;
 use App\Services\AiUsageService;
+use App\Services\ArticleTextExtractor;
 use App\Services\WordFormMapService;
 use App\Services\WordFormVariants;
 use App\Services\WordStatusFormExpander;
@@ -35,6 +36,7 @@ class TextAnalysisController extends Controller
         private AiUsageService $aiUsage,
         private AiCacheService $aiCache,
         private WordFormMapService $wordFormMap,
+        private ArticleTextExtractor $articleText,
     ) {}
 
     /**
@@ -680,37 +682,22 @@ class TextAnalysisController extends Controller
             throw new \RuntimeException('A megadott oldal túl nagy a beolvasáshoz.');
         }
 
-        // Try to isolate the main article body first
-        $html = $this->extractMainContent($html) ?? $html;
+        // A cikk-törzs kinyerése HTML5-parserrel (ArticleTextExtractor). A korábbi
+        // regex + strip_tags + 35-karakteres-sorszűrő lánc három ponton hibázott:
+        // az ELSŐ <article>-t vitte el (ami a hírportálokon ajánló-kártya), a
+        // blokkhatárokon összeragasztotta a szavakat (hamis tokenek a szóelemzőnek),
+        // a sorszűrő pedig minifikált HTML-en — vagyis a mai lapok többségén —
+        // egyáltalán nem szűrt.
+        $text = $this->articleText->extract($html);
 
-        // Strip elements that are never article content
-        $html = preg_replace('/<(script|style|nav|header|footer|aside|noscript|button|form|input|select|textarea|dialog|menu|figure|figcaption)[^>]*>.*?<\/\1>/si', '', $html) ?? $html;
-
-        // Strip remaining tags, decode entities
-        $text = strip_tags($html);
-        $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        $text = preg_replace('/[ \t]+/', ' ', $text) ?? $text;
-
-        // Remove short lines – these are almost always navigation labels, button text, etc.
-        $lines = explode("\n", $text);
-        $lines = array_filter($lines, fn ($line) => mb_strlen(trim($line)) > 35);
-        $text = implode("\n", $lines);
-
-        $text = preg_replace('/(\s*\n\s*){3,}/', "\n\n", $text) ?? $text;
-
-        return trim($text);
-    }
-
-    private function extractMainContent(string $html): ?string
-    {
-        // Prefer <article>, then <main> — these reliably contain the editorial body
-        foreach (['article', 'main'] as $tag) {
-            if (preg_match('/<'.$tag.'\b[^>]*>(.*?)<\/'.$tag.'>/si', $html, $m)) {
-                return $m[1];
-            }
+        // Üres kimenet jellemzően JS-ből renderelt lap: a szerver nem futtat
+        // JavaScriptet, így ott a HTML-ben nincs is cikkszöveg. Korábban ez néma
+        // üres előnézet lett; mondjuk ki az okot.
+        if ($text === '') {
+            throw new \RuntimeException('Ezen az oldalon nem találtunk elemezhető szöveget. Ez akkor fordul elő, ha az oldal a tartalmát JavaScripttel jeleníti meg — próbáld a szöveget bemásolni.');
         }
 
-        return null;
+        return $text;
     }
 
     /**

@@ -433,6 +433,38 @@ test('fetch-source rejects non-text content', function () {
         ->assertJsonPath('error', 'A megadott cím nem weboldalra mutat (nem szöveges tartalom).');
 });
 
+test('fetch-source a cikk törzsét adja vissza, a lap kerete nélkül', function () {
+    // A kinyerést az ArticleTextExtractor végzi; itt az a kérdés, hogy a
+    // végponton át is a cikk jön-e, és nem a menü/lábléc.
+    Http::fake([
+        'http://93.184.216.34/*' => Http::response(
+            '<html><body><nav><a>Kezdőlap</a><a>Sport</a></nav><main><p>The council approved the budget after a long debate.</p></main><footer>Copyright 2026</footer></body></html>',
+            200,
+            ['Content-Type' => 'text/html'],
+        ),
+    ]);
+
+    $this->postJson(route('text-analysis.fetch-source'), ['url' => 'http://93.184.216.34/article'])
+        ->assertOk()
+        ->assertJsonPath('text', 'The council approved the budget after a long debate.');
+});
+
+test('fetch-source kimondja, ha a lap JS-ből rendereli a tartalmát', function () {
+    // Üres kinyerés korábban néma, üres előnézet lett — a felhasználó nem
+    // tudta, miért nincs semmi.
+    Http::fake([
+        'http://93.184.216.34/*' => Http::response(
+            '<html><body><div id="root"></div><script>renderApp()</script></body></html>',
+            200,
+            ['Content-Type' => 'text/html'],
+        ),
+    ]);
+
+    $this->postJson(route('text-analysis.fetch-source'), ['url' => 'http://93.184.216.34/spa'])
+        ->assertStatus(422)
+        ->assertJsonPath('error', fn (string $error) => str_contains($error, 'JavaScripttel'));
+});
+
 test('fetch-source rejects a response body over the size cap', function () {
     Http::fake([
         'http://93.184.216.34/*' => Http::response(str_repeat('a', 2 * 1024 * 1024 + 1), 200, ['Content-Type' => 'text/html']),

@@ -1,5 +1,5 @@
 import { Head, Link, usePage } from '@inertiajs/react';
-import { BookOpen, FileText, Globe, History, Loader2, ScanText, X, Youtube } from 'lucide-react';
+import { BookOpen, FileText, Globe, History, Loader2, Pencil, ScanText, X, Youtube } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import AnalysisResultView from '@/components/text-analysis/analysis-result';
 import { BookList, BookPager, BookReader } from '@/components/text-analysis/book-panel';
@@ -491,6 +491,28 @@ return;
         reset();
     };
 
+    /**
+     * A betöltött szöveg átvitele a szerkeszthető mezőbe.
+     *
+     * A cikk-kinyerés heurisztikus (ArticleTextExtractor): bekerülhet zaj —
+     * menü-maradvány, bibliográfia, ajánló-lista —, és kimaradhat mondat. Eddig
+     * URL-módban csak egy nem szerkeszthető, 3 soros előnézet volt, és az
+     * elemzés a nyers szövegből ment, tehát a felhasználó nem tudott javítani.
+     *
+     * Szándékosan NEM a switchMode()-ot hívja: az reset()-el, ami épp az itt
+     * átadott szöveget törölné.
+     */
+    const editFetchedSource = () => {
+        if (fetchedSource === null) {
+            return;
+        }
+
+        setText(fetchedSource);
+        setMode('text');
+        setFetchedSource(null);
+        setError(null);
+    };
+
     const switchMode = (m: InputMode) => {
         setMode(m);
         reset();
@@ -899,7 +921,11 @@ learningDelta += freq;
                                             </div>
                                             <p className="line-clamp-3 text-xs text-muted-foreground">{fetchedSource}</p>
                                         </div>
-                                        <div className="flex justify-end">
+                                        <div className="flex justify-end gap-2">
+                                            <Button variant="outline" onClick={editFetchedSource} disabled={isAnalyzing}>
+                                                <Pencil className="size-4" />
+                                                Szerkesztem
+                                            </Button>
                                             <Button onClick={() => analyze(fetchedSource)} disabled={isAnalyzing}>
                                                 {isAnalyzing ? <Loader2 className="size-4 animate-spin" /> : <ScanText className="size-4" />}
                                                 {isAnalyzing ? 'Elemzés...' : 'Elemzés'}
