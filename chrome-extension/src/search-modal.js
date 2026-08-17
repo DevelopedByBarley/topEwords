@@ -25,8 +25,13 @@ let searchSelIdx = -1;
 //
 // Modul-szintű, nem a handleren belüli: a hiba-ág showSearchDetail()-lel
 // újrarendereli a részletezőt, ezért a lokális flag minden hibánál elvesznék.
-let statusSaveInFlight = false;
-let importanceSaveInFlight = false;
+//
+// A `search` prefix kötelező: a content script moduljai EGY közös globális
+// lexikális scope-ban futnak, így a lookup-popup.js `statusSaveInFlight`
+// zárával azonos név a teljes fájlt eldobó SyntaxError-t okoz (1.33-as
+// regresszió: emiatt a keresőmodal és a saját-szó felvitel sem működött).
+let searchStatusSaveInFlight = false;
+let searchImportanceSaveInFlight = false;
 
 function toggleSearch() {
     if (searchHost) {
@@ -800,7 +805,7 @@ function showSearchDetail(data) {
 
     detail.querySelectorAll('.status-btn').forEach((btn) => {
         btn.addEventListener('click', () => {
-            if (statusSaveInFlight) {
+            if (searchStatusSaveInFlight) {
                 return;
             }
 
@@ -825,7 +830,7 @@ function showSearchDetail(data) {
 
             data = { ...data, status: isSame ? null : newStatus };
 
-            statusSaveInFlight = true;
+            searchStatusSaveInFlight = true;
             statusRow?.classList.add('saving');
 
             sendMsg(
@@ -837,7 +842,7 @@ function showSearchDetail(data) {
                     csrf: searchCsrf,
                 },
                 (resp) => {
-                    statusSaveInFlight = false;
+                    searchStatusSaveInFlight = false;
                     statusRow?.classList.remove('saving');
 
                     if (resp?.ok) {
@@ -862,7 +867,7 @@ function showSearchDetail(data) {
 
     impRow?.querySelectorAll('.imp-star').forEach((star) => {
         star.addEventListener('click', () => {
-            if (importanceSaveInFlight) {
+            if (searchImportanceSaveInFlight) {
                 return;
             }
 
@@ -873,7 +878,7 @@ function showSearchDetail(data) {
             paintStars(impRow, next);
             data = { ...data, importance: next };
 
-            importanceSaveInFlight = true;
+            searchImportanceSaveInFlight = true;
             impRow.classList.add('saving');
 
             sendMsg(
@@ -885,7 +890,7 @@ function showSearchDetail(data) {
                     csrf: searchCsrf,
                 },
                 (resp) => {
-                    importanceSaveInFlight = false;
+                    searchImportanceSaveInFlight = false;
                     impRow.classList.remove('saving');
 
                     if (!resp?.ok) {
