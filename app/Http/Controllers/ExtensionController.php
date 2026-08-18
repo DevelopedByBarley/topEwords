@@ -8,6 +8,7 @@ use App\Models\Word;
 use App\Services\AchievementService;
 use App\Services\WordFormVariants;
 use App\Services\WordStatusFormExpander;
+use App\Services\WordText;
 use App\Services\YouTubeCaptionService;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
@@ -97,7 +98,11 @@ class ExtensionController extends Controller
             return response()->json(['found' => false, 'word' => $word]);
         }
 
-        $lower = strtolower($word);
+        // A weblapokon tipográfiai aposztróf áll a szavakban („couldn’t"), a
+        // tárolt alakok viszont ASCII-t használnak — normalizálás nélkül a keresés
+        // nem talál rá. A válaszba a megtalált (vagy a beküldött) alak megy vissza,
+        // ezért a kliens gyorsítótár-kulcsai változatlanok.
+        $lower = WordText::normalizeApostrophes(strtolower($word));
 
         $match = Word::where(function ($q) use ($lower) {
             $q->whereRaw('LOWER(word) = ?', [$lower]);
@@ -136,9 +141,15 @@ class ExtensionController extends Controller
         // Try custom words. Exact word match always counts (covers phrases like
         // "cut through"); conjugation-form matching is limited to single-word
         // entries so a phrase's single-word base form cannot hijack a plain word.
+        // A pontos egyezést minden aposztróf-változatra próbáljuk: a saját szó
+        // azzal az alakkal mentődött el, amilyennel a felhasználó rákattintott.
         $custom = UserCustomWord::where('user_id', $request->user()->id)
             ->where(function ($q) use ($lower) {
-                $q->whereRaw('LOWER(word) = ?', [$lower])
+                $q->where(function ($q2) use ($lower) {
+                    foreach (WordText::apostropheVariants($lower) as $variant) {
+                        $q2->orWhereRaw('LOWER(word) = ?', [$variant]);
+                    }
+                })
                     ->orWhere(function ($q2) use ($lower) {
                         $q2->where('word', 'not like', '% %')
                             ->where(function ($q3) use ($lower) {

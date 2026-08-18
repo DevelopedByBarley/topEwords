@@ -687,6 +687,67 @@ test('a custom word lookup returns its forms and importance', function () {
         ]);
 });
 
+test('a word with a typographic apostrophe finds the stored ascii custom word', function () {
+    // A könyvekben és a weboldalakon nem ASCII aposztróf áll a szavakban, hanem
+    // a tipográfiai ’ (U+2019). Normalizálás nélkül a keresés nem talált rá a
+    // „couldn't" alakban tárolt saját szóra: hamis „nincs találat", majd
+    // duplikált saját szó.
+    $custom = $this->user->customWords()->create([
+        'word' => "couldn't",
+        'meaning_hu' => 'nem tudott',
+        'status' => 'learning',
+    ]);
+
+    $this->getJson(route('text-analysis.word-lookup', ['word' => "couldn\u{2019}t"]))
+        ->assertOk()
+        ->assertJsonPath('type', 'custom')
+        ->assertJsonPath('id', $custom->id)
+        ->assertJsonPath('status', 'learning');
+});
+
+test('a word with a typographic apostrophe finds a custom word stored the same way', function () {
+    // A régi felvitel a szövegbeli (tipográfiai) alakot mentette el, ezért az
+    // egyezést mindkét irányban próbálni kell.
+    $custom = $this->user->customWords()->create([
+        'word' => "couldn\u{2019}t",
+        'meaning_hu' => 'nem tudott',
+    ]);
+
+    $this->getJson(route('text-analysis.word-lookup', ['word' => "couldn't"]))
+        ->assertOk()
+        ->assertJsonPath('type', 'custom')
+        ->assertJsonPath('id', $custom->id);
+});
+
+test('a not found word comes back with an ascii apostrophe', function () {
+    // Az így visszaadott alak megy tovább a felvitel-űrlapba és az AI-kitöltésbe,
+    // ezért NEM tipográfiai aposztróffal kell visszajönnie.
+    $this->getJson(route('text-analysis.word-lookup', ['word' => "shouldn\u{2019}t"]))
+        ->assertOk()
+        ->assertJsonPath('type', 'not_found')
+        ->assertJsonPath('word', "shouldn't");
+});
+
+test('gemini lookup accepts a typographic apostrophe instead of rejecting it', function () {
+    // A prompt-szűrő (sanitizeWordForPrompt) csak ASCII aposztrófot engedett, így
+    // a „couldn’t" 422 „Érvénytelen szó."-val hasalt el az AI-kitöltésben.
+    $this->user->forceFill(['ai_access' => true])->save();
+
+    Http::fake([
+        'generativelanguage.googleapis.com/*' => Http::response(
+            geminiSuccess(['is_real_word' => true, 'base_form' => "couldn't", 'meaning_hu' => 'nem tudott']),
+            200
+        ),
+    ]);
+
+    $this->getJson(route('text-analysis.gemini-lookup', ['word' => "couldn\u{2019}t"]))
+        ->assertOk()
+        ->assertJsonPath('meaning_hu', 'nem tudott')
+        // A lemma az ASCII alak: a válaszból ez kerül a mentett szóba.
+        ->assertJsonPath('base_form', "couldn't")
+        ->assertJsonPath('normalized_from_input', null);
+});
+
 test('unauthenticated word lookup returns 401 json instead of a fake result', function () {
     auth()->logout();
 

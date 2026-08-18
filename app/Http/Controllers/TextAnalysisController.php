@@ -15,6 +15,7 @@ use App\Services\BookTextExtractor;
 use App\Services\WordFormMapService;
 use App\Services\WordFormVariants;
 use App\Services\WordStatusFormExpander;
+use App\Services\WordText;
 use App\Services\YouTubeCaptionService;
 use GuzzleHttp\Psr7\UriResolver;
 use GuzzleHttp\Psr7\Utils;
@@ -100,11 +101,19 @@ class TextAnalysisController extends Controller
 
     public function wordLookup(Request $request): JsonResponse
     {
-        $raw = $request->string('word')->trim()->lower()->value();
+        $input = $request->string('word')->trim()->lower()->value();
 
-        if (strlen($raw) < 1) {
+        if (strlen($input) < 1) {
             return response()->json(['type' => 'not_found']);
         }
+
+        // A szövegben tipográfiai aposztróf áll („couldn’t"), a szólista és az
+        // AI-promptok viszont ASCII-t használnak — normalizálás nélkül a keresés
+        // nem talált rá a tárolt „couldn't" alakra. A tárolt saját szó viszont
+        // bármelyik változattal létrejöhetett (a régi felvitel a szövegbeli alakot
+        // mentette), ezért az egyezést mindkét irányban próbáljuk.
+        $raw = WordText::normalizeApostrophes($input);
+        $storedVariants = WordText::apostropheVariants($input);
 
         $user = $request->user();
 
@@ -113,8 +122,12 @@ class TextAnalysisController extends Controller
         // matching is restricted to single-word entries, so a phrase's single-word
         // base form ("cut") cannot hijack a plain word lookup.
         $customWord = $user->customWords()
-            ->where(function ($q) use ($raw) {
-                $q->whereRaw('LOWER(word) = ?', [$raw])
+            ->where(function ($q) use ($raw, $storedVariants) {
+                $q->where(function ($q2) use ($storedVariants) {
+                    foreach ($storedVariants as $variant) {
+                        $q2->orWhereRaw('LOWER(word) = ?', [$variant]);
+                    }
+                })
                     ->orWhere(function ($q2) use ($raw) {
                         $q2->where('word', 'not like', '% %')
                             ->where(function ($q3) use ($raw) {
@@ -607,7 +620,7 @@ class TextAnalysisController extends Controller
         // megjelenítéshez: a tokenizáló az aposztrófos alakokat kibontja/levágja,
         // ezért a szövegben szereplő aposztrófos alakokat külön ráillesztjük a
         // saját szó státuszával — a frontend pontosan ezekre a kulcsokra keres.
-        $normalizedText = mb_strtolower(str_replace(["\u{2018}", "\u{2019}", "\u{2032}"], "'", $text));
+        $normalizedText = mb_strtolower(WordText::normalizeApostrophes($text));
 
         if (preg_match_all("/\b[a-z]+(?:'[a-z]+)+\b/", $normalizedText, $apostropheMatches)) {
             $apostropheWords = array_flip($apostropheMatches[0]);
@@ -619,7 +632,7 @@ class TextAnalysisController extends Controller
                 ->get(['word', 'status']);
 
             foreach ($customApostrophe as $customWord) {
-                $key = mb_strtolower(str_replace(["\u{2018}", "\u{2019}", "\u{2032}"], "'", $customWord->word));
+                $key = mb_strtolower(WordText::normalizeApostrophes($customWord->word));
 
                 if (isset($apostropheWords[$key])) {
                     $tokenStatuses[$key] = $customWord->status;
@@ -1044,7 +1057,9 @@ class TextAnalysisController extends Controller
         // kulcsot mindig `Str::lower($word)`-ből építi, így kisbetűsítés nélkül a
         // "March" (hónap) válasza a `flashcard:march:…` sorba kerülne, és egy
         // későbbi "march" (menetel) kérés a hónap-tartalmat kapná vissza (CACHE-1).
-        $word = $this->sanitizeWordForPrompt($request->string('word')->trim()->lower()->value());
+        $word = $this->sanitizeWordForPrompt(
+            WordText::normalizeApostrophes($request->string('word')->trim()->lower()->value())
+        );
 
         if ($word === null) {
             return response()->json(['error' => 'Érvénytelen szó.'], 422);
@@ -1330,7 +1345,9 @@ PROMPT;
 
         // Kisbetűsítés a cache-kulcs-paritásért, ugyanazon okból, mint a
         // flashcard/lookup ágon (CACHE-1).
-        $word = $this->sanitizeWordForPrompt($request->string('word')->trim()->lower()->value());
+        $word = $this->sanitizeWordForPrompt(
+            WordText::normalizeApostrophes($request->string('word')->trim()->lower()->value())
+        );
 
         if ($word === null) {
             return response()->json(['error' => 'Érvénytelen szó.'], 422);
@@ -1409,7 +1426,9 @@ PROMPT;
             return $limited;
         }
 
-        $word = $this->sanitizeWordForPrompt($request->string('word')->trim()->lower()->value());
+        $word = $this->sanitizeWordForPrompt(
+            WordText::normalizeApostrophes($request->string('word')->trim()->lower()->value())
+        );
 
         // A context szabad szöveg, ezért nem szűrhető betűkre, de a promptba kerül:
         // idézőjeleket aposztrófra cserélünk és kötegelt szóközzé normalizáljuk

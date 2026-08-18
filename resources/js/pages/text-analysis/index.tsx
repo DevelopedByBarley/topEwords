@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import AnalysisResultView from '@/components/text-analysis/analysis-result';
 import { BookList, BookPager, BookReader } from '@/components/text-analysis/book-panel';
 import HistoryPanel from '@/components/text-analysis/history-panel';
-import { phraseKey } from '@/components/text-analysis/tokenize-render';
+import { phraseKey, tokenKey } from '@/components/text-analysis/tokenize-render';
 import {
     addHistoryEntry,
     computeTokenFrequencies,
@@ -651,7 +651,12 @@ return;
     };
 
     const handleWordClick = (word: string, context?: string) => {
-        setLookupWord(word.toLowerCase());
+        // `tokenKey` = kisbetű + ASCII aposztróf. A szövegben tipográfiai aposztróf
+        // áll („couldn’t"), a státusz-térkép kulcsai és a szerver keresése viszont
+        // ASCII-t használnak — nyers alakkal a modalból mentett státusz olyan
+        // kulcsra került, amit a renderelés nem keres, tehát a kiemelés csak
+        // újraelemzés után frissült.
+        setLookupWord(tokenKey(word));
         setLookupContext(context || null);
     };
 

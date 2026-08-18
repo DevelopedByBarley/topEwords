@@ -12,7 +12,8 @@
  * láthatatlanul mentek el).
  *
  * Ezek a tesztek nem a megjelenést védik, hanem azt, hogy MINDHÁROM felület a
- * KÖZÖS forrásból rendereljen — másolat ne szülessen újra.
+ * KÖZÖS forrásból rendereljen — másolat ne szülessen újra. A fájl a szövegelemző
+ * felület többi kliens-oldali őrszemét is tartalmazza (könyv-fül, szó-kulcs).
  */
 function detailParitySource(string $relative): string
 {
@@ -90,4 +91,16 @@ test('BOOK-2: a könyv-lista mountoláskor is betöltődik', function () {
 
     // …és a fül-váltás már nem indít második kérést ugyanarra.
     expect(substr_count($page, 'fetchBooks();'))->toBe(1);
+});
+
+test('WORD-1: a kattintott szó normalizált kulccsal megy a részletezőbe', function () {
+    // A szövegben tipográfiai aposztróf áll („couldn’t"), a státusz-térkép kulcsai
+    // viszont ASCII aposztrófosak (`tokenKey`). Nyers alakkal a modalból mentett
+    // státusz olyan kulcsra került, amit a renderelés nem keres — a kiemelés csak
+    // újraelemzés után frissült.
+    $page = detailParitySource('js/pages/text-analysis/index.tsx');
+
+    expect($page)
+        ->toContain('setLookupWord(tokenKey(word));')
+        ->not->toContain('setLookupWord(word.toLowerCase());');
 });

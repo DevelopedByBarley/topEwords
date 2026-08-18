@@ -84,6 +84,27 @@ test('lookup finds custom words with example fields', function () {
         ]);
 });
 
+test('lookup normalizes the typographic apostrophe of the page text', function () {
+    // A weblapok szövegében nem ASCII aposztróf áll („couldn’t"), a tárolt alak
+    // viszont ASCII — normalizálás nélkül a bővítmény hamis „nincs találat"-ot
+    // mutatott a saját szóra is.
+    $this->user->customWords()->create([
+        'word' => "couldn't",
+        'meaning_hu' => 'nem tudott',
+        'status' => 'learning',
+    ]);
+
+    $this->actingAs($this->user)
+        ->getJson(route('extension.lookup', ['word' => "couldn\u{2019}t"]))
+        ->assertSuccessful()
+        ->assertJson([
+            'found' => true,
+            'is_custom' => true,
+            'word' => "couldn't",
+            'status' => 'learning',
+        ]);
+});
+
 test('lookup reports not found for unknown words', function () {
     $this->actingAs($this->user)
         ->getJson(route('extension.lookup', ['word' => 'xyzzy']))
