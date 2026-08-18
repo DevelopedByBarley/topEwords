@@ -57,6 +57,7 @@ class WordController extends Controller
                 'noun_plural' => $word->noun_plural,
                 'adj_comparative' => $word->adj_comparative,
                 'adj_superlative' => $word->adj_superlative,
+                'extra_forms' => $word->extra_forms,
                 'example_en' => $word->example_en,
                 'example_hu' => $word->example_hu,
                 'status' => $pageMarks->get($word->id)?->status,
@@ -201,6 +202,7 @@ class WordController extends Controller
             'noun_plural' => ['nullable', 'string', 'max:100'],
             'adj_comparative' => ['nullable', 'string', 'max:100'],
             'adj_superlative' => ['nullable', 'string', 'max:100'],
+            'extra_forms' => ['nullable', 'string', 'max:255'],
         ]);
 
         $word->update($data);

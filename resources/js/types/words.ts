@@ -26,6 +26,7 @@ export interface Word {
     noun_plural: string | null;
     adj_comparative: string | null;
     adj_superlative: string | null;
+    extra_forms: string | null;
     example_en: string | null;
     example_hu: string | null;
     status: WordStatus;

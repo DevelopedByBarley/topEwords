@@ -9,15 +9,25 @@ use App\Services\WordStatusFormExpander;
  * Az extra_forms oszlop normalizálása mentés előtt.
  *
  * A mező a lemmatizáláskor eldobott, de a felhasználó által beírt eredeti
- * alakokat tárolja (pl. a "successful" lemmához a "successfully" határozószót),
- * '/'-szeparálva — azonos formátumban a többi alak-oszloppal. Mentés előtt
- * kisbetűsítjük, deduplikáljuk, és kihagyjuk azokat az alakokat, amelyeket a szó
- * (lemma) vagy egy másik alak-oszlop már lefed, hogy ne tároljunk redundanciát.
+ * alakokat, illetve a szó képzett alakjait tárolja (pl. a "successful" lemmához
+ * a "successfully" határozószót), '/'-szeparálva — azonos formátumban a többi
+ * alak-oszloppal. Mentés előtt kisbetűsítjük, deduplikáljuk, és kihagyjuk azokat
+ * az alakokat, amelyeket a szó (lemma) vagy egy másik alak-oszlop már lefed,
+ * hogy ne tároljunk redundanciát.
+ *
+ * A mezőt több út is írja (szólista-űrlap, admin szerkesztés, bővítmény,
+ * AI-kitöltés), ezért itt, a modell határán szűrjük valódi szóalakra is: ami nem
+ * betűkből (+ aposztróf, kötőjel, szóköz) álló alak, azt eldobjuk. A szűrés
+ * szándékosan némán dob, nem validációs hibát ad — így egyetlen furcsa alak sem
+ * buktatja el a szó mentését, de a felismerő térképbe sem kerülhet be.
  *
  * A modellt használó osztály a bootoláskor hívja meg a saving eseményre kötést.
  */
 trait NormalizesExtraForms
 {
+    /** Egy elfogadható felszíni alak: betűvel kezdődik, max 100 karakter. */
+    private const FORM_PATTERN = "/^[\pL][\pL'\- ]{0,99}$/u";
+
     protected static function bootNormalizesExtraForms(): void
     {
         static::saving(function ($model): void {
@@ -54,9 +64,13 @@ trait NormalizesExtraForms
         $forms = [];
 
         foreach (WordFormVariants::split($raw) as $variant) {
-            $lower = mb_strtolower($variant);
+            $lower = mb_strtolower(trim((string) preg_replace('/\s+/', ' ', $variant)));
 
-            if ($lower === '' || in_array($lower, $covered, true) || in_array($lower, $forms, true)) {
+            if (preg_match(self::FORM_PATTERN, $lower) !== 1) {
+                continue;
+            }
+
+            if (in_array($lower, $covered, true) || in_array($lower, $forms, true)) {
                 continue;
             }
 

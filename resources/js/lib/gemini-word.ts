@@ -26,6 +26,12 @@ export interface GeminiWordData {
     noun_plural?: string | null;
     adj_comparative?: string | null;
     adj_superlative?: string | null;
+    /**
+     * Azonos tövű, más szófajú képzett alakok ('/'-szeparálva, pl. a „happy"
+     * lemmához „happily/happiness") — ezek egyik ragozási mezőbe sem férnek be,
+     * az `extra_forms` oszlopba kerülnek. A backend már szűrve adja vissza.
+     */
+    derived_forms?: string | null;
     /** Csak `context` átadásakor: mit jelent a szó ABBAN a mondatban. */
     context_explanation?: string | null;
     error?: string | null;
@@ -60,6 +66,41 @@ export function geminiErrorMessage(
     );
 }
 
+/** Az `extra_forms` oszlop hossz-korlátja (lásd a migrációt). */
+const EXTRA_FORMS_MAX_LENGTH = 255;
+
+/**
+ * Az `extra_forms` mező összefésülése: a már meglévő alakok, a lemmatizáláskor
+ * eldobott beírt alak és az AI képzett alakjai egyetlen '/'-szeparált listába.
+ * Kisbetűsítve deduplikálunk, és az oszlop-korlátot itt is betartjuk — a
+ * szerver mentés előtt ugyanezt még egyszer normalizálja (NormalizesExtraForms).
+ */
+function mergeExtraForms(...sources: Array<string | null | undefined>): string {
+    const forms: string[] = [];
+    let length = 0;
+
+    for (const source of sources) {
+        for (const raw of (source ?? '').split('/')) {
+            const form = raw.trim().toLowerCase();
+
+            if (form === '' || forms.includes(form)) {
+                continue;
+            }
+
+            const next = length + form.length + (forms.length === 0 ? 0 : 1);
+
+            if (next > EXTRA_FORMS_MAX_LENGTH) {
+                return forms.join('/');
+            }
+
+            forms.push(form);
+            length = next;
+        }
+    }
+
+    return forms.join('/');
+}
+
 /**
  * Az AI által visszaadott mezőket beolvasztja a meglévő űrlapba. Ahol az AI ad
  * értéket, az felülírja a korábbit (admin szerkesztésnél így újratölt), ahol
@@ -74,12 +115,15 @@ export function mergeGeminiData(
     return {
         ...prev,
         word: wordOverride ?? prev.word,
-        // Lemmára váltáskor (pl. „successfully" → „successful") a beírt eredeti
-        // alakot külön elmentjük, hogy a szó-felismerés később arra is találjon.
-        extra_forms:
-            wordOverride && wordOverride !== prev.word
-                ? prev.word
-                : prev.extra_forms,
+        // Két forrás bővíti a felszíni alakokat, és mindkettő kell:
+        // 1. lemmára váltáskor (pl. „successfully" → „successful") a beírt eredeti alak,
+        // 2. az AI képzett alakjai (pl. „happy" → „happily") — ezek nélkül a szólistában
+        //    már meglévő alapszó képzett alakja sehogy nem volt felvihető.
+        extra_forms: mergeExtraForms(
+            prev.extra_forms,
+            wordOverride && wordOverride !== prev.word ? prev.word : null,
+            data.derived_forms,
+        ),
         meaning_hu: data.meaning_hu || prev.meaning_hu,
         extra_meanings: data.extra_meanings || prev.extra_meanings,
         synonyms: data.synonyms || prev.synonyms,

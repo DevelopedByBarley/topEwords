@@ -41,3 +41,9 @@ storage/app/private/downloads/topwords-player-*.dmg
 storage/app/private/downloads/topwords-player-*.exe
 backup
 claude-memory
+
+# Adatbázis-dumpok: éles felhasználói adatot tartalmaznak (jelszó-hash, e-mail,
+# session, Stripe-azonosító, számlázás), a repo pedig minden pullnál a prod
+# szerverre kerül — dump SOHA nem kerülhet be a verziókövetésbe.
+*.sql
+*.sql.gz

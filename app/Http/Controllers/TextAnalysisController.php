@@ -49,7 +49,7 @@ class TextAnalysisController extends Controller
      * felhasználó-egyedi, ezért nincs itt és nem cache-elődik.)
      */
     private const AI_CACHE_VERSION = [
-        'lookup' => 4,
+        'lookup' => 5,
         'flashcard' => 3,
         'insight' => 2,
     ];
@@ -851,6 +851,70 @@ class TextAnalysisController extends Controller
         return preg_match("/^[\pL][\pL'\\- ]{0,99}$/u", $word) === 1 ? $word : null;
     }
 
+    /** Legfeljebb ennyi képzett alakot fogadunk el egy AI-válaszból. */
+    private const MAX_DERIVED_FORMS = 4;
+
+    /**
+     * A modell `derived_forms` válaszának megtisztítása, mielőtt az `extra_forms`
+     * oszlopba kerülne. A mező szabad szöveg egy külső szolgáltatótól, ezért
+     * fail-closed szűrjük: csak egyszavas, betűkből (+ aposztróf/kötőjel) álló
+     * alak marad, kisbetűsítve, deduplikálva, és kihagyva azt, amit a lemma vagy
+     * egy másik alak-mező már lefed. A darabszám és a 255 karakteres oszlop-korlát
+     * is itt érvényesül, hogy hallucinált, hosszú válasz se okozhasson csonkolást.
+     *
+     * @param  array<string, mixed>  $data  A modell teljes válasza (a többi alak-mezőhöz)
+     */
+    private function sanitizeDerivedForms(mixed $raw, string $baseForm, array $data): ?string
+    {
+        if (! is_string($raw) || trim($raw) === '') {
+            return null;
+        }
+
+        $covered = [mb_strtolower($baseForm)];
+
+        foreach (WordStatusFormExpander::FORM_COLUMNS as $column) {
+            if ($column === 'extra_forms') {
+                continue;
+            }
+
+            $value = $data[$column] ?? null;
+
+            foreach (WordFormVariants::splitAll([is_string($value) ? $value : null]) as $variant) {
+                $covered[] = mb_strtolower($variant);
+            }
+        }
+
+        $forms = [];
+        $length = 0;
+
+        foreach (preg_split('/[,;\/]/u', $raw) ?: [] as $candidate) {
+            $form = mb_strtolower(trim($candidate));
+
+            if (preg_match("/^[\pL][\pL'\-]{0,49}$/u", $form) !== 1) {
+                continue;
+            }
+
+            if (in_array($form, $covered, true) || in_array($form, $forms, true)) {
+                continue;
+            }
+
+            $next = $length + mb_strlen($form) + ($forms === [] ? 0 : 1);
+
+            if ($next > 255) {
+                break;
+            }
+
+            $forms[] = $form;
+            $length = $next;
+
+            if (count($forms) >= self::MAX_DERIVED_FORMS) {
+                break;
+            }
+        }
+
+        return $forms === [] ? null : implode('/', $forms);
+    }
+
     /**
      * A `geminiWordLookup` válasz-sémája (Gemini structured output). A modell
      * pontosan ezeket a mezőket adja vissza, ebben a sorrendben; a nem releváns
@@ -881,10 +945,11 @@ class TextAnalysisController extends Controller
                 'noun_plural' => $string,
                 'adj_comparative' => $string,
                 'adj_superlative' => $string,
+                'derived_forms' => $string,
                 'context_explanation' => $string,
             ],
             'required' => ['is_real_word', 'base_form', 'meaning_hu', 'part_of_speech', 'example_en', 'example_hu'],
-            'propertyOrdering' => ['is_real_word', 'base_form', 'meaning_hu', 'extra_meanings', 'synonyms', 'part_of_speech', 'example_en', 'example_hu', 'verb_past', 'verb_past_participle', 'verb_present_participle', 'verb_third_person', 'is_irregular', 'noun_plural', 'adj_comparative', 'adj_superlative', 'context_explanation'],
+            'propertyOrdering' => ['is_real_word', 'base_form', 'meaning_hu', 'extra_meanings', 'synonyms', 'part_of_speech', 'example_en', 'example_hu', 'verb_past', 'verb_past_participle', 'verb_present_participle', 'verb_third_person', 'is_irregular', 'noun_plural', 'adj_comparative', 'adj_superlative', 'derived_forms', 'context_explanation'],
         ];
     }
 
@@ -1459,11 +1524,13 @@ You are a Hungarian-English dictionary assistant for the English word "{$word}".
 - example_en / example_hu: one natural English example sentence and its Hungarian translation.
 - part_of_speech: the word's primary, most common grammatical role.
 - noun_plural: standard plural if the word is a noun that has one (e.g. "book" → "books", "peppermint" → "peppermints"); empty string only if the noun is truly uncountable.
+- derived_forms: up to 4 other SINGLE words built from the same root as the base_form that fit none of the form fields below, comma-separated — typically the adverb ("happy" → "happily"), the abstract noun ("happy" → "happiness"), or the standard negated form ("happy" → "unhappy"). Empty string if there are none.
 {$contextBlock}
 
 Constraints:
 - Translate the Hungarian fields accurately and concisely.
 - Form fields (verb_past, verb_past_participle, verb_present_participle, verb_third_person, noun_plural, adj_comparative, adj_superlative): fill EVERY field that is a genuine inflected form of "{$word}", even across different word classes. The part_of_speech stays the single primary role, but the form fields are NOT limited to that role. Example: the noun "interest" is also a verb, so fill noun_plural="interests" AND verb_past="interested", verb_past_participle="interested", verb_present_participle="interesting", verb_third_person="interests".
+- Critical derived_forms rule: only list a word there if it is built from the same root AND keeps the same core meaning. Never list a word whose meaning has drifted away — e.g. for "hard" do NOT list "hardly" (it means "barely"), for "late" do NOT list "lately". Never repeat a form that already belongs in one of the inflection fields.
 - Critical homograph rule: only include forms that are real inflections OF THIS SAME WORD and meaning. Never add a form that merely happens to be spelled like an inflection of a DIFFERENT, unrelated word. Example: for the flower "rose" leave verb_past empty, because "rose" as a past tense belongs to the unrelated verb "rise".
 - Use an empty string for any field that does not apply, and never invent a word form that does not exist in standard English.
 PROMPT;
@@ -1531,6 +1598,7 @@ PROMPT;
             'noun_plural' => $data['noun_plural'] ?? null,
             'adj_comparative' => $data['adj_comparative'] ?? null,
             'adj_superlative' => $data['adj_superlative'] ?? null,
+            'derived_forms' => $this->sanitizeDerivedForms($data['derived_forms'] ?? null, $baseForm, $data),
             'context_explanation' => $data['context_explanation'] ?? null,
         ]);
     }

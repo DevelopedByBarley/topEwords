@@ -56,11 +56,13 @@ export default function WordFormFields({
         ? (form.part_of_speech as FormPos)
         : null;
     const otherPos = FORM_POS.filter((p) => p !== primaryPos);
-    const hasOtherForms = otherPos.some((p) =>
-        FORM_POS_FIELDS[p].some(
-            (field) => String(form[field] ?? '').trim() !== '',
-        ),
-    );
+    const hasOtherForms =
+        String(form.extra_forms ?? '').trim() !== '' ||
+        otherPos.some((p) =>
+            FORM_POS_FIELDS[p].some(
+                (field) => String(form[field] ?? '').trim() !== '',
+            ),
+        );
 
     const [showOther, setShowOther] = useState(hasOtherForms);
 
@@ -314,9 +316,32 @@ export default function WordFormFields({
                     <ChevronDown
                         className={`size-3.5 transition-transform ${showOther ? '' : '-rotate-90'}`}
                     />
-                    További alakok (más szófaj)
+                    További alakok
                 </button>
-                {showOther && otherPos.map((pos) => renderBlock(pos))}
+                {showOther && (
+                    <>
+                        {otherPos.map((pos) => renderBlock(pos))}
+                        <div className="flex flex-col gap-3 rounded-xl border bg-muted/30 px-4 py-4">
+                            <p className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+                                Képzett alakok
+                            </p>
+                            <div>
+                                <Input
+                                    placeholder="pl. happily/happiness"
+                                    value={form.extra_forms}
+                                    onChange={(e) =>
+                                        set({ extra_forms: e.target.value })
+                                    }
+                                />
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                    Azonos tövű, más szófajú alakok
+                                    „/"-szeparálva. A szövegelemző és a
+                                    bővítmény ezeket is ehhez a szóhoz köti.
+                                </p>
+                            </div>
+                        </div>
+                    </>
+                )}
             </div>
         </>
     );

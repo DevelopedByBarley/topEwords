@@ -683,3 +683,93 @@ test('upserted words get their level computed from rank without needing a fix pa
     expect(Word::where('word', 'common')->value('level'))->toBe(1);
     expect(Word::where('word', 'rare')->value('level'))->toBe(6);
 });
+
+// --- extra_forms a fő szólistán: a képzett alakok admin-oldali karbantartása ---
+// A „happily" korábban sehogy nem volt felvihető: a fő listában lévő „happy"
+// miatt saját szóként elutasult, adminból pedig a mező sem az AI-válaszban, sem
+// az űrlapon nem létezett. A szerkesztés most írja, az index visszaadja.
+
+/** @return User A `words.update` route-hoz szükséges, admin jogú felhasználó. */
+function wordListAdmin(): User
+{
+    config(['app.admin_email' => 'admin@example.com']);
+
+    return User::factory()->create(['email' => 'admin@example.com']);
+}
+
+test('admin can store extra_forms on a main list word', function () {
+    $this->actingAs(wordListAdmin());
+    $word = Word::where('word', 'apple')->firstOrFail();
+
+    $this->patch(route('words.update', $word), [
+        'word' => 'happy',
+        'extra_forms' => 'happily/happiness',
+    ])->assertRedirect();
+
+    expect($word->fresh()->extra_forms)->toBe('happily/happiness');
+});
+
+test('a mentett extra_forms a szó-felismerésbe is bekerül', function () {
+    $this->actingAs(wordListAdmin());
+    $word = Word::where('word', 'apple')->firstOrFail();
+
+    $this->patch(route('words.update', $word), [
+        'word' => 'happy',
+        'extra_forms' => 'happily',
+    ])->assertRedirect();
+
+    $this->post(route('words.status', $word->fresh()), ['status' => 'known']);
+
+    $this->postJson(route('text-analysis.analyze'), ['text' => 'a happy and happily done task'])
+        ->assertOk()
+        ->assertJsonPath('tokenStatuses.happy', 'known')
+        ->assertJsonPath('tokenStatuses.happily', 'known');
+});
+
+test('a szólista válasza tartalmazza az extra_forms-ot (a szerkesztés ne törölje)', function () {
+    // Az admin szerkesztő a teljes űrlapot visszaküldi: ha az index nem adná
+    // vissza a mezőt, a mentés üresre írná a meglévő képzett alakokat.
+    Word::where('word', 'apple')->update(['extra_forms' => 'apples']);
+
+    $this->get(route('words.index', ['letter' => 'A']))
+        ->assertInertia(fn ($page) => $page
+            ->where('words.data.0.word', 'apple')
+            ->where('words.data.0.extra_forms', 'apples')
+        );
+});
+
+test('a nem admin nem írhatja a fő szólista szavát', function () {
+    $word = Word::where('word', 'apple')->firstOrFail();
+
+    $this->patch(route('words.update', $word), ['extra_forms' => 'hacked'])
+        ->assertForbidden();
+
+    expect($word->fresh()->extra_forms)->toBeNull();
+});
+
+test('a túl hosszú extra_forms elutasul (oszlop-korlát)', function () {
+    $this->actingAs(wordListAdmin());
+    $word = Word::where('word', 'apple')->firstOrFail();
+
+    $this->patch(route('words.update', $word), [
+        'word' => 'apple',
+        'extra_forms' => str_repeat('a', 256),
+    ])->assertSessionHasErrors('extra_forms');
+
+    expect($word->fresh()->extra_forms)->toBeNull();
+});
+
+test('a nem szóalakú extra_forms bejegyzések némán kiesnek', function () {
+    // A mezőt több út is írja (űrlap, admin, bővítmény, AI-kitöltés), ezért a
+    // szűrés a modell határán van: HTML-t, számsort, jelsort nem engedünk a
+    // felismerő térképbe, de ettől a szó mentése még sikerül.
+    $this->actingAs(wordListAdmin());
+    $word = Word::where('word', 'apple')->firstOrFail();
+
+    $this->patch(route('words.update', $word), [
+        'word' => 'happy',
+        'extra_forms' => '<script>alert(1)</script>/12345/HAPPILY/happily/happiness',
+    ])->assertRedirect();
+
+    expect($word->fresh()->extra_forms)->toBe('happily/happiness');
+});

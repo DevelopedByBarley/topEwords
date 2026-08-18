@@ -349,3 +349,96 @@ test('a nem hitelesített kérés a practiceCheck-en 401-et kap', function () {
 
     Http::assertNothingSent();
 });
+
+// --- derived_forms: azonos tövű, más szófajú képzett alakok ---
+// A modell a ragozási mezőkbe nem férő alakokat (pl. „happy" → „happily")
+// ebben a mezőben adja vissza; ezek az extra_forms oszlopba kerülnek, ezért a
+// külső szolgáltatótól jövő szabad szöveget fail-closed szűrjük.
+
+/** @return array<string, mixed> A „happy" lookup válasza, tetszőleges derived_forms-szal. */
+function happyLookupResponse(string $derivedForms): array
+{
+    return [
+        'candidates' => [['content' => ['parts' => [['text' => json_encode([
+            'is_real_word' => true,
+            'base_form' => 'happy',
+            'meaning_hu' => 'boldog',
+            'part_of_speech' => 'adj',
+            'example_en' => 'She is happy.',
+            'example_hu' => 'Boldog.',
+            'adj_comparative' => 'happier',
+            'adj_superlative' => 'happiest',
+            'derived_forms' => $derivedForms,
+        ])]]]]],
+        'usageMetadata' => ['promptTokenCount' => 300, 'candidatesTokenCount' => 200],
+    ];
+}
+
+test('a képzett alakok kisbetűsítve, deduplikálva, /-szeparálva jönnek vissza', function () {
+    Http::fake(['generativelanguage.googleapis.com/*' => Http::response(
+        happyLookupResponse('Happily, happiness, HAPPILY')
+    )]);
+
+    $user = User::factory()->create(['ai_access' => true]);
+
+    $this->actingAs($user)
+        ->getJson(route('text-analysis.gemini-lookup', ['word' => 'happy']))
+        ->assertSuccessful()
+        ->assertJson(['derived_forms' => 'happily/happiness']);
+});
+
+test('a képzett alakok közül kimarad a lemma és a többi alak-mező által lefedett', function () {
+    Http::fake(['generativelanguage.googleapis.com/*' => Http::response(
+        happyLookupResponse('happy, happier, happiest, happily')
+    )]);
+
+    $user = User::factory()->create(['ai_access' => true]);
+
+    $this->actingAs($user)
+        ->getJson(route('text-analysis.gemini-lookup', ['word' => 'happy']))
+        ->assertSuccessful()
+        ->assertJson(['derived_forms' => 'happily']);
+});
+
+test('a nem szóalakú képzett alakokat eldobjuk (fail-closed)', function () {
+    Http::fake(['generativelanguage.googleapis.com/*' => Http::response(
+        happyLookupResponse('<script>alert(1)</script>, very happy indeed, 12345, happily')
+    )]);
+
+    $user = User::factory()->create(['ai_access' => true]);
+
+    // Csak az egyszavas, betűkből álló alak marad: a HTML, a többszavas
+    // kifejezés és a számsor mind kiesik.
+    $this->actingAs($user)
+        ->getJson(route('text-analysis.gemini-lookup', ['word' => 'happy']))
+        ->assertSuccessful()
+        ->assertJson(['derived_forms' => 'happily']);
+});
+
+test('a képzett alakok száma és hossza korlátozott (nem csonkolhat oszlopot)', function () {
+    Http::fake(['generativelanguage.googleapis.com/*' => Http::response(
+        happyLookupResponse('one, two, three, four, five, six')
+    )]);
+
+    $user = User::factory()->create(['ai_access' => true]);
+
+    $response = $this->actingAs($user)
+        ->getJson(route('text-analysis.gemini-lookup', ['word' => 'happy']))
+        ->assertSuccessful()
+        ->assertJson(['derived_forms' => 'one/two/three/four']);
+
+    expect(mb_strlen($response->json('derived_forms')))->toBeLessThanOrEqual(255);
+});
+
+test('üres vagy hiányzó derived_forms esetén null a mező', function () {
+    Http::fake(['generativelanguage.googleapis.com/*' => Http::response(
+        happyLookupResponse('')
+    )]);
+
+    $user = User::factory()->create(['ai_access' => true]);
+
+    $this->actingAs($user)
+        ->getJson(route('text-analysis.gemini-lookup', ['word' => 'happy']))
+        ->assertSuccessful()
+        ->assertJson(['derived_forms' => null]);
+});
