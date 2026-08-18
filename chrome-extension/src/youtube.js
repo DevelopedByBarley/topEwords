@@ -30,6 +30,9 @@ let ytPanelVideo = null;
 let ytPanelTimeHandler = null;
 let ytPanelLastUserScroll = 0;
 let ytControlsObserver = null;
+// A gomb-box újramérése ablak-átméretezésre / teljes képernyőre (a vezérlősor
+// ilyenkor méretet vált, de DOM-mutáció nem feltétlenül kíséri).
+let ytBoxSyncHandler = null;
 let ytLastCaptionText = '';
 // Bizonyíték, hogy az observer tud felirat-szöveget olvasni a natív DOM-ból
 // (.ytp-caption-segment). A natív feliratot csak ezután rejtjük el — ha a
@@ -153,6 +156,73 @@ function restoreNativeCaptionState() {
 
 // ── TW kapcsoló a lejátszó vezérlősorában ──
 
+/**
+ * Natív referencia-gomb a vezérlősorból. A méreteit másoljuk, mert a YouTube a
+ * gombok szélességét/paddingjét saját, gomb-specifikus osztályokon adja meg
+ * (`.ytp-subtitles-button` stb.), nem a közös `.ytp-button`-on — a mi gombunk
+ * ezért puszta `.ytp-button`-ként MÁS méretű boxot kap, mint a szomszédai.
+ */
+function ytNativeControlButton() {
+    return document.querySelector(
+        '.ytp-right-controls .ytp-subtitles-button, .ytp-right-controls .ytp-settings-button, .ytp-right-controls .ytp-fullscreen-button',
+    );
+}
+
+/**
+ * A TW gomb boxát és ikon-méretét a natív szomszédéra igazítja.
+ *
+ * Beégetett pixelek helyett menetenként MÉRÜNK: a vezérlősor mérete módonként
+ * változik (nagy mód, színház, teljes képernyő), és a YouTube a saját CSS-ét is
+ * átírhatja. A natív ikon rajzmezője négyzetes (a 36x36-os viewBox arányosan
+ * skálázódik), ezért a rövidebb oldalával számolunk — így a TW ikon ugyanolyan
+ * nagy és ugyanoda kerül, mint a natív CC/beállítás ikon.
+ */
+function syncYtToggleBox(btn) {
+    const ref = ytNativeControlButton();
+    const box = ref?.getBoundingClientRect();
+    const icon = ref?.querySelector('svg')?.getBoundingClientRect();
+
+    if (!box?.width || !box?.height || !icon?.width || !icon?.height) {
+        return;
+    }
+
+    const side = Math.min(icon.width, icon.height);
+
+    // A YouTube stíluslapja ellen inline `important` kell — a `.ytp-button`
+    // szabályai különben visszavehetnék a méretet.
+    setImportantStyles(btn, {
+        display: 'inline-flex',
+        'align-items': 'center',
+        'justify-content': 'center',
+        'align-self': 'center',
+        'box-sizing': 'border-box',
+        padding: '0',
+        width: `${box.width}px`,
+        height: `${box.height}px`,
+    });
+
+    const svg = btn.querySelector('svg');
+
+    if (svg) {
+        setImportantStyles(svg, {
+            width: `${side}px`,
+            height: `${side}px`,
+            'flex-shrink': '0',
+        });
+    }
+}
+
+/**
+ * @param {Element} el
+ * @param {Record<string, string>} styles
+ */
+function setImportantStyles(el, styles) {
+    for (const [property, value] of Object.entries(styles)) {
+        el.style.setProperty(property, value, 'important');
+    }
+}
+
+
 function injectYtToggle() {
     const controls = document.querySelector('.ytp-right-controls');
 
@@ -199,6 +269,8 @@ function updateYtToggleState() {
     if (!btn) {
         return;
     }
+
+    syncYtToggleBox(btn);
 
     const underline = btn.querySelector('.tw-underline');
 
@@ -1081,6 +1153,8 @@ function updateYtPanelToggleState() {
         return;
     }
 
+    syncYtToggleBox(btn);
+
     const underline = btn.querySelector('.tw-panel-underline');
 
     if (underline) {
@@ -1125,6 +1199,47 @@ function startYtControlsObserver() {
     const player =
         document.querySelector('#movie_player') ?? document.documentElement;
     ytControlsObserver.observe(player, { childList: true, subtree: true });
+
+    startYtBoxSyncListeners();
+}
+
+// A vezérlő-observer csak DOM-mutációt lát; méretváltásra (átméretezés, teljes
+// képernyő, színház mód) külön kell újramérni a gombok boxát.
+function startYtBoxSyncListeners() {
+    stopYtBoxSyncListeners();
+
+    let pending = false;
+    ytBoxSyncHandler = () => {
+        if (!extAlive()) {
+            stopYtBoxSyncListeners();
+
+            return;
+        }
+
+        if (pending) {
+            return;
+        }
+
+        pending = true;
+        requestAnimationFrame(() => {
+            pending = false;
+            updateYtToggleState();
+            updateYtPanelToggleState();
+        });
+    };
+
+    window.addEventListener('resize', ytBoxSyncHandler);
+    document.addEventListener('fullscreenchange', ytBoxSyncHandler);
+}
+
+function stopYtBoxSyncListeners() {
+    if (!ytBoxSyncHandler) {
+        return;
+    }
+
+    window.removeEventListener('resize', ytBoxSyncHandler);
+    document.removeEventListener('fullscreenchange', ytBoxSyncHandler);
+    ytBoxSyncHandler = null;
 }
 
 function destroyYtSubtitles() {
@@ -1132,6 +1247,7 @@ function destroyYtSubtitles() {
     ytObserver = null;
     ytControlsObserver?.disconnect();
     ytControlsObserver = null;
+    stopYtBoxSyncListeners();
     ytBarHost?.remove();
     ytBarHost = null;
     disableYtPanel();

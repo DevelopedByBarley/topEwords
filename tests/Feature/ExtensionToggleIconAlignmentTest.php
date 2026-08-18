@@ -94,3 +94,37 @@ test('a lejátszó-gombok ikonja a rajzmező közepén áll', function () {
         expect($icon['underline']['y'] + $icon['underline']['height'])->toBeLessThanOrEqual($icon['height'], "{$label}: az aláhúzás kilóg a rajzmezőből");
     }
 });
+
+/**
+ * Második lelet: a rajzmezőn belül középre igazított ikon MÉG nem elég — a
+ * gombunk puszta `.ytp-button`-ként más méretű boxot kap, mint a szomszédai
+ * (a YouTube a szélességet/paddingot gomb-specifikus osztályokon adja), így a
+ * 100%-os SVG nagyobbra skálázódott és feljebb állt a natív ikonoknál.
+ *
+ * A megoldás: futásidőben MÉRJÜK a natív szomszéd gombot, és arra igazítjuk a
+ * box + ikon méretét. Ez az őrszem azt védi, hogy a mérés meglegyen, minden
+ * lejátszó-gombra lefusson, és ne csússzon vissza beégetett pixelekre.
+ */
+test('a lejátszó-gombok boxa a natív szomszédról van lemérve', function () {
+    $source = file_get_contents(base_path('chrome-extension/src/youtube.js'));
+
+    expect($source)->toContain('function syncYtToggleBox(btn)');
+
+    preg_match('/function syncYtToggleBox\(btn\) \{(.*?)\n\}/s', $source, $sync);
+
+    // Mérés a natív gombról — nem beégetett méret.
+    expect($sync[1])->toContain('ytNativeControlButton()');
+    expect($sync[1])->toContain('getBoundingClientRect()');
+
+    // Mindkét YouTube-gomb állapot-frissítője igazítja a boxot, így a gombok a
+    // vezérlősor újrarenderelésekor és mód-váltás után is a helyükön maradnak.
+    foreach (['updateYtToggleState', 'updateYtPanelToggleState'] as $updater) {
+        preg_match('/function '.$updater.'\(\) \{(.*?)\n\}/s', $source, $body);
+
+        expect($body[1])->toContain('syncYtToggleBox(btn)');
+    }
+
+    // Méretváltás (átméretezés, teljes képernyő) DOM-mutáció nélkül is történhet.
+    expect($source)->toContain("window.addEventListener('resize', ytBoxSyncHandler)");
+    expect($source)->toContain("document.addEventListener('fullscreenchange', ytBoxSyncHandler)");
+});
