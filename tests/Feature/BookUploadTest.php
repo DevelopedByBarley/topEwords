@@ -330,3 +330,40 @@ test('getPage returns empty string for a corrupt compressed blob instead of erro
 
     expect($book->getPage(1))->toBe('');
 });
+
+test('a tárolt szöveg megtartja a bekezdés-határokat', function () {
+    // A feltöltés korábban `/\s+/`-fel normalizált, ami a SORTÖRÉSEKET is
+    // szóközzé olvasztotta — így a könyv egyetlen bekezdésként került a DB-be
+    // (mérve, Ender's Game: 635 312 karakter, 0 sortörés), és a kinyerés
+    // bekezdés-határai soha nem jutottak el a felületig. A felület a
+    // `text.split(/\n+/)`-en rendereli a bekezdéseket, tehát a sortörésnek
+    // végig kell érnie a tárolásig.
+    $user = User::factory()->create();
+
+    $path = makeEpub(
+        '<p>This is the first paragraph of the book and it is long enough to survive.</p>'.
+        '<p>This is the second paragraph of the book and it is also long enough.</p>'.
+        '<p>Blurb line one is here<br/>Blurb line two is here</p>'
+    );
+
+    $upload = new UploadedFile($path, 'paragraphs.epub', 'application/epub+zip', null, true);
+
+    $response = $this->actingAs($user)
+        ->post(route('text-analysis.books.store'), ['file' => $upload]);
+
+    $response->assertOk();
+
+    $stored = gzdecode(UserBook::where('user_id', $user->id)->sole()->compressed_text);
+
+    expect($stored)->toBe(
+        "This is the first paragraph of the book and it is long enough to survive.\n".
+        "This is the second paragraph of the book and it is also long enough.\n".
+        "Blurb line one is here\n".
+        'Blurb line two is here'
+    );
+
+    // A lap-válasz ugyanezt a szöveget adja vissza, tehát a felület is bekezdéseket kap.
+    expect($response->json('text'))->toContain("survive.\nThis is the second");
+
+    @unlink($path);
+});

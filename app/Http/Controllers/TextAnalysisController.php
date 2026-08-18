@@ -1699,7 +1699,15 @@ PROMPT;
             return response()->json(['error' => 'A fájl nem dolgozható fel. Lehet, hogy sérült vagy titkosított.'], 422);
         }
 
-        $text = preg_replace('/\s+/', ' ', trim($text)) ?? '';
+        // A vízszintes whitespace egy szóközre húzódik, a SORTÖRÉS viszont marad:
+        // a bekezdés-határ a BookTextExtractor kimenetének a lényege, és a
+        // felület ezen rendereli a bekezdéseket (`text.split(/\n+/)`). A korábbi
+        // `/\s+/` minta a sortöréseket is szóközzé olvasztotta, ezért a tárolt
+        // szöveg EGYETLEN bekezdés lett (mérve, Ender's Game: 635 312 karakter,
+        // 0 sortörés) — a kinyerés bekezdés-határai így soha nem jutottak el a
+        // felhasználóig, akármit adott a kinyerés.
+        $text = preg_replace('/[^\S\n]+/', ' ', $text) ?? $text;
+        $text = trim(preg_replace('/ ?\n ?/', "\n", $text) ?? $text);
 
         if (mb_strlen($text) < 100) {
             return response()->json(['error' => 'A fájlból nem sikerült szöveget kinyerni. Lehet, hogy a könyv csak képeket tartalmaz.'], 422);
