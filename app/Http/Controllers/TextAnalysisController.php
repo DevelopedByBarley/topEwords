@@ -11,6 +11,7 @@ use App\Services\AchievementService;
 use App\Services\AiCacheService;
 use App\Services\AiUsageService;
 use App\Services\ArticleTextExtractor;
+use App\Services\BookTextExtractor;
 use App\Services\WordFormMapService;
 use App\Services\WordFormVariants;
 use App\Services\WordStatusFormExpander;
@@ -37,6 +38,7 @@ class TextAnalysisController extends Controller
         private AiCacheService $aiCache,
         private WordFormMapService $wordFormMap,
         private ArticleTextExtractor $articleText,
+        private BookTextExtractor $bookText,
     ) {}
 
     /**
@@ -1867,7 +1869,7 @@ PROMPT;
                 break;
             }
 
-            $text = $this->htmlToCleanText($content);
+            $text = $this->bookText->extract($content);
             if (mb_strlen($text) > 60) {
                 $parts[] = $text;
             }
@@ -1879,78 +1881,6 @@ PROMPT;
         $this->assertBookTextWithinCap($text);
 
         return $text;
-    }
-
-    /**
-     * Convert an HTML/XHTML string to plain readable text,
-     * removing images, links' hrefs, navigation, and other non-prose noise.
-     */
-    private function htmlToCleanText(string $html): string
-    {
-        // Drop elements that never contain readable prose
-        $html = preg_replace(
-            '/<(script|style|img|figure|figcaption|nav|header|footer|aside|svg|math)[^>]*>.*?<\/\1>/si',
-            ' ',
-            $html
-        ) ?? $html;
-
-        // Self-closing img / br / hr
-        $html = preg_replace('/<(img|br|hr)[^>]*\/?>/si', ' ', $html) ?? $html;
-
-        // Replace block-level tags with newlines so sentences don't run together
-        $html = preg_replace('/<\/(p|div|li|h[1-6]|blockquote|tr|td|th)>/si', "\n", $html) ?? $html;
-
-        $text = strip_tags($html);
-        $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-
-        return $this->cleanExtractedText($text);
-    }
-
-    /**
-     * Remove URLs, lines that are mostly non-letter characters,
-     * and other common e-book garbage from extracted text.
-     */
-    private function cleanExtractedText(string $text): string
-    {
-        $lines = explode("\n", $text);
-        $clean = [];
-
-        foreach ($lines as $line) {
-            $line = trim($line);
-
-            if ($line === '') {
-                continue;
-            }
-
-            // Drop lines that look like URLs or file paths
-            if (preg_match('/^https?:\/\/\S+$/i', $line) || preg_match('/^www\.\S+$/i', $line)) {
-                continue;
-            }
-
-            // Drop lines where less than 50 % of characters are letters
-            // (catches: "* * *", "- - -", page numbers, ISBN lines, etc.)
-            $letterCount = preg_match_all('/[a-zA-Z]/u', $line);
-            $totalCount = mb_strlen($line);
-            if ($totalCount > 0 && ($letterCount / $totalCount) < 0.5) {
-                continue;
-            }
-
-            // Drop very short lines that are just one word (headers/captions/labels)
-            // but keep short lines if they're part of dialogue (start with " or —)
-            if (mb_strlen($line) < 15 && ! preg_match('/^["""—]/u', $line)) {
-                continue;
-            }
-
-            $clean[] = $line;
-        }
-
-        $result = implode("\n", $clean);
-
-        // Collapse runs of blank lines and excessive whitespace
-        $result = preg_replace('/(\s*\n\s*){3,}/', "\n\n", $result) ?? $result;
-        $result = preg_replace('/[ \t]+/', ' ', $result) ?? $result;
-
-        return trim($result);
     }
 
     /**
