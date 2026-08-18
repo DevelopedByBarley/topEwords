@@ -165,11 +165,16 @@ function injectYtToggle() {
     // A natív CC ikon stílusát követi: telt, lekerekített badge sötét
     // felirattal; bekapcsolva piros aláhúzás (mint a YouTube CC gombján).
     // display:block az svg-n, különben a baseline-ra ülve lejjebb csúszik.
+    //
+    // A badge a 36x36-os ikonmező KÖZEPÉRE van rajzolva (x 7..29, y 11..25),
+    // oda, ahol a natív CC ikon teste is van — így a gomb egy vonalban áll a
+    // lejátszó többi gombjával. A piros aláhúzás a natív mintát követve a
+    // badge ALATT lóg, ezért a be/ki állapot nem tolja el magát az ikont.
     btn.innerHTML = `
         <svg width="100%" height="100%" viewBox="0 0 36 36" style="display:block;pointer-events:none">
-            <rect x="1" y="5" width="22" height="14" rx="3" fill="#fff"/>
-            <text x="12" y="15.5" text-anchor="middle" font-family="Roboto, Arial, sans-serif" font-size="9" font-weight="800" fill="#0f0f0f">TW</text>
-            <rect class="tw-underline" x="5" y="22" width="14" height="2.5" rx="1.25" fill="#f00"/>
+            <rect x="7" y="11" width="22" height="14" rx="3" fill="#fff"/>
+            <text x="18" y="21.5" text-anchor="middle" font-family="Roboto, Arial, sans-serif" font-size="9" font-weight="800" fill="#0f0f0f">TW</text>
+            <rect class="tw-underline" x="11" y="26.5" width="14" height="2.5" rx="1.25" fill="#f00"/>
         </svg>
     `;
     btn.addEventListener('click', toggleYtLyrics);
@@ -1046,13 +1051,14 @@ function injectYtPanelToggle() {
 
     const btn = document.createElement('button');
     btn.className = 'ytp-button tw-yt-panel-toggle';
-    // A TW gomb ikonjának footprintjét követi (x≈1..23, y≈5..24), hogy egy vonalban legyen.
+    // A TW gomb ikonjának footprintjét követi (x 7..29, y 11..25 = az ikonmező
+    // közepe), hogy a két gomb egymással és a natív gombokkal is egy vonalban legyen.
     btn.innerHTML = `
         <svg width="100%" height="100%" viewBox="0 0 36 36" style="display:block;pointer-events:none">
-            <rect x="2" y="5.5" width="21" height="2.4" rx="1.2" fill="#fff"/>
-            <rect x="2" y="10.8" width="21" height="2.4" rx="1.2" fill="#fff"/>
-            <rect x="2" y="16.1" width="14" height="2.4" rx="1.2" fill="#fff"/>
-            <rect class="tw-panel-underline" x="5" y="20.5" width="14" height="2.5" rx="1.25" fill="#f00"/>
+            <rect x="7" y="11" width="22" height="2.4" rx="1.2" fill="#fff"/>
+            <rect x="7" y="16.8" width="22" height="2.4" rx="1.2" fill="#fff"/>
+            <rect x="7" y="22.6" width="14" height="2.4" rx="1.2" fill="#fff"/>
+            <rect class="tw-panel-underline" x="11" y="26.5" width="14" height="2.5" rx="1.25" fill="#f00"/>
         </svg>
     `;
     btn.addEventListener('click', toggleYtPanel);

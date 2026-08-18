@@ -329,10 +329,11 @@ function ensureNfxToggle() {
     shadow.innerHTML = `
         <style>${NFX_TOGGLE_CSS}</style>
         <button id="btn" title="TopWords felirat">
+            <!-- A badge a rajzmező közepén (x 5..31, y 4..20), az aláhúzás alatta lóg. -->
             <svg width="50" height="32" viewBox="0 0 36 24" style="display:block">
-                <rect x="1" y="3" width="26" height="16" rx="3" fill="#fff"/>
-                <text x="14" y="15" text-anchor="middle" font-family="Roboto, Arial, sans-serif" font-size="10" font-weight="800" fill="#0f0f0f">TW</text>
-                <rect class="tw-underline" x="6" y="21" width="16" height="2.5" rx="1.25" fill="#e50914"/>
+                <rect x="5" y="4" width="26" height="16" rx="3" fill="#fff"/>
+                <text x="18" y="15.5" text-anchor="middle" font-family="Roboto, Arial, sans-serif" font-size="10" font-weight="800" fill="#0f0f0f">TW</text>
+                <rect class="tw-underline" x="10" y="21" width="16" height="2.5" rx="1.25" fill="#e50914"/>
             </svg>
         </button>
     `;
