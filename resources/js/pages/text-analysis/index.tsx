@@ -15,7 +15,7 @@ import {
     postJson,
     saveHistory,
 } from '@/components/text-analysis/types';
-import type { AnalysisResult, HistoryEntry, InputMode, LyricSegment, PageDirection, TokenStatus, UserBook, VideoOverview, YoutubeTranscript } from '@/components/text-analysis/types';
+import type { AnalysisResult, HistoryEntry, InputMode, LyricSegment, PageDirection, StoredSession, TokenStatus, UserBook, VideoOverview, YoutubeTranscript } from '@/components/text-analysis/types';
 import WordLookupDialog from '@/components/text-analysis/word-lookup-dialog';
 import { WholeVideoBanner, YoutubeList, YoutubeReader } from '@/components/text-analysis/youtube-panel';
 import { Button } from '@/components/ui/button';
@@ -64,9 +64,15 @@ export default function TextAnalysis() {
     const [bookLimit, setBookLimit] = useState<number>(1);
     const [usedStorage, setUsedStorage] = useState<number>(0);
     const [booksLoaded, setBooksLoaded] = useState(false);
-    const [activeBook, setActiveBook] = useState<UserBook | null>(null);
-    const [bookPage, setBookPage] = useState(1);
-    const [bookOverview, setBookOverview] = useState<VideoOverview | 'failed' | null>(null);
+    const [activeBook, setActiveBook] = useState<UserBook | null>(sessionData.activeBook ?? null);
+    const [bookPage, setBookPage] = useState(sessionData.bookPage ?? 1);
+    /*
+      Helyreállításkor nem kérünk új összesítőt: a `bookOverview` cache-miss a
+      napi elemzés-keretbe számít, egy lap-újratöltés pedig nem elemzés-kérés.
+      Adat nélkül ezért a sávot elrejtjük („failed" = nem mutatjuk) — különben a
+      null-ra a banner örökre a „Teljes könyv kiértékelése…" jelzőn állna.
+    */
+    const [bookOverview, setBookOverview] = useState<VideoOverview | 'failed' | null>(sessionData.bookOverview ?? 'failed');
 
     // YouTube-feliratok (külön rendszer)
     const [transcripts, setTranscripts] = useState<YoutubeTranscript[]>([]);
@@ -152,16 +158,19 @@ return;
     }, []);  
 
     useEffect(() => {
+        const session: StoredSession = { mode, text, urlInput, fetchedSource, result, activeBook, bookPage, bookOverview };
+
         try {
-            sessionStorage.setItem(sessionKey(userId), JSON.stringify({ mode, text, urlInput, fetchedSource, result }));
+            sessionStorage.setItem(sessionKey(userId), JSON.stringify(session));
         } catch {
             try {
-                sessionStorage.setItem(sessionKey(userId), JSON.stringify({ mode, text, urlInput, fetchedSource, result: null }));
+                // Kvóta-hiba: az eredmény a legnagyobb tétel — nélküle is helyreáll az olvasó.
+                sessionStorage.setItem(sessionKey(userId), JSON.stringify({ ...session, result: null }));
             } catch {
                 // ignore quota errors
             }
         }
-    }, [mode, text, urlInput, fetchedSource, result, userId]);
+    }, [mode, text, urlInput, fetchedSource, result, activeBook, bookPage, bookOverview, userId]);
 
     /*
       A kiválasztott fül listája MOUNTOLÁSKOR is betöltődik, nem csak

@@ -221,7 +221,25 @@ export function addHistoryEntry(entry: Omit<HistoryEntry, 'id' | 'date'>, userId
     saveHistory([newEntry, ...filtered].slice(0, MAX_HISTORY), userId);
 }
 
-export function loadSession(userId?: number): Partial<{ mode: InputMode; text: string; urlInput: string; fetchedSource: string | null; result: AnalysisResult | null }> {
+/**
+ * A lap-újratöltés / oldalváltás után helyreállított állapot.
+ *
+ * A könyv-olvasó mezői is ide tartoznak: nélkülük frissítés után az elemzett
+ * lap ott maradt a képernyőn, de a kiválasztott könyv nélkül sem az olvasó, sem
+ * a lapozó nem rendert — a lap aljáról eltűnt az „Előző/Következő oldal".
+ */
+export interface StoredSession {
+    mode: InputMode;
+    text: string;
+    urlInput: string;
+    fetchedSource: string | null;
+    result: AnalysisResult | null;
+    activeBook: UserBook | null;
+    bookPage: number;
+    bookOverview: VideoOverview | 'failed' | null;
+}
+
+export function loadSession(userId?: number): Partial<StoredSession> {
     try {
         if (typeof window === 'undefined') {
             return {};

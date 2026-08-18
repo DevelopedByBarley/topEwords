@@ -367,3 +367,30 @@ test('a tárolt szöveg megtartja a bekezdés-határokat', function () {
 
     @unlink($path);
 });
+
+test('a feltöltés válaszának első lapja is szóhatáron végződik', function () {
+    // A feltöltés válasza a lap-végpont MÁSODIK vágási helye volt: nyers
+    // `mb_substr()`-rel az első lap a határon álló szót kettévágta, és a
+    // felhasználó a feltöltés utáni első képernyőn látta a fél szót.
+    $user = User::factory()->create();
+
+    // A mondathossz szándékos: a nominális 5000. karakter a „handling" szó
+    // közepére esik, tehát a nyers vágás itt tényleg kettévágná a szót.
+    $prose = str_repeat('<p>This is a sufficiently long sentence of readable prose about page boundary handling.</p>', 200);
+    $path = makeEpub($prose);
+    $upload = new UploadedFile($path, 'book.epub', 'application/epub+zip', null, true);
+
+    $response = $this->actingAs($user)->post(route('text-analysis.books.store'), ['file' => $upload]);
+    @unlink($path);
+
+    $response->assertOk();
+    $book = UserBook::where('user_id', $user->id)->sole();
+
+    $firstPage = $response->json('text');
+    // A határt közrefogó két karakter — szóhatáron az egyikük szóköz vagy sortörés.
+    $seam = mb_substr($firstPage, -1).mb_substr($book->getPage(2), 0, 1);
+
+    expect($book->total_pages)->toBeGreaterThan(1)
+        ->and($firstPage)->toBe($book->getPage(1))
+        ->and($seam)->toMatch('/\s/');
+});

@@ -104,3 +104,27 @@ test('WORD-1: a kattintott szó normalizált kulccsal megy a részletezőbe', fu
         ->toContain('setLookupWord(tokenKey(word));')
         ->not->toContain('setLookupWord(word.toLowerCase());');
 });
+
+test('BOOK-3: a lap-újratöltés megtartja a kiválasztott könyvet és a lapszámot', function () {
+    // A sessionStorage csak a `mode`/`text`/`fetchedSource`/`result` négyest
+    // tartotta meg, az `activeBook` viszont sima React-state volt: frissítés
+    // után az elemzett lap ott maradt a képernyőn, de kiválasztott könyv nélkül
+    // sem az olvasó, sem a lapozó nem rendert — a lap aljáról eltűnt az
+    // „Előző/Következő oldal".
+    $page = detailParitySource('js/pages/text-analysis/index.tsx');
+    $types = detailParitySource('js/components/text-analysis/types.ts');
+
+    // A mentett állapot alakja egy helyen van definiálva, és tartalmazza az olvasót.
+    expect($types)
+        ->toContain('export interface StoredSession')
+        ->toContain('activeBook: UserBook | null;')
+        ->toContain('bookPage: number;');
+
+    // A lap ezt az alakot menti, és ebből indul a state.
+    expect($page)
+        ->toContain('const session: StoredSession = { mode, text, urlInput, fetchedSource, result, activeBook, bookPage, bookOverview };')
+        ->toContain('useState<UserBook | null>(sessionData.activeBook ?? null)')
+        ->toContain('useState(sessionData.bookPage ?? 1)')
+        // Helyreállításkor nem indul új összesítő-kérés (az a napi elemzés-keretbe számítana).
+        ->toContain("useState<VideoOverview | 'failed' | null>(sessionData.bookOverview ?? 'failed')");
+});

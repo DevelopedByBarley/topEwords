@@ -1795,7 +1795,7 @@ PROMPT;
                 'total_pages' => $book->total_pages,
             ],
             'page' => 1,
-            'text' => mb_substr($text, 0, UserBook::PAGE_SIZE),
+            'text' => UserBook::slicePage($text, 1),
         ]);
     }
 
