@@ -61,7 +61,8 @@ interface WordLookupDialogProps {
         nextStatus: TokenStatus | null,
         fallback: TokenStatus,
     ) => void;
-    onCustomAdded: (word: string) => void;
+    /** A felvitt szó a választott státuszával — a szöveg azonnal ezt mutassa. */
+    onCustomAdded: (word: string, status: WordStatus) => void;
 }
 
 /**
@@ -352,7 +353,7 @@ export default function WordLookupDialog({
 
             if (ok) {
                 setAddedCustom(true);
-                onCustomAdded(word);
+                onCustomAdded(word, form.status);
 
                 return;
             }

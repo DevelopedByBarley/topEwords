@@ -28,6 +28,7 @@ import { sanitizeUploadFilename } from '@/lib/sanitize-filename';
 import { analyze as analyzeRoute, fetchSource as fetchSourceRoute, show as textAnalysisShow } from '@/routes/text-analysis';
 import { destroy as destroyBook, index as booksIndex, overview as bookOverviewRoute, page as bookPageRoute, store as storeBook } from '@/routes/text-analysis/books';
 import { destroy as ytDestroy, index as ytIndex, overview as ytOverviewRoute, page as ytPageRoute, store as ytStore } from '@/routes/text-analysis/youtube';
+import type { WordStatus } from '@/types/words';
 
 /** A szerver oldali `max:15000` validáció párja (TextAnalysisController@analyze). */
 const TEXT_MAX_LENGTH = 15000;
@@ -727,8 +728,16 @@ learningDelta += freq;
         });
     };
 
-    const handleCustomAdded = (word: string) => {
-        setResult((prev) => prev ? { ...prev, tokenStatuses: { ...prev.tokenStatuses, [word]: 'not_in_list' } } : prev);
+    /**
+     * Új saját szó/kifejezés felvitele után a szöveg azonnal a választott
+     * státuszt mutassa. Korábban itt fix `not_in_list` került a token-térképbe:
+     * a felvitt szó színe nem változott, a többszavas kifejezés pedig kimaradt a
+     * `phraseStatuses`-ból, ezért csak a MÁSODIK (dialógusból indított)
+     * státuszváltás után lett kiemelt és egyben kattintható. A státuszt ezért
+     * ugyanaz az egy út alkalmazza, mint a dialógus státuszgombjait.
+     */
+    const handleCustomAdded = (word: string, status: WordStatus) => {
+        handleLookupStatusChange(word, null, status, 'not_in_list');
     };
 
     return (

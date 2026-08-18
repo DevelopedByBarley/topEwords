@@ -128,3 +128,28 @@ test('BOOK-3: a lap-újratöltés megtartja a kiválasztott könyvet és a lapsz
         // Helyreállításkor nem indul új összesítő-kérés (az a napi elemzés-keretbe számítana).
         ->toContain("useState<VideoOverview | 'failed' | null>(sessionData.bookOverview ?? 'failed')");
 });
+
+test('WORD-2: az újonnan felvitt szó/kifejezés azonnal a választott státuszt kapja', function () {
+    // A lelet: a felvitel után a szöveg nem változott. A dialógus a felvitelnél
+    // választott státuszt nem adta tovább, a szülő pedig fix `not_in_list`-et írt
+    // a token-térképbe — a többszavas kifejezés így ki is maradt a
+    // `phraseStatuses`-ból, ezért csak a MÁSODIK, dialógusból indított
+    // státuszváltás után lett kiemelt és egyben kattintható.
+    $dialog = detailParitySource('js/components/text-analysis/word-lookup-dialog.tsx');
+    $page = detailParitySource('js/pages/text-analysis/index.tsx');
+
+    // A dialógus a tényleg elmentett státuszt adja tovább.
+    expect($dialog)
+        ->toContain('onCustomAdded: (word: string, status: WordStatus) => void;')
+        ->toContain('onCustomAdded(word, form.status);');
+
+    // A szülő ugyanazon az EGY úton alkalmazza, mint a státuszgombokat…
+    expect($page)
+        ->toContain('const handleCustomAdded = (word: string, status: WordStatus) => {')
+        ->toContain("handleLookupStatusChange(word, null, status, 'not_in_list');")
+        // …és ez az út az, ami a kifejezést a `phraseStatuses`-ba teszi (ettől
+        // lesz a kifejezés egyetlen kattintható egység a szövegben).
+        ->toContain('phraseStatuses[phraseKey(word)] = nextStatus;')
+        // A korábbi, státuszt eldobó írás nem térhet vissza.
+        ->not->toContain("tokenStatuses: { ...prev.tokenStatuses, [word]: 'not_in_list' }");
+});
