@@ -1,4 +1,5 @@
 import { BookMarked, BookOpen, CheckCheck, Clock, FileText, Globe, HelpCircle, Mic, PenLine, Youtube } from 'lucide-react';
+import type { WordStatus } from '@/types/words';
 
 export type InputMode = 'text' | 'youtube' | 'url' | 'book';
 
@@ -57,9 +58,33 @@ export interface HistoryEntry {
 
 export type TokenStatus = 'known' | 'learning' | 'saved' | 'pronunciation' | 'practice' | 'in_list' | 'not_in_list';
 
+/**
+ * Egy megtalált szó szótári mezői (TextAnalysisController::lookupDetails).
+ * Ugyanaz az adatkör, amit a szólista részletező modálja is kiír, hogy a
+ * szövegelemző dialógusa ugyanazt a nézetet (WordDetailSections) renderelhesse.
+ */
+export interface LookupWordDetails {
+    word: string;
+    meaning_hu: string | null;
+    extra_meanings: string | null;
+    synonyms: string | null;
+    part_of_speech: string | null;
+    form_base: string | null;
+    verb_past: string | null;
+    verb_past_participle: string | null;
+    verb_present_participle: string | null;
+    verb_third_person: string | null;
+    is_irregular: boolean;
+    noun_plural: string | null;
+    adj_comparative: string | null;
+    adj_superlative: string | null;
+    example_en: string | null;
+    example_hu: string | null;
+}
+
 export type LookupResult =
-    | { type: 'word'; id: number; word: string; meaning_hu: string | null; example_en: string | null; part_of_speech: string | null; rank: number; status: string | null }
-    | { type: 'custom'; id: number; word: string; meaning_hu: string | null; example_en: string | null; part_of_speech: string | null; status: string | null }
+    | (LookupWordDetails & { type: 'word'; id: number; rank: number; status: WordStatus; importance: number | null })
+    | (LookupWordDetails & { type: 'custom'; id: number; status: WordStatus; importance: number | null })
     | { type: 'not_found'; word: string };
 
 export interface UnknownWord {
@@ -80,22 +105,6 @@ export interface AnalysisResult {
     phraseStatuses?: Record<string, TokenStatus>;
     topUnknown: UnknownWord[];
 }
-
-export type CustomWordForm = {
-    meaning_hu: string; extra_meanings: string; synonyms: string;
-    part_of_speech: string; example_en: string; example_hu: string;
-    verb_past: string; verb_past_participle: string;
-    verb_present_participle: string; verb_third_person: string;
-    is_irregular: boolean; noun_plural: string;
-    adj_comparative: string; adj_superlative: string;
-};
-
-export const EMPTY_CUSTOM_WORD_FORM: CustomWordForm = {
-    meaning_hu: '', extra_meanings: '', synonyms: '', part_of_speech: '',
-    example_en: '', example_hu: '', verb_past: '', verb_past_participle: '',
-    verb_present_participle: '', verb_third_person: '', is_irregular: false,
-    noun_plural: '', adj_comparative: '', adj_superlative: '',
-};
 
 export interface TokenStatusMeta {
     /** A szóra kerülő kiemelés — üres, ha a státusz nem kap színt. */

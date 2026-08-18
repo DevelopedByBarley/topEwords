@@ -45,6 +45,27 @@ test('verified user can create a word-specific report', function () {
     ]);
 });
 
+test('a json report gets a json receipt instead of a redirect', function () {
+    // A szövegelemző szó-részletezője JSON-kérésként küldi a bejelentést: egy
+    // redirect ott újrarántaná az oldalt, és a betöltött szöveg, az elemzés és a
+    // könyv-lap (mind lokális kliens-state) elveszne.
+    $word = Word::where('word', 'the')->firstOrFail();
+
+    $this->postJson(route('report.store'), [
+        'category' => 'word_data',
+        'description' => 'Hibás a jelentés.',
+        'word_id' => $word->id,
+    ])
+        ->assertOk()
+        ->assertJson(['ok' => true]);
+
+    $this->assertDatabaseHas('reports', [
+        'user_id' => $this->user->id,
+        'category' => 'word_data',
+        'word_id' => $word->id,
+    ]);
+});
+
 test('guest cannot create a report', function () {
     auth()->logout();
 

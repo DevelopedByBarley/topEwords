@@ -163,9 +163,21 @@ return;
         }
     }, [mode, text, urlInput, fetchedSource, result, userId]);
 
+    /*
+      A kiválasztott fül listája MOUNTOLÁSKOR is betöltődik, nem csak
+      fül-váltásra. A könyv-lista korábban csak a switchMode()-ból töltött, így
+      ha a lap eleve könyv-módban jött vissza (a mód a sessionStorage-ból áll
+      helyre, pl. másik oldalról visszalépve), a `booksLoaded` örökre false
+      maradt, és a lista a betöltés-jelzőnél ragadt — a könyvek csak akkor jöttek
+      be, ha a felhasználó fület váltott és visszaváltott.
+    */
     useEffect(() => {
         if (mode === 'youtube' && !youtubeLoaded) {
             fetchTranscripts();
+        }
+
+        if (mode === 'book' && !booksLoaded) {
+            fetchBooks();
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [mode]);
@@ -478,9 +490,18 @@ return;
         setUpgradeUrl(null);
     };
 
-    /** A „Új elemzés" YouTube módban csak az eredményt zárja — az olvasó (felirat + teljes %) megmarad. */
+    /**
+     * A „Új elemzés" olvasó-módban (YouTube-felirat, könyv) csak az eredményt
+     * zárja — a betöltött lap szövege és a teljes % megmarad, a felhasználó
+     * ugyanott lapozhat tovább.
+     *
+     * Könyv-módban ez korábban a teljes reset()-et hívta: az `fetchedSource`
+     * kiürült, az `activeBook` viszont megmaradt, így a fül SEM a listát (azt az
+     * `activeBook` zárta ki), SEM az olvasót (ahhoz kell a szöveg) nem
+     * rendelte — a fül üresen állt, míg a felhasználó fület nem váltott.
+     */
     const handleResultReset = () => {
-        if (mode === 'youtube' && activeTranscript) {
+        if ((mode === 'youtube' && activeTranscript) || (mode === 'book' && activeBook)) {
             setResult(null);
             setError(null);
             setUpgradeUrl(null);
@@ -520,13 +541,11 @@ return;
         // reset() clears fetchedSource, so an already-selected book/transcript
         // must be deselected too — otherwise the tab renders neither the list
         // nor the reader and stays blank.
+        // A lista betöltése a mód-effekt dolga (mountoláskor is kell) — itt csak
+        // a kiválasztást bontjuk, különben dupla kérés menne.
         if (m === 'book') {
             setActiveBook(null);
             setBookOverview(null);
-
-            if (!booksLoaded) {
-                fetchBooks();
-            }
         }
 
         if (m === 'youtube') {
@@ -938,7 +957,14 @@ learningDelta += freq;
 
                         {mode === 'book' && (
                             <>
-                                {!activeBook && (
+                                {/*
+                                  A lista akkor is látszik, ha van kiválasztott
+                                  könyv, de nincs betöltött lap (pl. a lap
+                                  betöltése elhasalt): olvasó nélkül a fül
+                                  különben üresen maradna. Betöltés közben nem
+                                  villan be — azt az `isLoadingPage` zárja ki.
+                                */}
+                                {(!activeBook || (fetchedSource === null && !isLoadingPage)) && (
                                     <BookList
                                         books={books}
                                         bookLimit={bookLimit}

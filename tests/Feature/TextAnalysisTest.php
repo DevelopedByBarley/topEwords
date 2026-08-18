@@ -604,6 +604,89 @@ test('every word lookup outcome carries a type field', function () {
         ->assertJsonPath('type', 'not_found');
 });
 
+test('a word lookup returns the same field set the word list detail modal renders', function () {
+    // A szövegelemző dialógusa ugyanazt a részletező nézetet rendereli, mint a
+    // szólista modálja (WordDetailSections). Ha ezek a mezők nem jönnek le, ott
+    // némán eltűnnek az alakok, a szinonimák és a magyar példamondat.
+    $interest = Word::where('word', 'interest')->firstOrFail();
+    $interest->update([
+        'extra_meanings' => 'kamat, érdek',
+        'synonyms' => 'curiosity, concern',
+        'example_en' => 'She showed interest.',
+        'example_hu' => 'Érdeklődést mutatott.',
+        'is_irregular' => 0,
+    ]);
+    $this->user->knownWords()->attach($interest->id, ['status' => 'learning', 'importance' => 4]);
+
+    $this->getJson(route('text-analysis.word-lookup', ['word' => 'interests']))
+        ->assertOk()
+        ->assertJson([
+            'type' => 'word',
+            'id' => $interest->id,
+            'word' => 'interest',
+            'meaning_hu' => 'érdeklődés',
+            'extra_meanings' => 'kamat, érdek',
+            'synonyms' => 'curiosity, concern',
+            'part_of_speech' => 'noun',
+            'noun_plural' => 'interests',
+            'verb_past' => 'interested',
+            'verb_past_participle' => 'interested',
+            'verb_present_participle' => 'interesting',
+            'verb_third_person' => 'interests',
+            'is_irregular' => false,
+            'example_en' => 'She showed interest.',
+            'example_hu' => 'Érdeklődést mutatott.',
+            'rank' => 500,
+            'status' => 'learning',
+            'importance' => 4,
+        ]);
+});
+
+test('a word lookup marks an irregular verb and reports a missing pivot as empty', function () {
+    $run = Word::where('word', 'run')->firstOrFail();
+    $run->update(['is_irregular' => 1]);
+
+    $this->getJson(route('text-analysis.word-lookup', ['word' => 'ran']))
+        ->assertOk()
+        ->assertJsonPath('is_irregular', true)
+        // Nincs pivot: se státusz, se csillag — a dialógus üres gombsort mutat.
+        ->assertJsonPath('status', null)
+        ->assertJsonPath('importance', null);
+});
+
+test('a custom word lookup returns its forms and importance', function () {
+    $custom = $this->user->customWords()->create([
+        'word' => 'ephemeral',
+        'meaning_hu' => 'tünékeny',
+        'extra_meanings' => 'rövid életű',
+        'synonyms' => 'fleeting, transient',
+        'part_of_speech' => 'adj',
+        'adj_comparative' => 'more ephemeral',
+        'adj_superlative' => 'most ephemeral',
+        'example_en' => 'An ephemeral joy.',
+        'example_hu' => 'Tünékeny öröm.',
+        'is_irregular' => false,
+        'status' => 'saved',
+        'importance' => 2,
+    ]);
+
+    $this->getJson(route('text-analysis.word-lookup', ['word' => 'ephemeral']))
+        ->assertOk()
+        ->assertJson([
+            'type' => 'custom',
+            'id' => $custom->id,
+            'word' => 'ephemeral',
+            'extra_meanings' => 'rövid életű',
+            'synonyms' => 'fleeting, transient',
+            'adj_comparative' => 'more ephemeral',
+            'adj_superlative' => 'most ephemeral',
+            'example_hu' => 'Tünékeny öröm.',
+            'is_irregular' => false,
+            'status' => 'saved',
+            'importance' => 2,
+        ]);
+});
+
 test('unauthenticated word lookup returns 401 json instead of a fake result', function () {
     auth()->logout();
 

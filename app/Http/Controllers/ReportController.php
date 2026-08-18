@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreReportRequest;
 use App\Models\Report;
 use App\Notifications\ReportSubmitted;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Validation\ValidationException;
@@ -12,7 +13,7 @@ use Throwable;
 
 class ReportController extends Controller
 {
-    public function store(StoreReportRequest $request): RedirectResponse
+    public function store(StoreReportRequest $request): RedirectResponse|JsonResponse
     {
         $today = Report::where('user_id', $request->user()->id)
             ->whereDate('created_at', today())
@@ -27,6 +28,14 @@ class ReportController extends Controller
         $report = $request->user()->reports()->create($request->validated());
 
         $this->notifyAdmin($report);
+
+        // A szövegelemző szó-részletezője JSON-kérésként küldi a bejelentést: egy
+        // redirect ott újrarántaná az oldalt, és a betöltött szöveg, az elemzés és
+        // a könyv-lap (mind lokális kliens-state) elveszne. Ugyanaz az elágazás,
+        // mint a TogglesWordStatus nyugtáinál — az Inertia-felület redirectet vár.
+        if (! $request->hasHeader('X-Inertia') && $request->expectsJson()) {
+            return response()->json(['ok' => true]);
+        }
 
         // Nincs flash-üzenet: a sikert az oldal saját visszaigazoló panelje mutatja
         // (pages/report/index.tsx). A globális toast ugyanazt a mondatot ismételné meg.

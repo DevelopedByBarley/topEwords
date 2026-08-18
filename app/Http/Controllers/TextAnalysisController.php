@@ -129,11 +129,9 @@ class TextAnalysisController extends Controller
             return response()->json([
                 'type' => 'custom',
                 'id' => $customWord->id,
-                'word' => $customWord->word,
-                'meaning_hu' => $customWord->meaning_hu,
-                'example_en' => $customWord->example_en,
-                'part_of_speech' => $customWord->part_of_speech,
+                ...$this->lookupDetails($customWord),
                 'status' => $customWord->status,
+                'importance' => $customWord->importance,
             ]);
         }
 
@@ -150,18 +148,50 @@ class TextAnalysisController extends Controller
             return response()->json(['type' => 'not_found', 'word' => $raw]);
         }
 
-        $status = $user->knownWords()->wherePivot('word_id', $word->id)->first()?->pivot->status;
+        $pivot = $user->knownWords()->wherePivot('word_id', $word->id)->first()?->pivot;
 
         return response()->json([
             'type' => 'word',
             'id' => $word->id,
-            'word' => $word->word,
-            'meaning_hu' => $word->meaning_hu,
-            'example_en' => $word->example_en,
-            'part_of_speech' => $word->part_of_speech,
+            ...$this->lookupDetails($word),
             'rank' => $word->rank,
-            'status' => $status,
+            'status' => $pivot?->status,
+            'importance' => $pivot?->importance,
         ]);
+    }
+
+    /**
+     * Egy lookup-találat szótári mezői.
+     *
+     * A szövegelemző dialógusa ugyanazt a részletező nézetet rendereli, mint a
+     * szólista modálja (WordDetailSections), ezért ugyanazt az adatkört kell
+     * megkapnia: korábban csak a jelentés, a szófaj és egy angol példamondat
+     * jött, így a további jelentések, a szinonimák, a magyar példamondat és
+     * mind a 8 alak-mező láthatatlan maradt a szövegelemzőben — noha a szólista
+     * ugyanarra a szóra mind kiírta.
+     *
+     * @return array<string, mixed>
+     */
+    private function lookupDetails(Word|UserCustomWord $row): array
+    {
+        return [
+            'word' => $row->word,
+            'meaning_hu' => $row->meaning_hu,
+            'extra_meanings' => $row->extra_meanings,
+            'synonyms' => $row->synonyms,
+            'part_of_speech' => $row->part_of_speech,
+            'form_base' => $row->form_base,
+            'verb_past' => $row->verb_past,
+            'verb_past_participle' => $row->verb_past_participle,
+            'verb_present_participle' => $row->verb_present_participle,
+            'verb_third_person' => $row->verb_third_person,
+            'is_irregular' => (bool) $row->is_irregular,
+            'noun_plural' => $row->noun_plural,
+            'adj_comparative' => $row->adj_comparative,
+            'adj_superlative' => $row->adj_superlative,
+            'example_en' => $row->example_en,
+            'example_hu' => $row->example_hu,
+        ];
     }
 
     public function fetchSource(Request $request): JsonResponse

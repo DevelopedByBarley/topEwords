@@ -43,15 +43,18 @@ import {
     speak,
     wordToFormData,
 } from '@/components/words/word-config';
+import WordDetailSections from '@/components/words/word-detail-sections';
 import WordFilters from '@/components/words/word-filters';
 import WordFormFields from '@/components/words/word-form-fields';
 import WordInsightPanel from '@/components/words/word-insight-panel';
 import WordProgressCard from '@/components/words/word-progress-card';
 import WordRow from '@/components/words/word-row';
 import type { UnifiedItem } from '@/components/words/word-row';
-import { absorbAiBudget } from '@/lib/ai-budget';
-import { httpErrorMessage } from '@/lib/http';
-import { withMinDuration } from '@/lib/min-duration';
+import {
+    fetchGeminiWord,
+    lemmaNotice,
+    mergeGeminiData,
+} from '@/lib/gemini-word';
 import {
     destroy as destroyCustomWord,
     importance as customWordImportance,
@@ -545,47 +548,11 @@ export default function WordsIndex({
         );
     }, []);
 
-    // Az AI által visszaadott mezőket beolvasztja a meglévő űrlapba. Ahol az AI
-    // ad értéket, az felülírja a korábbit (admin szerkesztésnél így újratölt),
-    // ahol nem, ott a meglévő érték marad. A `wordOverride` (ha meg van adva) az
-    // alapszó, amire a `word` mezőt is átállítjuk — csak új szó felvitelekor.
-    function mergeGeminiData(
-        prev: WordFormData,
-        data: any,
-        wordOverride?: string,
-    ): WordFormData {
-        return {
-            ...prev,
-            word: wordOverride ?? prev.word,
-            // Lemmára váltáskor (pl. „successfully" → „successful") a beírt eredeti
-            // alakot külön elmentjük, hogy a szó-felismerés később arra is találjon.
-            extra_forms:
-                wordOverride && wordOverride !== prev.word
-                    ? prev.word
-                    : prev.extra_forms,
-            meaning_hu: data.meaning_hu || prev.meaning_hu,
-            extra_meanings: data.extra_meanings || prev.extra_meanings,
-            synonyms: data.synonyms || prev.synonyms,
-            part_of_speech: data.part_of_speech || prev.part_of_speech,
-            example_en: data.example_en || prev.example_en,
-            example_hu: data.example_hu || prev.example_hu,
-            verb_past: data.verb_past || prev.verb_past,
-            verb_past_participle:
-                data.verb_past_participle || prev.verb_past_participle,
-            verb_present_participle:
-                data.verb_present_participle || prev.verb_present_participle,
-            verb_third_person: data.verb_third_person || prev.verb_third_person,
-            is_irregular: data.is_irregular ?? prev.is_irregular,
-            noun_plural: data.noun_plural || prev.noun_plural,
-            adj_comparative: data.adj_comparative || prev.adj_comparative,
-            adj_superlative: data.adj_superlative || prev.adj_superlative,
-        };
-    }
-
     /**
-     * Lekéri a Gemini szóadatot és beolvasztja a megadott űrlapba. Több modal is
+     * Lekéri az AI szóadatot és beolvasztja a megadott űrlapba. Több modal is
      * használja (saját szó hozzáadása, admin szó szerkesztése), ezért a setter és
-     * a hiba-kezelő paraméterként jön.
+     * a hiba-kezelő paraméterként jön. A lekérés és a beolvasztás a közös
+     * `@/lib/gemini-word`-ben él — ugyanazt futtatja a szövegelemző dialógusa is.
      */
     async function handleGeminiAutofill(
         rawWord: string,
@@ -606,62 +573,15 @@ export default function WordsIndex({
         setGeminiLoading(true);
 
         try {
-            const csrfToken =
-                document
-                    .querySelector('meta[name="csrf-token"]')
-                    ?.getAttribute('content') ?? '';
-            const res = await withMinDuration(
-                fetch(
-                    `/text-analysis/gemini-lookup?word=${encodeURIComponent(word)}`,
-                    {
-                        headers: {
-                            'X-CSRF-TOKEN': csrfToken,
-                            Accept: 'application/json',
-                        },
-                    },
-                ),
-            );
-            const data = await res.json().catch(() => ({}));
+            const result = await fetchGeminiWord(word);
 
-            absorbAiBudget(data);
-
-            // A 429-es AI-keret válaszban az `error` gépi kód (ai_limit), az
-            // emberi szöveg a `message`-ben jön; a többi hibaágon az `error`
-            // maga a magyar üzenet.
-            if (!res.ok || data.error) {
-                setErrors({
-                    word:
-                        data.message ??
-                        data.error ??
-                        httpErrorMessage(
-                            res.status,
-                            'Az AI-kitöltés nem sikerült — próbáld újra.',
-                        ),
-                });
+            if (!result.ok) {
+                setErrors({ word: result.error });
 
                 return;
             }
 
-            // Az AI nem létező szónak ítélte (gibberish / elgépelés): jelezzük, nem töltünk ki kamu adatot.
-            if (data.is_real_word === false) {
-                setErrors({
-                    word:
-                        data.message ??
-                        'Ez nem tűnik valódi angol szónak. Ellenőrizd a helyesírást.',
-                });
-
-                return;
-            }
-
-            // A beírt szó ragozott alak volt (helped): az AI a „help" alapszóra
-            // lemmatizált. Új szó felvitelekor (switchWord) az alapszóra állítjuk
-            // a `word` mezőt is, és jelezzük; admin-szerkesztésnél csak jelzünk,
-            // mert ott egy konkrét, létező sort szerkeszt a felhasználó — a szó
-            // néma átírása véletlen átnevezés lenne.
-            const lemma =
-                data.normalized_from_input && data.base_form
-                    ? (data.base_form as string)
-                    : null;
+            const { data, lemma } = result;
 
             applyForm((prev) =>
                 mergeGeminiData(
@@ -672,16 +592,8 @@ export default function WordsIndex({
             );
 
             if (lemma) {
-                setGeminiBaseFormNotice(
-                    switchWord
-                        ? `A(z) „${word}" a(z) „${lemma}" ragozott alakja — az alapszóból indultunk ki.`
-                        : `A(z) „${word}" a(z) „${lemma}" ragozott alakja. A kitöltött alakok az alapszóra vonatkoznak.`,
-                );
+                setGeminiBaseFormNotice(lemmaNotice(word, lemma, switchWord));
             }
-        } catch {
-            setErrors({
-                word: 'Nincs hálózati kapcsolat — az AI-kitöltés nem sikerült.',
-            });
         } finally {
             setGeminiLoading(false);
         }
@@ -1426,166 +1338,8 @@ export default function WordsIndex({
                                     </div>
                                 </div>
                                 <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-5">
-                                    {cw.meaning_hu && (
-                                        <div className="rounded-xl border bg-card px-4 py-3.5">
-                                            <p className="mb-1.5 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
-                                                Magyar jelentés
-                                            </p>
-                                            <p className="text-lg leading-snug font-semibold">
-                                                {cw.meaning_hu}
-                                            </p>
-                                            {cw.extra_meanings && (
-                                                <p className="mt-1 text-sm text-muted-foreground">
-                                                    {cw.extra_meanings}
-                                                </p>
-                                            )}
-                                        </div>
-                                    )}
-                                    {cw.synonyms && (
-                                        <div className="rounded-xl border bg-card px-4 py-3.5">
-                                            <p className="mb-2 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
-                                                Szinonimák
-                                            </p>
-                                            <div className="flex flex-wrap gap-1.5">
-                                                {cw.synonyms
-                                                    .split(',')
-                                                    .map((s) => s.trim())
-                                                    .filter(Boolean)
-                                                    .map((s) => (
-                                                        <span
-                                                            key={s}
-                                                            className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium"
-                                                        >
-                                                            {s}
-                                                        </span>
-                                                    ))}
-                                            </div>
-                                        </div>
-                                    )}
-                                    {cw.verb_past && (
-                                        <div className="rounded-xl border bg-card px-4 py-3.5">
-                                            <p className="mb-3 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
-                                                Igealakok
-                                            </p>
-                                            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                                                {(
-                                                    [
-                                                        {
-                                                            label: 'Alap',
-                                                            value: cw.form_base,
-                                                        },
-                                                        {
-                                                            label: 'Múlt idő',
-                                                            value: cw.verb_past,
-                                                        },
-                                                        {
-                                                            label: 'Befejezett igenév',
-                                                            value: cw.verb_past_participle,
-                                                        },
-                                                        {
-                                                            label: 'Folyamatos (-ing)',
-                                                            value: cw.verb_present_participle,
-                                                        },
-                                                        {
-                                                            label: 'E/3 jelen',
-                                                            value: cw.verb_third_person,
-                                                        },
-                                                    ] as const
-                                                )
-                                                    .filter(
-                                                        ({ value }) => value,
-                                                    )
-                                                    .map(({ label, value }) => (
-                                                        <div
-                                                            key={label}
-                                                            className="rounded-lg bg-muted/50 px-3 py-2"
-                                                        >
-                                                            <p className="text-[10px] text-muted-foreground">
-                                                                {label}
-                                                            </p>
-                                                            <p className="font-semibold">
-                                                                {value}
-                                                            </p>
-                                                        </div>
-                                                    ))}
-                                            </div>
-                                        </div>
-                                    )}
-                                    {cw.noun_plural && (
-                                        <div className="rounded-xl border bg-card px-4 py-3.5">
-                                            <p className="mb-3 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
-                                                Többes szám
-                                            </p>
-                                            <div className="flex items-center gap-3">
-                                                <div className="rounded-lg bg-muted/50 px-3 py-2">
-                                                    <p className="text-[10px] text-muted-foreground">
-                                                        Egyes szám
-                                                    </p>
-                                                    <p className="font-semibold">
-                                                        {cw.form_base ??
-                                                            cw.word}
-                                                    </p>
-                                                </div>
-                                                <span className="text-muted-foreground">
-                                                    →
-                                                </span>
-                                                <div className="rounded-lg bg-muted/50 px-3 py-2">
-                                                    <p className="text-[10px] text-muted-foreground">
-                                                        Többes szám
-                                                    </p>
-                                                    <p className="font-semibold">
-                                                        {cw.noun_plural}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )}
-                                    {cw.adj_comparative && (
-                                        <div className="rounded-xl border bg-card px-4 py-3.5">
-                                            <p className="mb-3 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
-                                                Fokozás
-                                            </p>
-                                            <div className="flex gap-2">
-                                                {cw.adj_comparative && (
-                                                    <div className="rounded-lg bg-muted/50 px-3 py-2">
-                                                        <p className="text-[10px] text-muted-foreground">
-                                                            Középfok
-                                                        </p>
-                                                        <p className="font-semibold">
-                                                            {cw.adj_comparative}
-                                                        </p>
-                                                    </div>
-                                                )}
-                                                {cw.adj_superlative && (
-                                                    <div className="rounded-lg bg-muted/50 px-3 py-2">
-                                                        <p className="text-[10px] text-muted-foreground">
-                                                            Felsőfok
-                                                        </p>
-                                                        <p className="font-semibold">
-                                                            {cw.adj_superlative}
-                                                        </p>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    )}
-                                    {(cw.example_en || cw.example_hu) && (
-                                        <div className="rounded-xl border-l-4 border-primary/40 bg-muted/30 px-4 py-3.5">
-                                            <p className="mb-2 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
-                                                Példamondat
-                                            </p>
-                                            {cw.example_en && (
-                                                <p className="text-sm font-medium italic">
-                                                    "{cw.example_en}"
-                                                </p>
-                                            )}
-                                            {cw.example_hu && (
-                                                <p className="mt-1 text-sm text-muted-foreground italic">
-                                                    "{cw.example_hu}"
-                                                </p>
-                                            )}
-                                        </div>
-                                    )}
+                                    <WordDetailSections data={cw} />
+
                                     <StatusButtons
                                         variant="modal"
                                         current={cw.status}
@@ -1931,209 +1685,10 @@ export default function WordsIndex({
 
                             {/* Scrollable body */}
                             <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-5">
-                                {/* Jelentés */}
-                                <div className="rounded-xl border bg-card px-4 py-3.5">
-                                    <p className="mb-1.5 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
-                                        {flipMode ? 'Angol' : 'Magyar jelentés'}
-                                    </p>
-                                    {flipMode ? (
-                                        <p className="flex items-center gap-2 text-lg font-semibold">
-                                            {selectedWord.word}
-                                            <button
-                                                onClick={() =>
-                                                    speak(selectedWord.word)
-                                                }
-                                                className="rounded p-0.5 text-muted-foreground hover:text-foreground"
-                                            >
-                                                <Volume2 className="size-3.5" />
-                                            </button>
-                                        </p>
-                                    ) : selectedWord.meaning_hu ? (
-                                        <>
-                                            <p className="text-lg leading-snug font-semibold">
-                                                {selectedWord.meaning_hu}
-                                            </p>
-                                            {selectedWord.extra_meanings && (
-                                                <p className="mt-1 text-sm text-muted-foreground">
-                                                    {
-                                                        selectedWord.extra_meanings
-                                                    }
-                                                </p>
-                                            )}
-                                        </>
-                                    ) : (
-                                        <p className="text-muted-foreground italic">
-                                            Nincs fordítás megadva
-                                        </p>
-                                    )}
-                                </div>
-
-                                {/* Igealakok — a szófajtól függetlenül látszik, ha
-                                    a szó hordoz igealakot (pl. "interest" főnév + ige) */}
-                                {selectedWord.verb_past && (
-                                    <div className="rounded-xl border bg-card px-4 py-3.5">
-                                        <p className="mb-3 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
-                                            Igealakok
-                                        </p>
-                                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                                            {(
-                                                [
-                                                    {
-                                                        label: 'Alap',
-                                                        value:
-                                                            selectedWord.form_base ||
-                                                            selectedWord.word,
-                                                    },
-                                                    {
-                                                        label: 'Múlt idő',
-                                                        value: selectedWord.verb_past,
-                                                    },
-                                                    {
-                                                        label: 'Befejezett igenév',
-                                                        value: selectedWord.verb_past_participle,
-                                                    },
-                                                    {
-                                                        label: 'Folyamatos (-ing)',
-                                                        value: selectedWord.verb_present_participle,
-                                                    },
-                                                    {
-                                                        label: 'E/3 jelen',
-                                                        value: selectedWord.verb_third_person,
-                                                    },
-                                                ] as const
-                                            )
-                                                .filter(({ value }) => value)
-                                                .map(({ label, value }) => (
-                                                    <div
-                                                        key={label}
-                                                        className="rounded-lg bg-muted/50 px-3 py-2"
-                                                    >
-                                                        <p className="text-[10px] text-muted-foreground">
-                                                            {label}
-                                                        </p>
-                                                        <p className="font-semibold">
-                                                            {value}
-                                                        </p>
-                                                    </div>
-                                                ))}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Többes szám — szófajtól függetlenül, ha van adat */}
-                                {selectedWord.noun_plural && (
-                                    <div className="rounded-xl border bg-card px-4 py-3.5">
-                                        <p className="mb-3 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
-                                            Többes szám
-                                        </p>
-                                        <div className="flex items-center gap-3">
-                                            <div className="rounded-lg bg-muted/50 px-3 py-2">
-                                                <p className="text-[10px] text-muted-foreground">
-                                                    Egyes szám
-                                                </p>
-                                                <p className="font-semibold">
-                                                    {selectedWord.form_base ||
-                                                        selectedWord.word}
-                                                </p>
-                                            </div>
-                                            <span className="text-muted-foreground">
-                                                →
-                                            </span>
-                                            <div className="rounded-lg bg-muted/50 px-3 py-2">
-                                                <p className="text-[10px] text-muted-foreground">
-                                                    Többes szám
-                                                </p>
-                                                <p className="font-semibold">
-                                                    {selectedWord.noun_plural}
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Fokozás — szófajtól függetlenül, ha van adat */}
-                                {selectedWord.adj_comparative && (
-                                    <div className="rounded-xl border bg-card px-4 py-3.5">
-                                        <p className="mb-3 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
-                                            Fokozás
-                                        </p>
-                                        <div className="flex flex-wrap items-center gap-2">
-                                            <div className="rounded-lg bg-muted/50 px-3 py-2">
-                                                <p className="text-[10px] text-muted-foreground">
-                                                    Alapfok
-                                                </p>
-                                                <p className="font-semibold">
-                                                    {selectedWord.form_base ||
-                                                        selectedWord.word}
-                                                </p>
-                                            </div>
-                                            <span className="text-muted-foreground">
-                                                →
-                                            </span>
-                                            <div className="rounded-lg bg-muted/50 px-3 py-2">
-                                                <p className="text-[10px] text-muted-foreground">
-                                                    Középfok
-                                                </p>
-                                                <p className="font-semibold">
-                                                    {
-                                                        selectedWord.adj_comparative
-                                                    }
-                                                </p>
-                                            </div>
-                                            <span className="text-muted-foreground">
-                                                →
-                                            </span>
-                                            <div className="rounded-lg bg-muted/50 px-3 py-2">
-                                                <p className="text-[10px] text-muted-foreground">
-                                                    Felsőfok
-                                                </p>
-                                                <p className="font-semibold">
-                                                    {
-                                                        selectedWord.adj_superlative
-                                                    }
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Szinonimák */}
-                                {selectedWord.synonyms && (
-                                    <div>
-                                        <p className="mb-2 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
-                                            Szinonimák
-                                        </p>
-                                        <div className="flex flex-wrap gap-1.5">
-                                            {selectedWord.synonyms
-                                                .split(',')
-                                                .map((s) => (
-                                                    <span
-                                                        key={s.trim()}
-                                                        className="rounded-full border bg-muted/40 px-2.5 py-1 text-xs font-medium"
-                                                    >
-                                                        {s.trim()}
-                                                    </span>
-                                                ))}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Példamondat */}
-                                {selectedWord.example_en && (
-                                    <div className="rounded-xl border-l-4 border-primary/40 bg-muted/30 px-4 py-3.5">
-                                        <p className="mb-2 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
-                                            Példamondat
-                                        </p>
-                                        <p className="text-sm font-medium italic">
-                                            "{selectedWord.example_en}"
-                                        </p>
-                                        {selectedWord.example_hu && (
-                                            <p className="mt-1 text-sm text-muted-foreground">
-                                                "{selectedWord.example_hu}"
-                                            </p>
-                                        )}
-                                    </div>
-                                )}
+                                <WordDetailSections
+                                    data={selectedWord}
+                                    flipMode={flipMode}
+                                />
 
                                 {/* Státusz */}
                                 <StatusButtons
