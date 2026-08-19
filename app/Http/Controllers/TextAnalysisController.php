@@ -1508,6 +1508,41 @@ PROMPT;
             return response()->json(['error' => 'Érvénytelen szó.'], 422);
         }
 
+        $result = $this->runWordLookup($word, $context, $request->user());
+
+        if (! $result['ok']) {
+            return $this->aiFailureResponse($result, $request->user());
+        }
+
+        $data = $result['data'];
+
+        if (! is_array($data)) {
+            return response()->json(['error' => 'Érvénytelen válasz.'], 502);
+        }
+
+        // Nem valódi szó: nem töltünk ki kamu szótári adatot, egyértelműen jelezzük.
+        if (($data['is_real_word'] ?? true) === false) {
+            return response()->json([
+                'is_real_word' => false,
+                'message' => 'Ez nem tűnik valódi angol szónak. Ellenőrizd a helyesírást.',
+            ]);
+        }
+
+        return response()->json($this->lookupFields($data, $word));
+    }
+
+    /**
+     * A szótári lekérdezés magja: prompt + séma + Gemini-hívás + cache.
+     *
+     * A HTTP-végpont és az admin alak-kitöltő is ezt hívja, hogy a prompt, a
+     * séma, a modell-lánc és a cache MINDENHOL ugyanaz legyen — külön másolat
+     * idővel elcsúszna, és a kitöltés mást adna, mint amit a felületen látsz.
+     *
+     * @param  string  $context  A mondat, amiben a szó áll; üres string esetén cache-elünk.
+     * @return array{ok: bool, data: mixed, error?: string, error_code?: string, cost_micros?: int}
+     */
+    private function runWordLookup(string $word, string $context, ?User $user): array
+    {
         $apiKey = config('services.gemini.api_key');
 
         $contextBlock = $context
@@ -1540,7 +1575,7 @@ PROMPT;
         // csonkolódhat → érvénytelen JSON → 502. A keret felső korlát, csak a ténylegesen
         // generált tokenért fizetünk, így a tágítás a normál válaszok költségét nem növeli.
         [$primary, $fallback] = $this->modelsFor('lookup');
-        $generator = fn () => $this->callGemini($apiKey, $prompt, 700, $primary, $fallback, temperature: 0.2, responseSchema: $this->lookupSchema(), user: $request->user());
+        $generator = fn () => $this->callGemini($apiKey, $prompt, 700, $primary, $fallback, temperature: 0.2, responseSchema: $this->lookupSchema(), user: $user);
 
         // Csak valódi szót cache-elünk: egy nem létező szóra (gibberish, elgépelés)
         // adott hallucinált válasz nem mérgezheti meg a mindenki által használt cache-t.
@@ -1552,24 +1587,18 @@ PROMPT;
             ? $this->aiCache->remember('lookup', $word, self::AI_CACHE_VERSION['lookup'], $primary, $generator, $onlyRealWords)
             : $generator();
 
-        if (! $result['ok']) {
-            return $this->aiFailureResponse($result, $request->user());
-        }
+        return $result;
+    }
 
-        $data = $result['data'];
-
-        if (! is_array($data)) {
-            return response()->json(['error' => 'Érvénytelen válasz.'], 502);
-        }
-
-        // Nem valódi szó: nem töltünk ki kamu szótári adatot, egyértelműen jelezzük.
-        if (($data['is_real_word'] ?? true) === false) {
-            return response()->json([
-                'is_real_word' => false,
-                'message' => 'Ez nem tűnik valódi angol szónak. Ellenőrizd a helyesírást.',
-            ]);
-        }
-
+    /**
+     * A modell nyers válaszából a kliens (és az admin kitöltő) felé menő,
+     * megtisztított mezők. A `derived_forms` itt esik át a fail-closed szűrésen.
+     *
+     * @param  array<string, mixed>  $data  A modell nyers válasza
+     * @return array<string, mixed>
+     */
+    private function lookupFields(array $data, string $word): array
+    {
         // A modell a beírt ragozott alakot (pl. "helped") lemmatizálja ("help"),
         // és minden mezőt a lemmára tölt ki. A base_form-ot ugyanúgy betűkre
         // szűrjük, mint a bemenetet; ha üres/érvénytelen, a beírt szóra esünk vissza.
@@ -1580,7 +1609,7 @@ PROMPT;
         // Csak akkor jelezzük „kiinduló alak" cserét, ha a lemma ténylegesen eltér.
         $normalizedFromInput = $baseForm !== $word ? $baseForm : null;
 
-        return response()->json([
+        return [
             'is_real_word' => true,
             'base_form' => $baseForm,
             'normalized_from_input' => $normalizedFromInput,
@@ -1600,6 +1629,84 @@ PROMPT;
             'adj_superlative' => $data['adj_superlative'] ?? null,
             'derived_forms' => $this->sanitizeDerivedForms($data['derived_forms'] ?? null, $baseForm, $data),
             'context_explanation' => $data['context_explanation'] ?? null,
+        ];
+    }
+
+    /**
+     * Az admin gyors-kitöltő által tölthető oszlopok, és hogy a lookup-válasz
+     * melyik mezőjéből. Szándékosan CSAK alak-oszlopok szerepelnek: a jelentést,
+     * a további jelentéseket, a szinonimákat, a példamondatokat és a szófajt a
+     * kitöltő nem érinti.
+     *
+     * @var array<string, string>
+     */
+    private const ADMIN_FILLABLE_FORM_COLUMNS = [
+        'verb_past' => 'verb_past',
+        'verb_past_participle' => 'verb_past_participle',
+        'verb_present_participle' => 'verb_present_participle',
+        'verb_third_person' => 'verb_third_person',
+        'noun_plural' => 'noun_plural',
+        'adj_comparative' => 'adj_comparative',
+        'adj_superlative' => 'adj_superlative',
+        'extra_forms' => 'derived_forms',
+    ];
+
+    /**
+     * Egy fő szólistás szó HIÁNYZÓ alak-mezőinek kitöltése AI-jal (admin).
+     *
+     * A szólista sorában lévő gyors gomb hívja: egy kattintás = egy szó. A
+     * szerkesztő-dialógus AI-gombjával szemben ez SOHA nem ír felül meglévő
+     * értéket, csak az üres alak-oszlopokat tölti — így a felhalmozott
+     * jelentések és példamondatok akkor is érintetlenek maradnak, ha végig-
+     * kattintod a teljes listát. Emiatt idempotens is: a második kattintásnak
+     * már nincs mit tennie.
+     */
+    public function adminFillWordForms(Request $request, Word $word): JsonResponse
+    {
+        Gate::authorize('admin');
+
+        $result = $this->runWordLookup($word->word, '', $request->user());
+
+        if (! $result['ok']) {
+            return $this->aiFailureResponse($result, $request->user());
+        }
+
+        $data = $result['data'];
+
+        if (! is_array($data)) {
+            return response()->json(['error' => 'Érvénytelen válasz.'], 502);
+        }
+
+        if (($data['is_real_word'] ?? true) === false) {
+            return response()->json(['error' => 'Az AI nem ismerte fel valódi szónak — töltsd ki kézzel.'], 422);
+        }
+
+        $fields = $this->lookupFields($data, $word->word);
+
+        $updates = [];
+
+        foreach (self::ADMIN_FILLABLE_FORM_COLUMNS as $column => $source) {
+            // Meglévő értéket sosem írunk felül — csak a ténylegesen üres oszlopot.
+            if (trim((string) $word->{$column}) !== '') {
+                continue;
+            }
+
+            $value = trim((string) ($fields[$source] ?? ''));
+
+            if ($value !== '') {
+                $updates[$column] = $value;
+            }
+        }
+
+        if ($updates !== []) {
+            // save() kell (nem query update), hogy a NormalizesExtraForms szűrés
+            // lefusson és az updated_at bumpjától a felismerő-térkép cache rotáljon.
+            $word->fill($updates)->save();
+        }
+
+        return response()->json([
+            'filled' => array_keys($updates),
+            'word' => $word->only(['id', ...array_keys(self::ADMIN_FILLABLE_FORM_COLUMNS)]),
         ]);
     }
 

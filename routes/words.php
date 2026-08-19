@@ -18,6 +18,13 @@ Route::middleware(['auth', 'verified', EnsureOnboardingComplete::class])->group(
     Route::get('words/search', [WordController::class, 'search'])->name('words.search');
     Route::patch('words/{word}', [WordController::class, 'update'])->name('words.update')->middleware('can:admin');
 
+    // Admin gyors alak-kitöltő: egy kattintás = egy szó HIÁNYZÓ alak-mezői.
+    // Meglévő értéket nem ír felül, ezért végigkattintható a lista anélkül, hogy
+    // a felhalmozott jelentések és példamondatok cserélődnének.
+    Route::post('words/{word}/ai-fill', [TextAnalysisController::class, 'adminFillWordForms'])
+        ->name('words.ai-fill')
+        ->middleware(['can:admin', 'throttle:60,1,admin-ai-fill', 'ai.budget']);
+
     Route::middleware('throttle:300,1,word-writes')->group(function () {
         Route::post('words/{word}/status', [WordController::class, 'status'])->name('words.status');
         Route::post('words/{word}/importance', [WordController::class, 'importance'])->name('words.importance');

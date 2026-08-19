@@ -55,6 +55,8 @@ import {
     lemmaNotice,
     mergeGeminiData,
 } from '@/lib/gemini-word';
+import { httpErrorMessage, postJson } from '@/lib/http';
+import { showToast } from '@/lib/toast';
 import {
     destroy as destroyCustomWord,
     importance as customWordImportance,
@@ -68,6 +70,7 @@ import { destroy, store, update } from '@/routes/folders';
 import { update as folderWordUpdate } from '@/routes/folders/words';
 import { store as storeReport } from '@/routes/report';
 import {
+    aiFill,
     importance as wordImportance,
     index,
     status,
@@ -664,6 +667,53 @@ export default function WordsIndex({
         });
     }
 
+    // Admin gyors alak-kitöltő. A sorok memoizáltak, ezért a kezelő üres
+    // dependency-vel stabil, és soronként csak a SAJÁT állapotát kapja meg —
+    // így egy kitöltés nem rendereli újra a másik 999 sort.
+    const [aiFillStates, setAiFillStates] = useState<
+        Record<number, 'loading' | 'done'>
+    >({});
+
+    const handleAiFill = useCallback(async (word: Word) => {
+        setAiFillStates((prev) => ({ ...prev, [word.id]: 'loading' }));
+
+        const {
+            ok,
+            status: httpStatus,
+            data,
+        } = await postJson(aiFill(word.id).url);
+
+        if (!ok) {
+            setAiFillStates((prev) => {
+                const next = { ...prev };
+                delete next[word.id];
+
+                return next;
+            });
+            showToast(
+                'error',
+                typeof data.error === 'string'
+                    ? data.error
+                    : httpErrorMessage(
+                          httpStatus,
+                          'A kitöltés nem sikerült — próbáld újra.',
+                      ),
+            );
+
+            return;
+        }
+
+        const filled = Array.isArray(data.filled) ? data.filled : [];
+
+        setAiFillStates((prev) => ({ ...prev, [word.id]: 'done' }));
+        showToast(
+            filled.length > 0 ? 'success' : 'info',
+            filled.length > 0
+                ? `„${word.word}" — kitöltve: ${filled.join(', ')}`
+                : `„${word.word}" — nem volt üres alak-mező.`,
+        );
+    }, []);
+
     const handleCustomWordStatus = useCallback(
         (wordId: number, newStatus: Exclude<WordStatus, null>) => {
             router.post(
@@ -1201,6 +1251,11 @@ export default function WordsIndex({
                                     onStatus={handleStatus}
                                     onCustomStatus={handleCustomWordStatus}
                                     onPractice={openPracticeModal}
+                                    isAdmin={isAdmin}
+                                    aiFillState={
+                                        aiFillStates[item.data.id] ?? 'idle'
+                                    }
+                                    onAiFill={handleAiFill}
                                 />
                             ))}
                         </ul>

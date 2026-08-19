@@ -1,4 +1,4 @@
-import { Info, Sparkles, Volume2 } from 'lucide-react';
+import { Check, Info, Loader2, Sparkles, Volume2, Wand2 } from 'lucide-react';
 import { memo } from 'react';
 import StatusButtons from '@/components/words/status-buttons';
 import {
@@ -21,6 +21,10 @@ interface WordRowProps {
     onStatus: (word: Word, status: Exclude<WordStatus, null>) => void;
     onCustomStatus: (id: number, status: Exclude<WordStatus, null>) => void;
     onPractice: (word: string, meaning_hu: string | null) => void;
+    /** Admin gyors alak-kitöltő: csak adminnak látszik, csak a fő listás szavakon. */
+    isAdmin: boolean;
+    aiFillState?: 'idle' | 'loading' | 'done';
+    onAiFill: (word: Word) => void;
 }
 
 /**
@@ -37,6 +41,9 @@ function WordRow({
     onStatus,
     onCustomStatus,
     onPractice,
+    isAdmin,
+    aiFillState = 'idle',
+    onAiFill,
 }: WordRowProps) {
     return (
         <li
@@ -82,6 +89,30 @@ function WordRow({
                     className="shrink-0 cursor-pointer rounded p-1 text-indigo-500 transition-colors hover:bg-indigo-50 hover:text-indigo-700 dark:hover:bg-indigo-950/30"
                 >
                     <Sparkles className="size-3.5" />
+                </button>
+            )}
+            {isAdmin && item.type === 'regular' && (
+                <button
+                    onClick={() => onAiFill(item.data as Word)}
+                    disabled={aiFillState !== 'idle'}
+                    title={
+                        aiFillState === 'done'
+                            ? 'A hiányzó alakok kitöltve'
+                            : 'Hiányzó alakok kitöltése AI-jal (meglévőt nem ír felül)'
+                    }
+                    className={`shrink-0 cursor-pointer rounded p-1 transition-colors disabled:cursor-default ${
+                        aiFillState === 'done'
+                            ? 'text-green-600 dark:text-green-500'
+                            : 'text-amber-600 hover:bg-amber-50 hover:text-amber-700 dark:text-amber-500 dark:hover:bg-amber-950/30'
+                    }`}
+                >
+                    {aiFillState === 'loading' ? (
+                        <Loader2 className="size-3.5 animate-spin" />
+                    ) : aiFillState === 'done' ? (
+                        <Check className="size-3.5" />
+                    ) : (
+                        <Wand2 className="size-3.5" />
+                    )}
                 </button>
             )}
             <StatusButtons
