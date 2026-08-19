@@ -336,6 +336,8 @@ export default function WordsIndex({
                     params.source !== undefined
                         ? params.source
                         : filters.source,
+                forms:
+                    params.forms !== undefined ? params.forms : filters.forms,
                 per_page:
                     params.per_page !== undefined
                         ? params.per_page
@@ -365,6 +367,7 @@ export default function WordsIndex({
             importance: null,
             folder: null,
             source: '',
+            forms: '',
             page: 1,
         });
     }
@@ -1030,6 +1033,7 @@ export default function WordsIndex({
                     markedLetters={markedLetters}
                     customTotal={customStats.total}
                     perPageOptions={PER_PAGE_OPTIONS}
+                    isAdmin={isAdmin}
                 />
 
                 {/* Folder dialog */}
@@ -1280,7 +1284,12 @@ export default function WordsIndex({
                                     onPractice={openPracticeModal}
                                     isAdmin={isAdmin}
                                     aiFillState={
-                                        aiFillStates[item.data.id] ?? 'idle'
+                                        item.type === 'regular'
+                                            ? (aiFillStates[item.data.id] ??
+                                              (item.data.forms_checked
+                                                  ? 'done'
+                                                  : 'idle'))
+                                            : 'idle'
                                     }
                                     onAiFill={handleAiFill}
                                 />

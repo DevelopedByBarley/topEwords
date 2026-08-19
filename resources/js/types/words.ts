@@ -27,6 +27,8 @@ export interface Word {
     adj_comparative: string | null;
     adj_superlative: string | null;
     extra_forms: string | null;
+    /** Megnézte-e már ezt a szót az admin alak-kitöltő (üres találat esetén is igaz). */
+    forms_checked: boolean;
     example_en: string | null;
     example_hu: string | null;
     status: WordStatus;
@@ -112,6 +114,8 @@ export interface WordFilterValues {
     folder: number | null;
     /** 'custom' = csak a saját szavak; üres = a teljes lista. */
     source: string;
+    /** Admin alak-kitöltő haladása: 'unchecked' | 'checked' | üres (mind). */
+    forms: string;
     per_page: number;
 }
 

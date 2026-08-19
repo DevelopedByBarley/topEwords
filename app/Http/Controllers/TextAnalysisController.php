@@ -1698,15 +1698,22 @@ PROMPT;
             }
         }
 
-        if ($updates !== []) {
-            // save() kell (nem query update), hogy a NormalizesExtraForms szűrés
-            // lefusson és az updated_at bumpjától a felismerő-térkép cache rotáljon.
-            $word->fill($updates)->save();
-        }
+        // Az ellenőrzést AKKOR IS rögzítjük, ha nem volt mit tölteni: a
+        // függvényszavaknak (the, of, and) sosem lesz kitöltött alakja, mégis ki
+        // kell esniük a „még nincs ellenőrizve" szűrőből, különben örökre benne
+        // ragadnának és a lista végigkattintása követhetetlen lenne.
+        $word->forms_checked_at = now();
+
+        // save() kell (nem query update), hogy a NormalizesExtraForms szűrés
+        // lefusson és az updated_at bumpjától a felismerő-térkép cache rotáljon.
+        $word->fill($updates)->save();
 
         return response()->json([
             'filled' => array_keys($updates),
-            'word' => $word->only(['id', ...array_keys(self::ADMIN_FILLABLE_FORM_COLUMNS)]),
+            'word' => [
+                ...$word->only(['id', ...array_keys(self::ADMIN_FILLABLE_FORM_COLUMNS)]),
+                'forms_checked' => true,
+            ],
         ]);
     }
 

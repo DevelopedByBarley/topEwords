@@ -58,6 +58,9 @@ class WordController extends Controller
                 'adj_comparative' => $word->adj_comparative,
                 'adj_superlative' => $word->adj_superlative,
                 'extra_forms' => $word->extra_forms,
+                // Boolean, nem időbélyeg: a felületnek csak az kell, hogy az admin
+                // alak-kitöltő megnézte-e már — így az UTC/lokál-idő kérdés fel sem jön.
+                'forms_checked' => $word->forms_checked_at !== null,
                 'example_en' => $word->example_en,
                 'example_hu' => $word->example_hu,
                 'status' => $pageMarks->get($word->id)?->status,

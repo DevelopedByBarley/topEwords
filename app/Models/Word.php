@@ -12,6 +12,16 @@ class Word extends Model
 {
     use NormalizesExtraForms;
 
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'forms_checked_at' => 'datetime',
+        ];
+    }
+
     protected static function booted(): void
     {
         static::saving(function (Word $word): void {

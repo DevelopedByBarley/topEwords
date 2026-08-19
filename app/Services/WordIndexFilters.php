@@ -31,12 +31,14 @@ class WordIndexFilters
         private ?int $importance,
         private ?int $folderId,
         private string $source,
+        private string $formsChecked,
         private int $perPage,
     ) {}
 
     public static function fromRequest(Request $request): self
     {
         $perPage = (int) $request->input('per_page');
+        $formsChecked = $request->string('forms')->trim()->lower()->value();
 
         return new self(
             user: $request->user(),
@@ -47,6 +49,7 @@ class WordIndexFilters
             importance: $request->integer('importance') ?: null,
             folderId: $request->integer('folder') ?: null,
             source: $request->string('source')->trim()->lower()->value() === 'custom' ? 'custom' : '',
+            formsChecked: in_array($formsChecked, ['checked', 'unchecked'], true) ? $formsChecked : '',
             perPage: in_array($perPage, self::ALLOWED_PER_PAGE, true) ? $perPage : self::DEFAULT_PER_PAGE,
         );
     }
@@ -66,6 +69,7 @@ class WordIndexFilters
             'importance' => $this->importance,
             'folder' => $this->folderId,
             'source' => $this->source,
+            'forms' => $this->formsChecked,
             'per_page' => $this->perPage,
         ];
     }
@@ -84,7 +88,12 @@ class WordIndexFilters
             ->when($this->level !== null, fn (Builder $q) => $q->where('level', $this->level))
             ->when($this->status !== '', fn (Builder $q) => $q->whereIn('id', $this->pivot()->where('status', $this->status)->select('word_id')))
             ->when($this->importance !== null, fn (Builder $q) => $q->whereIn('id', $this->pivot()->where('importance', $this->importance)->select('word_id')))
-            ->when($folderWordIds !== null, fn (Builder $q) => $q->whereIn('id', $folderWordIds));
+            ->when($folderWordIds !== null, fn (Builder $q) => $q->whereIn('id', $folderWordIds))
+            // Admin alak-kitöltő haladás-szűrője: 'unchecked' = amit még nem
+            // néztünk meg. Nem érzékeny adat (szótári metaadat), ezért nincs
+            // szerver-oldali kapu; a szűrő-chip a felületen admin-only.
+            ->when($this->formsChecked === 'unchecked', fn (Builder $q) => $q->whereNull('forms_checked_at'))
+            ->when($this->formsChecked === 'checked', fn (Builder $q) => $q->whereNotNull('forms_checked_at'));
     }
 
     public function baseQuery(): Builder

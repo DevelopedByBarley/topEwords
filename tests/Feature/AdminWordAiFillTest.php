@@ -19,6 +19,20 @@ beforeEach(function () {
     $this->admin = User::factory()->create(['email' => 'admin@example.com']);
 });
 
+/**
+ * Már átnézettként megjelölt szó. A `forms_checked_at` szándékosan nem
+ * mass-assignable (rendszer-kezelt időbélyeg, nem felhasználói adat), ezért a
+ * `Word::create()` eldobná — közvetlenül állítjuk be.
+ */
+function checkedWord(string $word, int $rank): Word
+{
+    $row = Word::create(['word' => $word, 'rank' => $rank]);
+    $row->forms_checked_at = now();
+    $row->save();
+
+    return $row;
+}
+
 /** A „happy" lookup-válasza, tetszőleges mező-felülírásokkal. */
 function fakeHappyLookup(array $overrides = []): void
 {
@@ -149,4 +163,88 @@ test('a vendéget nem engedi be', function () {
     $this->postJson(route('words.ai-fill', $word))->assertUnauthorized();
 
     Http::assertNothingSent();
+});
+
+// --- Haladás-követés: forms_checked_at + a szólista „Alakok" szűrője ---
+// A 10 000 szó végigkattintásához tudni kell, mi van már megnézve. Az időbélyeg
+// akkor is íródik, ha nem volt mit tölteni — különben a függvényszavak (the, of)
+// örökre a „nincs ellenőrizve" listában ragadnának.
+
+test('a kitöltés akkor is megjelöli a szót, ha nem volt mit tölteni', function () {
+    fakeHappyLookup(['adj_comparative' => '', 'adj_superlative' => '', 'derived_forms' => '']);
+    $word = Word::create(['word' => 'the', 'rank' => 1, 'part_of_speech' => 'det']);
+
+    $this->actingAs($this->admin)
+        ->postJson(route('words.ai-fill', $word))
+        ->assertSuccessful()
+        ->assertJsonPath('filled', [])
+        ->assertJsonPath('word.forms_checked', true);
+
+    expect($word->refresh()->forms_checked_at)->not->toBeNull();
+});
+
+test('a szólista visszaadja, hogy a szó át van-e nézve', function () {
+    Word::create(['word' => 'apple', 'rank' => 1]);
+    checkedWord('apricot', 2);
+
+    $this->actingAs($this->admin)
+        ->get(route('words.index', ['letter' => 'A']))
+        ->assertInertia(fn ($page) => $page
+            ->where('words.data.0.word', 'apple')
+            ->where('words.data.0.forms_checked', false)
+            ->where('words.data.1.word', 'apricot')
+            ->where('words.data.1.forms_checked', true)
+        );
+});
+
+test('a forms=unchecked szűrő csak az át nem nézett szavakat adja', function () {
+    Word::create(['word' => 'apple', 'rank' => 1]);
+    checkedWord('apricot', 2);
+
+    $this->actingAs($this->admin)
+        ->get(route('words.index', ['forms' => 'unchecked']))
+        ->assertInertia(fn ($page) => $page
+            ->count('words.data', 1)
+            ->where('words.data.0.word', 'apple')
+            ->where('filters.forms', 'unchecked')
+        );
+});
+
+test('a forms=checked szűrő csak az átnézetteket adja', function () {
+    Word::create(['word' => 'apple', 'rank' => 1]);
+    checkedWord('apricot', 2);
+
+    $this->actingAs($this->admin)
+        ->get(route('words.index', ['forms' => 'checked']))
+        ->assertInertia(fn ($page) => $page
+            ->count('words.data', 1)
+            ->where('words.data.0.word', 'apricot')
+        );
+});
+
+test('érvénytelen forms értéket figyelmen kívül hagyunk', function () {
+    Word::create(['word' => 'apple', 'rank' => 1]);
+    checkedWord('apricot', 2);
+
+    $this->actingAs($this->admin)
+        ->get(route('words.index', ['forms' => 'DROP TABLE words']))
+        ->assertInertia(fn ($page) => $page
+            ->count('words.data', 2)
+            ->where('filters.forms', '')
+        );
+});
+
+test('a szűrő a kitöltés után azonnal fogyasztja a listát', function () {
+    fakeHappyLookup();
+    $word = Word::create(['word' => 'happy', 'rank' => 500, 'part_of_speech' => 'adj']);
+
+    $this->actingAs($this->admin)
+        ->get(route('words.index', ['forms' => 'unchecked']))
+        ->assertInertia(fn ($page) => $page->count('words.data', 1));
+
+    $this->actingAs($this->admin)->postJson(route('words.ai-fill', $word))->assertSuccessful();
+
+    $this->actingAs($this->admin)
+        ->get(route('words.index', ['forms' => 'unchecked']))
+        ->assertInertia(fn ($page) => $page->count('words.data', 0));
 });

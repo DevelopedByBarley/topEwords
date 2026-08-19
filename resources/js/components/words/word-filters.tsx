@@ -4,6 +4,7 @@ import {
     Plus,
     Search,
     SlidersHorizontal,
+    Wand2,
     X,
 } from 'lucide-react';
 import { useState } from 'react';
@@ -32,6 +33,8 @@ interface WordFiltersProps {
     /** A saját szavak száma — a „Forrás” csoport csak akkor jelenik meg, ha van. */
     customTotal: number;
     perPageOptions: readonly number[];
+    /** Az „Alakok” csoport (admin alak-kitöltő haladása) csak adminnak látszik. */
+    isAdmin: boolean;
 }
 
 const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
@@ -54,6 +57,7 @@ export default function WordFilters({
     markedLetters,
     customTotal,
     perPageOptions,
+    isAdmin,
 }: WordFiltersProps) {
     const [open, setOpen] = useState(
         () => localStorage.getItem(PANEL_STORAGE_KEY) === '1',
@@ -116,6 +120,17 @@ export default function WordFilters({
             key: 'source',
             label: 'Csak saját szavak',
             clear: () => onChange({ source: '', page: 1 }),
+        });
+    }
+
+    if (filters.forms !== '') {
+        activeChips.push({
+            key: 'forms',
+            label:
+                filters.forms === 'unchecked'
+                    ? 'Alakok: nincs ellenőrizve'
+                    : 'Alakok: ellenőrizve',
+            clear: () => onChange({ forms: '', page: 1 }),
         });
     }
 
@@ -322,6 +337,35 @@ export default function WordFilters({
                                 <span className="font-normal opacity-75">
                                     {customTotal}
                                 </span>
+                            </FilterChip>
+                        </FilterGroup>
+                    )}
+
+                    {isAdmin && (
+                        <FilterGroup label="Alakok">
+                            <FilterChip
+                                active={filters.forms === ''}
+                                onClick={() => onChange({ forms: '', page: 1 })}
+                            >
+                                Mind
+                            </FilterChip>
+                            <FilterChip
+                                active={filters.forms === 'unchecked'}
+                                onClick={() =>
+                                    onChange({ forms: 'unchecked', page: 1 })
+                                }
+                                title="Amit az alak-kitöltő még nem nézett meg — ez a lista fogy, ahogy haladsz"
+                            >
+                                <Wand2 className="size-3.5" />
+                                Nincs ellenőrizve
+                            </FilterChip>
+                            <FilterChip
+                                active={filters.forms === 'checked'}
+                                onClick={() =>
+                                    onChange({ forms: 'checked', page: 1 })
+                                }
+                            >
+                                Ellenőrizve
                             </FilterChip>
                         </FilterGroup>
                     )}
