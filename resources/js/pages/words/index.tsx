@@ -167,10 +167,29 @@ export default function WordsIndex({
     const isAdmin: boolean = auth?.isAdmin ?? false;
     const hasAiAccess: boolean =
         isAdmin || (auth?.subscription?.hasAiAccess ?? false);
-    const selectedWord =
+    // Az admin alak-kitöltő által beírt mezők soronként. A words prop
+    // Inertia-oldali, tehát nem frissül magától; enélkül a szó adatlapja a
+    // kitöltés ELŐTTI (üres) alakokat mutatná, és úgy tűnne, mintha nem
+    // történt volna semmi.
+    const [aiFilledFields, setAiFilledFields] = useState<
+        Record<number, Partial<Word>>
+    >({});
+
+    const rawSelectedWord =
         selectedWordId !== null
             ? (words.data.find((w) => w.id === selectedWordId) ?? null)
             : null;
+
+    const selectedWord = useMemo(
+        () =>
+            rawSelectedWord
+                ? {
+                      ...rawSelectedWord,
+                      ...(aiFilledFields[rawSelectedWord.id] ?? {}),
+                  }
+                : null,
+        [rawSelectedWord, aiFilledFields],
+    );
     const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const unifiedList = useMemo((): UnifiedItem[] => {
@@ -706,6 +725,14 @@ export default function WordsIndex({
         const filled = Array.isArray(data.filled) ? data.filled : [];
 
         setAiFillStates((prev) => ({ ...prev, [word.id]: 'done' }));
+
+        if (data.word && typeof data.word === 'object') {
+            setAiFilledFields((prev) => ({
+                ...prev,
+                [word.id]: data.word as Partial<Word>,
+            }));
+        }
+
         showToast(
             filled.length > 0 ? 'success' : 'info',
             filled.length > 0

@@ -19,6 +19,7 @@ export interface WordDetailData {
     noun_plural?: string | null;
     adj_comparative?: string | null;
     adj_superlative?: string | null;
+    extra_forms?: string | null;
     example_en?: string | null;
     example_hu?: string | null;
 }
@@ -127,6 +128,26 @@ export default function WordDetailSections({
                                 </p>
                                 <p className="font-semibold">{value}</p>
                             </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Képzett alakok (extra_forms): azonos tövű, más szófajú alakok —
+                ezekre a szövegelemzés és a bővítmény is ehhez a szóhoz köti a státuszt. */}
+            {data.extra_forms && (
+                <div className="rounded-xl border bg-card px-4 py-3.5">
+                    <p className="mb-3 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
+                        Képzett alakok
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                        {data.extra_forms.split('/').map((form) => (
+                            <span
+                                key={form}
+                                className="rounded-lg bg-muted/50 px-3 py-2 font-semibold"
+                            >
+                                {form.trim()}
+                            </span>
                         ))}
                     </div>
                 </div>
