@@ -726,6 +726,9 @@ export default function WordsIndex({
         }
 
         const filled = Array.isArray(data.filled) ? data.filled : [];
+        // A képzett alakok (basic → basically) SAJÁT szóként jönnek létre, saját
+        // jelentéssel és státusz nélkül — nem a tő alá kerülnek.
+        const created = Array.isArray(data.created) ? data.created : [];
 
         setAiFillStates((prev) => ({ ...prev, [word.id]: 'done' }));
 
@@ -736,12 +739,28 @@ export default function WordsIndex({
             }));
         }
 
+        const parts: string[] = [];
+
+        if (filled.length > 0) {
+            parts.push(`kitöltve: ${filled.join(', ')}`);
+        }
+
+        if (created.length > 0) {
+            parts.push(`új saját szó: ${created.join(', ')}`);
+        }
+
         showToast(
-            filled.length > 0 ? 'success' : 'info',
-            filled.length > 0
-                ? `„${word.word}" — kitöltve: ${filled.join(', ')}`
-                : `„${word.word}" — nem volt üres alak-mező.`,
+            parts.length > 0 ? 'success' : 'info',
+            parts.length > 0
+                ? `„${word.word}" — ${parts.join(' · ')}`
+                : `„${word.word}" — nem volt mit hozzátenni.`,
         );
+
+        // Az új saját szavak csak akkor látszanak a listában, ha újratöltjük a
+        // propot — részlegesen, hogy a 10 000-es szólista ne jöjjön újra.
+        if (created.length > 0) {
+            router.reload({ only: ['customWords', 'customStats'] });
+        }
     }, []);
 
     const handleCustomWordStatus = useCallback(

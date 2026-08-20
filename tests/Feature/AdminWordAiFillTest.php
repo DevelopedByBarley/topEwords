@@ -33,6 +33,30 @@ function checkedWord(string $word, int $rank): Word
     return $row;
 }
 
+/** Egy Gemini lookup-válasz burkolása a HTTP-válasz alakjába. */
+function lookupPayload(array $fields): array
+{
+    return [
+        'candidates' => [['content' => ['parts' => [['text' => json_encode($fields)]]]]],
+        'usageMetadata' => ['promptTokenCount' => 300, 'candidatesTokenCount' => 200],
+    ];
+}
+
+/**
+ * Szavankénti lookup-válasz. A kitöltő a tő után a képzett alakokra is külön
+ * lekérdezést futtat, ezért a fake-nek a promptból kell kitalálnia, melyik szóról
+ * van szó — különben minden alak ugyanazt a jelentést kapná.
+ */
+function fakeLookupsByWord(array $byWord): void
+{
+    Http::fake(function ($request) use ($byWord) {
+        $prompt = (string) data_get($request->data(), 'contents.0.parts.0.text');
+        preg_match('/for the English word "([^"]+)"/', $prompt, $match);
+
+        return Http::response(lookupPayload($byWord[$match[1] ?? ''] ?? ['is_real_word' => false]));
+    });
+}
+
 /** A „happy" lookup-válasza, tetszőleges mező-felülírásokkal. */
 function fakeHappyLookup(array $overrides = []): void
 {
@@ -55,20 +79,87 @@ function fakeHappyLookup(array $overrides = []): void
     ])]);
 }
 
-test('az admin kitölti egy szó hiányzó alakjait', function () {
+test('az admin kitölti egy szó hiányzó ragozott alakjait', function () {
     fakeHappyLookup();
     $word = Word::create(['word' => 'happy', 'rank' => 500, 'part_of_speech' => 'adj']);
 
     $this->actingAs($this->admin)
         ->postJson(route('words.ai-fill', $word))
         ->assertSuccessful()
-        ->assertJsonPath('word.adj_comparative', 'happier')
-        ->assertJsonPath('word.extra_forms', 'happily/happiness');
+        ->assertJsonPath('word.adj_comparative', 'happier');
 
     $word->refresh();
     expect($word->adj_comparative)->toBe('happier');
     expect($word->adj_superlative)->toBe('happiest');
-    expect($word->extra_forms)->toBe('happily/happiness');
+});
+
+test('a képzett alak SAJÁT szó lesz, saját jelentéssel — nem a tő alá kerül', function () {
+    // Ez a lényeg: a „basically" jelentése („alapvetően") a „basic"-ből nem
+    // derül ki, és ha a tő alá kerülne, a tő státusza folyna át rá.
+    fakeLookupsByWord([
+        'basic' => [
+            'is_real_word' => true,
+            'base_form' => 'basic',
+            'meaning_hu' => 'alapvető',
+            'part_of_speech' => 'adj',
+            'example_en' => 'A basic rule.',
+            'example_hu' => 'Egy alapvető szabály.',
+            'derived_forms' => 'basically',
+        ],
+        'basically' => [
+            'is_real_word' => true,
+            'base_form' => 'basically',
+            'meaning_hu' => 'alapvetően',
+            'part_of_speech' => 'adv',
+            'example_en' => 'Basically, it works.',
+            'example_hu' => 'Alapvetően működik.',
+        ],
+    ]);
+
+    $word = Word::create(['word' => 'basic', 'rank' => 70, 'part_of_speech' => 'adj']);
+
+    $this->actingAs($this->admin)
+        ->postJson(route('words.ai-fill', $word))
+        ->assertSuccessful()
+        ->assertJsonPath('created', ['basically']);
+
+    // A tő extra_forms-a ÜRES marad: a képzett alak nem oda tartozik.
+    expect($word->refresh()->extra_forms)->toBeNull();
+
+    $derived = $this->admin->customWords()->where('word', 'basically')->first();
+    expect($derived)->not->toBeNull();
+    expect($derived->meaning_hu)->toBe('alapvetően');
+    expect($derived->part_of_speech)->toBe('adv');
+    // Státusz nélkül jön létre, hogy a szövegelemzőben ne tudottként látsszon.
+    expect($derived->status)->toBeNull();
+});
+
+test('a már létező képzett alakot nem duplikáljuk', function () {
+    // A „really" saját sorral és saját státusszal él a fő listában — hozzá sem
+    // nyúlunk, különben a „real" státusza fedné el a sajátját.
+    fakeLookupsByWord([
+        'real' => [
+            'is_real_word' => true,
+            'base_form' => 'real',
+            'meaning_hu' => 'valódi',
+            'part_of_speech' => 'adj',
+            'example_en' => 'A real story.',
+            'example_hu' => 'Egy valódi történet.',
+            'derived_forms' => 'really',
+        ],
+    ]);
+
+    Word::create(['word' => 'really', 'rank' => 681, 'part_of_speech' => 'adv']);
+    $word = Word::create(['word' => 'real', 'rank' => 679, 'part_of_speech' => 'adj']);
+
+    $this->actingAs($this->admin)
+        ->postJson(route('words.ai-fill', $word))
+        ->assertSuccessful()
+        ->assertJsonPath('created', [])
+        ->assertJsonPath('skipped', ['really']);
+
+    expect($this->admin->customWords()->count())->toBe(0);
+    expect($word->refresh()->extra_forms)->toBeNull();
 });
 
 test('a meglévő alakot nem írja felül', function () {
@@ -83,7 +174,7 @@ test('a meglévő alakot nem írja felül', function () {
     $this->actingAs($this->admin)
         ->postJson(route('words.ai-fill', $word))
         ->assertSuccessful()
-        ->assertJsonPath('filled', ['adj_superlative', 'extra_forms']);
+        ->assertJsonPath('filled', ['adj_superlative']);
 
     expect($word->refresh()->adj_comparative)->toBe('KEZZEL-BEIRT');
 });
@@ -124,13 +215,18 @@ test('a második kattintásnak már nincs mit tennie (idempotens)', function () 
         ->assertJsonPath('filled', []);
 });
 
-test('a képzett alakok a fail-closed szűrőn átesve kerülnek be', function () {
+test('a képzett alakok a fail-closed szűrőn átesve lesznek saját szóvá', function () {
+    // A HTML, a számsor és a duplikátum kiesik; csak a „happily" marad, és abból
+    // lesz egyetlen saját szó.
     fakeHappyLookup(['derived_forms' => '<script>alert(1)</script>, 12345, HAPPILY, happily']);
     $word = Word::create(['word' => 'happy', 'rank' => 500, 'part_of_speech' => 'adj']);
 
-    $this->actingAs($this->admin)->postJson(route('words.ai-fill', $word))->assertSuccessful();
+    $this->actingAs($this->admin)
+        ->postJson(route('words.ai-fill', $word))
+        ->assertSuccessful()
+        ->assertJsonPath('created', ['happily']);
 
-    expect($word->refresh()->extra_forms)->toBe('happily');
+    expect($this->admin->customWords()->pluck('word')->all())->toBe(['happily']);
 });
 
 test('nem valódi szóra nem ír semmit', function () {

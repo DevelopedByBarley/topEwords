@@ -20,6 +20,7 @@ use App\Services\YouTubeCaptionService;
 use GuzzleHttp\Psr7\UriResolver;
 use GuzzleHttp\Psr7\Utils;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -1634,9 +1635,16 @@ PROMPT;
 
     /**
      * Az admin gyors-kitöltő által tölthető oszlopok, és hogy a lookup-válasz
-     * melyik mezőjéből. Szándékosan CSAK alak-oszlopok szerepelnek: a jelentést,
+     * melyik mezőjéből. Szándékosan CSAK RAGOZOTT alakok szerepelnek: a jelentést,
      * a további jelentéseket, a szinonimákat, a példamondatokat és a szófajt a
      * kitöltő nem érinti.
+     *
+     * A képzett alakok (basic → basically) NINCSENEK itt, és nem is kerülnek az
+     * extra_forms-ba. Azoknak saját jelentésük van, tehát ha a tő alá kerülnének,
+     * a tő státusza folyna át rájuk: aki bejelöli, hogy tudja a „basic"-et, arra
+     * a „basically" is tudottnak látszana, pedig azt sosem tanulta meg. Ezért a
+     * képzett alak külön szótári egységként, saját jelentéssel és saját (üres)
+     * státusszal jön létre — lásd createMissingDerivedWords().
      *
      * @var array<string, string>
      */
@@ -1648,7 +1656,6 @@ PROMPT;
         'noun_plural' => 'noun_plural',
         'adj_comparative' => 'adj_comparative',
         'adj_superlative' => 'adj_superlative',
-        'extra_forms' => 'derived_forms',
     ];
 
     /**
@@ -1708,13 +1715,117 @@ PROMPT;
         // lefusson és az updated_at bumpjától a felismerő-térkép cache rotáljon.
         $word->fill($updates)->save();
 
+        [$created, $skipped] = $this->createMissingDerivedWords(
+            $fields['derived_forms'] ?? null,
+            $request->user(),
+        );
+
         return response()->json([
             'filled' => array_keys($updates),
+            'created' => $created,
+            'skipped' => $skipped,
             'word' => [
                 ...$word->only(['id', ...array_keys(self::ADMIN_FILLABLE_FORM_COLUMNS)]),
                 'forms_checked' => true,
             ],
         ]);
+    }
+
+    /**
+     * A képzett alakokból saját szó, ha még egyáltalán nincs a rendszerben.
+     *
+     * Miért nem a tő extra_forms-ába: a képzett alaknak SAJÁT jelentése van
+     * („basically" = alapvetően), és aki nem tudja, azt a tőből nem is fogja
+     * megtudni. Ha a tő alá kerülne, a tő státusza folyna át rá, és tudottként
+     * jelenne meg egy szó, amit soha nem tanult meg. Ezért az alak saját
+     * lekérdezést kap (saját jelentés, szófaj, példamondat, saját alakok), és
+     * SZÁNDÉKOSAN státusz nélkül jön létre — így a szövegelemzőben nem tudottként
+     * látszik, amíg tényleg meg nem tanulja.
+     *
+     * Ami már létezik (a fő listában vagy a saját szavak közt), azt érintetlenül
+     * hagyjuk: a „really" saját sora és saját státusza megmarad.
+     *
+     * @return array{0: array<int, string>, 1: array<int, string>} [létrehozott, kihagyott]
+     */
+    private function createMissingDerivedWords(?string $derivedForms, ?User $user): array
+    {
+        if ($derivedForms === null || $user === null) {
+            return [[], []];
+        }
+
+        $created = [];
+        $skipped = [];
+
+        foreach (WordFormVariants::split($derivedForms) as $form) {
+            if ($this->wordAlreadyKnown($form, $user)) {
+                $skipped[] = $form;
+
+                continue;
+            }
+
+            $lookup = $this->runWordLookup($form, '', $user);
+
+            if (! $lookup['ok'] || ! is_array($lookup['data']) || ($lookup['data']['is_real_word'] ?? true) === false) {
+                $skipped[] = $form;
+
+                continue;
+            }
+
+            $derived = $this->lookupFields($lookup['data'], $form);
+
+            try {
+                $user->customWords()->create([
+                    'word' => $form,
+                    'meaning_hu' => $derived['meaning_hu'] ?? null,
+                    'extra_meanings' => $derived['extra_meanings'] ?? null,
+                    'synonyms' => $derived['synonyms'] ?? null,
+                    'part_of_speech' => $derived['part_of_speech'] ?? null,
+                    'example_en' => $derived['example_en'] ?? null,
+                    'example_hu' => $derived['example_hu'] ?? null,
+                    'verb_past' => $derived['verb_past'] ?? null,
+                    'verb_past_participle' => $derived['verb_past_participle'] ?? null,
+                    'verb_present_participle' => $derived['verb_present_participle'] ?? null,
+                    'verb_third_person' => $derived['verb_third_person'] ?? null,
+                    'noun_plural' => $derived['noun_plural'] ?? null,
+                    'adj_comparative' => $derived['adj_comparative'] ?? null,
+                    'adj_superlative' => $derived['adj_superlative'] ?? null,
+                    // Státusz szándékosan nincs: a szót még meg kell tanulni.
+                    'status' => null,
+                ]);
+
+                $created[] = $form;
+            } catch (UniqueConstraintViolationException) {
+                // Párhuzamos kattintás ugyanarra az alakra — a (user_id, word)
+                // unique index elkapta; nem hiba, csak nincs mit tenni.
+                $skipped[] = $form;
+            }
+        }
+
+        return [$created, $skipped];
+    }
+
+    /**
+     * Létezik-e már ez az alak önálló szóként: a fő szólistában (bármely
+     * ragozott alakjaként is) vagy a felhasználó saját szavai közt. Ha igen, van
+     * saját jelentése és státusza, tehát nem duplikáljuk.
+     */
+    private function wordAlreadyKnown(string $form, User $user): bool
+    {
+        $lower = mb_strtolower($form);
+
+        $inMainList = Word::where('word', $lower)
+            ->orWhere(function ($query) use ($lower): void {
+                foreach (WordStatusFormExpander::FORM_COLUMNS as $column) {
+                    WordFormVariants::orWhereFormMatches($query, $column, $lower);
+                }
+            })
+            ->exists();
+
+        if ($inMainList) {
+            return true;
+        }
+
+        return $user->customWords()->whereRaw('LOWER(word) = ?', [$lower])->exists();
     }
 
     /** Hány elmentett YouTube-felirata lehet a felhasználónak (csomagtól függően: 3 / 15 / 40). */
