@@ -73,6 +73,9 @@ export const LEVELS = [
     { value: 4, label: '4 001 – 6 000' },
     { value: 5, label: '6 001 – 8 000' },
     { value: 6, label: '8 001 – 10 000' },
+    // Nem frekvencia-sáv: ide az admin alak-kitöltő által beszúrt képzett alakok
+    // kerülnek, amelyek a 10 000-es lista után kapnak rangot.
+    { value: 7, label: 'Képzett alakok' },
 ] as const;
 
 export const STATUS_CONFIG: StatusConfigEntry[] = [

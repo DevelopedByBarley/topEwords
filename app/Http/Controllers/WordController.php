@@ -213,6 +213,24 @@ class WordController extends Controller
         return back();
     }
 
+    /**
+     * Fő listás szó törlése (admin).
+     *
+     * Biztonsági szelep az alak-kitöltőhöz: az AI által beszúrt képzett alakok
+     * (derived_from_word_id) a mindenki által használt listába kerülnek, ezért
+     * kell egy út a rossz sor eltávolítására. A hivatkozó táblák ezt biztonságosan
+     * lekövetik: a user_word és a folder_word CASCADE, a flashcards és a reports
+     * SET NULL — nem marad árva sor, és nem bukik el idegen kulcson.
+     */
+    public function destroy(Word $word): RedirectResponse
+    {
+        Gate::authorize('admin');
+
+        $word->delete();
+
+        return back();
+    }
+
     public function status(Request $request, Word $word): RedirectResponse|JsonResponse
     {
         $status = $this->validatedToggleStatus($request);

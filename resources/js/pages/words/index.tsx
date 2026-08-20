@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import ConfirmDialog from '@/components/ui/confirm-dialog';
 import {
     Dialog,
     DialogContent,
@@ -71,6 +72,7 @@ import { update as folderWordUpdate } from '@/routes/folders/words';
 import { store as storeReport } from '@/routes/report';
 import {
     aiFill,
+    destroy as destroyWord,
     importance as wordImportance,
     index,
     status,
@@ -726,8 +728,10 @@ export default function WordsIndex({
         }
 
         const filled = Array.isArray(data.filled) ? data.filled : [];
-        // A képzett alakok (basic → basically) SAJÁT szóként jönnek létre, saját
-        // jelentéssel és státusz nélkül — nem a tő alá kerülnek.
+        // A képzett alakok (basic → basically) önálló szóként kerülnek a fő
+        // listába, saját jelentéssel és mindenkinél jelöletlen státusszal — nem
+        // a tő alá. A 10 000 utáni rangot kapnak (7. szint), tehát nem a most
+        // látott oldalon jelennek meg; ezért nincs is mit újratölteni.
         const created = Array.isArray(data.created) ? data.created : [];
 
         setAiFillStates((prev) => ({ ...prev, [word.id]: 'done' }));
@@ -746,7 +750,7 @@ export default function WordsIndex({
         }
 
         if (created.length > 0) {
-            parts.push(`új saját szó: ${created.join(', ')}`);
+            parts.push(`új szó a listában: ${created.join(', ')}`);
         }
 
         showToast(
@@ -755,12 +759,6 @@ export default function WordsIndex({
                 ? `„${word.word}" — ${parts.join(' · ')}`
                 : `„${word.word}" — nem volt mit hozzátenni.`,
         );
-
-        // Az új saját szavak csak akkor látszanak a listában, ha újratöltjük a
-        // propot — részlegesen, hogy a 10 000-es szólista ne jöjjön újra.
-        if (created.length > 0) {
-            router.reload({ only: ['customWords', 'customStats'] });
-        }
     }, []);
 
     const handleCustomWordStatus = useCallback(
@@ -833,6 +831,27 @@ export default function WordsIndex({
                 only: ['customWords'],
             },
         );
+    }
+
+    // Biztonsági szelep az alak-kitöltőhöz: az AI által beszúrt képzett alakok a
+    // mindenki által használt listába kerülnek, ezért kell út a rossz sor
+    // eltávolítására. ConfirmDialog, nem natív confirm() — visszafordíthatatlan.
+    const [deleteWordId, setDeleteWordId] = useState<number | null>(null);
+    const deleteWordTarget =
+        deleteWordId !== null
+            ? (words.data.find((w) => w.id === deleteWordId) ?? null)
+            : null;
+
+    function handleDeleteWord(wordId: number) {
+        router.delete(destroyWord(wordId), {
+            preserveScroll: true,
+            preserveState: true,
+            only: ['words', 'stats', 'flash'],
+            onSuccess: () => {
+                setDeleteWordId(null);
+                setEditWordId(null);
+            },
+        });
     }
 
     function handleSaveEditWord(wordId: number) {
@@ -2143,10 +2162,38 @@ export default function WordsIndex({
                             >
                                 Mégse
                             </Button>
+                            <Button
+                                variant="outline"
+                                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                title="Szó törlése a fő listából"
+                                onClick={() => setDeleteWordId(editWordId)}
+                            >
+                                <Trash2 className="size-4" />
+                            </Button>
                         </div>
                     </DialogContent>
                 </Dialog>
             )}
+
+            <ConfirmDialog
+                open={deleteWordId !== null}
+                onOpenChange={(open) => !open && setDeleteWordId(null)}
+                title="Szó törlése a fő listából"
+                destructive
+                confirmLabel="Törlés"
+                description={
+                    <>
+                        A(z) <strong>{deleteWordTarget?.word}</strong>{' '}
+                        véglegesen kikerül a{' '}
+                        <strong>mindenki által használt</strong> szólistából. A
+                        hozzá tartozó jelölések és mappa-besorolások is
+                        törlődnek, a belőle készült tanulókártyák megmaradnak.
+                    </>
+                }
+                onConfirm={() =>
+                    deleteWordId !== null && handleDeleteWord(deleteWordId)
+                }
+            />
         </>
     );
 }

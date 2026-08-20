@@ -18,6 +18,8 @@ Route::middleware(['auth', 'verified', EnsureOnboardingComplete::class])->group(
     Route::get('words/search', [WordController::class, 'search'])->name('words.search');
     Route::patch('words/{word}', [WordController::class, 'update'])->name('words.update')->middleware('can:admin');
 
+    Route::delete('words/{word}', [WordController::class, 'destroy'])->name('words.destroy')->middleware('can:admin');
+
     // Admin gyors alak-kitöltő: egy kattintás = egy szó HIÁNYZÓ alak-mezői.
     // Meglévő értéket nem ír felül, ezért végigkattintható a lista anélkül, hogy
     // a felhalmozott jelentések és példamondatok cserélődnének.

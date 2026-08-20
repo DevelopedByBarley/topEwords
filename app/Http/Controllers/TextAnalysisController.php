@@ -20,7 +20,6 @@ use App\Services\YouTubeCaptionService;
 use GuzzleHttp\Psr7\UriResolver;
 use GuzzleHttp\Psr7\Utils;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -1717,6 +1716,7 @@ PROMPT;
 
         [$created, $skipped] = $this->createMissingDerivedWords(
             $fields['derived_forms'] ?? null,
+            $word,
             $request->user(),
         );
 
@@ -1732,22 +1732,26 @@ PROMPT;
     }
 
     /**
-     * A képzett alakokból saját szó, ha még egyáltalán nincs a rendszerben.
+     * A képzett alakokból ÖNÁLLÓ SZÓ a fő listában, ha még nincs a rendszerben.
      *
-     * Miért nem a tő extra_forms-ába: a képzett alaknak SAJÁT jelentése van
+     * Miért nem a tő extra_forms-ába: a képzett alaknak saját jelentése van
      * („basically" = alapvetően), és aki nem tudja, azt a tőből nem is fogja
      * megtudni. Ha a tő alá kerülne, a tő státusza folyna át rá, és tudottként
-     * jelenne meg egy szó, amit soha nem tanult meg. Ezért az alak saját
-     * lekérdezést kap (saját jelentés, szófaj, példamondat, saját alakok), és
-     * SZÁNDÉKOSAN státusz nélkül jön létre — így a szövegelemzőben nem tudottként
-     * látszik, amíg tényleg meg nem tanulja.
+     * jelenne meg egy szó, amit soha nem tanult meg.
      *
-     * Ami már létezik (a fő listában vagy a saját szavak közt), azt érintetlenül
-     * hagyjuk: a „really" saját sora és saját státusza megmarad.
+     * Miért a fő listába és nem saját szóként: a saját szó csak egyetlen fiókban
+     * létezik, tehát más felhasználó ugyanazt a szöveget olvasva továbbra sem
+     * ismerné fel. A fő lista mindenkinek szól, lapozott (nem hízik a
+     * oldal-payload), és a státusz eleve felhasználónkénti a user_word pivotban —
+     * vagyis az új szó automatikusan MINDENKINEK jelöletlen, ami pont a cél.
+     *
+     * Az új sorok a 10 000-es frekvencia-lista UTÁN kapnak rangot (→ 7. szint),
+     * és a derived_from_word_id megőrzi, melyik tőből jöttek: így szűrhetők,
+     * auditálhatók és tömegesen visszavonhatók.
      *
      * @return array{0: array<int, string>, 1: array<int, string>} [létrehozott, kihagyott]
      */
-    private function createMissingDerivedWords(?string $derivedForms, ?User $user): array
+    private function createMissingDerivedWords(?string $derivedForms, Word $base, ?User $user): array
     {
         if ($derivedForms === null || $user === null) {
             return [[], []];
@@ -1755,9 +1759,12 @@ PROMPT;
 
         $created = [];
         $skipped = [];
+        // A rang mindig a frekvencia-lista UTÁN kezdődik, hogy a képzett alak a
+        // 7. szintre essen — akkor is, ha a tábla épp rövidebb (pl. tesztben).
+        $nextRank = max((int) Word::max('rank'), Word::FREQUENCY_LIST_SIZE);
 
         foreach (WordFormVariants::split($derivedForms) as $form) {
-            if ($this->wordAlreadyKnown($form, $user)) {
+            if ($this->wordExistsInMainList($form)) {
                 $skipped[] = $form;
 
                 continue;
@@ -1773,59 +1780,47 @@ PROMPT;
 
             $derived = $this->lookupFields($lookup['data'], $form);
 
-            try {
-                $user->customWords()->create([
-                    'word' => $form,
-                    'meaning_hu' => $derived['meaning_hu'] ?? null,
-                    'extra_meanings' => $derived['extra_meanings'] ?? null,
-                    'synonyms' => $derived['synonyms'] ?? null,
-                    'part_of_speech' => $derived['part_of_speech'] ?? null,
-                    'example_en' => $derived['example_en'] ?? null,
-                    'example_hu' => $derived['example_hu'] ?? null,
-                    'verb_past' => $derived['verb_past'] ?? null,
-                    'verb_past_participle' => $derived['verb_past_participle'] ?? null,
-                    'verb_present_participle' => $derived['verb_present_participle'] ?? null,
-                    'verb_third_person' => $derived['verb_third_person'] ?? null,
-                    'noun_plural' => $derived['noun_plural'] ?? null,
-                    'adj_comparative' => $derived['adj_comparative'] ?? null,
-                    'adj_superlative' => $derived['adj_superlative'] ?? null,
-                    // Státusz szándékosan nincs: a szót még meg kell tanulni.
-                    'status' => null,
-                ]);
+            Word::create([
+                'word' => $form,
+                'rank' => ++$nextRank,
+                'derived_from_word_id' => $base->id,
+                'meaning_hu' => $derived['meaning_hu'] ?? null,
+                'extra_meanings' => $derived['extra_meanings'] ?? null,
+                'synonyms' => $derived['synonyms'] ?? null,
+                'part_of_speech' => $derived['part_of_speech'] ?? null,
+                'example_en' => $derived['example_en'] ?? null,
+                'example_hu' => $derived['example_hu'] ?? null,
+                'verb_past' => $derived['verb_past'] ?? null,
+                'verb_past_participle' => $derived['verb_past_participle'] ?? null,
+                'verb_present_participle' => $derived['verb_present_participle'] ?? null,
+                'verb_third_person' => $derived['verb_third_person'] ?? null,
+                'noun_plural' => $derived['noun_plural'] ?? null,
+                'adj_comparative' => $derived['adj_comparative'] ?? null,
+                'adj_superlative' => $derived['adj_superlative'] ?? null,
+            ]);
 
-                $created[] = $form;
-            } catch (UniqueConstraintViolationException) {
-                // Párhuzamos kattintás ugyanarra az alakra — a (user_id, word)
-                // unique index elkapta; nem hiba, csak nincs mit tenni.
-                $skipped[] = $form;
-            }
+            $created[] = $form;
         }
 
         return [$created, $skipped];
     }
 
     /**
-     * Létezik-e már ez az alak önálló szóként: a fő szólistában (bármely
-     * ragozott alakjaként is) vagy a felhasználó saját szavai közt. Ha igen, van
-     * saját jelentése és státusza, tehát nem duplikáljuk.
+     * Létezik-e már ez az alak a fő szólistában — magaként vagy bármely másik szó
+     * ragozott alakjaként. Ha igen, van saját jelentése és státusza, tehát nem
+     * duplikáljuk és nem is fedjük el.
      */
-    private function wordAlreadyKnown(string $form, User $user): bool
+    private function wordExistsInMainList(string $form): bool
     {
         $lower = mb_strtolower($form);
 
-        $inMainList = Word::where('word', $lower)
+        return Word::where('word', $lower)
             ->orWhere(function ($query) use ($lower): void {
                 foreach (WordStatusFormExpander::FORM_COLUMNS as $column) {
                     WordFormVariants::orWhereFormMatches($query, $column, $lower);
                 }
             })
             ->exists();
-
-        if ($inMainList) {
-            return true;
-        }
-
-        return $user->customWords()->whereRaw('LOWER(word) = ?', [$lower])->exists();
     }
 
     /** Hány elmentett YouTube-felirata lehet a felhasználónak (csomagtól függően: 3 / 15 / 40). */

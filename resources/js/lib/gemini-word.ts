@@ -28,8 +28,11 @@ export interface GeminiWordData {
     adj_superlative?: string | null;
     /**
      * Azonos tövű, más szófajú képzett alakok ('/'-szeparálva, pl. a „happy"
-     * lemmához „happily/happiness") — ezek egyik ragozási mezőbe sem férnek be,
-     * az `extra_forms` oszlopba kerülnek. A backend már szűrve adja vissza.
+     * lemmához „happily/happiness"). A backend már szűrve adja vissza.
+     *
+     * FIGYELEM: ezt NEM szabad a szó `extra_forms`-ába olvasztani — a képzett
+     * alaknak saját jelentése van, és a tő alá kerülve a tő státuszát örökölné.
+     * Az admin alak-kitöltő külön szót hoz létre belőlük, saját jelentéssel.
      */
     derived_forms?: string | null;
     /** Csak `context` átadásakor: mit jelent a szó ABBAN a mondatban. */
@@ -115,14 +118,17 @@ export function mergeGeminiData(
     return {
         ...prev,
         word: wordOverride ?? prev.word,
-        // Két forrás bővíti a felszíni alakokat, és mindkettő kell:
-        // 1. lemmára váltáskor (pl. „successfully" → „successful") a beírt eredeti alak,
-        // 2. az AI képzett alakjai (pl. „happy" → „happily") — ezek nélkül a szólistában
-        //    már meglévő alapszó képzett alakja sehogy nem volt felvihető.
+        // Ide CSAK a lemmára váltáskor eldobott, beírt eredeti alak kerül (pl.
+        // „successfully" → „successful"). Az AI `derived_forms` mezője
+        // SZÁNDÉKOSAN nem: a képzett alaknak saját jelentése van („basically" =
+        // alapvetően), és ha a tő alá kerülne, a tő státusza folyna át rá — aki
+        // bejelöli, hogy tudja a „basic"-et, annak a „basically" is tudottnak
+        // látszana, pedig soha nem tanulta meg. A képzett alakokból ezért külön
+        // szó lesz, saját jelentéssel (lásd TextAnalysisController::
+        // createMissingDerivedWords).
         extra_forms: mergeExtraForms(
             prev.extra_forms,
             wordOverride && wordOverride !== prev.word ? prev.word : null,
-            data.derived_forms,
         ),
         meaning_hu: data.meaning_hu || prev.meaning_hu,
         extra_meanings: data.extra_meanings || prev.extra_meanings,

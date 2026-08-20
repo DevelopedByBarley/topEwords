@@ -93,9 +93,10 @@ test('az admin kitölti egy szó hiányzó ragozott alakjait', function () {
     expect($word->adj_superlative)->toBe('happiest');
 });
 
-test('a képzett alak SAJÁT szó lesz, saját jelentéssel — nem a tő alá kerül', function () {
+test('a képzett alak ÖNÁLLÓ szó lesz a fő listában, saját jelentéssel', function () {
     // Ez a lényeg: a „basically" jelentése („alapvetően") a „basic"-ből nem
-    // derül ki, és ha a tő alá kerülne, a tő státusza folyna át rá.
+    // derül ki, és ha a tő alá kerülne, a tő státusza folyna át rá. A fő listába
+    // kerül (nem saját szóként), hogy MINDEN felhasználó felismerje.
     fakeLookupsByWord([
         'basic' => [
             'is_real_word' => true,
@@ -126,12 +127,54 @@ test('a képzett alak SAJÁT szó lesz, saját jelentéssel — nem a tő alá k
     // A tő extra_forms-a ÜRES marad: a képzett alak nem oda tartozik.
     expect($word->refresh()->extra_forms)->toBeNull();
 
-    $derived = $this->admin->customWords()->where('word', 'basically')->first();
+    $derived = Word::firstWhere('word', 'basically');
     expect($derived)->not->toBeNull();
     expect($derived->meaning_hu)->toBe('alapvetően');
     expect($derived->part_of_speech)->toBe('adv');
-    // Státusz nélkül jön létre, hogy a szövegelemzőben ne tudottként látsszon.
-    expect($derived->status)->toBeNull();
+    // A tő nyilvántartva, hogy a beszúrás auditálható és visszavonható legyen.
+    expect($derived->derived_from_word_id)->toBe($word->id);
+    // A 10 000-es frekvencia-lista UTÁN kap rangot, tehát a 7. szintre esik —
+    // így nem hazudjuk azt, hogy a „8 001 – 10 000" sávba tartozna.
+    expect($derived->rank)->toBeGreaterThan($word->rank);
+    expect($derived->level)->toBe(7);
+    // Nincs saját státusz-oszlop: a jelölés a user_word pivotban él, tehát az új
+    // szó automatikusan MINDENKINÉL jelöletlen — pont ez a cél.
+    expect($this->admin->knownWords()->where('words.id', $derived->id)->exists())->toBeFalse();
+});
+
+test('a törölt tő nem viszi magával a képzett alakot', function () {
+    // A derived_from_word_id null-ra vált: a „basically" önmagában is érvényes szó.
+    fakeLookupsByWord([
+        'basic' => [
+            'is_real_word' => true, 'base_form' => 'basic', 'meaning_hu' => 'alapvető',
+            'part_of_speech' => 'adj', 'example_en' => 'A basic rule.', 'example_hu' => 'Alapszabály.',
+            'derived_forms' => 'basically',
+        ],
+        'basically' => [
+            'is_real_word' => true, 'base_form' => 'basically', 'meaning_hu' => 'alapvetően',
+            'part_of_speech' => 'adv', 'example_en' => 'Basically, yes.', 'example_hu' => 'Alapvetően igen.',
+        ],
+    ]);
+
+    $word = Word::create(['word' => 'basic', 'rank' => 70, 'part_of_speech' => 'adj']);
+    $this->actingAs($this->admin)->postJson(route('words.ai-fill', $word))->assertSuccessful();
+
+    $this->actingAs($this->admin)->delete(route('words.destroy', $word))->assertRedirect();
+
+    $derived = Word::firstWhere('word', 'basically');
+    expect($derived)->not->toBeNull();
+    expect($derived->derived_from_word_id)->toBeNull();
+});
+
+test('a nem admin nem törölhet fő listás szót', function () {
+    Http::fake();
+    $word = Word::create(['word' => 'basic', 'rank' => 70]);
+
+    $this->actingAs(User::factory()->create())
+        ->delete(route('words.destroy', $word))
+        ->assertForbidden();
+
+    expect(Word::whereKey($word->id)->exists())->toBeTrue();
 });
 
 test('a már létező képzett alakot nem duplikáljuk', function () {
@@ -158,7 +201,10 @@ test('a már létező képzett alakot nem duplikáljuk', function () {
         ->assertJsonPath('created', [])
         ->assertJsonPath('skipped', ['really']);
 
-    expect($this->admin->customWords()->count())->toBe(0);
+    // Egyetlen „really" sor van, és nincs derived_from_word_id-je: a meglévő
+    // szót nem duplikáltuk és nem is írtuk át.
+    expect(Word::where('word', 'really')->count())->toBe(1);
+    expect(Word::firstWhere('word', 'really')->derived_from_word_id)->toBeNull();
     expect($word->refresh()->extra_forms)->toBeNull();
 });
 
@@ -215,7 +261,7 @@ test('a második kattintásnak már nincs mit tennie (idempotens)', function () 
         ->assertJsonPath('filled', []);
 });
 
-test('a képzett alakok a fail-closed szűrőn átesve lesznek saját szóvá', function () {
+test('a képzett alakok a fail-closed szűrőn átesve lesznek önálló szóvá', function () {
     // A HTML, a számsor és a duplikátum kiesik; csak a „happily" marad, és abból
     // lesz egyetlen saját szó.
     fakeHappyLookup(['derived_forms' => '<script>alert(1)</script>, 12345, HAPPILY, happily']);
@@ -226,7 +272,7 @@ test('a képzett alakok a fail-closed szűrőn átesve lesznek saját szóvá', 
         ->assertSuccessful()
         ->assertJsonPath('created', ['happily']);
 
-    expect($this->admin->customWords()->pluck('word')->all())->toBe(['happily']);
+    expect(Word::whereNotNull('derived_from_word_id')->pluck('word')->all())->toBe(['happily']);
 });
 
 test('nem valódi szóra nem ír semmit', function () {
@@ -330,7 +376,9 @@ test('érvénytelen forms értéket figyelmen kívül hagyunk', function () {
         );
 });
 
-test('a szűrő a kitöltés után azonnal fogyasztja a listát', function () {
+test('a kitöltött szó kiesik a „nincs ellenőrizve" listából', function () {
+    // Az újonnan beszúrt képzett alakok viszont BEKERÜLNEK: ők maguk még nincsenek
+    // átnézve, tehát a lista nem csak fogy, hanem közben nőhet is.
     fakeHappyLookup();
     $word = Word::create(['word' => 'happy', 'rank' => 500, 'part_of_speech' => 'adj']);
 
@@ -340,7 +388,8 @@ test('a szűrő a kitöltés után azonnal fogyasztja a listát', function () {
 
     $this->actingAs($this->admin)->postJson(route('words.ai-fill', $word))->assertSuccessful();
 
-    $this->actingAs($this->admin)
-        ->get(route('words.index', ['forms' => 'unchecked']))
-        ->assertInertia(fn ($page) => $page->count('words.data', 0));
+    $unchecked = Word::whereNull('forms_checked_at')->pluck('word')->all();
+
+    expect($unchecked)->not->toContain('happy');
+    expect($unchecked)->toContain('happily');
 });
