@@ -49,7 +49,7 @@ class TextAnalysisController extends Controller
      * felhasználó-egyedi, ezért nincs itt és nem cache-elődik.)
      */
     private const AI_CACHE_VERSION = [
-        'lookup' => 5,
+        'lookup' => 6,
         'flashcard' => 3,
         'insight' => 2,
     ];
@@ -851,8 +851,13 @@ class TextAnalysisController extends Controller
         return preg_match("/^[\pL][\pL'\\- ]{0,99}$/u", $word) === 1 ? $word : null;
     }
 
-    /** Legfeljebb ennyi képzett alakot fogadunk el egy AI-válaszból. */
-    private const MAX_DERIVED_FORMS = 4;
+    /**
+     * Legfeljebb ennyi képzett alakot fogadunk el egy AI-válaszból.
+     *
+     * Egy szónak könnyen van négynél több jogos képzése (bear → bearable,
+     * unbearable, bearer, bearing), és a szűkebb plafon ezeket levágta.
+     */
+    private const MAX_DERIVED_FORMS = 6;
 
     /**
      * A modell `derived_forms` válaszának megtisztítása, mielőtt az `extra_forms`
@@ -1559,13 +1564,13 @@ You are a Hungarian-English dictionary assistant for the English word "{$word}".
 - example_en / example_hu: one natural English example sentence and its Hungarian translation.
 - part_of_speech: the word's primary, most common grammatical role.
 - noun_plural: standard plural if the word is a noun that has one (e.g. "book" → "books", "peppermint" → "peppermints"); empty string only if the noun is truly uncountable.
-- derived_forms: up to 4 other SINGLE words built from the same root as the base_form that fit none of the form fields below, comma-separated — typically the adverb ("happy" → "happily"), the abstract noun ("happy" → "happiness"), or the standard negated form ("happy" → "unhappy"). Empty string if there are none.
+- derived_forms: up to 6 other single English words built from the SAME ROOT as the base_form and still carrying its core meaning, comma-separated. Include EVERY standard derivation, whatever the prefix or suffix — do not restrict yourself to one or two kinds. Adverb ("quick" → "quickly"). Abstract noun ("happy" → "happiness", "argue" → "argument", "decide" → "decision"). Agent noun ("bear" → "bearer", "act" → "actor"). Adjective ("bear" → "bearable", "hope" → "hopeful", "hope" → "hopeless"). Negated form ("bear" → "unbearable", "happy" → "unhappy"). Verb ("modern" → "modernise"). A word two derivation steps away still counts as long as the root and the core meaning hold — for "bear" list BOTH "bearable" and "unbearable". Empty string if there genuinely are none.
 {$contextBlock}
 
 Constraints:
 - Translate the Hungarian fields accurately and concisely.
 - Form fields (verb_past, verb_past_participle, verb_present_participle, verb_third_person, noun_plural, adj_comparative, adj_superlative): fill EVERY field that is a genuine inflected form of "{$word}", even across different word classes. The part_of_speech stays the single primary role, but the form fields are NOT limited to that role. Example: the noun "interest" is also a verb, so fill noun_plural="interests" AND verb_past="interested", verb_past_participle="interested", verb_present_participle="interesting", verb_third_person="interests".
-- Critical derived_forms rule: only list a word there if it is built from the same root AND keeps the same core meaning. Never list a word whose meaning has drifted away — e.g. for "hard" do NOT list "hardly" (it means "barely"), for "late" do NOT list "lately". Never repeat a form that already belongs in one of the inflection fields.
+- Critical derived_forms accuracy rule — be strict, and OMIT rather than guess. Every word you list must satisfy all three: (1) it is an established English word that appears in a dictionary, never a grammatically plausible but non-existent construction; (2) it is built from the same root as the base_form; (3) it still recognisably carries the base_form's core meaning. If you are not certain of all three, leave it out — a missing form is far better than a wrong one. Never list a word whose meaning has drifted away from the root: for "hard" do NOT list "hardly" (it means "barely"), for "late" do NOT list "lately" (it means "recently"), for "near" do NOT list "nearly". Never repeat anything that belongs in an inflection field above, and never list a multi-word phrase.
 - Critical homograph rule: only include forms that are real inflections OF THIS SAME WORD and meaning. Never add a form that merely happens to be spelled like an inflection of a DIFFERENT, unrelated word. Example: for the flower "rose" leave verb_past empty, because "rose" as a past tense belongs to the unrelated verb "rise".
 - Use an empty string for any field that does not apply, and never invent a word form that does not exist in standard English.
 PROMPT;

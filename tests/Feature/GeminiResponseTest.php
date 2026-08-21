@@ -417,15 +417,16 @@ test('a nem szóalakú képzett alakokat eldobjuk (fail-closed)', function () {
 
 test('a képzett alakok száma és hossza korlátozott (nem csonkolhat oszlopot)', function () {
     Http::fake(['generativelanguage.googleapis.com/*' => Http::response(
-        happyLookupResponse('one, two, three, four, five, six')
+        happyLookupResponse('one, two, three, four, five, six, seven, eight')
     )]);
 
     $user = User::factory()->create(['ai_access' => true]);
 
+    // A plafon 6: a hetedik és a nyolcadik alak már nem kerül be.
     $response = $this->actingAs($user)
         ->getJson(route('text-analysis.gemini-lookup', ['word' => 'happy']))
         ->assertSuccessful()
-        ->assertJson(['derived_forms' => 'one/two/three/four']);
+        ->assertJson(['derived_forms' => 'one/two/three/four/five/six']);
 
     expect(mb_strlen($response->json('derived_forms')))->toBeLessThanOrEqual(255);
 });
@@ -441,4 +442,41 @@ test('üres vagy hiányzó derived_forms esetén null a mező', function () {
         ->getJson(route('text-analysis.gemini-lookup', ['word' => 'happy']))
         ->assertSuccessful()
         ->assertJson(['derived_forms' => null]);
+});
+
+test('a prompt minden képzés-típust kér, és pontatlanság esetén kihagyást ír elő', function () {
+    // Őrszem-teszt: a képzett alakok pontossága a prompton áll. Korábban három
+    // példa (-ly, -ness, un-) szűkítette a kört, és a modell emiatt a „bear"-hez
+    // az „unbearable"-t adta, a „bearable"-t nem. Ha a szándék bármelyik fele
+    // kikerül a promptból, ez a teszt elhasal.
+    Http::fake(['generativelanguage.googleapis.com/*' => Http::response(
+        happyLookupResponse('happily')
+    )]);
+
+    $user = User::factory()->create(['ai_access' => true]);
+
+    $this->actingAs($user)
+        ->getJson(route('text-analysis.gemini-lookup', ['word' => 'happy']))
+        ->assertSuccessful();
+
+    Http::assertSent(function ($request) {
+        $prompt = (string) data_get($request->data(), 'contents.0.parts.0.text');
+
+        // 1. Ne szűkítsen néhány képzés-típusra: a főbb típusok mind szerepelnek.
+        foreach (['Adverb', 'Abstract noun', 'Agent noun', 'Adjective', 'Negated form'] as $kind) {
+            expect($prompt)->toContain($kind);
+        }
+
+        // 2. A több lépcsős képzés is beleértendő (bear → bearable → unbearable).
+        expect($prompt)->toContain('two derivation steps away');
+
+        // 3. Bizonytalanság esetén kihagyás, nem találgatás.
+        expect($prompt)->toContain('OMIT rather than guess');
+        expect($prompt)->toContain('a missing form is far better than a wrong one');
+
+        // 4. A jelentés-eltolódás tiltása konkrét ellenpéldákkal.
+        expect($prompt)->toContain('for "hard" do NOT list "hardly"');
+
+        return true;
+    });
 });
