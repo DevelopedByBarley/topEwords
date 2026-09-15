@@ -464,7 +464,7 @@ function renderBody(data) {
     header.innerHTML = `
         <span class="word">${esc(word)}</span>
         ${part_of_speech ? `<span class="pos">${esc(part_of_speech)}</span>` : ''}
-        ${rank ? `<span class="rank">#${rank}</span>` : ''}
+        ${rank ? `<span class="rank">#${esc(rank)}</span>` : ''}
         ${is_custom ? `<span class="custom-badge">saját</span>` : ''}
         <button class="close" title="Bezárás">×</button>
     `;

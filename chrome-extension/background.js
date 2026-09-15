@@ -6,14 +6,25 @@ const APP_URL = 'https://topwords.eu';
 // az adatbázisban”). A válasz-törzsbeli error mező (ai_limit, plan, duplicate…)
 // előnyben marad, mert az a legpontosabb — a státusz-alapú kód csak akkor jön,
 // ha a szerver nem adott gépi hibakódot. Sosem dob: hiba esetén { error } objektum.
+//
+// Minden kérésnek van határideje. Enélkül egy félbemaradt (lógó) TCP-kapcsolat
+// esetén a promise sosem oldódna fel, és a hívó felület spinnere — „Keresés…",
+// „Paklik betöltése…", „Betöltés…" — örökre ott maradna, hibaüzenet nélkül.
+// A megszakítást a fetch AbortError-ként dobja, amit a lenti catch a szokásos
+// { error: 'network' }-re képez, így a kliensnek nincs új hibaágra szüksége.
+const FETCH_TIMEOUT_MS = 15000;
+
 function fetchJson(url, options = {}) {
+    const { timeoutMs = FETCH_TIMEOUT_MS, ...fetchOptions } = options;
+
     return fetch(url, {
         credentials: 'include',
-        ...options,
+        signal: AbortSignal.timeout(timeoutMs),
+        ...fetchOptions,
         headers: {
             'X-Requested-With': 'XMLHttpRequest',
             Accept: 'application/json',
-            ...(options.headers ?? {}),
+            ...(fetchOptions.headers ?? {}),
         },
     })
         .then(async (r) => {
@@ -345,8 +356,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
 
     if (msg.type === 'GET_YT_TRANSCRIPT') {
+        // Ez a végpont a szerveren scrape-eli a YouTube-ot, ha a videó még nincs
+        // gyorsítótárazva — érdemben tovább tart a többinél, ezért kap külön,
+        // bővebb határidőt a közös 15 másodperc helyett.
         fetchJson(
             `${APP_URL}/extension/youtube-transcript?v=${encodeURIComponent(msg.videoId)}`,
+            { timeoutMs: 45000 },
         ).then((data) => sendResponse(data));
 
         return true;

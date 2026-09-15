@@ -935,7 +935,7 @@ function renderYtPanelSegments() {
     body.innerHTML = ytPanelSegments
         .map(
             (seg, i) =>
-                `<div class="seg" data-idx="${i}" data-t="${seg.t}">` +
+                `<div class="seg" data-idx="${i}" data-t="${Number(seg.t) || 0}">` +
                 `<span class="ts">${formatYtTime(seg.t)}</span>` +
                 `<span class="txt">${ytWordsToHtml(seg.x)}</span>` +
                 `</div>`,

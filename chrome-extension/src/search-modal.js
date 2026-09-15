@@ -290,7 +290,7 @@ function renderSearchResults(results, error) {
                     <div class="result-meaning">${esc(r.meaning_hu ?? '')}</div>
                 </div>
                 <div class="result-meta">
-                    ${r.rank ? `<span class="result-rank">#${r.rank}</span>` : ''}
+                    ${r.rank ? `<span class="result-rank">#${esc(r.rank)}</span>` : ''}
                     ${r.is_custom ? `<span class="result-custom">saját</span>` : ''}
                     ${statusLabel ? `<span class="result-status" style="background:${statusColor}">${statusLabel}</span>` : ''}
                 </div>
@@ -776,7 +776,7 @@ function showSearchDetail(data) {
         <div class="detail-header">
             <span class="detail-word">${esc(data.word)}</span>
             ${data.part_of_speech ? `<span class="detail-pos">${esc(data.part_of_speech)}</span>` : ''}
-            ${data.rank ? `<span class="detail-rank">#${data.rank}</span>` : ''}
+            ${data.rank ? `<span class="detail-rank">#${esc(data.rank)}</span>` : ''}
             ${data.is_custom ? `<span style="font-size:10px;padding:1px 7px;border-radius:20px;background:#ede9fe;color:#7c3aed;font-weight:500">saját</span>` : ''}
         </div>
         <div class="detail-meaning">${esc(data.meaning_hu ?? '')}</div>

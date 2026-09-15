@@ -425,6 +425,13 @@ class User extends Authenticatable implements MustVerifyEmail
      * Egy korábban lefoglalt bővítmény-írás visszaadása a napi keretbe, ha az
      * insert végül nem valósult meg (pl. párhuzamos kérés miatti unique-ütközés).
      * Korlátlan csomagnál nincs számláló, így nincs mit visszaadni.
+     *
+     * A dekrementálás feltétel nélkül fut, mert a `Cache::get() > 0` őr és a
+     * `decrement()` közti ablakban két párhuzamos refund a számlálót negatívba
+     * vihetné (mindkettő 1-et olvas, majd mindkettő levon) — egy negatív
+     * számláló pedig a napi kereten FELÜL engedne át írásokat. A `decrement()`
+     * önmagában atomi; a nullára vágást utólag, csak a ténylegesen negatív
+     * eredményre végezzük el.
      */
     public function refundExtensionWrite(): void
     {
@@ -434,8 +441,10 @@ class User extends Authenticatable implements MustVerifyEmail
 
         $key = $this->extensionWriteCacheKey();
 
-        if (Cache::get($key, 0) > 0) {
-            Cache::decrement($key);
+        $count = Cache::decrement($key);
+
+        if ($count !== false && $count < 0) {
+            Cache::put($key, 0, now()->endOfDay());
         }
     }
 
