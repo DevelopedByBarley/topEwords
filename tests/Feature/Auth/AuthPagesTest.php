@@ -90,11 +90,11 @@ test('az auth-űrlapok nem írják felül a natív tab-sorrendet', function () {
 test('a regisztráció elmondja, hogy e-mail-megerősítés következik', function () {
     // A `RegisterResponse` nem lépteti be a felhasználót; ha ezt az űrlap nem
     // mondja ki, a login-oldalra visszadobás hibának látszik.
-    expect(authSource('pages/auth/register.tsx'))->toContain('megerősítő e-mailt');
+    expect(authSource('components/auth/register-fields.tsx'))->toContain('megerősítő e-mailt');
 });
 
 test('a regisztráció kifejezett pipával fogadtatja el a jogi dokumentumokat', function () {
-    expect(authSource('pages/auth/register.tsx'))
+    expect(authSource('components/auth/register-fields.tsx'))
         ->toContain('id="terms"')
         ->toContain('name="terms"')
         ->toContain('terms.url()')
@@ -121,7 +121,7 @@ test('elfogadás nélkül nem jön létre fiók', function () {
 test('a számlázási panel magától kinyílik, ha hibát ad vissza a szerver', function () {
     // Csukott panel mögött a felhasználó nem látná, melyik mezőt kifogásolja a
     // szerver — a hibás mező ilyenkor a DOM-ban sincs benne.
-    expect(authSource('pages/auth/register.tsx'))
+    expect(authSource('components/auth/register-fields.tsx'))
         ->toContain("field.startsWith('billing_')")
         ->toContain('billingRequested || hasBillingError');
 });

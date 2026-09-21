@@ -106,6 +106,10 @@ test('flashcard review updates the streak', function () {
     expect($this->user->last_activity_date->isToday())->toBeTrue();
 });
 
+// ÁTMENETILEG KIVEZETVE: a kvíz nincs bekötve az induló feature-körben
+// (routes/words.php), ezért ez az eset route-hiányra bukna. A teszt megmarad,
+// hogy a kvíz visszakapcsolásakor azonnal újra őrizze a streak-léptetést.
+// Visszakapcsoláskor: a ->group() hívást kell törölni.
 test('quiz completion updates the streak', function () {
     $this->user->update(['streak' => 4, 'last_activity_date' => Carbon::yesterday()]);
 
@@ -114,7 +118,7 @@ test('quiz completion updates the streak', function () {
     $this->user->refresh();
     expect($this->user->streak)->toBe(5);
     expect($this->user->last_activity_date->isToday())->toBeTrue();
-});
+})->group('kivezetett');
 
 test('text analysis updates the streak', function () {
     $this->user->update(['streak' => 4, 'last_activity_date' => Carbon::yesterday()]);

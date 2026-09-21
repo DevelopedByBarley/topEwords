@@ -4,6 +4,24 @@ use App\Models\User;
 use App\Models\Word;
 use Illuminate\Support\Facades\Auth;
 
+/*
+|--------------------------------------------------------------------------
+| ÁTMENETILEG KIVEZETVE — a mondatkiegészítés nem része az induló feature-körnek
+|--------------------------------------------------------------------------
+|
+| A cloze route-jai induláskor ki lettek vezetve (routes/words.php, kikommentezett
+| ClozeController-import), ezért az itteni tesztek RouteNotFoundException-nel buknának.
+| A tesztek SZÁNDÉKOSAN megmaradnak: a funkció visszakapcsolásakor azonnal újra
+| őrizetbe veszik a viselkedést — ezért nem töröljük őket.
+|
+| A csoport az alapfutásból ki van zárva (phpunit.xml → defaultTestSuite), hogy a
+| suite zöld maradjon, és egy VALÓDI regresszió ne vesszen el a piros sorok között.
+|
+| Visszakapcsoláskor: a route-ok bekötése után ezt a group() hívást kell törölni.
+| Külön futtatás: php artisan test --group=kivezetett
+*/
+pest()->group('kivezetett');
+
 beforeEach(function () {
     $this->user = User::factory()->create();
     $this->actingAs($this->user);

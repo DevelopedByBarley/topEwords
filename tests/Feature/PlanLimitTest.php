@@ -300,6 +300,9 @@ test('zár-timeout a pakli-létrehozásnál barátságos hibát ad, nem 500-at (
     expect($user->flashcardDecks()->count())->toBe(0);
 });
 
+// ÁTMENETILEG KIVEZETVE: a kvíz nincs bekötve az induló feature-körben
+// (routes/words.php). A csomaglimit-logika többi tesztje ebben a fájlban fut.
+// Visszakapcsoláskor: a ->group() hívást kell törölni.
 test('quiz round size is capped by the plan', function () {
     Word::insert(collect(range(1, 40))->map(fn ($i) => [
         'word' => "qw{$i}",
@@ -318,8 +321,11 @@ test('quiz round size is capped by the plan', function () {
         ->get(route('words.quiz', ['count' => 50]))->viewData('page')['props'];
     expect($premiumProps['words'])->toHaveCount(40)
         ->and($premiumProps['freeQuizLimit'])->toBeNull();
-});
+})->group('kivezetett');
 
+// ÁTMENETILEG KIVEZETVE: a mondatkiegészítés nincs bekötve az induló feature-körben
+// (routes/words.php). A csomaglimit-logika többi tesztje ebben a fájlban fut.
+// Visszakapcsoláskor: a ->group() hívást kell törölni.
 test('cloze round size is capped by the plan', function () {
     Word::insert(collect(range(1, 40))->map(fn ($i) => [
         'word' => "clozeword{$i}",
@@ -339,7 +345,7 @@ test('cloze round size is capped by the plan', function () {
         ->get(route('words.cloze', ['count' => 50]))->viewData('page')['props'];
     expect($premiumProps['items'])->toHaveCount(40)
         ->and($premiumProps['freeClozeLimit'])->toBeNull();
-});
+})->group('kivezetett');
 
 test('daily text analysis is capped per plan', function (string $state, int $limit) {
     $user = $state === 'free'

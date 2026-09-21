@@ -2,7 +2,6 @@
 
 - [Chrome extension paywall plan](project_extension_paywall.md) — Extension will be a paid/premium feature in the future
 - [Entity-by-entity cleanup](project_entity_cleanup.md) — Ongoing maintainability refactor; Words done, Flashcards next; manual deploy needs SQL + file list
-- [Security audit](project_security_audit.md) — Step-by-step audit; findings in SECURITY_AUDIT.md; Auth + Extension/AI done
 - [Phrase highlighting](project_phrase_highlighting.md) — DONE: multi-word phrases highlighted in text analysis via n-gram match
 - [AI scaling plan](project_ai_scaling_plan.md) — TODO: cache AI by word + retry-tuning + client dedup to scale Gemini without a VPS
 - [AI scaling decision](project_ai_scaling_decision.md) — Why caching beats the queue/Redis/Reverb stack for the no-VPS goal

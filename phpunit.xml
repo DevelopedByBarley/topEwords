@@ -12,6 +12,13 @@
             <directory>tests/Feature</directory>
         </testsuite>
     </testsuites>
+    <!-- Atmenetileg kivezetett funkciok tesztjei (kviz, cloze, rendhagyo igek).
+         Reszletek a teszt-fajlok fejleceben. Kulon futtatas a "kivezetett" csoportra. -->
+    <groups>
+        <exclude>
+            <group>kivezetett</group>
+        </exclude>
+    </groups>
     <source>
         <include>
             <directory>app</directory>

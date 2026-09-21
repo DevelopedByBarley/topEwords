@@ -3,6 +3,24 @@
 use App\Models\User;
 use App\Models\Word;
 
+/*
+|--------------------------------------------------------------------------
+| ÁTMENETILEG KIVEZETVE — a rendhagyó igék nem részei az induló feature-körnek
+|--------------------------------------------------------------------------
+|
+| Az oldal route-ja induláskor ki lett vezetve (routes/words.php, kikommentezett
+| IrregularVerbController-import), ezért az itteni tesztek RouteNotFoundException-nel
+| buknának. A tesztek SZÁNDÉKOSAN megmaradnak: a funkció visszakapcsolásakor azonnal
+| újra őrizetbe veszik a viselkedést — ezért nem töröljük őket.
+|
+| A csoport az alapfutásból ki van zárva (phpunit.xml → defaultTestSuite), hogy a
+| suite zöld maradjon, és egy VALÓDI regresszió ne vesszen el a piros sorok között.
+|
+| Visszakapcsoláskor: a route bekötése után ezt a group() hívást kell törölni.
+| Külön futtatás: php artisan test --group=kivezetett
+*/
+pest()->group('kivezetett');
+
 test('guests are redirected to the login page', function () {
     $this->get(route('irregular-verbs.index'))->assertRedirect(route('login'));
 });
