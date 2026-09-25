@@ -79,7 +79,7 @@ const PRO_FEATURES: PlanFeature[] = [
     { heading: true, label: 'Minden az Ingyenesből, plusz:' },
     { value: 'Korlátlan', label: 'tanulókártya és kártyacsomag' },
     { value: '50', label: 'szövegelemzés naponta', info: INFO.textAnalysis },
-    { value: '7', label: 'mentett könyv, 40 YouTube-felirat' },
+    { value: '3', label: 'mentett könyv, 40 YouTube-felirat' },
     {
         value: 'Korlátlan',
         label: 'mentés a Chrome-bővítményből',
@@ -452,8 +452,10 @@ export default function Pricing({
                                 {stripeConfigured && (
                                     <div className="mx-auto mt-6 max-w-2xl space-y-3">
                                         <p className="text-center text-xs text-muted-foreground">
-                                            A feltüntetett árak bruttó árak (az
-                                            ÁFÁ-t tartalmazzák). A terhelés
+                                            A feltüntetett árak végső árak: a
+                                            szolgáltató alanyi adómentes, ezért
+                                            az árak áfát nem tartalmaznak, és
+                                            áfát nem számítunk fel. A terhelés
                                             forintban történik.
                                         </p>
                                         <label

@@ -159,7 +159,7 @@ test('daily report limit is enforced', function () {
 
 test('admin can see reports on the admin index', function () {
     config(['app.admin_email' => 'admin@example.com']);
-    $admin = User::factory()->create(['email' => 'admin@example.com']);
+    $admin = User::factory()->withTwoFactor()->create(['email' => 'admin@example.com']);
     Report::factory()->create(['user_id' => $this->user->id]);
 
     $this->actingAs($admin)
@@ -170,7 +170,7 @@ test('admin can see reports on the admin index', function () {
 
 test('admin can change a report status', function () {
     config(['app.admin_email' => 'admin@example.com']);
-    $admin = User::factory()->create(['email' => 'admin@example.com']);
+    $admin = User::factory()->withTwoFactor()->create(['email' => 'admin@example.com']);
     $report = Report::factory()->create(['user_id' => $this->user->id]);
 
     $this->actingAs($admin)
@@ -191,7 +191,7 @@ test('non-admin cannot reach the admin report status route', function () {
 
 test('admin cannot set an invalid report status', function () {
     config(['app.admin_email' => 'admin@example.com']);
-    $admin = User::factory()->create(['email' => 'admin@example.com']);
+    $admin = User::factory()->withTwoFactor()->create(['email' => 'admin@example.com']);
     $report = Report::factory()->create(['user_id' => $this->user->id]);
 
     $this->actingAs($admin)

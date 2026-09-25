@@ -694,7 +694,7 @@ function wordListAdmin(): User
 {
     config(['app.admin_email' => 'admin@example.com']);
 
-    return User::factory()->create(['email' => 'admin@example.com']);
+    return User::factory()->withTwoFactor()->create(['email' => 'admin@example.com']);
 }
 
 test('admin can store extra_forms on a main list word', function () {

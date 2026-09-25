@@ -52,9 +52,12 @@ return [
 
     'channels' => [
 
+        // T-16: az alapértelmezés a forgatott `daily` — a `single` korlátlanul nő, ami
+        // sértené az adatvédelmi tájékoztató 12 hónapos megőrzési ígéretét. Élesben és
+        // stagingen az AppServiceProvider boot-guardja meg is tagadja a `single`-t.
         'stack' => [
             'driver' => 'stack',
-            'channels' => explode(',', (string) env('LOG_STACK', 'single')),
+            'channels' => explode(',', (string) env('LOG_STACK', 'daily')),
             'ignore_exceptions' => false,
         ],
 
@@ -86,6 +89,23 @@ return [
             'path' => storage_path('logs/mail.log'),
             'level' => 'info',
             'days' => env('LOG_MAIL_DAYS', 30),
+            'replace_placeholders' => true,
+        ],
+
+        /*
+         * Admin-műveletnapló (App\Services\AdminActionLogger, F9C-L2).
+         *
+         * Minden admin-írás (Pro-felülírás, ingyen hónap, meghívó, bejelentés,
+         * szó-módosítás) egy sort kap: ki, mikor, kin, régi → új érték. Az
+         * alkalmazáson kívül él, így egy eltérített admin-session sem törölheti.
+         * Egy év megőrzés: egy „ki adott ennek a usernek Prót?" kérdés hónapokkal
+         * később is felmerülhet.
+         */
+        'admin' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/admin.log'),
+            'level' => 'info',
+            'days' => env('LOG_ADMIN_DAYS', 365),
             'replace_placeholders' => true,
         ],
 

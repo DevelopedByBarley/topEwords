@@ -761,24 +761,28 @@ learningDelta += freq;
 
                 {/* Mode tabs + history toggle */}
                 {!result && (
-                    <div className="flex flex-wrap items-center gap-2" role="tablist" aria-label="Forrás típusa">
-                        {MODE_TABS.map(({ id, label, Icon }) => (
-                            <button
-                                key={id}
-                                type="button"
-                                role="tab"
-                                aria-selected={mode === id}
-                                onClick={() => switchMode(id)}
-                                className={`flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-medium transition-colors sm:px-4 sm:text-sm ${
-                                    mode === id
-                                        ? 'bg-indigo-500 text-white'
-                                        : 'bg-muted text-muted-foreground hover:bg-accent hover:text-foreground'
-                                }`}
-                            >
-                                <Icon className="size-3.5" />
-                                {label}
-                            </button>
-                        ))}
+                    <div className="flex flex-wrap items-center gap-2">
+                        {/* Mobilon a négy fül egy egyenletes, négyoszlopos sort alkot
+                            (ikon a felirat fölött), hogy egyik se törjön külön sorba. */}
+                        <div className="grid w-full grid-cols-4 gap-1.5 sm:flex sm:w-auto sm:gap-2" role="tablist" aria-label="Forrás típusa">
+                            {MODE_TABS.map(({ id, label, Icon }) => (
+                                <button
+                                    key={id}
+                                    type="button"
+                                    role="tab"
+                                    aria-selected={mode === id}
+                                    onClick={() => switchMode(id)}
+                                    className={`flex min-w-0 flex-col items-center justify-center gap-1 rounded-2xl px-1 py-2 text-xs font-medium transition-colors sm:flex-row sm:gap-1.5 sm:rounded-full sm:px-4 sm:text-sm ${
+                                        mode === id
+                                            ? 'bg-indigo-500 text-white'
+                                            : 'bg-muted text-muted-foreground hover:bg-accent hover:text-foreground'
+                                    }`}
+                                >
+                                    <Icon className="size-4 shrink-0 sm:size-3.5" />
+                                    {label}
+                                </button>
+                            ))}
+                        </div>
 
                         {history.length > 0 && (
                             <button
@@ -885,18 +889,19 @@ learningDelta += freq;
                                 />
                             ) : (
                                 <>
-                                    <div className="flex gap-2">
+                                    <div className="flex flex-col gap-2 sm:flex-row">
                                         <Input
                                             value={urlInput}
                                             onChange={(e) => {
- setUrlInput(e.target.value); setError(null); 
+ setUrlInput(e.target.value); setError(null);
 }}
                                             placeholder="https://www.youtube.com/watch?v=..."
-                                            className="flex-1"
+                                            className="min-w-0 flex-1"
                                             onKeyDown={(e) => e.key === 'Enter' && !isFetching && loadYoutube(urlInput)}
                                         />
                                         <Button
                                             variant="outline"
+                                            className="w-full sm:w-auto"
                                             onClick={() => loadYoutube(urlInput)}
                                             disabled={isFetching || !urlInput.trim()}
                                         >
@@ -924,18 +929,19 @@ learningDelta += freq;
 
                         {mode === 'url' && (
                             <>
-                                <div className="flex gap-2">
+                                <div className="flex flex-col gap-2 sm:flex-row">
                                     <Input
                                         value={urlInput}
                                         onChange={(e) => {
- setUrlInput(e.target.value); setFetchedSource(null); setError(null); 
+ setUrlInput(e.target.value); setFetchedSource(null); setError(null);
 }}
                                         placeholder="https://example.com/article"
-                                        className="flex-1"
+                                        className="min-w-0 flex-1"
                                         onKeyDown={(e) => e.key === 'Enter' && !fetchedSource && fetchSource()}
                                     />
                                     <Button
                                         variant="outline"
+                                        className="w-full sm:w-auto"
                                         onClick={() => fetchSource()}
                                         disabled={isFetching || !urlInput.trim() || !!fetchedSource}
                                     >

@@ -166,7 +166,7 @@ export default function WordProgressCard({
                         type="button"
                         aria-pressed={customOnly}
                         onClick={onCustomOnlyToggle}
-                        className={`shrink-0 cursor-pointer rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                        className={`ml-11 shrink-0 cursor-pointer rounded-full px-3 py-1.5 text-xs font-medium transition-colors sm:ml-0 ${
                             customOnly
                                 ? 'bg-indigo-600 text-white'
                                 : 'bg-muted text-muted-foreground hover:bg-accent hover:text-foreground'
@@ -178,7 +178,7 @@ export default function WordProgressCard({
                     <button
                         type="button"
                         onClick={onAddCustomWord}
-                        className="inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-full bg-linear-to-br from-green-400 to-green-500 px-3.5 py-1.5 text-xs font-bold text-green-950 transition-all hover:brightness-105"
+                        className="ml-11 inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-full bg-linear-to-br from-green-400 to-green-500 px-3.5 py-1.5 text-xs font-bold text-green-950 transition-all hover:brightness-105 sm:ml-0"
                     >
                         <Plus className="size-3.5" />
                         Új szó

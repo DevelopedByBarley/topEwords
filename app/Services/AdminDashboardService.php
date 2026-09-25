@@ -5,11 +5,15 @@ namespace App\Services;
 use App\Models\Invite;
 use App\Models\Report;
 use App\Models\User;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 class AdminDashboardService
 {
+    public const ACCESS_USERS_PER_PAGE = 20;
+
     /**
      * @return array<string, int>
      */
@@ -49,12 +53,19 @@ class AdminDashboardService
             ->get(['name', 'email', 'created_at', 'email_verified_at', 'streak', 'last_activity_date']);
     }
 
+    /**
+     * A select() a withCount() ELŐTT kell: a withCount() üres oszloplistánál
+     * `users.*`-ot tesz a lekérdezésbe, és a get([...]) ezt már nem szűkíti —
+     * így a teljes users-sor (stripe_id, számlázási cím, adószám) a böngészőbe
+     * került (F9C-L1).
+     */
     public function mostActive(): Collection
     {
-        return User::withCount('knownWords')
+        return User::select(['id', 'name', 'email', 'streak'])
+            ->withCount('knownWords')
             ->orderByDesc('known_words_count')
             ->limit(10)
-            ->get(['id', 'name', 'email', 'streak']);
+            ->get();
     }
 
     public function registrationsByDay(): Collection
@@ -70,14 +81,28 @@ class AdminDashboardService
     }
 
     /**
-     * Teljes userlista a hozzáférés-kezelőhöz — az effektív csomaggal.
+     * A hozzáférés-kezelő userlistája — szerveroldali kereséssel és lapozással,
+     * az effektív csomaggal. Korábban a teljes userbázist (név + e-mail) küldte
+     * ki minden /admin-betöltéskor (F9C-L4); most egyszerre legfeljebb
+     * ACCESS_USERS_PER_PAGE sort, csak a megjelenítéshez kellő mezőkkel.
+     *
+     * @return LengthAwarePaginator<int, array{id: int, name: string, email: string, plan: string, plan_override: ?string, subscribed: bool, subscription_plan: ?string, trial_ends_at: ?string}>
      */
-    public function accessUsers(): Collection
+    public function accessUsers(string $search = ''): LengthAwarePaginator
     {
-        return User::with('subscriptions')
+        $like = '%'.addcslashes($search, '\\%_').'%';
+
+        return User::query()
+            ->select(['id', 'name', 'email', 'plan_override', 'lifetime_access', 'trial_ends_at'])
+            ->with('subscriptions')
+            ->when($search !== '', fn (Builder $query) => $query->where(fn (Builder $query) => $query
+                ->whereRaw('name LIKE ? ESCAPE ?', [$like, '\\'])
+                ->orWhereRaw('email LIKE ? ESCAPE ?', [$like, '\\'])))
             ->orderBy('name')
-            ->get(['id', 'name', 'email', 'plan_override', 'lifetime_access', 'trial_ends_at'])
-            ->map(fn (User $u) => [
+            ->orderBy('id')
+            ->paginate(self::ACCESS_USERS_PER_PAGE, pageName: 'access_page')
+            ->withQueryString()
+            ->through(fn (User $u) => [
                 'id' => $u->id,
                 'name' => $u->name,
                 'email' => $u->email,

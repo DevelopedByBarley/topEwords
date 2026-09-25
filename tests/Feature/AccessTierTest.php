@@ -176,7 +176,7 @@ test('canceled subscription past its end date no longer grants access', function
 
 test('admin can grant any plan by email', function () {
     config(['app.admin_email' => 'admin@example.com']);
-    $admin = User::factory()->create(['email' => 'admin@example.com']);
+    $admin = User::factory()->withTwoFactor()->create(['email' => 'admin@example.com']);
     $target = User::factory()->create();
 
     $this->actingAs($admin)
@@ -193,7 +193,7 @@ test('admin can grant any plan by email', function () {
 
 test('admin can grant a free month by email', function () {
     config(['app.admin_email' => 'admin@example.com']);
-    $admin = User::factory()->create(['email' => 'admin@example.com']);
+    $admin = User::factory()->withTwoFactor()->create(['email' => 'admin@example.com']);
     $target = User::factory()->create();
 
     $this->actingAs($admin)
@@ -208,7 +208,7 @@ test('admin can grant a free month by email', function () {
 
 test('granting a free month stacks on an active trial', function () {
     config(['app.admin_email' => 'admin@example.com']);
-    $admin = User::factory()->create(['email' => 'admin@example.com']);
+    $admin = User::factory()->withTwoFactor()->create(['email' => 'admin@example.com']);
     // Már fut egy próbaidő — az új hónap annak a végéhez adódik hozzá.
     $target = User::factory()->create(['trial_ends_at' => now()->addDays(10)]);
 
@@ -221,7 +221,7 @@ test('granting a free month stacks on an active trial', function () {
 
 test('granting a free month after an expired trial starts from now', function () {
     config(['app.admin_email' => 'admin@example.com']);
-    $admin = User::factory()->create(['email' => 'admin@example.com']);
+    $admin = User::factory()->withTwoFactor()->create(['email' => 'admin@example.com']);
     // Lejárt próbaidő — az új hónap mostantól számít, nem a régi dátumtól.
     $target = User::factory()->create(['trial_ends_at' => now()->subMonths(3)]);
 
@@ -261,7 +261,7 @@ test('unverified user with the admin email is not an admin', function () {
 
 test('verified admin passes the admin gate', function () {
     config(['app.admin_email' => 'admin@example.com']);
-    $admin = User::factory()->create(['email' => 'admin@example.com']);
+    $admin = User::factory()->withTwoFactor()->create(['email' => 'admin@example.com']);
 
     expect($admin->isAdmin())->toBeTrue();
 
@@ -340,7 +340,7 @@ test('success route flashes a confirmation message', function () {
 
 test('admin access endpoint rejects invalid plans', function () {
     config(['app.admin_email' => 'admin@example.com']);
-    $admin = User::factory()->create(['email' => 'admin@example.com']);
+    $admin = User::factory()->withTwoFactor()->create(['email' => 'admin@example.com']);
     $target = User::factory()->create();
 
     $this->actingAs($admin)

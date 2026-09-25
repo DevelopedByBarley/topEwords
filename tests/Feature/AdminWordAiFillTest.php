@@ -16,7 +16,7 @@ beforeEach(function () {
     config(['services.gemini.api_key' => 'test-key']);
     config(['app.admin_email' => 'admin@example.com']);
 
-    $this->admin = User::factory()->create(['email' => 'admin@example.com']);
+    $this->admin = User::factory()->withTwoFactor()->create(['email' => 'admin@example.com']);
 });
 
 /**

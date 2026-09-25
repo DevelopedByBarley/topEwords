@@ -20,9 +20,22 @@ use Throwable;
  */
 class InvoiceGenerator
 {
+    /**
+     * A kiállítási zár élettartama. Legalább a job timeoutja + a zár-várakozás legyen
+     * (GenerateBillingoInvoice::TIMEOUT_SECONDS + LOCK_WAIT_SECONDS): így a zár nem járhat le,
+     * amíg a tartója még legálisan futhat, és egy átfedő második futás nem állíthat ki második
+     * NAV-számlát. A viszonyt teszt rögzíti (BillingoJobTimingTest).
+     */
+    public const LOCK_TTL_SECONDS = 120;
+
+    /**
+     * Ennyit vár a zárra egy második folyamat, mielőtt LockTimeoutException-nel feladja.
+     */
+    public const LOCK_WAIT_SECONDS = 10;
+
     public function __construct(
         private BillingoClient $client,
-        private int $lockWaitSeconds = 10,
+        private int $lockWaitSeconds = self::LOCK_WAIT_SECONDS,
     ) {}
 
     /**
@@ -30,12 +43,17 @@ class InvoiceGenerator
      * számlát. A stripe_invoice_id unique kulcsra építve a többször kézbesített
      * webhook és az újrafutó job sem hoz létre második számlát.
      *
+     * A vevő adatai a dispatch-kori pillanatképből (BillingProfile) jönnek, így a számla a
+     * feldolgozásig törölt felhasználóra is kiállítható (NAV-kötelezettség). Kényelmi okból
+     * User is átadható — abból itt azonnal pillanatkép készül.
+     *
      * @param  array<string, mixed>  $stripeInvoice  a Stripe invoice objektum (webhook payload data.object)
      *
      * @throws LockTimeoutException ha a zár a várakozási időn belül sem szabadul fel — a hívó job-próbálkozás elbukik, és a queue backoff után újrapróbálja
      */
-    public function generateForStripeInvoice(User $user, array $stripeInvoice): ?BillingoInvoice
+    public function generateForStripeInvoice(User|BillingProfile $customer, array $stripeInvoice): ?BillingoInvoice
     {
+        $profile = $customer instanceof User ? BillingProfile::fromUser($customer) : $customer;
         $stripeInvoiceId = $stripeInvoice['id'] ?? null;
 
         if (! is_string($stripeInvoiceId) || $stripeInvoiceId === '') {
@@ -55,16 +73,16 @@ class InvoiceGenerator
         // újraküldi az eseményt (vagy két worker párhuzamosan fut), két folyamat is
         // láthatná isIssued()===false-nak, és MINDKETTŐ kiállítana egy NAV-számlát. A zár
         // garantálja, hogy egy fizetéshez egyszerre csak egy folyamat számlázzon.
-        $lock = Cache::lock("billingo:issue:{$stripeInvoiceId}", 120);
+        $lock = Cache::lock("billingo:issue:{$stripeInvoiceId}", self::LOCK_TTL_SECONDS);
 
         // Rövid várakozással szerezzük meg: ha egy másik folyamat épp ezt a számlát
         // állítja ki, kivárjuk, és az idempotens ág már kiállítottként látja. Ha viszont
         // a zár nem szabadul fel (a tartóját hard-kill érte — OOM, deploy-restart —, és a
         // zár a TTL-ig beragadt), a LockTimeoutException buktatja a job-próbálkozást, így
         // a backoff utáni újrapróba a zár lejárta után befejezi a kiállítást. Csendes
-        // kihagyás (return null) itt riasztás nélkül nyelné el a NAV-számlát: a database
-        // queue már 90 mp után újra kiadja a hard-killelt jobot, az a még élő 120 mp-es
-        // zárba ütközne, és „sikerrel" zárulna — több próbálkozás nélkül.
+        // kihagyás (return null) itt riasztás nélkül nyelné el a NAV-számlát: a queue a
+        // retry_after után újra kiadja a hard-killelt jobot, és ha az a még élő zárba
+        // ütközne, „sikerrel" zárulna — több próbálkozás nélkül.
         $lock->block($this->lockWaitSeconds);
 
         try {
@@ -72,16 +90,18 @@ class InvoiceGenerator
             // van állítva, azonnal visszaadjuk — nincs felesleges Billingo-hívás. Ha létezik,
             // de még nincs dokumentuma (korábbi attempt a hívás előtt/közben elhasalt),
             // ugyanezen a soron folytatjuk, így a job-újrapróbálás befejezi a számlázást.
+            // Törölt felhasználónál a user_id NULL (a FK nullOnDelete — ugyanaz az állapot,
+            // amit a fiók-törlés a már meglévő számla-sorokon előidéz); a számla így is kiállul.
             $record = BillingoInvoice::firstOrCreate(
                 ['stripe_invoice_id' => $stripeInvoiceId],
-                ['user_id' => $user->id],
+                ['user_id' => $this->existingUserId($profile)],
             );
 
             // Ki nem állított számlát most állítunk ki; a már kiállítottat (korábbi sikeres
             // attempt) nem hozzuk létre újra — de az e-mailes kézbesítés alább így is lefut,
             // ha az korábban nem sikerült.
             if (! $record->isIssued()) {
-                $document = $this->issueDocument($record, $user, $stripeInvoice, $stripeInvoiceId);
+                $document = $this->issueDocument($record, $profile, $stripeInvoice, $stripeInvoiceId);
 
                 $record->update([
                     'billingo_document_id' => $document['id'] ?? null,
@@ -114,7 +134,7 @@ class InvoiceGenerator
                     $record->emailed_at = null;
 
                     Log::error('A számla-e-mail kiment, de az emailed_at jelölés mentése elhasalt — a sor kézbesítetlennek látszik, kézi ellenőrzés kell (egy újrafuttatás újraküldené a levelet).', [
-                        'user_id' => $user->id,
+                        'user_id' => $profile->userId,
                         'stripe_invoice_id' => $stripeInvoiceId,
                         'billingo_document_id' => $record->billingo_document_id,
                         'exception' => $e,
@@ -148,7 +168,7 @@ class InvoiceGenerator
      * @param  array<string, mixed>  $stripeInvoice
      * @return array<string, mixed>
      */
-    private function issueDocument(BillingoInvoice $record, User $user, array $stripeInvoice, string $stripeInvoiceId): array
+    private function issueDocument(BillingoInvoice $record, BillingProfile $profile, array $stripeInvoice, string $stripeInvoiceId): array
     {
         // Egy korábbi, félbeszakadt attempt már megkezdte a kiállítást — előbb nézzük meg,
         // hogy a NAV-számla valójában kiadódott-e a Billingóban, mielőtt újat állítanánk ki.
@@ -165,7 +185,7 @@ class InvoiceGenerator
         $record->update(['issuing_started_at' => Date::now()]);
 
         return $this->client->createDocument(
-            $this->documentPayload($this->ensurePartner($user), $stripeInvoice, $stripeInvoiceId),
+            $this->documentPayload($this->ensurePartner($profile), $stripeInvoice, $stripeInvoiceId),
         );
     }
 
@@ -202,16 +222,23 @@ class InvoiceGenerator
      * A felhasználó Billingo partner-azonosítója: első alkalommal létrehozzuk a
      * számlázási adataiból és elmentjük, utána újrahasználjuk — így nem keletkezik
      * minden számlánál duplikált partner.
+     *
+     * Ha a felhasználó még létezik, a mentett azonosítót frissen az adatbázisból olvassuk,
+     * nem a pillanatképből: egy korábbi, a partner létrehozása után elbukott próbálkozás már
+     * elmenthette, és a retry különben második partnert hozna létre. Törölt felhasználónál a
+     * pillanatkép azonosítója az egyetlen forrás.
      */
-    private function ensurePartner(User $user): int
+    private function ensurePartner(BillingProfile $profile): int
     {
-        $payload = $this->partnerPayload($user);
+        $payload = $this->partnerPayload($profile);
+        $savedPartnerId = User::query()->whereKey($profile->userId)->value('billingo_partner_id')
+            ?? $profile->billingoPartnerId;
 
         // Meglévő partnernél nem hozunk létre újat (az duplikálná a vevőt), de a
         // számlázási adatok a settingsben azóta változhattak (cím/név/adószám) —
         // számlázáskor frissítjük, hogy a számla mindig a friss adatokkal menjen ki.
-        if ($user->billingo_partner_id !== null) {
-            $partnerId = (int) $user->billingo_partner_id;
+        if ($savedPartnerId !== null) {
+            $partnerId = (int) $savedPartnerId;
 
             try {
                 $this->client->updatePartner($partnerId, $payload);
@@ -226,7 +253,7 @@ class InvoiceGenerator
                 // örökre halott, minden újrapróba ugyanígy bukna, és a felhasználó
                 // számlázása kézi beavatkozásig állna. Eldobjuk, és alább újra létrehozzuk.
                 Log::warning('A mentett Billingo partner nem létezik (404), újra létrehozzuk.', [
-                    'user_id' => $user->id,
+                    'user_id' => $profile->userId,
                     'billingo_partner_id' => $partnerId,
                 ]);
             }
@@ -234,8 +261,9 @@ class InvoiceGenerator
 
         $partnerId = $this->client->createPartner($payload);
 
-        // Rendszer által kezelt, nem fillable mező — szándékosan forceFill.
-        $user->forceFill(['billingo_partner_id' => $partnerId])->save();
+        // Rendszer által kezelt, nem fillable mező — query-szintű update (nincs mass-assignment
+        // szűrés). Törölt felhasználónál nincs sor, amit frissíteni kellene: 0 érintett sor.
+        User::query()->whereKey($profile->userId)->update(['billingo_partner_id' => $partnerId]);
 
         return $partnerId;
     }
@@ -243,33 +271,41 @@ class InvoiceGenerator
     /**
      * @return array<string, mixed>
      */
-    private function partnerPayload(User $user): array
+    private function partnerPayload(BillingProfile $profile): array
     {
         $payload = [
-            'name' => $user->billing_name ?: $user->name,
+            'name' => $profile->billingName ?: $profile->name,
             'address' => [
-                'country_code' => $user->billing_country ?: 'HU',
-                'post_code' => (string) $user->billing_zip,
-                'city' => (string) $user->billing_city,
-                'address' => (string) $user->billing_address,
+                'country_code' => $profile->billingCountry ?: 'HU',
+                'post_code' => (string) $profile->billingZip,
+                'city' => (string) $profile->billingCity,
+                'address' => (string) $profile->billingAddress,
             ],
-            'emails' => [$user->email],
+            'emails' => [$profile->email],
         ];
 
-        if ($user->billing_phone) {
-            $payload['phone'] = $user->billing_phone;
+        if ($profile->billingPhone) {
+            $payload['phone'] = $profile->billingPhone;
         }
 
         // Adószám és cégjegyzékszám csak cégnél kötelező/értelmes — magánszemélynél nem küldjük.
-        if ($user->billing_type === 'company' && $user->billing_tax_number) {
-            $payload['taxcode'] = $user->billing_tax_number;
+        if ($profile->billingType === 'company' && $profile->billingTaxNumber) {
+            $payload['taxcode'] = $profile->billingTaxNumber;
         }
 
-        if ($user->billing_type === 'company' && $user->billing_company_registration_number) {
-            $payload['registration_number'] = $user->billing_company_registration_number;
+        if ($profile->billingType === 'company' && $profile->billingCompanyRegistrationNumber) {
+            $payload['registration_number'] = $profile->billingCompanyRegistrationNumber;
         }
 
         return $payload;
+    }
+
+    /**
+     * A pillanatkép felhasználójának azonosítója, ha még létezik — különben null.
+     */
+    private function existingUserId(BillingProfile $profile): ?int
+    {
+        return User::query()->whereKey($profile->userId)->exists() ? $profile->userId : null;
     }
 
     /**
@@ -342,13 +378,14 @@ class InvoiceGenerator
 
     /**
      * A használandó számlatömb. Konfigban megadott id-t használjuk; ha nincs (0),
-     * a Billingo első elérhető tömbjét kérjük le — teszt profilnál ez kényelmes.
+     * a Billingo első `invoice` típusú tömbjét kérjük le — teszt profilnál ez kényelmes.
+     * Élesben/stagingen a boot-guard (AppServiceProvider) kötelezővé teszi a block_id-t.
      */
     private function blockId(): int
     {
         $configured = (int) config('services.billingo.block_id');
 
-        return $configured > 0 ? $configured : $this->client->firstDocumentBlockId();
+        return $configured > 0 ? $configured : $this->client->firstInvoiceBlockId();
     }
 
     /**

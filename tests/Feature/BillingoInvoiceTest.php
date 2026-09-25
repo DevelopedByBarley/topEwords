@@ -4,12 +4,16 @@ use App\Jobs\GenerateBillingoInvoice;
 use App\Models\BillingoInvoice;
 use App\Models\User;
 use App\Services\Billingo\BillingoClient;
+use App\Services\Billingo\BillingProfile;
 use App\Services\Billingo\InvoiceGenerator;
 use Illuminate\Contracts\Cache\LockTimeoutException;
+use Illuminate\Contracts\Database\ModelIdentifier;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
@@ -60,7 +64,11 @@ function fakeBillingo(): void
         // A küldés-végpont specifikusabb mintája a /documents elé kerül (első találat nyer).
         'api.billingo.hu/v3/documents/*/send' => Http::response([], 200),
         'api.billingo.hu/v3/documents' => Http::response(['id' => 5001, 'invoice_number' => 'TESZT-2026-1'], 200),
-        'api.billingo.hu/v3/document-blocks' => Http::response(['data' => [['id' => 42]]], 200),
+        // Az első tömb díjbekérő: az automatikus választásnak az invoice típusút kell vennie.
+        'api.billingo.hu/v3/document-blocks*' => Http::response(['data' => [
+            ['id' => 41, 'type' => 'proforma'],
+            ['id' => 42, 'type' => 'invoice'],
+        ]], 200),
     ]);
 }
 
@@ -447,14 +455,14 @@ test('cégnél az adószám rákerül a partnerre, magánszemélynél nem', func
         && ($request->data()['taxcode'] ?? null) === '12345678-2-42');
 });
 
-test('konfig nélküli számlatömbnél az első elérhető tömböt kéri le', function () {
+test('konfig nélküli számlatömbnél az első invoice típusú tömböt kéri le', function () {
     fakeBillingo();
     config(['services.billingo.block_id' => 0]);
     $user = billableUser();
 
     app(InvoiceGenerator::class)->generateForStripeInvoice($user, stripeInvoice());
 
-    Http::assertSent(fn ($request) => str_ends_with($request->url(), '/document-blocks'));
+    Http::assertSent(fn ($request) => str_contains($request->url(), '/document-blocks'));
     Http::assertSent(fn ($request) => str_ends_with($request->url(), '/documents')
         && $request->data()['block_id'] === 42);
 });
@@ -471,8 +479,14 @@ test('a sikeres fizetés webhookja a számlázó jobot sorba teszi, ha a Billing
         'data' => ['object' => $invoice],
     ])->assertOk();
 
+    // A job a User modell helyett a fizetés pillanatában rögzített számlázási pillanatképet
+    // kapja (T-10) — így a feldolgozásig törölt felhasználóra is kiállítható a számla.
     Queue::assertPushed(GenerateBillingoInvoice::class, function (GenerateBillingoInvoice $job) use ($user) {
-        return $job->user->is($user) && ($job->stripeInvoice['id'] ?? null) === 'in_webhook';
+        return $job->userId === $user->id
+            && $job->billing instanceof BillingProfile
+            && $job->billing->billingName === 'Teszt Elek'
+            && $job->billing->email === $user->email
+            && ($job->stripeInvoice['id'] ?? null) === 'in_webhook';
     });
 });
 
@@ -787,4 +801,119 @@ test('BILL-L1: a hálózati timeout (ConnectionException) átjut a hívón, hogy
 
     expect(fn () => app(BillingoClient::class)->createDocument(['dummy' => true]))
         ->toThrow(ConnectionException::class);
+});
+
+// ── T-10 (F2-L3): a számlázó job független a User modelltől ─────────────────────
+
+test('T-10: a feldolgozásig törölt felhasználóra is kiállul a számla (valódi queue-körút)', function () {
+    fakeBillingo();
+    config(['queue.default' => 'database']);
+    $user = billableUser(['billing_name' => 'Törölt Vevő Kft.', 'billing_zip' => '6720', 'billing_city' => 'Szeged']);
+    $userId = $user->id;
+
+    // A webhook a fizetéskor sorba teszi a jobot, majd a feldolgozás előtt a fiók törlődik.
+    GenerateBillingoInvoice::dispatch(BillingProfile::fromUser($user), stripeInvoice(['id' => 'in_deleted_user']));
+    $user->delete();
+
+    // A worker a jobs táblából deszerializálja és futtatja — korábban itt ModelNotFoundException dobott.
+    $this->artisan('queue:work', ['connection' => 'database', '--once' => true, '--stop-when-empty' => true])
+        ->assertSuccessful();
+
+    $record = BillingoInvoice::where('stripe_invoice_id', 'in_deleted_user')->first();
+    expect(User::find($userId))->toBeNull()
+        ->and($record)->not->toBeNull()
+        ->and($record->user_id)->toBeNull()
+        ->and($record->isIssued())->toBeTrue()
+        ->and(DB::table('jobs')->count())->toBe(0)
+        ->and(DB::table('failed_jobs')->count())->toBe(0);
+
+    // A partner a dispatch-kori pillanatkép adataival készült.
+    Http::assertSent(fn ($request) => str_ends_with($request->url(), '/partners')
+        && $request->data()['name'] === 'Törölt Vevő Kft.'
+        && $request->data()['address']['city'] === 'Szeged');
+});
+
+test('T-10: törölt felhasználónál is lefut a failed(), a Stripe invoice-azonosítóval naplózva', function () {
+    Log::spy();
+    Exceptions::fake();
+    $user = billableUser();
+    $userId = $user->id;
+
+    $serialized = serialize(new GenerateBillingoInvoice(BillingProfile::fromUser($user), stripeInvoice(['id' => 'in_failed_ctx'])));
+    $user->delete();
+
+    // A deszerializálás már nem dob — a job példánya létrejön, így a failed() is futhat.
+    $job = unserialize($serialized);
+    $job->failed(new RuntimeException('Billingo 500'));
+
+    Log::shouldHaveReceived('critical')->withArgs(fn (string $message, array $context): bool => $context['stripe_invoice_id'] === 'in_failed_ctx'
+        && $context['user_id'] === $userId
+        && $context['user_exists'] === false
+        && $context['exception'] === 'Billingo 500');
+    Exceptions::assertReported(fn (RuntimeException $e): bool => $e->getMessage() === 'Billingo 500');
+});
+
+test('T-10: élő felhasználónál a létrehozott partner-azonosító a userre mentődik', function () {
+    fakeBillingo();
+    $user = billableUser();
+
+    app(InvoiceGenerator::class)->generateForStripeInvoice(BillingProfile::fromUser($user), stripeInvoice(['id' => 'in_profile_partner']));
+
+    expect($user->refresh()->billingo_partner_id)->toBe(777);
+});
+
+test('T-10: a retry a userre időközben mentett partnert használja, nem hoz létre másodikat', function () {
+    fakeBillingo();
+    $user = billableUser();
+
+    // A pillanatkép még partner nélküli; egy korábbi, a partner létrehozása után elbukott
+    // próbálkozás viszont már elmentette a 555-öt a userre.
+    $profile = BillingProfile::fromUser($user);
+    $user->forceFill(['billingo_partner_id' => 555])->save();
+
+    app(InvoiceGenerator::class)->generateForStripeInvoice($profile, stripeInvoice(['id' => 'in_retry_partner']));
+
+    Http::assertSent(fn ($request) => $request->method() === 'PUT' && str_ends_with($request->url(), '/partners/555'));
+    Http::assertNotSent(fn ($request) => $request->method() === 'POST' && str_ends_with($request->url(), '/partners'));
+});
+
+/**
+ * A korábbi jobverzió szerializált alakja: a User modell ModelIdentifier-ként a `user` kulcson.
+ */
+function legacySerializedBillingJob(User $user, array $stripeInvoice): array
+{
+    return [
+        'user' => new ModelIdentifier(User::class, $user->id, [], $user->getConnectionName()),
+        'stripeInvoice' => $stripeInvoice,
+    ];
+}
+
+test('T-10: a queue-ban maradt régi (User-t szerializáló) job élő usernél továbbra is számláz', function () {
+    fakeBillingo();
+    $user = billableUser();
+
+    $job = (new ReflectionClass(GenerateBillingoInvoice::class))->newInstanceWithoutConstructor();
+    $job->__unserialize(legacySerializedBillingJob($user, stripeInvoice(['id' => 'in_legacy_live'])));
+    $job->handle(app(InvoiceGenerator::class));
+
+    expect($job->userId)->toBe($user->id)
+        ->and(BillingoInvoice::where('stripe_invoice_id', 'in_legacy_live')->first()?->isIssued())->toBeTrue();
+});
+
+test('T-10: a régi job törölt usernél sem dob deszerializáláskor — hangosan bukik, a failed() kontextussal fut', function () {
+    Log::spy();
+    Exceptions::fake();
+    $user = billableUser();
+    $legacy = legacySerializedBillingJob($user, stripeInvoice(['id' => 'in_legacy_gone']));
+    $user->delete();
+
+    $job = (new ReflectionClass(GenerateBillingoInvoice::class))->newInstanceWithoutConstructor();
+    $job->__unserialize($legacy);
+
+    expect($job->billing)->toBeNull()
+        ->and(fn () => $job->handle(app(InvoiceGenerator::class)))->toThrow(RuntimeException::class, 'in_legacy_gone');
+
+    $job->failed(null);
+
+    Log::shouldHaveReceived('critical')->withArgs(fn (string $message, array $context): bool => $context['stripe_invoice_id'] === 'in_legacy_gone');
 });

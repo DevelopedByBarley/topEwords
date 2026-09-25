@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
+use App\Support\HtmlSanitizer;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -30,6 +32,36 @@ class Flashcard extends Model
     public function word(): BelongsTo
     {
         return $this->belongsTo(Word::class);
+    }
+
+    /**
+     * A rich-text mezők tároláskor szűrve kerülnek a DB-be (F7-L3). A tömeges
+     * `insert()`-utak ezt megkerülik, de azok vagy már tárolt (szűrt) értéket
+     * másolnak (megfordítás), vagy escape-elt szöveget írnak (CSV-import).
+     */
+    protected function front(): Attribute
+    {
+        return self::sanitizedHtml();
+    }
+
+    protected function back(): Attribute
+    {
+        return self::sanitizedHtml();
+    }
+
+    protected function frontNotes(): Attribute
+    {
+        return self::sanitizedHtml();
+    }
+
+    protected function backNotes(): Attribute
+    {
+        return self::sanitizedHtml();
+    }
+
+    private static function sanitizedHtml(): Attribute
+    {
+        return Attribute::make(set: fn (?string $value): ?string => HtmlSanitizer::clean($value));
     }
 
     public function reviews(): HasMany

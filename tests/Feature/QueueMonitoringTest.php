@@ -1,10 +1,15 @@
 <?php
 
+use App\Jobs\GenerateBillingoInvoice;
+use App\Models\User;
 use App\Notifications\FailedJobsDetected;
 use App\Notifications\QueueBacklogDetected;
+use App\Notifications\StaleJobsDetected;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Queue\Events\QueueBusy;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 
 function insertFailedJob(string $displayName = 'App\\Jobs\\GenerateBillingoInvoice'): int
@@ -112,4 +117,100 @@ test('ADMIN_EMAIL nélkül a torlódás-riasztás némán kimarad', function () 
     event(new QueueBusy('database', 'default', 120));
 
     Notification::assertNothingSent();
+});
+
+/*
+| F4-L1: a queue:monitor csak méretet mér, a queue:alert-failed csak a bukottakat — egy
+| worker nélkül várakozó, egyetlen számlázó job egyiknek sem tűnik fel. A queue:alert-stale
+| a legrégebben esedékes job korát figyeli.
+*/
+
+function dispatchInvoiceJobToDatabaseQueue(): void
+{
+    config(['queue.default' => 'database']);
+
+    GenerateBillingoInvoice::dispatch(User::factory()->create(), ['id' => 'in_test']);
+}
+
+test('30 percnél régebben váró számlázó jobról riasztás megy', function () {
+    Notification::fake();
+    config(['app.admin_email' => 'admin@example.com']);
+
+    dispatchInvoiceJobToDatabaseQueue();
+    $this->travel(31)->minutes();
+
+    $this->artisan('queue:alert-stale')->assertExitCode(0);
+
+    Notification::assertSentOnDemand(
+        StaleJobsDetected::class,
+        fn ($notification, $channels, $notifiable) => $notifiable->routes['mail'] === 'admin@example.com'
+            && $notification->total === 1
+            && $notification->jobs[0]['job'] === 'App\Jobs\GenerateBillingoInvoice'
+            && $notification->jobs[0]['waiting_minutes'] === 31
+    );
+});
+
+test('a frissen sorba tett job nem számít beragadtnak', function () {
+    Notification::fake();
+    config(['app.admin_email' => 'admin@example.com']);
+
+    dispatchInvoiceJobToDatabaseQueue();
+    $this->travel(29)->minutes();
+
+    $this->artisan('queue:alert-stale')->assertExitCode(0);
+
+    Notification::assertNothingSent();
+});
+
+test('a backoffra váró újrapróbálkozás nem számít beragadtnak', function () {
+    Notification::fake();
+    config(['app.admin_email' => 'admin@example.com', 'queue.default' => 'database']);
+
+    // Release a 900 mp-es backoff-fal: 40 perc múlva már csak 25 perce esedékes.
+    Queue::connection('database')->later(now()->addSeconds(900), 'App\Jobs\Dummy');
+    $this->travel(40)->minutes();
+
+    $this->artisan('queue:alert-stale')->assertExitCode(0);
+
+    Notification::assertNothingSent();
+});
+
+test('a beragadt-job riasztás óránként legfeljebb egyszer megy ki', function () {
+    Notification::fake();
+    config(['app.admin_email' => 'admin@example.com']);
+
+    dispatchInvoiceJobToDatabaseQueue();
+    $this->travel(31)->minutes();
+
+    $this->artisan('queue:alert-stale')->assertExitCode(0);
+    $this->travel(10)->minutes();
+    $this->artisan('queue:alert-stale')->assertExitCode(0);
+
+    Notification::assertSentOnDemandTimes(StaleJobsDetected::class, 1);
+
+    $this->travel(61)->minutes();
+    $this->artisan('queue:alert-stale')->assertExitCode(0);
+
+    Notification::assertSentOnDemandTimes(StaleJobsDetected::class, 2);
+});
+
+test('beragadt jobnál ADMIN_EMAIL nélkül hibával lép ki', function () {
+    Notification::fake();
+    config(['app.admin_email' => null]);
+
+    dispatchInvoiceJobToDatabaseQueue();
+    $this->travel(31)->minutes();
+
+    $this->artisan('queue:alert-stale')
+        ->expectsOutputToContain('Nincs ADMIN_EMAIL')
+        ->assertExitCode(1);
+
+    Notification::assertNothingSent();
+});
+
+test('a queue:alert-stale be van ütemezve', function () {
+    $scheduled = collect(app(Schedule::class)->events())
+        ->contains(fn ($event) => str_contains((string) $event->command, 'queue:alert-stale'));
+
+    expect($scheduled)->toBeTrue();
 });

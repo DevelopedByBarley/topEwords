@@ -28,11 +28,16 @@ Route::middleware(['auth', 'verified', EnsureOnboardingComplete::class])->group(
     Route::post('flashcards/{deck}/cards/{flashcard}/move', [FlashcardCardController::class, 'move'])->name('flashcards.cards.move');
     Route::post('flashcards/{deck}/cards/{flashcard}/duplicate', [FlashcardCardController::class, 'duplicate'])->name('flashcards.cards.duplicate');
     Route::delete('flashcards/{deck}/cards/{flashcard}', [FlashcardCardController::class, 'destroy'])->name('flashcards.cards.destroy');
-    Route::post('flashcards/{deck}/cards/bulk-delete', [FlashcardCardController::class, 'bulkDelete'])->name('flashcards.cards.bulk-delete');
-    Route::post('flashcards/{deck}/cards/bulk-reset', [FlashcardCardController::class, 'bulkReset'])->name('flashcards.cards.bulk-reset');
-    Route::post('flashcards/{deck}/cards/bulk-move', [FlashcardCardController::class, 'bulkMove'])->name('flashcards.cards.bulk-move');
-    Route::post('flashcards/{deck}/cards/bulk-reverse', [FlashcardCardController::class, 'bulkReverse'])->name('flashcards.cards.bulk-reverse');
-    Route::post('flashcards/{deck}/cards/bulk-direction', [FlashcardCardController::class, 'bulkDirection'])->name('flashcards.cards.bulk-direction');
+
+    // Tömeges műveletek: közös percenkénti keret, hogy nagy tömbökkel ne lehessen
+    // párhuzamosan lekötni a PHP-munkásokat (F6-L2).
+    Route::middleware('throttle:30,1,flashcards-bulk')->group(function () {
+        Route::post('flashcards/{deck}/cards/bulk-delete', [FlashcardCardController::class, 'bulkDelete'])->name('flashcards.cards.bulk-delete');
+        Route::post('flashcards/{deck}/cards/bulk-reset', [FlashcardCardController::class, 'bulkReset'])->name('flashcards.cards.bulk-reset');
+        Route::post('flashcards/{deck}/cards/bulk-move', [FlashcardCardController::class, 'bulkMove'])->name('flashcards.cards.bulk-move');
+        Route::post('flashcards/{deck}/cards/bulk-reverse', [FlashcardCardController::class, 'bulkReverse'])->name('flashcards.cards.bulk-reverse');
+        Route::post('flashcards/{deck}/cards/bulk-direction', [FlashcardCardController::class, 'bulkDirection'])->name('flashcards.cards.bulk-direction');
+    });
 
     // CSV import / export
     Route::post('flashcards/{deck}/csv-import', [FlashcardCsvController::class, 'import'])->name('flashcards.csv.import');

@@ -7,6 +7,7 @@ use App\Models\Folder;
 use App\Models\UserCustomWord;
 use App\Models\Word;
 use App\Services\AchievementService;
+use App\Services\AdminActionLogger;
 use App\Services\WordIndexFilters;
 use App\Services\WordPageMarkers;
 use Illuminate\Http\JsonResponse;
@@ -184,7 +185,7 @@ class WordController extends Controller
         ]);
     }
 
-    public function update(Request $request, Word $word): RedirectResponse
+    public function update(Request $request, Word $word, AdminActionLogger $actionLog): RedirectResponse
     {
         Gate::authorize('admin');
 
@@ -210,6 +211,13 @@ class WordController extends Controller
 
         $word->update($data);
 
+        if ($word->wasChanged()) {
+            $actionLog->record($request->user(), 'word.update', $word->id, [
+                'word' => $word->word,
+                'changes' => AdminActionLogger::changesOf($word),
+            ]);
+        }
+
         return back();
     }
 
@@ -222,11 +230,17 @@ class WordController extends Controller
      * lekövetik: a user_word és a folder_word CASCADE, a flashcards és a reports
      * SET NULL — nem marad árva sor, és nem bukik el idegen kulcson.
      */
-    public function destroy(Word $word): RedirectResponse
+    public function destroy(Request $request, Word $word, AdminActionLogger $actionLog): RedirectResponse
     {
         Gate::authorize('admin');
 
         $word->delete();
+
+        $actionLog->record($request->user(), 'word.destroy', $word->id, [
+            'word' => $word->word,
+            'rank' => $word->rank,
+            'derived_from_word_id' => $word->derived_from_word_id,
+        ]);
 
         return back();
     }

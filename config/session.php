@@ -167,12 +167,13 @@ return [
     | to the server if the browser has a HTTPS connection. This will keep
     | the cookie from being sent to you when it can't be done securely.
     |
-    | Élesben (production) fail-safe módon bekapcsol, hogy a Secure flag ne
-    | múljon egy elfelejtett deploy-flagen; env-ből felülírható.
+    | Élesben (production) és stagingen (T-4) fail-safe módon bekapcsol, hogy
+    | a Secure flag ne múljon egy elfelejtett deploy-flagen; env-ből felülírható.
+    | Üres APP_ENV a config/app.php-val egyezően production-nek számít.
     |
     */
 
-    'secure' => env('SESSION_SECURE_COOKIE', env('APP_ENV') === 'production'),
+    'secure' => env('SESSION_SECURE_COOKIE', in_array(env('APP_ENV') ?: 'production', ['production', 'staging'], true)),
 
     /*
     |--------------------------------------------------------------------------

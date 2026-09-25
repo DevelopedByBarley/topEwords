@@ -388,6 +388,28 @@ test('a failed text analysis does not consume the daily quota', function () {
     expect(Cache::get($cacheKey))->toBe(0);
 });
 
+test('an analysis without any word does not consume the daily quota (F9D-L6)', function () {
+    // Korábban ['!!!', '???', 'dog'] → [200, 200, 403]: a Free keret (2) elfogyott
+    // két üres elemzésen, és a valódi szöveg már nem fért bele.
+    $user = User::factory()->create();
+    $cacheKey = "text_analysis_daily_{$user->id}_".today()->format('Y-m-d');
+
+    foreach (['!!!', '???', '1990 2026', '日本語のテキスト'] as $wordlessText) {
+        $this->actingAs($user)
+            ->postJson(route('text-analysis.analyze'), ['text' => $wordlessText])
+            ->assertOk()
+            ->assertJson(['totalWords' => 0, 'achievements' => []]);
+    }
+
+    expect(Cache::get($cacheKey))->toBe(0);
+
+    $this->actingAs($user)
+        ->postJson(route('text-analysis.analyze'), ['text' => 'the quick dog'])
+        ->assertOk();
+
+    expect(Cache::get($cacheKey))->toBe(1);
+});
+
 test('saved book limit is reported per plan', function (string $state, int $limit) {
     $user = $state === 'free'
         ? User::factory()->create()

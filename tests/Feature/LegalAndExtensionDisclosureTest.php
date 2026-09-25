@@ -136,3 +136,35 @@ test('a felirat-gyorsgesztusok csak valódi felhasználói eseményre indulnak',
 
     expect(substr_count($gestures, 'isTrusted'))->toBe(3);
 });
+
+test('a bővítmény-szakasz a tényleges működést írja le (F7-L1)', function () {
+    $privacy = legalPage('privacy');
+    $manifest = json_decode(extensionFile('manifest.json'), true);
+    $matches = collect($manifest['content_scripts'])->pluck('matches')->flatten()->unique()->values()->all();
+
+    // Ha a bővítmény újra minden oldalon futna, a tájékoztatót is igazítani kell.
+    expect($matches)->toBe(['https://www.youtube.com/*', 'https://www.netflix.com/*']);
+
+    expect($privacy)
+        ->not->toContain('bármely weboldalon')
+        ->not->toContain('oldal-statisztikához')
+        ->toContain('kizárólag a YouTube és a Netflix oldalain fut')
+        // A háttérszkript a szó→státusz térképet is a helyi tárolóba írja.
+        ->toContain('szó→státusz térképét');
+
+    expect(extensionFile('background.js'))->toContain("STATUS_CACHE_KEY = 'tw_statusCache'");
+});
+
+test('az ár-tájékoztatás az alanyi adómentességet tükrözi, nem áfás árat (F9B-L4)', function () {
+    $pricing = preg_replace('/\s+/u', ' ', file_get_contents(resource_path('js/pages/pricing.tsx')));
+
+    expect(config('services.billingo.vat'))->toBe('AAM');
+
+    expect(legalPage('terms'))
+        ->toContain('alanyi adómentes (AAM)')
+        ->not->toContain('áfát tartalmazó');
+
+    expect($pricing)
+        ->toContain('alanyi adómentes')
+        ->not->toContain('ÁFÁ-t tartalmazzák');
+});

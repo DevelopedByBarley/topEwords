@@ -1,3 +1,5 @@
+import type { PaginationData } from '@/types/pagination';
+
 export interface Stats {
     totalUsers: number;
     verifiedUsers: number;
@@ -60,7 +62,8 @@ export interface Report {
 }
 
 export interface AccessTabProps {
-    accessUsers: AccessUser[];
+    accessUsers: PaginationData<AccessUser>;
+    accessSearch: string;
 }
 
 export interface InvitesTabProps {
@@ -86,7 +89,8 @@ export interface AdminIndexPageProps {
     recentUsers: AdminUser[];
     mostActive: AdminUser[];
     registrationsByDay: RegistrationDay[];
-    accessUsers: AccessUser[];
+    accessUsers: PaginationData<AccessUser>;
+    accessSearch: string;
     invites: Invite[];
     inviteOnly: boolean;
     reports: Report[];

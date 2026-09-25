@@ -16,7 +16,7 @@ beforeEach(function () {
 
 function adminUser(): User
 {
-    return User::factory()->create(['email' => 'admin@example.com']);
+    return User::factory()->withTwoFactor()->create(['email' => 'admin@example.com']);
 }
 
 test('guests cannot view the downloads page', function () {

@@ -92,6 +92,16 @@ test('error alatti szintű log nem riaszt', function () {
     Notification::assertNothingSent();
 });
 
+test('stagingen is megy a riasztás (a teszt-üzem ott fut)', function () {
+    Notification::fake();
+    config(['app.admin_email' => 'admin@example.com']);
+    app()['env'] = 'staging';
+
+    Log::error('staging hiba');
+
+    Notification::assertSentOnDemand(ApplicationErrorDetected::class);
+});
+
 test('nem prod környezetben nincs riasztás', function () {
     Notification::fake();
     config(['app.admin_email' => 'admin@example.com']);

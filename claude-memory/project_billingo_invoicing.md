@@ -18,7 +18,7 @@ NAV-kompatibilis számlázás Billingo v3 REST API-val, a sikeres Stripe fizeté
 - `StripeWebhookController::handleInvoicePaymentSucceeded` indítja a számlázást
 - Tesztek: `tests/Feature/BillingoInvoiceTest.php`
 
-**GOTCHA — nincs queue worker a tárhelyen:** a jelenlegi production tárhelyen NEM fut állandó `queue:work` (és a user nem tud élesben parancsot futtatni). Ezért a webhook `dispatchSync()`-kel SZINKRON számláz (nem `dispatch()`), a kérésen belül. Hiba esetén nem-200 → Stripe újraküld → idempotencia véd. Ha lesz Ploi/VPS futó workerrel, `dispatchSync` → `dispatch` az egysoros visszaállítás.
+**Queue worker (2026-09-24, a user megerősítette):** élesben fut állandó `queue:work` daemon, ezért a webhook `dispatch()`-csal ASZINKRON számláz, és azonnal 200-at ad a Stripe-nak. A worker nélkül váró számlázó jobot a méret-alapú `queue:monitor` nem veszi észre, ezért a `queue:alert-stale` (10 percenként) riaszt, ha egy job 30 percnél régebben esedékes (F4-L1). Ha a worker megszűnne, vissza `dispatchSync()`-re.
 
 **GOTCHA — webhook eseménylista:** a Stripe Dashboard végpontján KÉZZEL kell felvenni az `invoice.payment_succeeded`-et (+ Cashier defaultok). Ennek hiánya volt az eredeti „semmi nem kerül a jobba" ok — a subscription létrejött (`customer.subscription.created` ki volt pipálva), de a számlázó esemény el sem indult.
 

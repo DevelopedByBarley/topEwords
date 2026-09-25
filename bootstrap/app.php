@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\AttachAiBudgetWarning;
+use App\Http\Middleware\EnsureAdminHasTwoFactor;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\SecurityHeaders;
@@ -28,6 +29,8 @@ return Application::configure(basePath: dirname(__DIR__))
             // Az AI-keretet fogyasztó végpontok válaszába teszi a friss
             // keret-állapotot, hogy a fejléc-sáv azonnal frissüljön.
             'ai.budget' => AttachAiBudgetWarning::class,
+            // Az admin-felület csak megerősített 2FA-val érhető el (F9C-L2).
+            'admin.2fa' => EnsureAdminHasTwoFactor::class,
         ]);
 
         $middleware->validateCsrfTokens(except: ['stripe/*']);

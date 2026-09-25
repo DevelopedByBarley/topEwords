@@ -400,6 +400,35 @@ test('fetch-source rejects a private/reserved IP host', function () {
     Http::assertNothingSent();
 });
 
+test('fetch-source rejects non-public ranges the filter_var flags let through (F6-L1)', function (string $ip) {
+    // IP-literál: a guard nem végez DNS-feloldást, így a teszt hálózat nélkül fut.
+    Http::fake(); // semmit nem szabad lekérni
+
+    $this->postJson(route('text-analysis.fetch-source'), ['url' => "http://{$ip}/"])
+        ->assertStatus(422);
+
+    Http::assertNothingSent();
+})->with([
+    'CGNAT' => '100.64.0.1',
+    'IETF protocol assignments' => '192.0.0.8',
+    'benchmark' => '198.18.0.1',
+    'TEST-NET-1' => '192.0.2.10',
+    'multicast' => '224.0.0.1',
+]);
+
+test('fetch-source rejects a redirect to a CGNAT address (F6-L1)', function () {
+    Http::fake([
+        'http://93.184.216.34/*' => Http::response('', 302, ['Location' => 'http://100.64.0.1/internal']),
+        // Ha a guard mégis átengedné, ez fogná el (különben valós kapcsolat lenne).
+        'http://100.64.0.1/*' => Http::response('leaked', 200, ['Content-Type' => 'text/html']),
+    ]);
+
+    $this->postJson(route('text-analysis.fetch-source'), ['url' => 'http://93.184.216.34/article'])
+        ->assertStatus(422);
+
+    Http::assertNotSent(fn ($request) => str_contains($request->url(), '100.64.0.1'));
+});
+
 test('fetch-source rejects a redirect to an internal address', function () {
     // First (public) hop redirects to a link-local/internal address.
     Http::fake([

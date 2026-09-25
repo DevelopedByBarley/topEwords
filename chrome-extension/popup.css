@@ -716,6 +716,12 @@ body {
     gap: 2px;
 }
 
+/* Mentés közben: a csillagok halványak, a további kattintást a JS-zár dobja el. */
+.importance-row.saving {
+    opacity: 0.55;
+    pointer-events: none;
+}
+
 .imp-star {
     padding: 0 1px;
     border: none;

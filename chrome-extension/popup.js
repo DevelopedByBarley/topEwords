@@ -137,30 +137,29 @@ document.querySelectorAll('.lang-btn').forEach((btn) => {
 
 // ── Bejelentkezés-állapot ────────────────────────────────────────────────────
 
-fetch(`${APP_URL}/extension/lookup?word=the`, {
-    credentials: 'include',
-    headers: {
-        'X-Requested-With': 'XMLHttpRequest',
-        Accept: 'application/json',
-    },
-})
-    .then((r) => r.json())
-    .then((data) => {
-        if (data?.csrf) {
-            csrfToken = data.csrf;
-        }
+// A kérés a háttér közös fetchJson-jén megy (nem saját fetch-csel): így a HTTP-
+// státusz tipizált hibakódra képződik, lógó kapcsolatnál időkorlát jár le, és a
+// 401 a háttérben törli a helyben tárolt szótérképet (ne maradjon a gépen egy
+// előző fiók térképe) — ugyanúgy, mint a content scriptek kéréseinél.
+sendMsg({ type: 'LOOKUP_WORD', word: 'the' }, (data) => {
+    if (data?.csrf) {
+        csrfToken = data.csrf;
+    }
 
-        if (data?.error === 'unauthenticated') {
-            document.getElementById('login-banner').style.display = 'flex';
-        }
-    })
-    .catch(() => {
-        // A szerver egyáltalán nem válaszol (hálózati hiba, tűzfal, leállás).
-        // Korábban ez az ág néma volt, és a popup üresen indult: a kereső nem
-        // adott találatot, de semmi nem mondta meg, miért. Kimondjuk az okot,
-        // különben törött bővítménynek látszik.
+    if (data?.error === 'unauthenticated') {
+        document.getElementById('login-banner').style.display = 'flex';
+
+        return;
+    }
+
+    if (data?.error === 'network') {
+        // A szerver egyáltalán nem válaszol (hálózati hiba, tűzfal, leállás,
+        // időtúllépés). Korábban ez az ág néma volt, és a popup üresen indult:
+        // a kereső nem adott találatot, de semmi nem mondta meg, miért.
+        // Kimondjuk az okot, különben törött bővítménynek látszik.
         document.getElementById('offline-banner').style.display = 'flex';
-    });
+    }
+});
 
 // ── Szövegelemzés gomb ───────────────────────────────────────────────────────
 
@@ -281,6 +280,10 @@ let closeOpenResult = null;
 // Egyszerre csak egy státusz-mentés futhat. A gyors, egymás utáni kattintások
 // különben átfedő kéréseket indítanának — ugyanaz a zár, mint a felirat-popupban.
 let statusSaveInFlight = false;
+// Ugyanez a fontosság-mentésre (a search-modal.js searchImportanceSaveInFlight
+// párja): zár nélkül egy késve érkező hiba a saját, elavult előző értékére
+// görgetne vissza, miközben a szerveren már egy újabb mentés állapota él.
+let importanceSaveInFlight = false;
 
 // A keresés válaszából frissülő jogosultságok. Csak a FELÜLET igazodik hozzájuk
 // (mit mutatunk meg) — a tényleges kaput mindig a szerver adja: a felvitel a
@@ -562,12 +565,19 @@ function searchResultItem(result) {
     }
 
     function saveImportance(value) {
+        if (importanceSaveInFlight) {
+            return;
+        }
+
         const previous = result.importance ?? null;
         const next = previous === value ? null : value;
 
         result.importance = next;
         paintStars();
         error.hidden = true;
+
+        importanceSaveInFlight = true;
+        importanceRow.classList.add('saving');
 
         sendMsg(
             {
@@ -578,6 +588,9 @@ function searchResultItem(result) {
                 csrf: csrfToken,
             },
             (response) => {
+                importanceSaveInFlight = false;
+                importanceRow.classList.remove('saving');
+
                 if (response?.ok) {
                     // A szerver a még nem jelölt szót a csillagozáskor 'known'
                     // státusszal veszi fel (a webes felülettel egyezően), ezért a
@@ -1222,48 +1235,43 @@ function renderSearchResults(results, query) {
 function runSearch(query) {
     const seq = ++searchSeq;
 
-    fetch(`${APP_URL}/extension/search?q=${encodeURIComponent(query)}`, {
-        credentials: 'include',
-        headers: {
-            'X-Requested-With': 'XMLHttpRequest',
-            Accept: 'application/json',
-        },
-    })
-        .then((r) => r.json().catch(() => null))
-        .then((data) => {
-            // Közben újabb keresés indult — ezt a választ eldobjuk.
-            if (seq !== searchSeq) {
-                return;
-            }
+    // A háttér fetchJson-je képezi a 429/5xx/503-at tipizált hibára és ad
+    // időkorlátot — a saját fetch ezeket „nincs találat”-nak mutatta (a Laravel
+    // throttle/hiba-válaszában nincs error mező), lógó kapcsolatnál pedig a
+    // „Keresés…” sosem ért véget.
+    sendMsg({ type: 'SEARCH_WORD', q: query }, (data) => {
+        // Közben újabb keresés indult — ezt a választ eldobjuk.
+        if (seq !== searchSeq) {
+            return;
+        }
 
-            if (data?.error === 'unauthenticated') {
-                searchMessage('Jelentkezz be a TopWords-be a kereséshez.');
+        if (data?.error === 'unauthenticated') {
+            searchMessage('Jelentkezz be a TopWords-be a kereséshez.');
 
-                return;
-            }
+            return;
+        }
 
-            if (!data || data.error) {
-                searchMessage('Hiba történt — próbáld újra.');
+        // Csak valódi találatlista renderelhet: minden más (hiba, váratlan
+        // válasz-alak) hibaüzenet, nem „nincs ilyen szó” + felvitel-ajánlat.
+        if (!data || data.error || !Array.isArray(data.results)) {
+            searchMessage(
+                errorMessage(data?.error, 'Hiba történt — próbáld újra.'),
+            );
 
-                return;
-            }
+            return;
+        }
 
-            // A státusz/fontosság mentése és a felvitel ezzel a tokennel megy ki.
-            if (data.csrf) {
-                csrfToken = data.csrf;
-            }
+        // A státusz/fontosság mentése és a felvitel ezzel a tokennel megy ki.
+        if (data.csrf) {
+            csrfToken = data.csrf;
+        }
 
-            searchCanWrite = data.can_write === true;
-            // Az adminnak a webes felületen is jár az AI, keret nélkül.
-            searchHasAi = data.has_ai_access === true || data.is_admin === true;
+        searchCanWrite = data.can_write === true;
+        // Az adminnak a webes felületen is jár az AI, keret nélkül.
+        searchHasAi = data.has_ai_access === true || data.is_admin === true;
 
-            renderSearchResults(data.results ?? [], query);
-        })
-        .catch(() => {
-            if (seq === searchSeq) {
-                searchMessage('Nincs kapcsolat a TopWords-szel.');
-            }
-        });
+        renderSearchResults(data.results, query);
+    });
 }
 
 searchInput.addEventListener('input', () => {

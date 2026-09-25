@@ -27,6 +27,13 @@ return [
     'admin_email' => env('ADMIN_EMAIL'),
 
     /*
+     * Az admin-felület megerősített kétlépcsős azonosítást kér
+     * (App\Http\Middleware\EnsureAdminHasTwoFactor). Kikapcsolni CSAK helyi
+     * környezetben lehet — minden más környezetben a kényszer mindig él.
+     */
+    'admin_requires_two_factor' => (bool) env('ADMIN_REQUIRE_TWO_FACTOR', true),
+
+    /*
     |--------------------------------------------------------------------------
     | Application Environment
     |--------------------------------------------------------------------------

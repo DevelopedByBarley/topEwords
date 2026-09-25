@@ -94,7 +94,7 @@ test('an expired invite is rejected', function () {
 
 test('admin can create and revoke invites', function () {
     config(['app.admin_email' => 'admin@example.com']);
-    $admin = User::factory()->create(['email' => 'admin@example.com']);
+    $admin = User::factory()->withTwoFactor()->create(['email' => 'admin@example.com']);
 
     $this->actingAs($admin)
         ->post(route('admin.invites.store'), ['max_uses' => 3])

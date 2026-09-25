@@ -5,13 +5,15 @@ namespace App\Console\Commands;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Log;
+use Laravel\Cashier\Cashier;
 use Laravel\Cashier\Subscription;
 use Stripe\Exception\InvalidRequestException;
 use Stripe\Subscription as StripeSubscription;
 
-#[Signature('cashier:reconcile-subscriptions')]
-#[Description('Összeveti a helyileg aktívnak hitt előfizetéseket a Stripe valós állapotával, és lezárja a Stripe-nál már halottakat — így egy elveszett customer.subscription.deleted esemény sem hagy beragadt „ingyen prémium" előfizetést.')]
+#[Signature('cashier:reconcile-subscriptions {--dry-run : Semmit nem ír: csak kilistázza, mit szinkronizálna és mit zárna le}')]
+#[Description('Összeveti a helyileg aktívnak hitt (és a past_due/unpaid) előfizetéseket a Stripe valós állapotával: a Stripe-nál már halottakat lezárja, az eltérő státuszúakat rásimítja — így egy elveszett customer.subscription.deleted/updated esemény sem hagy beragadt „ingyen prémium", vagy fizetett, mégis Free-n ragadt előfizetést.')]
 class ReconcileStripeSubscriptions extends Command
 {
     /**
@@ -27,7 +29,20 @@ class ReconcileStripeSubscriptions extends Command
     ];
 
     /**
-     * Kör-fék (blast-radius guard). Ha egyetlen futás az aktív állomány ennél nagyobb
+     * A helyben fizetési hiba miatt szünetelő státuszok, amelyeket a Cashier active()
+     * scope-ja kizár, mégis egyeztetni kell őket (F9A-L3): ha a user utólag fizet, és a
+     * helyreállító customer.subscription.updated elvész, a sor örökre past_due/unpaid
+     * maradna — a user fizetett, de Free-n ragad. A státusz-szinkron ág nem destruktív.
+     *
+     * @var array<int, string>
+     */
+    private const PAYMENT_FAILED_STATUSES = [
+        StripeSubscription::STATUS_PAST_DUE,
+        StripeSubscription::STATUS_UNPAID,
+    ];
+
+    /**
+     * Kör-fék (blast-radius guard). Ha egyetlen futás a vizsgált állomány ennél nagyobb
      * hányadát zárná le, a parancs LEZÁRÁS HELYETT riaszt és leáll — mert a tömeges
      * lezárás valószínűbb oka egy ops-hiba (rossz módú/fiókú STRIPE_SECRET → a Stripe
      * MINDEN retrieve-re resource_missing-et ad), mint hogy tényleg mindenki egyszerre
@@ -42,20 +57,26 @@ class ReconcileStripeSubscriptions extends Command
      */
     private const MIN_KILL_COUNT_FOR_GUARD = 5;
 
+    /** A --dry-run futás: se státusz-szinkron, se lezárás, csak jelentés. */
+    protected bool $dryRun = false;
+
     public function handle(): int
     {
         // A Stripe webhookok legalább-egyszer, sorrend nélkül érkeznek, és egy végleg
         // elveszett customer.subscription.deleted a helyi sort tartósan aktívan hagyná
         // (a handleCustomerSubscriptionUpdated guard csak a másik irányban véd). Ez a
-        // parancs a Stripe-ot tekinti igazságforrásnak: minden helyileg aktív előfizetést
-        // visszaellenőriz, és a Stripe-nál már halottat helyben is lezárja.
+        // parancs a Stripe-ot tekinti igazságforrásnak: minden helyileg aktív (és a
+        // past_due/unpaid) előfizetést visszaellenőriz, a Stripe-nál már halottat helyben is
+        // lezárja, az eltérő státuszút rásimítja.
         //
         // Két fázisban dolgozunk, hogy egy ops-hiba ne zárhassa le fék nélkül a teljes
         // fizető állományt: (1) eldöntjük, mit kellene tenni (Stripe-olvasás, DB-írás
         // nélkül a close-ágon), közben számoljuk a lezárás-jelölteket; (2) a kör-fék
         // után hajtjuk végre a lezárásokat. A státusz-szinkron (élő sub) azonnal fut,
         // mert az nem destruktív és nem esik a fék hatálya alá.
-        $activeCount = 0;
+        $this->dryRun = (bool) $this->option('dry-run');
+
+        $checkedCount = 0;
         $failed = 0;
         $synced = 0;
 
@@ -64,8 +85,8 @@ class ReconcileStripeSubscriptions extends Command
         /** @var array<int, string> $closeReasons a subscription id → lezárás oka */
         $closeReasons = [];
 
-        Subscription::query()->active()->cursor()->each(function (Subscription $subscription) use (&$activeCount, &$failed, &$synced, &$toClose, &$closeReasons): void {
-            $activeCount++;
+        $this->reconcilableSubscriptions()->cursor()->each(function (Subscription $subscription) use (&$checkedCount, &$failed, &$synced, &$toClose, &$closeReasons): void {
+            $checkedCount++;
 
             try {
                 $decision = $this->reconcile($subscription);
@@ -86,21 +107,47 @@ class ReconcileStripeSubscriptions extends Command
 
         $killCount = count($toClose);
 
-        // Kör-fék: ha a lezárás-jelöltek száma átlép egy abszolút küszöböt ÉS az aktív
+        // Kör-fék: ha a lezárás-jelöltek száma átlép egy abszolút küszöböt ÉS a vizsgált
         // állomány nagy hányadát érinti, ez szinte biztosan ops-anomália (kulcs-mismatch /
         // Stripe-incidens), nem valós tömeges lemondás. Ilyenkor SEMMIT nem zárunk le,
         // hangosan riasztunk, és FAILURE-rel lépünk ki, hogy az operátor beavatkozhasson.
-        if ($this->tripsKillSwitch($killCount, $activeCount)) {
-            Log::critical('Előfizetés-egyeztetés MEGSZAKÍTVA: a futás az aktív előfizetések túl nagy hányadát zárná le — valószínű ok rossz módú/fiókú STRIPE_SECRET vagy Stripe-incidens. Nem zártunk le semmit, kézi ellenőrzés szükséges.', [
-                'active_count' => $activeCount,
+        if ($this->tripsKillSwitch($killCount, $checkedCount)) {
+            Log::critical('Előfizetés-egyeztetés MEGSZAKÍTVA: a futás a vizsgált előfizetések túl nagy hányadát zárná le — valószínű ok rossz módú/fiókú STRIPE_SECRET vagy Stripe-incidens. Nem zártunk le semmit, kézi ellenőrzés szükséges.', [
+                'checked_count' => $checkedCount,
                 'would_close_count' => $killCount,
-                'ratio' => round($killCount / max($activeCount, 1), 3),
+                'ratio' => round($killCount / max($checkedCount, 1), 3),
                 'max_kill_ratio' => self::MAX_KILL_RATIO,
             ]);
 
-            $this->error("Előfizetés-egyeztetés MEGSZAKÍTVA: {$killCount}/{$activeCount} lezárás túllépné a kör-féket ({$this->percent(self::MAX_KILL_RATIO)}). Nem zártunk le semmit — ellenőrizd a STRIPE_SECRET-et.");
+            $this->error("Előfizetés-egyeztetés MEGSZAKÍTVA: {$killCount}/{$checkedCount} lezárás túllépné a kör-féket ({$this->percent(self::MAX_KILL_RATIO)}). Nem zártunk le semmit — ellenőrizd a STRIPE_SECRET-et.");
 
             return self::FAILURE;
+        }
+
+        // Fiók-ellenőrzés (F9A-L2): a resource_missing a rossz fiókú/módú kulcs tünete
+        // is lehet, és ezt a kör-fék kis állományon (5 jelölt alatt) nem fogja meg. Ilyen
+        // lezárás előtt egy független jelet kérünk: a konfigurált Pro ár fiókhoz és
+        // módhoz kötött, tehát ha ez sem kérhető le, a kulcs a hibás, nem az előfizetés —
+        // ekkor egyetlen sort sem zárunk le, darabszámtól függetlenül.
+        if (in_array('resource_missing', $closeReasons, true) && ! $this->stripeAccountIsVerified()) {
+            Log::critical('Előfizetés-egyeztetés MEGSZAKÍTVA: a Stripe resource_missing-et adott, de a konfigurált Pro ár sem kérhető le — valószínű ok rossz fiókú/módú STRIPE_SECRET vagy hiányzó STRIPE_PRO_PRICE_ID. Nem zártunk le semmit.', [
+                'checked_count' => $checkedCount,
+                'would_close_count' => $killCount,
+            ]);
+
+            $this->error("Előfizetés-egyeztetés MEGSZAKÍTVA: {$killCount} lezárás-jelölt, de a Stripe-fiók nem igazolható (a Pro ár nem kérhető le). Nem zártunk le semmit — ellenőrizd a STRIPE_SECRET-et és a STRIPE_PRO_PRICE_ID-t.");
+
+            return self::FAILURE;
+        }
+
+        if ($this->dryRun) {
+            foreach ($toClose as $subscription) {
+                $this->line("[dry-run] lezárná: #{$subscription->id} {$subscription->stripe_id} (user #{$subscription->user_id}, ok: {$closeReasons[$subscription->id]})");
+            }
+
+            $this->info("Előfizetés-egyeztetés (dry-run): {$checkedCount} vizsgált, {$killCount} lezárná, {$synced} szinkronizálná, {$failed} hiba. Nem történt írás.");
+
+            return $failed > 0 ? self::FAILURE : self::SUCCESS;
         }
 
         // A fék engedett → a jelölteket ténylegesen lezárjuk (itt megy a DB-írás).
@@ -120,16 +167,59 @@ class ReconcileStripeSubscriptions extends Command
     }
 
     /**
-     * Aktív-e a kör-fék a mostani körre: a lezárás-jelöltek száma elérte az abszolút
-     * küszöböt, ÉS az aktív állomány a megengedettnél nagyobb hányadát érinti.
+     * Az egyeztetendő előfizetések: a Cashier active() scope-ja (élő / trialing / grace
+     * period) ÉS a fizetési hiba miatt szünetelő (past_due / unpaid), még le nem járt sorok
+     * (F9A-L3). A past_due/unpaid sor is ugyanazon a döntési úton megy: a halott a kör-fék
+     * és a fiók-ellenőrzés hatálya alatt záródik le, az élő-de-eltérő (pl. már active)
+     * státuszt a nem destruktív szinkron-ág simítja rá. A lezárt (canceled) sorokat a
+     * lekérdezés nem érinti — azokat a resurrection guard szerint sosem élesztjük fel.
+     *
+     * @return Builder<Subscription>
      */
-    protected function tripsKillSwitch(int $killCount, int $activeCount): bool
+    protected function reconcilableSubscriptions(): Builder
+    {
+        return Subscription::query()
+            ->where(fn (Builder $query) => $query->active())
+            ->orWhere(fn (Builder $query) => $query
+                ->whereIn('stripe_status', self::PAYMENT_FAILED_STATUSES)
+                ->where(fn (Builder $query) => $query->whereNull('ends_at')->orWhere(fn (Builder $query) => $query->onGracePeriod())));
+    }
+
+    /**
+     * Aktív-e a kör-fék a mostani körre: a lezárás-jelöltek száma elérte az abszolút
+     * küszöböt, ÉS a vizsgált állomány a megengedettnél nagyobb hányadát érinti.
+     */
+    protected function tripsKillSwitch(int $killCount, int $checkedCount): bool
     {
         if ($killCount < self::MIN_KILL_COUNT_FOR_GUARD) {
             return false;
         }
 
-        return ($killCount / max($activeCount, 1)) > self::MAX_KILL_RATIO;
+        // Inkluzív határ: a pontosan fél állomány lezárása is anomália (F9A-L2).
+        return ($killCount / max($checkedCount, 1)) >= self::MAX_KILL_RATIO;
+    }
+
+    /**
+     * A kulcs a várt Stripe-fiókhoz és módhoz tartozik-e: a konfigurált Pro ár
+     * lekérhető. Hiányzó ár-azonosítónál sem igazolható — ilyenkor fail-closed.
+     */
+    protected function stripeAccountIsVerified(): bool
+    {
+        $priceId = config('services.stripe.premium_price_id');
+
+        if (! is_string($priceId) || $priceId === '') {
+            return false;
+        }
+
+        try {
+            Cashier::stripe()->prices->retrieve($priceId);
+
+            return true;
+        } catch (\Throwable $e) {
+            report($e);
+
+            return false;
+        }
     }
 
     private function percent(float $ratio): string
@@ -164,14 +254,22 @@ class ReconcileStripeSubscriptions extends Command
             throw $e;
         }
 
-        // A Stripe szerint halott, de helyileg még aktív → beragadt előfizetés, lezárjuk.
+        // A Stripe szerint halott, de helyileg még aktív/past_due/unpaid → beragadt
+        // előfizetés, lezárjuk.
         if (in_array($stripeStatus, self::DEAD_STRIPE_STATUSES, true)) {
             return new CloseDecision($stripeStatus);
         }
 
-        // Él a Stripe-nál, de a státusz eltér (pl. elveszett past_due/unpaid frissítés):
-        // rásimítjuk a valós állapotot, hogy a helyi jogosultság se tévedjen.
+        // Él a Stripe-nál, de a státusz eltér (pl. elveszett past_due/unpaid frissítés, vagy
+        // fordítva: a helyi past_due sor a Stripe-nál már újra active, F9A-L3): rásimítjuk a
+        // valós állapotot, hogy a helyi jogosultság se tévedjen.
         if ($subscription->stripe_status !== $stripeStatus) {
+            if ($this->dryRun) {
+                $this->line("[dry-run] szinkronizálná: #{$subscription->id} {$subscription->stripe_id} ({$subscription->stripe_status} → {$stripeStatus})");
+
+                return ReconcileOutcome::Synced;
+            }
+
             $previousStatus = $subscription->stripe_status;
             $subscription->syncStripeStatus();
 
@@ -201,7 +299,11 @@ class ReconcileStripeSubscriptions extends Command
             'stripe_reason' => $reason,
         ]);
 
-        $subscription->markAsCanceled();
+        // A skipTrial() nélkül a lezárt, de még jövőbeli trial_ends_at-ű sor valid()
+        // maradna, és a trial végéig prémiumot adna (F9A-L4) — a Cashier saját
+        // customer.subscription.deleted kezelője is így zár. A users.trial_ends_at-en
+        // lévő (admin-adta) próbaidőt ez nem érinti.
+        $subscription->skipTrial()->markAsCanceled();
     }
 }
 

@@ -31,19 +31,29 @@ function fetchJson(url, options = {}) {
             const data = await r.json().catch(() => null);
 
             if (r.ok) {
-                return data ?? { error: 'server' };
-            }
+                // A session-CSRF-token a munkamenet (és így a fiók) ujjlenyomata:
+                // ha megváltozott, a tárolt szótérkép már egy másik munkamenethez
+                // tartozik (lásd observeSessionToken).
+                if (data && typeof data.csrf === 'string') {
+                    observeSessionToken(data.csrf);
+                }
 
-            if (data && data.error) {
-                return data;
+                return data ?? { error: 'server' };
             }
 
             if (r.status === 401) {
                 // A munkamenet megszűnt (kijelentkezés): a helyben tárolt
-                // személyes szótérképet töröljük, ne maradjon a gépen.
+                // személyes szótérképet töröljük, ne maradjon a gépen. MINDEN
+                // 401-re lefut — a body-beli error mező (a szerver a saját
+                // {"error":"unauthenticated"} válaszát adja) előtt kell állnia,
+                // különben a lenti ág visszatérne, és a purge el sem indulna.
                 purgeStatusCache();
 
-                return { error: 'unauthenticated' };
+                return data && data.error ? data : { error: 'unauthenticated' };
+            }
+
+            if (data && data.error) {
+                return data;
             }
 
             if (r.status === 403) {
@@ -108,8 +118,11 @@ function readStatusCache() {
     });
 }
 
-function writeStatusCache(statuses) {
-    statusCacheMem = { statuses, fetchedAt: Date.now() };
+// A fetchedAt alapból most; a foltozás a meglévőt adja át, hogy egy írás ne
+// hosszabbítsa meg a TTL-t (különben a térkép — akár egy korábbi fiók foltokkal
+// kevert térképe — írásonként újabb 5 percig élne a szerver megkérdezése nélkül).
+function writeStatusCache(statuses, fetchedAt = Date.now()) {
+    statusCacheMem = { statuses, fetchedAt };
     chrome.storage.local.set({ [STATUS_CACHE_KEY]: statusCacheMem });
 }
 
@@ -162,7 +175,142 @@ function patchStatusCache(forms, status) {
             }
         }
 
-        writeStatusCache(next);
+        writeStatusCache(next, cache.fetchedAt);
+    });
+}
+
+// ── A cache fiókhoz (munkamenethez) kötése ────────────────────────────────────
+// A szerver válaszaiban nincs fiók-azonosító, de a lookup/search a session-CSRF-
+// tokent visszaadja. A Laravel ezt bejelentkezéskor (session()->regenerate()) és
+// kijelentkezéskor (invalidate()) is újragenerálja, tehát egy MÁSIK fiók biztosan
+// más tokent hoz. A tokennek csak a hash-ét tároljuk (nem magát a tokent), és ha
+// eltér az utoljára látottól, a szótérképet eldobjuk: fiókváltás után a popup első
+// kérése (vagy bármely szókeresés) már üríti az előző fiók térképét. Ugyanannak a
+// fióknak az újra-bejelentkezése is ürít — ez csak egy fölösleges újratöltés.
+
+const SESSION_FP_KEY = 'tw_sessionFp';
+
+// undefined = még nem olvastuk be a tárolóból (a service worker most indult).
+let sessionFpMem;
+
+async function sessionFingerprint(token) {
+    const digest = await crypto.subtle.digest(
+        'SHA-256',
+        new TextEncoder().encode(token),
+    );
+
+    return Array.from(new Uint8Array(digest).slice(0, 16))
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('');
+}
+
+function readSessionFp() {
+    if (sessionFpMem !== undefined) {
+        return Promise.resolve(sessionFpMem);
+    }
+
+    return new Promise((resolve) => {
+        chrome.storage.local.get({ [SESSION_FP_KEY]: null }, (data) => {
+            // Közben egy párhuzamos observe már beállíthatta.
+            if (sessionFpMem === undefined) {
+                sessionFpMem = data[SESSION_FP_KEY] ?? null;
+            }
+
+            resolve(sessionFpMem);
+        });
+    });
+}
+
+function observeSessionToken(token) {
+    if (!token) {
+        return;
+    }
+
+    Promise.all([sessionFingerprint(token), readSessionFp()])
+        .then(([fp, previous]) => {
+            if (fp === previous) {
+                return;
+            }
+
+            // Új munkamenet (bejelentkezés, fiókváltás, lejárt session) — a
+            // korábbi munkamenetben betöltött térkép már nem a mostani fiókhoz
+            // tartozik. Az első észlelésnél (previous = null) is ürítünk, mert
+            // ilyenkor nem tudjuk, kié a tárolt térkép.
+            sessionFpMem = fp;
+            chrome.storage.local.set({ [SESSION_FP_KEY]: fp });
+            purgeStatusCache();
+        })
+        .catch(() => {
+            // A hash nem számolható (nem várt környezet) — nincs teendő.
+        });
+}
+
+// Dokumentumonként (lap / újratöltés) az ELSŐ térkép-lekérés mindig a szerverhez
+// megy, a cache-t megkerülve. Enélkül egy új lap kijelentkezés vagy fiókváltás után
+// 0 kéréssel az előző fiók térképét kapná (a 401-es purge el sem indulna). Ugyanazon
+// a dokumentumon belül (pl. YouTube SPA-navigáció, reconcile-tickek) a cache marad.
+// A halmaz a chrome.storage.session-ben él: túléli a service worker gyakori
+// (tétlenségi) leállását, a böngésző bezárásakor viszont törlődik, és content
+// scriptből nem olvasható (alapértelmezett TRUSTED_CONTEXTS hozzáférés).
+const STATUS_VALIDATED_DOCS_KEY = 'tw_statusValidatedDocs';
+const STATUS_VALIDATED_DOCS_MAX = 500;
+
+// null = még nem olvastuk be (a service worker most indult).
+let statusValidatedDocs = null;
+
+function statusDocKey(sender) {
+    if (sender.documentId) {
+        return sender.documentId;
+    }
+
+    return sender.tab ? `tab:${sender.tab.id}:${sender.frameId ?? 0}` : null;
+}
+
+function readStatusValidatedDocs() {
+    if (statusValidatedDocs !== null) {
+        return Promise.resolve(statusValidatedDocs);
+    }
+
+    return new Promise((resolve) => {
+        const done = (list) => {
+            // Közben egy párhuzamos jelölés már létrehozhatta.
+            if (statusValidatedDocs === null) {
+                statusValidatedDocs = new Set(Array.isArray(list) ? list : []);
+            }
+
+            resolve(statusValidatedDocs);
+        };
+
+        try {
+            chrome.storage.session.get(
+                { [STATUS_VALIDATED_DOCS_KEY]: [] },
+                (data) => done(data?.[STATUS_VALIDATED_DOCS_KEY]),
+            );
+        } catch {
+            done([]);
+        }
+    });
+}
+
+function markStatusDocValidated(docKey) {
+    if (!docKey) {
+        return;
+    }
+
+    readStatusValidatedDocs().then((docs) => {
+        if (docs.size >= STATUS_VALIDATED_DOCS_MAX) {
+            docs.clear();
+        }
+
+        docs.add(docKey);
+
+        try {
+            chrome.storage.session.set({
+                [STATUS_VALIDATED_DOCS_KEY]: Array.from(docs),
+            });
+        } catch {
+            // A session-tároló nem elérhető — a memóriabeli halmaz akkor is él.
+        }
     });
 }
 
@@ -324,10 +472,19 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
 
     if (msg.type === 'GET_STATUSES') {
+        const docKey = statusDocKey(sender);
+
         const fetchFresh = () => {
             fetchJson(`${APP_URL}/extension/statuses`).then((data) => {
                 if (data && data.statuses) {
                     writeStatusCache(data.statuses);
+                }
+
+                // A szerver válaszolt (térképpel vagy 401-gyel, ami már purge-ölt):
+                // ez a dokumentum innentől a cache-ből is kiszolgálható. Hálózati
+                // hibánál nem jelöljük, a következő kérés újra a szervert kérdezi.
+                if (data && (data.statuses || data.error === 'unauthenticated')) {
+                    markStatusDocValidated(docKey);
                 }
 
                 sendResponse(data);
@@ -336,14 +493,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
         // forceFresh: a fülre visszatéréskor (visibilitychange) megkerüljük a cache-t,
         // hogy a más eszközön/fülön végzett változások is azonnal látszódjanak.
-        if (msg.forceFresh) {
+        // Egy dokumentum első lekérése is friss (lásd statusValidatedDocs).
+        if (msg.forceFresh || !docKey) {
             fetchFresh();
 
             return true;
         }
 
-        readStatusCache().then((cache) => {
-            if (isFreshStatusCache(cache)) {
+        Promise.all([readStatusValidatedDocs(), readStatusCache()]).then(([docs, cache]) => {
+            if (docs.has(docKey) && isFreshStatusCache(cache)) {
                 sendResponse({ statuses: cache.statuses });
 
                 return;

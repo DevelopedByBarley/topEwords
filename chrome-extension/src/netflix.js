@@ -23,6 +23,11 @@ let nfxNoticeShown = false;
 let nfxCaptionTextSeen = false;
 // Navigáció/újrainicializálás versenyhelyzetei ellen (lásd youtube.js ytNavToken).
 let nfxNavToken = 0;
+// A lejátszó-konténer, amelyre az aktuális menet felépült. A Netflix URL-váltás
+// nélkül is kicserélheti (újramount); ilyenkor az observerek a leválasztott régi
+// node-ot figyelnék, a sáv és a kapcsoló eltűnne — a 2 mp-es poll ezt figyeli
+// (handleNfxPlayerChange), és a 10 s után megjelenő lejátszóra is elindít.
+let nfxActiveContainer = null;
 
 const NFX_HIDE_STYLE_ID = 'tw-nfx-hide-native-captions';
 
@@ -248,9 +253,11 @@ function startNfxObserver() {
         }
 
         // Az első kiolvasott szöveg a bizonyíték, hogy a felirat BE VAN
-        // kapcsolva és a DOM olvasható — innentől nincs helye értesítésnek.
-        if (text) {
+        // kapcsolva és a DOM olvasható — innentől nincs helye értesítésnek, és
+        // a natív feliratot is csak innentől rejtjük el.
+        if (text && !nfxCaptionTextSeen) {
             nfxCaptionTextSeen = true;
+            hideNfxNativeCaptions();
         }
 
         lastText = text;
@@ -338,7 +345,11 @@ function ensureNfxToggle() {
         </button>
     `;
 
-    shadow.getElementById('btn').addEventListener('click', toggleNfxLyrics);
+    // Csak valódi kattintás: az open shadow rooton át az oldal JS-e is elérné.
+    shadow.getElementById('btn').addEventListener(
+        'click',
+        trustedClick(toggleNfxLyrics),
+    );
 
     player.appendChild(nfxToggleHost);
     updateNfxToggleState();
@@ -370,6 +381,9 @@ function updateNfxToggleState() {
 
 function toggleNfxLyrics() {
     nfxEnabled = !nfxEnabled;
+    // Kifejezett felhasználói szándék: a (kijelentkezett állapot miatti) backoff
+    // ne tartsa vissza a lekérést (youtube.js: resetYtStatusBackoff).
+    resetYtStatusBackoff();
     storageSet({ nfxLyricsEnabled: nfxEnabled });
     reconcileNfxLyrics();
 }
@@ -422,10 +436,18 @@ function reconcileNfxLyrics() {
             return;
         }
 
-        hideNfxNativeCaptions();
-
         if (!nfxObserver) {
             startNfxObserver();
+        }
+
+        // A natív feliratot csak akkor rejtjük, ha az observer már
+        // bizonyítottan olvasott felirat-szöveget (a YouTube-ág M2-mintája):
+        // ha a felirat-DOM megváltozik vagy a lejátszó újramountol, a natív
+        // felirat látható marad, nem lesz teljes felirat-kiesés. Az első
+        // elrejtést az observer végzi; ez az ág az újrarenderelés utáni
+        // visszaállítást fedi.
+        if (nfxCaptionTextSeen) {
+            hideNfxNativeCaptions();
         }
     });
 }
@@ -517,6 +539,7 @@ function destroyNfxSubtitles() {
     nfxControlsObserver?.disconnect();
     nfxControlsObserver = null;
     nfxControlsObserverTarget = null;
+    nfxActiveContainer = null;
     nfxBarHost?.remove();
     nfxBarHost = null;
     nfxToggleHost?.remove();
@@ -534,7 +557,11 @@ function initNfxSubtitles(attempt = 0) {
 
     const token = nfxNavToken;
 
-    if (!nfxPlayerContainer()) {
+    const container = nfxPlayerContainer();
+
+    if (!container) {
+        // 10 próbálkozás után feladjuk — a később megjelenő lejátszót a nav-poll
+        // veszi észre (handleNfxPlayerChange), és újraindítja az initet.
         if (attempt < 10) {
             setTimeout(() => {
                 // Közben elnavigáltak — ez a menet már nem aktuális.
@@ -546,6 +573,10 @@ function initNfxSubtitles(attempt = 0) {
 
         return;
     }
+
+    // Szinkron rögzítjük (még a storage-válasz előtt), hogy a poll ne indítson
+    // párhuzamos initet ugyanarra a konténerre.
+    nfxActiveContainer = container;
 
     storageGet({ nfxLyricsEnabled: false }, ({ nfxLyricsEnabled }) => {
         if (token !== nfxNavToken || !isNetflixWatchPage()) {
@@ -586,6 +617,13 @@ function handleNfxNavChange() {
     }
 
     nfxLastPath = path;
+    restartNfxSubtitles();
+
+    return true;
+}
+
+/** Lebontja az aktuális menetet, és (watch-oldalon) újat indít. */
+function restartNfxSubtitles() {
     // Érvénytelenítjük a folyamatban lévő init-meneteket, majd takarítunk.
     nfxNavToken++;
     destroyNfxSubtitles();
@@ -594,8 +632,26 @@ function handleNfxNavChange() {
         // Az init maga várja ki a lejátszót (poll), nem kell fix késleltetés.
         initNfxSubtitles();
     }
+}
 
-    return true;
+/**
+ * Újraindít, ha a lejátszó-konténer URL-váltás nélkül kicserélődött (a régi
+ * leválasztva), vagy ha a lejátszó csak az init feladása (10 s) után jelent meg.
+ * Az élő, változatlan konténernél nem csinál semmit.
+ */
+function handleNfxPlayerChange() {
+    if (!isNetflixWatchPage() || nfxActiveContainer?.isConnected) {
+        return;
+    }
+
+    // Nincs aktív menet és lejátszó sincs: az init még próbálkozik (vagy nincs mire).
+    if (!nfxActiveContainer && !nfxPlayerContainer()) {
+        return;
+    }
+
+    // A régi konténer leválasztva (a lebontás a natív feliratot is visszaadja),
+    // vagy most jelent meg a lejátszó — új menet.
+    restartNfxSubtitles();
 }
 
 /**
@@ -654,7 +710,9 @@ function startNfxNavWatch() {
             return;
         }
 
-        handleNfxNavChange();
+        if (!handleNfxNavChange()) {
+            handleNfxPlayerChange();
+        }
     }, 2000);
 }
 

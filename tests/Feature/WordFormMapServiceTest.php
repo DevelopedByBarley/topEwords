@@ -3,6 +3,8 @@
 use App\Models\Word;
 use App\Services\WordFormMapService;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Sleep;
 
 beforeEach(function () {
     // A térkép-cache kulcsa a szólista ujjlenyomatából képződik; a tesztek közti
@@ -70,4 +72,50 @@ test('rebuilds the map after the word list changes', function () {
     Word::create(['word' => 'cat', 'rank' => 400, 'meaning_hu' => 'macska']);
 
     expect(app(WordFormMapService::class)->map()['forms'])->toHaveKey('cat');
+});
+
+// ── Stabil kulcs + zár (F9D-L4) ───────────────────────────────────────────────
+
+test('a word list change overwrites the same cache row instead of leaving an orphan', function () {
+    // Valódi `cache` táblán mérjük, mert az árva sor ott jelentkezett.
+    config(['cache.default' => 'database']);
+    Cache::flush();
+
+    Word::create(['word' => 'dog', 'rank' => 300, 'meaning_hu' => 'kutya']);
+    app(WordFormMapService::class)->map();
+
+    Word::create(['word' => 'cat', 'rank' => 400, 'meaning_hu' => 'macska']);
+    expect(app(WordFormMapService::class)->map()['forms'])->toHaveKey('cat');
+
+    Word::create(['word' => 'cow', 'rank' => 500, 'meaning_hu' => 'tehén']);
+    expect(app(WordFormMapService::class)->map()['forms'])->toHaveKey('cow');
+
+    expect(DB::table('cache')->where('key', 'like', '%word_form_map%')->count())->toBe(1);
+});
+
+test('an up-to-date cached map is served without touching the rebuild lock', function () {
+    Word::create(['word' => 'dog', 'rank' => 300, 'meaning_hu' => 'kutya']);
+    app(WordFormMapService::class)->map();
+
+    // Más tartja a zárat; változatlan szólistánál ez nem számíthat.
+    Cache::lock('word_form_map:rebuild', 60)->get();
+    Sleep::fake(syncWithCarbon: true);
+
+    expect(app(WordFormMapService::class)->map()['forms'])->toHaveKey('dog');
+
+    Sleep::assertNeverSlept();
+});
+
+test('a held rebuild lock does not block the analysis: the map is built without writing the cache', function () {
+    Word::create(['word' => 'dog', 'rank' => 300, 'meaning_hu' => 'kutya']);
+
+    // Egy másik folyamat épp építi a térképet (más owner tartja a zárat).
+    Cache::lock('word_form_map:rebuild', 60)->get();
+
+    // A várakozás ne valós időben teljen.
+    Sleep::fake(syncWithCarbon: true);
+
+    expect(app(WordFormMapService::class)->map()['forms'])->toHaveKey('dog')
+        // A zárat nem kerülte meg: a sort a zár birtokosa írja, nem ez a kérés.
+        ->and(Cache::get('word_form_map'))->toBeNull();
 });

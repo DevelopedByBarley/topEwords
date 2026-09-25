@@ -314,6 +314,30 @@ test('a practiceCheck strukturált sémát küld és üres grammar_issues-t szű
     Http::assertSent(fn ($request) => ($request['generationConfig']['responseSchema']['properties']['grammar_issues']['type'] ?? null) === 'ARRAY');
 });
 
+test('a practiceCheck kimeneti kerete elég egy 3000 karakteres szöveg teljes javítására', function () {
+    // T-45: a valódi modell egy jóhiszemű 3000 karakteres szövegre ~1200 tokent ír;
+    // a korábbi 800-as keret minden hosszú szövegnél csonkolt és újrapróbát váltott ki.
+    Http::fake(['generativelanguage.googleapis.com/*' => Http::response([
+        'candidates' => [['content' => ['parts' => [['text' => json_encode([
+            'words' => [['word' => 'run', 'used' => true, 'correct' => true, 'feedback_hu' => 'Jól használtad!']],
+            'grammar_issues' => [],
+            'overall_hu' => 'Ügyes vagy!',
+            'corrected_text' => null,
+        ])]]]]],
+        'usageMetadata' => ['promptTokenCount' => 1050, 'candidatesTokenCount' => 1170],
+    ])]);
+
+    $this->actingAs(User::factory()->create(['ai_access' => true]))
+        ->postJson(route('words.practice.check'), [
+            'words' => [['word' => 'run', 'meaning_hu' => 'fut']],
+            'text' => str_repeat('I run every morning before work. ', 90),
+        ])
+        ->assertSuccessful();
+
+    Http::assertSentCount(1);
+    Http::assertSent(fn ($request) => $request['generationConfig']['maxOutputTokens'] === 1600);
+});
+
 test('nem-admin felhasználó is elérheti a practiceCheck-et', function () {
     // Őrszem: a végpontot két ÉLŐ felület hívja (szólista PracticeModal +
     // flashcard szabad-írás doboz), ezért NEM admin-only. A korábbi

@@ -483,8 +483,10 @@ export default function Privacy() {
                         </h2>
                         <p className="mb-2 text-muted-foreground">
                             A TopWords Chrome böngészőbővítményt is kínál, amely
-                            lehetővé teszi az angol szavak azonnali keresését és
-                            a haladás követését bármely weboldalon. A bővítmény{' '}
+                            a YouTube- és Netflix-feliratokban teszi lehetővé az
+                            angol szavak azonnali keresését és a haladás
+                            követését; bármely más oldalon kijelölt szóra a jobb
+                            gombos menüből kereshetsz rá. A bővítmény{' '}
                             <strong className="text-foreground">
                                 nem gyűjt adatot a saját céljaira
                             </strong>
@@ -496,10 +498,13 @@ export default function Privacy() {
                                 <strong className="text-foreground">
                                     Oldalak tartalma:
                                 </strong>{' '}
-                                a meglátogatott weboldalak szövegét a bővítmény
-                                kizárólag a böngésződben, helyben dolgozza fel
-                                (az ismert szavak kiemeléséhez és az
-                                oldal-statisztikához). Az oldalak teljes
+                                a bővítmény kizárólag a YouTube és a Netflix
+                                oldalain fut: ott a feliratok szövegét a
+                                böngésződben, helyben dolgozza fel (a szavak
+                                kereshetővé tételéhez és a státuszuk
+                                megjelenítéséhez). Más weboldalak tartalmát nem
+                                olvassa; ott csak a jobb gombos menüből kijelölt
+                                szót kapja meg. A feliratok és az oldalak teljes
                                 tartalmát{' '}
                                 <strong className="text-foreground">
                                     nem küldjük el
@@ -527,13 +532,20 @@ export default function Privacy() {
                             </li>
                             <li>
                                 <strong className="text-foreground">
-                                    Helyi beállítások:
+                                    Helyi tároló:
                                 </strong>{' '}
                                 a bővítmény a böngésződ helyi tárolójában (
-                                <code>chrome.storage.local</code>) kizárólag a
-                                saját beállításaidat őrzi (pl. kiemelés be/ki,
-                                YouTube-felirat be/ki). Ezek nem hagyják el az
-                                eszközödet.
+                                <code>chrome.storage.local</code>) két dolgot
+                                őriz: a saját beállításaidat (pl. YouTube- és
+                                Netflix-felirat be/ki), valamint – a gyorsabb
+                                megjelenítés érdekében, néhány percig
+                                gyorsítótárként – a szókincsed szó→státusz
+                                térképét (melyik szót jelölted ismertnek,
+                                tanulandónak stb.). Ez a térkép a tanulási
+                                adataid másolata; amikor a bővítmény a
+                                szervertől azt a választ kapja, hogy már nem
+                                vagy bejelentkezve, törli az eszközről. A helyi
+                                tároló tartalma nem hagyja el az eszközödet.
                             </li>
                             <li>
                                 <strong className="text-foreground">

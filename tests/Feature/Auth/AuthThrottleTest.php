@@ -16,9 +16,68 @@ test('FA-L3: the two-factor limiter falls back to the IP when the login id is mi
     $request->server->set('REMOTE_ADDR', '203.0.113.7');
     $request->setLaravelSession(new Store('test', new ArraySessionHandler(60)));
 
-    $limit = $limiter($request);
+    [$perMinute, $perHour] = $limiter($request);
 
-    expect($limit->key)->toBe('203.0.113.7');
+    expect($perMinute->key)->toBe('203.0.113.7')
+        ->and($perHour->key)->toBe('hour:203.0.113.7');
+});
+
+test('F9C-L5: a two-factor limiter órás plafont is ad, a login.id-hez kötve', function () {
+    $limiter = RateLimiter::limiter('two-factor');
+
+    $request = Request::create('/two-factor-challenge', 'POST');
+    $session = new Store('test', new ArraySessionHandler(60));
+    $session->put('login.id', 42);
+    $request->setLaravelSession($session);
+
+    [$perMinute, $perHour] = $limiter($request);
+
+    expect($perMinute->key)->toBe(42)
+        ->and($perMinute->maxAttempts)->toBe(5)
+        ->and($perHour->key)->toBe('hour:42')
+        ->and($perHour->maxAttempts)->toBe(30)
+        ->and($perHour->decaySeconds)->toBe(3600);
+});
+
+test('F9C-L5: a 2FA-challenge óránként legfeljebb 30 próbát enged, percenkénti szünetekkel is', function () {
+    $user = User::factory()->withTwoFactor()->create();
+
+    $this->post(route('login'), ['email' => $user->email, 'password' => 'password'])
+        ->assertRedirect(route('two-factor.login'));
+
+    // 6 × 5 próba, percenként: a percenkénti limit sosem telik be, az órás igen.
+    for ($minute = 0; $minute < 6; $minute++) {
+        for ($i = 0; $i < 5; $i++) {
+            $this->post(route('two-factor.login.store'), ['recovery_code' => "wrong-{$minute}-{$i}"])
+                ->assertRedirect();
+        }
+
+        $this->travel(61)->seconds();
+    }
+
+    $this->post(route('two-factor.login.store'), ['recovery_code' => 'wrong-final'])
+        ->assertStatus(429);
+});
+
+test('F9C-L5: a login-limit IP-váltással sem kerülhető meg (csak e-mailre kulcsolt vödör)', function () {
+    $user = User::factory()->create();
+
+    // Minden próba más IP-ről: az e-mail+IP vödör sosem telik be.
+    for ($i = 1; $i <= 20; $i++) {
+        $this->withServerVariables(['REMOTE_ADDR' => "203.0.113.{$i}"])
+            ->post(route('login.store'), ['email' => $user->email, 'password' => "wrong-{$i}"]);
+    }
+
+    $this->withServerVariables(['REMOTE_ADDR' => '198.51.100.1'])
+        ->post(route('login.store'), ['email' => $user->email, 'password' => 'wrong-final'])
+        ->assertStatus(429);
+
+    // Egy másik fiókot ugyanez nem érint.
+    $other = User::factory()->create();
+
+    $this->withServerVariables(['REMOTE_ADDR' => '198.51.100.1'])
+        ->post(route('login.store'), ['email' => $other->email, 'password' => 'wrong'])
+        ->assertStatus(302);
 });
 
 test('registration and password-reset routes carry a throttle limiter', function () {

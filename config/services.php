@@ -89,8 +89,9 @@ return [
         // Külön kapcsoló a Stripe-tól: a fizetés mehet anélkül is, hogy számlázunk.
         'enabled' => env('BILLINGO_ENABLED', false),
         'api_key' => env('BILLINGO_API_KEY'),
-        // Számlatömb azonosító. Üresen hagyva a kliens automatikusan az első elérhető
-        // tömböt használja — teszt profilnál így nem kell kézzel kikeresni az id-t.
+        // Számlatömb azonosító. Üresen hagyva a kliens automatikusan az első `invoice`
+        // típusú tömböt használja — teszt profilnál így nem kell kézzel kikeresni az id-t.
+        // Élesben és stagingen a boot-guard (AppServiceProvider) explicit id-t követel.
         'block_id' => (int) env('BILLINGO_BLOCK_ID', 0),
         // A számlatétel ÁFA-kulcsa. Egyéni vállalkozónál tipikusan "AAM" (alanyi
         // adómentes); ÁFA-körösnél pl. "27%". Konfigból jön, hogy kód nélkül váltható.

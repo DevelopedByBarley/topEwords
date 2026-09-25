@@ -16,6 +16,30 @@ use Illuminate\Http\Request;
 class FlashcardCardController extends Controller
 {
     /**
+     * Upper bound for the ids of one bulk action, matching the CSV import's
+     * row cap. Larger selections can be processed in several batches.
+     */
+    private const MAX_BULK_IDS = 5_000;
+
+    /**
+     * Counts the ids BEFORE validation: the `ids.*` rule is expanded per
+     * element with quadratic cost, so an oversized array must be rejected
+     * without it (F6-L2). The deck page only shows flash messages, hence
+     * a flash error instead of a validation error.
+     */
+    private function exceedsBulkLimit(Request $request): bool
+    {
+        $ids = $request->input('ids');
+
+        return is_array($ids) && count($ids) > self::MAX_BULK_IDS;
+    }
+
+    private function bulkLimitMessage(): string
+    {
+        return 'Egyszerre legfeljebb '.number_format(self::MAX_BULK_IDS, 0, ',', ' ').' kártyán végezhető tömeges művelet.';
+    }
+
+    /**
      * The plan-aware "card limit reached" message, naming the user's actual cap.
      */
     private function limitMessage(Request $request): string
@@ -202,6 +226,10 @@ class FlashcardCardController extends Controller
     {
         abort_unless($deck->user_id === $request->user()->id, 403);
 
+        if ($this->exceedsBulkLimit($request)) {
+            return back()->with('error', $this->bulkLimitMessage());
+        }
+
         $ids = $request->validate([
             'ids' => ['required', 'array'],
             'ids.*' => ['integer'],
@@ -215,6 +243,10 @@ class FlashcardCardController extends Controller
     public function bulkReset(Request $request, FlashcardDeck $deck): RedirectResponse
     {
         abort_unless($deck->user_id === $request->user()->id, 403);
+
+        if ($this->exceedsBulkLimit($request)) {
+            return back()->with('error', $this->bulkLimitMessage());
+        }
 
         $ids = $request->validate([
             'ids' => ['required', 'array'],
@@ -232,6 +264,10 @@ class FlashcardCardController extends Controller
     public function bulkReverse(Request $request, FlashcardDeck $deck): RedirectResponse
     {
         abort_unless($deck->user_id === $request->user()->id, 403);
+
+        if ($this->exceedsBulkLimit($request)) {
+            return back()->with('error', $this->bulkLimitMessage());
+        }
 
         $ids = $request->validate([
             'ids' => ['required', 'array'],
@@ -276,6 +312,10 @@ class FlashcardCardController extends Controller
     {
         abort_unless($deck->user_id === $request->user()->id, 403);
 
+        if ($this->exceedsBulkLimit($request)) {
+            return back()->with('error', $this->bulkLimitMessage());
+        }
+
         $validated = $request->validate([
             'ids' => ['required', 'array'],
             'ids.*' => ['integer'],
@@ -300,6 +340,10 @@ class FlashcardCardController extends Controller
     public function bulkMove(Request $request, FlashcardDeck $deck): RedirectResponse
     {
         abort_unless($deck->user_id === $request->user()->id, 403);
+
+        if ($this->exceedsBulkLimit($request)) {
+            return back()->with('error', $this->bulkLimitMessage());
+        }
 
         $validated = $request->validate([
             'ids' => ['required', 'array'],

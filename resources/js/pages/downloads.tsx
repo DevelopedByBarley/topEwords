@@ -68,10 +68,11 @@ export default function Downloads() {
                     title="Chrome bővítmény"
                     description={
                         <>
-                            Tanulj bárhol a neten: dupla kattintással vagy az
-                            Option+W / Alt+W gyorsbillentyűvel kereshetsz
-                            szavakat bármely oldalon, YouTube-on és Netflixen
-                            is. A Chrome Web Store-os publikálásig ez a zip
+                            Tanulj YouTube- és Netflix-feliratokból: dupla
+                            kattintással vagy az Option+W / Alt+W
+                            gyorsbillentyűvel kereshetsz szavakat, bármely más
+                            oldalon pedig a kijelölt szóra a jobb gombos
+                            menüből. A Chrome Web Store-os publikálásig ez a zip
                             telepíthető fejlesztői módban: csomagold ki, majd
                             nyisd meg a <ChromeExtensionsLink /> oldalt,
                             kapcsold be a Fejlesztői módot, és töltsd be a

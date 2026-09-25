@@ -77,7 +77,7 @@ export default function OnboardingTour() {
                     popover: {
                         title: '🌐 Chrome bővítmény',
                         description:
-                            'A Chrome bővítménnyel bármely weboldalon kereshetsz szavakat: dupla kattintás + nyomva tartás, vagy az Option+W (Windows: Alt+W), illetve a Ctrl+Shift+F gyorsbillentyű. Azonnal látod a jelentést, a kiejtést és a státuszt, felveheted a szót vagy kártyát készíthetsz belőle — YouTube- és Netflix-feliratokon is.',
+                            'A Chrome bővítménnyel YouTube- és Netflix-feliratokon kereshetsz szavakat: dupla kattintás + nyomva tartás, vagy az Option+W (Windows: Alt+W), illetve a Ctrl+Shift+F gyorsbillentyű. Azonnal látod a jelentést, a kiejtést és a státuszt, felveheted a szót vagy kártyát készíthetsz belőle. Bármely más oldalon a kijelölt szóra a jobb gombos menüből kereshetsz rá.',
                     },
                 },
         ];

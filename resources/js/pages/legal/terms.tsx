@@ -202,8 +202,10 @@ export default function Terms() {
                                 >
                                     díjszabás oldalon
                                 </Link>{' '}
-                                érhetők el. Az árak forintban, bruttó (áfát
-                                tartalmazó) értékben értendők.
+                                érhetők el. Az árak forintban értendő végső
+                                árak. A Szolgáltató alanyi adómentes (AAM),
+                                ezért az árak áfát nem tartalmaznak, és a
+                                számlán áfa nem kerül felszámításra.
                             </li>
                             <li>
                                 A fizetést a{' '}

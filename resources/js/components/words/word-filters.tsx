@@ -147,7 +147,7 @@ export default function WordFilters({
     return (
         <section className="flex flex-col gap-4 rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm md:p-5 dark:border-neutral-700 dark:bg-card">
             <div className="flex items-center gap-2">
-                <div className="relative flex-1">
+                <div className="relative min-w-0 flex-1">
                     <Search className="absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
                         type="search"
@@ -167,23 +167,6 @@ export default function WordFilters({
                         </button>
                     )}
                 </div>
-                <Select
-                    value={String(filters.per_page)}
-                    onValueChange={(v) =>
-                        onChange({ per_page: Number(v), page: 1 })
-                    }
-                >
-                    <SelectTrigger className="w-28 rounded-full border-0 bg-muted text-sm">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {perPageOptions.map((n) => (
-                            <SelectItem key={n} value={String(n)}>
-                                {n} / oldal
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
@@ -226,6 +209,27 @@ export default function WordFilters({
                         Összes törlése
                     </button>
                 )}
+
+                <Select
+                    value={String(filters.per_page)}
+                    onValueChange={(v) =>
+                        onChange({ per_page: Number(v), page: 1 })
+                    }
+                >
+                    <SelectTrigger
+                        size="sm"
+                        className="ml-auto w-auto shrink-0 gap-1.5 rounded-full border-0 bg-muted text-xs font-medium text-muted-foreground"
+                    >
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {perPageOptions.map((n) => (
+                            <SelectItem key={n} value={String(n)}>
+                                {n} / oldal
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
             </div>
 
             {open && (

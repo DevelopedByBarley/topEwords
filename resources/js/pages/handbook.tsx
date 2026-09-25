@@ -508,7 +508,7 @@ export default function Handbook() {
                                     {
                                         icon: Chrome,
                                         title: 'Chrome bővítmény',
-                                        desc: 'Azonnali fordítás bármely weboldalon',
+                                        desc: 'Azonnali fordítás YouTube- és Netflix-feliratokon',
                                     },
                                 ]}
                             />
@@ -1829,12 +1829,12 @@ export default function Handbook() {
                                 items={[
                                     <>
                                         <strong>Azonnali fordítás</strong> dupla
-                                        kattintással bármely weboldalon,
-                                        kiejtéssel együtt
+                                        kattintással YouTube- és
+                                        Netflix-feliratokon, kiejtéssel együtt
                                     </>,
                                     <>
-                                        <strong>Szavak kiemelése</strong> az
-                                        oldalon a státuszuk szerint — egyből
+                                        <strong>Szavak kiemelése</strong> a
+                                        feliratban a státuszuk szerint — egyből
                                         látod, mit tanultál már
                                     </>,
                                     <>

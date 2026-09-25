@@ -397,7 +397,10 @@ function openFlashcardModal(data, csrf) {
     `;
     backdrop.appendChild(card);
     shadow.appendChild(backdrop);
-    document.body.appendChild(fcModalHost);
+    // Teljes képernyőn csak a fullscreen elem leszármazottai látszanak, ezért a
+    // modált oda tesszük (a :host position:fixed így a viewportra igazodik) —
+    // ugyanúgy, mint a szó-popup (lookup-popup.js) és a kereső (search-modal.js).
+    (document.fullscreenElement ?? document.body).appendChild(fcModalHost);
     document.addEventListener('keydown', fcModalEscHandler, true);
 
     card.querySelector('.fc-close').addEventListener(

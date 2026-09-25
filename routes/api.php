@@ -29,20 +29,23 @@ Route::middleware(['auth:sanctum', 'abilities:player'])->group(function () {
         Route::get('player/decks', [ExtensionController::class, 'decks'])->name('player.decks');
     });
 
-    // AI-műveletek a lejátszó szó-buborékjából — ugyanazok a végpontok, mint a
-    // webes szövegelemzőben és az extensionben (AI-kitöltés, AI-flashcard). A
-    // hozzáférést és a havi AI-keretet a controller kapuzza; a throttle a webes
-    // ta-ai vödörrel azonos méretű, de saját prefixű.
-    Route::middleware('throttle:30,1,player-ai')->group(function () {
-        Route::get('player/gemini-lookup', [TextAnalysisController::class, 'geminiWordLookup'])->name('player.gemini-lookup');
-        Route::get('player/gemini-flashcard', [TextAnalysisController::class, 'geminiFlashcard'])->name('player.gemini-flashcard');
-    });
-
-    // Tartalom-létrehozó/-módosító végpontok: a webes felülettel egyezően csak
-    // megerősített e-mail-című fióknak (verified). A párosítás, az olvasás és a
-    // disconnect szándékosan kimarad — azok nem hoznak létre user-tartalmat.
-    // JSON-kliensnél a verified middleware 403-at ad (nem HTML-redirectet).
+    // Tartalom-létrehozó/-módosító és AI-keretet költő végpontok: a webes
+    // felülettel egyezően csak megerősített e-mail-című fióknak (verified). A
+    // párosítás, az olvasás és a disconnect szándékosan kimarad — azok nem hoznak
+    // létre user-tartalmat és nem költenek. JSON-kliensnél a verified middleware
+    // 403-at ad (nem HTML-redirectet).
     Route::middleware('verified')->group(function () {
+        // AI-műveletek a lejátszó szó-buborékjából — ugyanazok a végpontok, mint a
+        // webes szövegelemzőben és az extensionben (AI-kitöltés, AI-flashcard). A
+        // webes párjukkal egyezően verified mögött vannak (F5-L3): a már kiadott
+        // token sem költhet AI-keretet, ha a fiók e-mail-címe megerősítetlenné vált
+        // (pl. e-mail-csere után). A hozzáférést és a havi AI-keretet a controller
+        // kapuzza; a throttle a webes ta-ai vödörrel azonos méretű, de saját prefixű.
+        Route::middleware('throttle:30,1,player-ai')->group(function () {
+            Route::get('player/gemini-lookup', [TextAnalysisController::class, 'geminiWordLookup'])->name('player.gemini-lookup');
+            Route::get('player/gemini-flashcard', [TextAnalysisController::class, 'geminiFlashcard'])->name('player.gemini-flashcard');
+        });
+
         // A státusz/fontosság gyakori, könnyű írás (szavankénti kattintás nézés
         // közben), ezért a webes word-writes vödörrel azonos méretű, de saját
         // keretet kap — nem meríti az add-word/flashcard írás-keretét.

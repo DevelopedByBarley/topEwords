@@ -588,22 +588,31 @@ export default function FlashcardShow({
 
                 {/* Műveletek: elöl az egyetlen elsődleges akció (kártya
                     felvitele), utána az import/export és a beállítások. */}
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
                     <Button
                         onClick={() => {
                             setShowNewForm(true);
                             setEditingCard(null);
                         }}
+                        className="col-span-2"
                     >
                         <Plus className="mr-1 size-4" />
                         Új kártya
                     </Button>
 
-                    <WordSearchImport onImport={handleWordImport} />
-                    <CsvImport deck={deck} />
+                    <WordSearchImport
+                        onImport={handleWordImport}
+                        className="w-full sm:w-auto"
+                    />
+                    <CsvImport deck={deck} className="w-full sm:w-auto" />
 
                     {(flashcards?.length ?? 0) > 0 && (
-                        <Button size="sm" variant="outline" asChild>
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            asChild
+                            className="w-full sm:w-auto"
+                        >
                             <a href={csvExport(deck.id).url}>
                                 <Download className="mr-1 size-4" />
                                 CSV export
@@ -615,7 +624,7 @@ export default function FlashcardShow({
                         size="sm"
                         variant="outline"
                         onClick={() => setShowSettings(true)}
-                        className="relative ms-auto"
+                        className={`relative w-full sm:ms-auto sm:w-auto ${(flashcards?.length ?? 0) > 0 ? '' : 'col-span-2'}`}
                     >
                         <Settings2 className="mr-1 size-4" />
                         Beállítások
@@ -674,7 +683,7 @@ export default function FlashcardShow({
 
                             {/* Állapot-szűrő chipek */}
                             <div className="flex flex-wrap items-center gap-1.5">
-                                <SlidersHorizontal className="size-3.5 text-muted-foreground" />
+                                <SlidersHorizontal className="hidden size-3.5 text-muted-foreground sm:block" />
                                 {STATE_FILTER_OPTIONS.map(
                                     ({ value, label }) => {
                                         const count =

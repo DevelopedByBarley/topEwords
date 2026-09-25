@@ -24,14 +24,13 @@ export default function AdminIndex({
     mostActive,
     registrationsByDay,
     accessUsers,
+    accessSearch,
     invites,
     inviteOnly,
     reports,
 }: AdminIndexPageProps) {
     const [activeTab, setActiveTab] = useState<TabKey>('overview');
-    const openReportsCount = reports.filter(
-        (r) => r.status === 'open',
-    ).length;
+    const openReportsCount = reports.filter((r) => r.status === 'open').length;
 
     return (
         <>
@@ -93,7 +92,10 @@ export default function AdminIndex({
                         />
                     )}
                     {activeTab === 'access' && (
-                        <AccessTab accessUsers={accessUsers} />
+                        <AccessTab
+                            accessUsers={accessUsers}
+                            accessSearch={accessSearch}
+                        />
                     )}
                     {activeTab === 'invites' && (
                         <InvitesTab invites={invites} inviteOnly={inviteOnly} />

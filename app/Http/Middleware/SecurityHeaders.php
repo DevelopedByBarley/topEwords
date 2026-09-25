@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Providers\AppServiceProvider;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -12,9 +13,9 @@ class SecurityHeaders
      * Attach hardening response headers.
      *
      * Headers that never break local development run everywhere. HSTS and the
-     * Content-Security-Policy run only in production: HSTS must not be sent over
-     * plain HTTP, and a CSP would break Vite's dev server (HMR websocket + inline
-     * refresh script). In production the assets are static and same-origin.
+     * Content-Security-Policy run only in production and staging (T-4): HSTS must
+     * not be sent over plain HTTP, and a CSP would break Vite's dev server (HMR
+     * websocket + inline refresh script). There the assets are static and same-origin.
      */
     public function handle(Request $request, Closure $next): Response
     {
@@ -29,7 +30,7 @@ class SecurityHeaders
             'camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()'
         );
 
-        if (app()->isProduction()) {
+        if (app()->environment(AppServiceProvider::HARDENED_ENVIRONMENTS)) {
             $response->headers->set(
                 'Strict-Transport-Security',
                 'max-age=31536000; includeSubDomains; preload'

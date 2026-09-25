@@ -15,7 +15,13 @@ import { Input } from '@/components/ui/input';
 import { importMethod as csvImport } from '@/routes/flashcards/csv';
 import { search as searchWords } from '@/routes/words';
 
-export function CsvImport({ deck }: { deck: Deck }) {
+export function CsvImport({
+    deck,
+    className,
+}: {
+    deck: Deck;
+    className?: string;
+}) {
     const inputRef = useRef<HTMLInputElement>(null);
     const formRef = useRef<HTMLFormElement>(null);
     const [uploading, setUploading] = useState(false);
@@ -81,6 +87,7 @@ export function CsvImport({ deck }: { deck: Deck }) {
                     variant="outline"
                     disabled={uploading}
                     onClick={() => inputRef.current?.click()}
+                    className={className}
                 >
                     {uploading ? (
                         <Loader2 className="mr-1 size-4 animate-spin" />
@@ -155,8 +162,10 @@ export function CsvImport({ deck }: { deck: Deck }) {
  */
 export function WordSearchImport({
     onImport,
+    className,
 }: {
     onImport: (word: WordResult) => void;
+    className?: string;
 }) {
     const [open, setOpen] = useState(false);
     const [query, setQuery] = useState('');
@@ -204,7 +213,12 @@ export function WordSearchImport({
 
     return (
         <>
-            <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
+            <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setOpen(true)}
+                className={className}
+            >
                 <Import className="mr-1 size-4" />
                 Szó importálása
             </Button>

@@ -72,6 +72,10 @@ class ProfileController extends Controller
         // a personal_access_tokens táblában. Beválthatatlanok, de takarítsuk el.
         $user->revokePlayerTokens();
 
+        // A többi eszköz session-sora (IP-cím, böngésző-azonosító) sem kaszkádol,
+        // ezért kifejezetten töröljük (GDPR, F3-L1). Ez a többi eszközt is kilépteti.
+        $user->deleteSessions();
+
         Auth::logout();
 
         $user->delete();

@@ -29,7 +29,7 @@ export function ExtensionBanner() {
 
     const benefits: React.ReactNode[] = [
         'Azonnali fordítás dupla kattintással, kiejtéssel',
-        'Tanult szavak kiemelése bármely oldalon',
+        'Szókeresés bármely oldalon a jobb gombos menüből',
         'Gyors kereső (Ctrl+Shift+F) AI-kitöltéssel',
         'YouTube- és Netflix-feliratok színezése és átirat',
     ];

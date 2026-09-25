@@ -17,6 +17,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Laravel\Cashier\Billable;
 use Laravel\Cashier\Subscription;
 use Laravel\Fortify\TwoFactorAuthenticatable;
@@ -90,18 +91,24 @@ class User extends Authenticatable implements MustVerifyEmail
 
     /**
      * The user's active Stripe subscription, regardless of its type name.
+     *
+     * Szándékosan NEM a Cashier subscription($type)-jára épül: az típusonként csak a
+     * legújabb sort nézi, a duplikátum-takarító viszont egy régebbi érvényes sort is
+     * megtarthat — ilyenkor a fizető user Free-re esett, és újabb Checkoutot is
+     * indíthatott (F9A-L1). Ezért az összes sor közül választunk, a takarító
+     * keeper-választásával azonos sorrendben (legrégebbi elöl): előbb a nem lemondott
+     * érvényes sort, és csak ha ilyen nincs, a grace period-ban lévőt. A betöltött
+     * relációból dolgozik, így nem indít lekérdezést.
      */
     public function activeSubscription(): ?Subscription
     {
-        foreach (['premium', 'default'] as $type) {
-            $subscription = $this->subscription($type);
+        $validSubscriptions = $this->subscriptions
+            ->whereIn('type', ['premium', 'default'])
+            ->filter(fn (Subscription $subscription): bool => $subscription->valid())
+            ->sortBy([['created_at', 'asc'], ['id', 'asc']]);
 
-            if ($subscription && $subscription->valid()) {
-                return $subscription;
-            }
-        }
-
-        return null;
+        return $validSubscriptions->first(fn (Subscription $subscription): bool => $subscription->ends_at === null)
+            ?? $validSubscriptions->first();
     }
 
     /**
@@ -482,6 +489,20 @@ class User extends Authenticatable implements MustVerifyEmail
             ->get()
             ->filter(fn (PersonalAccessToken $token) => $token->abilities === ['player'])
             ->each(fn (PersonalAccessToken $token) => $token->delete());
+    }
+
+    /**
+     * A felhasználó összes (minden eszközén lévő) session-sorának törlése. A
+     * database session driver a sorhoz IP-címet és böngésző-azonosítót ment, és
+     * a `sessions.user_id` mögött nincs FK, így ezek a személyes adatok a fiók
+     * törlése után is bennmaradnának (GDPR, F3-L1).
+     */
+    public function deleteSessions(): void
+    {
+        DB::connection(config('session.connection'))
+            ->table(config('session.table', 'sessions'))
+            ->where('user_id', $this->getKey())
+            ->delete();
     }
 
     /**

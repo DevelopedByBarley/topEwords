@@ -112,15 +112,38 @@ class BillingoClient
     }
 
     /**
-     * Az első elérhető számlatömb azonosítója. Akkor használjuk, ha a konfigban nincs
-     * explicit block_id megadva — teszt profilnál így nem kell kézzel kikeresni.
+     * Az első `invoice` típusú számlatömb azonosítója. Akkor használjuk, ha a konfigban
+     * nincs explicit block_id megadva — teszt profilnál így nem kell kézzel kikeresni.
+     *
+     * F9B-L2: a lista első eleme lehet díjbekérő, sztornó vagy egy másik tevékenység
+     * tömbje is — típus-szűrés nélkül a NAV-számla csendben rossz sorszámtartományba
+     * kerülne. Ha nincs számla típusú tömb, hangosan bukunk, ahelyett hogy 0-s (érvénytelen)
+     * block_id-vel mennénk tovább.
+     *
+     * @throws \RuntimeException ha a fiókban nincs `invoice` típusú számlatömb.
      */
-    public function firstDocumentBlockId(): int
+    public function firstInvoiceBlockId(): int
     {
-        return (int) $this->request()
-            ->get('/document-blocks')
+        $blocks = $this->request()
+            ->get('/document-blocks', ['per_page' => 100])
             ->throw()
-            ->json('data.0.id');
+            ->json('data') ?? [];
+
+        $invoiceBlock = collect($blocks)
+            ->first(fn (mixed $block): bool => is_array($block)
+                && ($block['type'] ?? null) === 'invoice'
+                && (int) ($block['id'] ?? 0) > 0);
+
+        $invoiceBlockId = (int) ($invoiceBlock['id'] ?? 0);
+
+        if ($invoiceBlockId <= 0) {
+            throw new \RuntimeException(
+                'A Billingo-fiókban nincs "invoice" típusú számlatömb, ezért a számla nem '
+                .'állítható ki automatikusan választott tömbbe. Állítsd be a BILLINGO_BLOCK_ID-t.'
+            );
+        }
+
+        return $invoiceBlockId;
     }
 
     /**

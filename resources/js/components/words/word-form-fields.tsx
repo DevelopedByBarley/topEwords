@@ -239,8 +239,8 @@ export default function WordFormFields({
 
     return (
         <>
-            <div className="flex gap-2">
-                <div className="flex-1">
+            <div className="flex flex-col gap-2 sm:flex-row">
+                <div className="min-w-0 flex-1">
                     <Input
                         placeholder="Angol szó *"
                         value={form.word}
@@ -257,7 +257,7 @@ export default function WordFormFields({
                     value={form.part_of_speech}
                     onValueChange={(v) => set({ part_of_speech: v })}
                 >
-                    <SelectTrigger className="w-36">
+                    <SelectTrigger className="w-full sm:w-36">
                         <SelectValue placeholder="Szófaj" />
                     </SelectTrigger>
                     <SelectContent>

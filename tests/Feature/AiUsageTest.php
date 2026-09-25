@@ -25,6 +25,8 @@ function fakeGemini(array $json, int $inputTokens = 300, int $outputTokens = 250
 beforeEach(function () {
     config(['services.gemini.api_key' => 'test-key']);
     config(['app.admin_email' => 'admin@example.com']);
+    // A lookup modellpárja rögzítve, hogy a költség-assertek ne függjenek a .env-től.
+    config(['services.gemini.models.lookup' => ['primary' => 'gemini-2.5-flash-lite', 'fallback' => 'gemini-2.5-flash']]);
 });
 
 test('ai lookup is blocked when the monthly budget is reached', function () {
@@ -260,5 +262,121 @@ test('a blokk-elszámolás nem viszi negatívba a számlálót párhuzamos reset
     // a számláló 0, a clamp lép életbe.
     app(AiUsageService::class)->settle($user, estimatedMicros: 5000, actualMicros: 1);
 
+    expect($user->fresh()->ai_credits_used)->toBe(0);
+});
+
+// ── F9E-L1: a csonka / nem-JSON válasz sem ingyenes ──────────────────────────
+
+/**
+ * Egy díjköteles, de használhatatlan (nem-JSON) Gemini-válasz.
+ *
+ * @return array<string, mixed>
+ */
+function unusableGeminiResponse(string $finishReason, int $inputTokens, int $outputTokens): array
+{
+    return [
+        'candidates' => [[
+            'content' => ['parts' => [['text' => '{"is_real_word":true,"meaning_hu":"kuty']]],
+            'finishReason' => $finishReason,
+        ]],
+        'usageMetadata' => ['promptTokenCount' => $inputTokens, 'candidatesTokenCount' => $outputTokens],
+    ];
+}
+
+test('a tartósan csonka válasz a megemelt keret után leáll, és a próbák költségét elszámolja', function () {
+    // A javítás előtt: 4 kimenő hívás (bump, fallback ×2) és ai_credits_used = 0.
+    Http::fake(['generativelanguage.googleapis.com/*' => Http::response(unusableGeminiResponse('MAX_TOKENS', 300, 700))]);
+    $user = User::factory()->create(['ai_access' => true]);
+
+    $this->actingAs($user)
+        ->getJson(route('text-analysis.gemini-lookup', ['word' => 'dog']))
+        ->assertStatus(502);
+
+    // Két flash-lite próba: 2 × (300*0.10 + 700*0.40) = 620 mikro-dollár.
+    Http::assertSentCount(2);
+    expect($user->fresh()->ai_credits_used)->toBe(620);
+});
+
+test('a csonkolás nélküli nem-JSON válaszok is terhelik a keretet a teljes láncon', function () {
+    Http::fake(['generativelanguage.googleapis.com/*' => Http::response(unusableGeminiResponse('STOP', 300, 100))]);
+    $user = User::factory()->create(['ai_access' => true]);
+
+    $this->actingAs($user)
+        ->getJson(route('text-analysis.gemini-lookup', ['word' => 'dog']))
+        ->assertStatus(502);
+
+    // Nem csonkolás, ezért a lánc végigfut: 2 × flash-lite (30+40) + 2 × flash (90+250) = 820.
+    Http::assertSentCount(4);
+    expect($user->fresh()->ai_credits_used)->toBe(820);
+});
+
+test('a csonkolás utáni sikeres válasz a csonka próbát is elszámolja', function () {
+    Http::fakeSequence('generativelanguage.googleapis.com/*')
+        ->push(unusableGeminiResponse('MAX_TOKENS', 300, 700))
+        ->push([
+            'candidates' => [[
+                'content' => ['parts' => [['text' => json_encode(['is_real_word' => true, 'meaning_hu' => 'kutya', 'part_of_speech' => 'noun'])]]],
+                'finishReason' => 'STOP',
+            ]],
+            'usageMetadata' => ['promptTokenCount' => 300, 'candidatesTokenCount' => 250],
+        ]);
+    $user = User::factory()->create(['ai_access' => true]);
+
+    $this->actingAs($user)
+        ->getJson(route('text-analysis.gemini-lookup', ['word' => 'dog']))
+        ->assertSuccessful()
+        ->assertJson(['meaning_hu' => 'kutya']);
+
+    // Csonka próba (30+280) + sikeres próba (30+100) = 440.
+    Http::assertSentCount(2);
+    expect($user->fresh()->ai_credits_used)->toBe(440);
+});
+
+test('a nem-JSON próba utáni blokk a korábbi próbát is elszámolja', function () {
+    Http::fakeSequence('generativelanguage.googleapis.com/*')
+        ->push(unusableGeminiResponse('STOP', 300, 100))
+        ->push([
+            'promptFeedback' => ['blockReason' => 'SAFETY'],
+            'usageMetadata' => ['promptTokenCount' => 300, 'candidatesTokenCount' => 0],
+        ]);
+    $user = User::factory()->create(['ai_access' => true]);
+
+    $this->actingAs($user)
+        ->getJson(route('text-analysis.gemini-lookup', ['word' => 'dog']))
+        ->assertStatus(502);
+
+    // Nem-JSON próba (30+40) + blokkolt próba (30) = 100.
+    Http::assertSentCount(2);
+    expect($user->fresh()->ai_credits_used)->toBe(100);
+});
+
+test('a practiceCheck tartós csonkolása legfeljebb két hívás, és nem nullára könyvel', function () {
+    Http::fake(['generativelanguage.googleapis.com/*' => Http::response(unusableGeminiResponse('MAX_TOKENS', 900, 800))]);
+    $user = User::factory()->create(['ai_access' => true]);
+
+    $this->actingAs($user)
+        ->postJson(route('words.practice.check'), [
+            'words' => [['word' => 'dog', 'meaning_hu' => 'kutya']],
+            'text' => 'I walk my dog every day.',
+        ])
+        ->assertStatus(502);
+
+    Http::assertSentCount(2);
+    expect($user->fresh()->ai_credits_used)->toBeGreaterThan(0);
+});
+
+test('a HTTP-hibás (nem számlázott) próbák után továbbra is teljes a visszatérítés', function () {
+    Http::fakeSequence('generativelanguage.googleapis.com/*')
+        ->push('error', 503)
+        ->push('error', 503)
+        ->push('error', 500)
+        ->push('error', 500);
+    $user = User::factory()->create(['ai_access' => true]);
+
+    $this->actingAs($user)
+        ->getJson(route('text-analysis.gemini-lookup', ['word' => 'dog']))
+        ->assertStatus(502);
+
+    Http::assertSentCount(4);
     expect($user->fresh()->ai_credits_used)->toBe(0);
 });

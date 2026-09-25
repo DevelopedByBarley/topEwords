@@ -49,6 +49,61 @@ let ytStatusWaiters = [];
 // Hiba utáni backoff: a gyakori reconcile-tickek ne bombázzák a hátteret.
 let ytStatusErrorAt = 0;
 const YT_STATUS_RETRY_MS = 15000;
+// Kijelentkezett felhasználónál (unauthenticated) a fix 15 s helyett exponenciális
+// a backoff (15 s → 30 s → 1 p → … legfeljebb 15 p): a bekapcsolva hagyott sáv
+// különben a lap nyitva tartásáig percenként ~4 fölösleges 401-et kérne. A
+// számláló sikeres térképnél nullázódik; a kapcsoló valódi kattintása és a fülre
+// visszatérés (ott lehet, hogy közben bejelentkezett) azonnali újrapróbát enged.
+let ytStatusLastError = null;
+let ytStatusAuthFailures = 0;
+const YT_STATUS_AUTH_RETRY_MAX_MS = 15 * 60 * 1000;
+
+function ytStatusRetryDelay() {
+    if (ytStatusLastError !== 'unauthenticated' || ytStatusAuthFailures < 1) {
+        return YT_STATUS_RETRY_MS;
+    }
+
+    return Math.min(
+        YT_STATUS_RETRY_MS * 2 ** (ytStatusAuthFailures - 1),
+        YT_STATUS_AUTH_RETRY_MAX_MS,
+    );
+}
+
+/** Azonnali újrapróbát enged (a kapcsoló valódi kattintására); a számlálót is nullázza. */
+function resetYtStatusBackoff() {
+    ytStatusErrorAt = 0;
+    ytStatusAuthFailures = 0;
+    ytStatusLastError = null;
+}
+
+/**
+ * Kattintás-kezelő, ami csak valódi felhasználói kattintásra fut. A kapcsolók
+ * light DOM-ban / open shadow rootban vannak, így az oldal JS-e szintetikus
+ * `click()`-kel tartósan átállíthatná a beállítást, és kéréseket indíthatna
+ * (statuses, youtube-transcript) — ugyanaz az őr, mint a szó-gesztusokon.
+ */
+function trustedClick(handler) {
+    return (e) => {
+        if (!e.isTrusted) {
+            return;
+        }
+
+        handler();
+    };
+}
+
+// Fülre visszatérve kijelentkezett állapotból azonnal újrapróbálhatunk — a
+// felhasználó közben bejelentkezhetett a weboldalon. A számláló marad, így ha
+// még mindig nincs bejelentkezve, a következő várakozás tovább nő. (A youtube.js
+// a Netflixen is betöltődik, és a térkép-lekérés közös, ezért ez mindkét oldalon él.)
+document.addEventListener('visibilitychange', () => {
+    if (
+        document.visibilityState === 'visible' &&
+        ytStatusLastError === 'unauthenticated'
+    ) {
+        ytStatusErrorAt = 0;
+    }
+});
 
 const YT_HIDE_STYLE_ID = 'tw-yt-hide-native-captions';
 
@@ -247,7 +302,7 @@ function injectYtToggle() {
             <rect class="tw-underline" x="11" y="26.5" width="14" height="2.5" rx="1.25" fill="#f00"/>
         </svg>
     `;
-    btn.addEventListener('click', toggleYtLyrics);
+    btn.addEventListener('click', trustedClick(toggleYtLyrics));
 
     // A natív felirat (CC) gomb mellé tesszük, oda illik leginkább.
     // A saját szülőjén keresztül illesztjük be, mert az új YouTube UI-ban
@@ -285,6 +340,9 @@ function updateYtToggleState() {
 
 function toggleYtLyrics() {
     ytEnabled = !ytEnabled;
+    // Kifejezett felhasználói szándék: a (kijelentkezett állapot miatti) backoff
+    // ne tartsa vissza a lekérést.
+    resetYtStatusBackoff();
     storageSet({ ytLyricsEnabled: ytEnabled });
     reconcileYtLyrics();
 }
@@ -521,24 +579,44 @@ function startYtObserver() {
         characterData: true,
     });
 
-    // Ha pár másodperc után sem sikerült felirat-szöveget olvasni (pl. a
-    // YouTube átnevezte a felirat-osztályokat), egyszeri értesítéssel
+    // Ha a teljes ablak alatt EGYSZER sem sikerült felirat-szöveget olvasni
+    // (pl. a YouTube átnevezte a felirat-osztályokat), egyszeri értesítéssel
     // jelezzük, miért üres a TW-sáv — a natív felirat ilyenkor látható marad.
-    setTimeout(() => {
+    //
+    // A korábbi változat 5 mp után egyetlen pillanatképet nézett: csendes
+    // bevezetőnél (zene, főcím) tévesen kiírta az üzenetet, majd az első
+    // valódi feliratnál a sáv magától elindult. A Netflix-ág mintáját követjük
+    // (netflix.js: startNfxObserver): bizonyíték-alapú flag (ytCaptionTextSeen)
+    // és 15 mp-es ablak, így a néma szakasz csak késlelteti a döntést.
+    const noticeToken = ytNavToken;
+    const noticeObserver = ytObserver;
+    let elapsed = 0;
+    const noticeTimer = setInterval(() => {
+        elapsed += 1000;
+
+        const stale =
+            !extAlive() ||
+            noticeToken !== ytNavToken ||
+            ytObserver !== noticeObserver ||
+            !ytEnabled ||
+            !isYouTubePage();
+
         if (
-            ytEnabled &&
-            extAlive() &&
-            isYouTubePage() &&
-            ytObserver &&
-            !ytCaptionTextSeen &&
-            !ytNoCaptionNoticeShown
+            stale ||
+            ytCaptionTextSeen ||
+            ytNoCaptionNoticeShown ||
+            elapsed >= 15000
         ) {
-            ytNoCaptionNoticeShown = true;
-            showYtBarNotice(
-                'Nem sikerült felirat-szöveget beolvasni — a YouTube saját felirata látható marad.',
-            );
+            clearInterval(noticeTimer);
+
+            if (!stale && !ytCaptionTextSeen && !ytNoCaptionNoticeShown) {
+                ytNoCaptionNoticeShown = true;
+                showYtBarNotice(
+                    'Nem sikerült felirat-szöveget beolvasni — a YouTube saját felirata látható marad.',
+                );
+            }
         }
-    }, 5000);
+    }, 1000);
 }
 
 // ── Be/ki kapcsolás ──
@@ -558,7 +636,7 @@ function ensureYtStatusMap(callback) {
     // Friss hiba után visszafogjuk az újrapróbát, hogy a gyakori reconcile-tickek
     // ne ismételjék folyamatosan a sikertelen lekérést. A 'cooldown' nem jelez új
     // hibát a hívónak (értesítést sem mutatunk rá újra).
-    if (ytStatusErrorAt && Date.now() - ytStatusErrorAt < YT_STATUS_RETRY_MS) {
+    if (ytStatusErrorAt && Date.now() - ytStatusErrorAt < ytStatusRetryDelay()) {
         callback('cooldown');
 
         return;
@@ -577,7 +655,7 @@ function ensureYtStatusMap(callback) {
         ytStatusWaiters = [];
 
         if (resp && !resp.error && resp.statuses) {
-            ytStatusErrorAt = 0;
+            resetYtStatusBackoff();
             ytStatusMap = new Map(
                 Object.entries(resp.statuses).map(([w, s]) => [
                     w.toLowerCase(),
@@ -591,6 +669,12 @@ function ensureYtStatusMap(callback) {
 
         ytStatusErrorAt = Date.now();
         const error = resp?.error ?? 'network';
+        ytStatusLastError = error;
+
+        if (error === 'unauthenticated') {
+            ytStatusAuthFailures += 1;
+        }
+
         waiters.forEach((cb) => cb(error));
     });
 }
@@ -664,14 +748,16 @@ function reconcileYtLyrics() {
     // Kívánt: bekapcsolva.
     ensureYtBar();
 
-    if (!ensureNativeCaptionsOn()) {
-        // A CC gomb még nem áll készen — a következő observer-tick újrapróbálja.
-        return;
-    }
+    const token = ytNavToken;
 
     ensureYtStatusMap((error) => {
         // Mire a válasz megjön, lehet, hogy közben kikapcsolták vagy elnavigáltak.
-        if (!ytEnabled || !extAlive() || !isYouTubePage()) {
+        if (
+            token !== ytNavToken ||
+            !ytEnabled ||
+            !extAlive() ||
+            !isYouTubePage()
+        ) {
             return;
         }
 
@@ -692,6 +778,14 @@ function reconcileYtLyrics() {
                       ),
             );
 
+            return;
+        }
+
+        // A natív CC-t csak sikeres térkép után kapcsoljuk be: kijelentkezve
+        // vagy hiba esetén a TW-sáv úgysem működne, a felhasználó CC-beállítását
+        // pedig ne állítsuk át feleslegesen.
+        if (!ensureNativeCaptionsOn()) {
+            // A CC gomb még nem áll készen — a következő observer-tick újrapróbálja.
             return;
         }
 
@@ -831,7 +925,7 @@ function ensureYtPanel() {
         </div>
     `;
 
-    shadow.getElementById('close').addEventListener('click', toggleYtPanel);
+    shadow.getElementById('close').addEventListener('click', trustedClick(toggleYtPanel));
 
     const body = shadow.getElementById('body');
     // Ugyanaz a gesztus-készlet, mint a felirat-sávon (sima klikk = popup, dupla =
@@ -1133,7 +1227,7 @@ function injectYtPanelToggle() {
             <rect class="tw-panel-underline" x="11" y="26.5" width="14" height="2.5" rx="1.25" fill="#f00"/>
         </svg>
     `;
-    btn.addEventListener('click', toggleYtPanel);
+    btn.addEventListener('click', trustedClick(toggleYtPanel));
 
     const ccBtn = controls.querySelector('.ytp-subtitles-button');
 

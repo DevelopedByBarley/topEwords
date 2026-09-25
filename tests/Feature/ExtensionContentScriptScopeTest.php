@@ -72,7 +72,9 @@ test('a content script modulok nem deklarálnak ütköző felső szintű neveket
 });
 
 test('a kicsomagolt store-csomag azonos a forrással', function () {
-    $packaged = base_path('chrome-extension/topwords-extension-1.0');
+    // A build-zip.sh a manifest verziójával nevezi el a kicsomagolt mappát, így a
+    // verzióemelés után is az aktuális csomagot vetjük össze a forrással.
+    $packaged = base_path('chrome-extension/topwords-extension-'.extensionManifest()['version']);
 
     if (! is_dir($packaged)) {
         $this->markTestSkipped('Nincs kicsomagolt csomag a repóban.');

@@ -92,13 +92,31 @@ class FortifyServiceProvider extends ServiceProvider
             // de egy rendellenes belépésnél (közvetlen POST session nélkül) null
             // lenne — az IP-fallback nélkül minden ilyen kérés egy közös vödörbe
             // esne. Az IP-re esünk vissza, ahogy a `login` limiter is teszi.
-            return Limit::perMinute(5)->by($request->session()->get('login.id') ?? $request->ip());
+            //
+            // Az órás plafon (F9C-L5): az 5/perc önmagában napi ~7200 próbát
+            // engedne, ami ismert jelszó mellett ~30 nap alatt 50% találati esély.
+            // 30/óra ezt ~720/napra vágja, a valódi felhasználót (aki pár kódot
+            // elüt) pedig nem zavarja. A sorozatos hibáról a felhasználó e-mailt
+            // kap (NotifyUserOfTwoFactorFailures).
+            $challengeKey = $request->session()->get('login.id') ?? $request->ip();
+
+            return [
+                Limit::perMinute(5)->by($challengeKey),
+                Limit::perHour(30)->by('hour:'.$challengeKey),
+            ];
         });
 
         RateLimiter::for('login', function (Request $request) {
-            $throttleKey = Str::transliterate(Str::lower($request->input(Fortify::username())).'|'.$request->ip());
+            $email = Str::transliterate(Str::lower((string) $request->input(Fortify::username())));
 
-            return Limit::perMinute(5)->by($throttleKey);
+            // A második, CSAK e-mailre kulcsolt limit (F9C-L5): az e-mail+IP
+            // vödör IP-váltással (botnet) megkerülhető volt. A 20/óra egy fiókra
+            // elosztott próbálkozást is megfog, egy elgépelő valódi usert viszont
+            // nem — és a szándékos kizárás (DoS) ára is csak egy óra.
+            return [
+                Limit::perMinute(5)->by($email.'|'.$request->ip()),
+                Limit::perHour(20)->by('email:'.$email),
+            ];
         });
 
         // Fortify does not throttle registration or the password-reset request;

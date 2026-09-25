@@ -53,7 +53,7 @@ class HandleInertiaRequests extends Middleware
                     return [
                         'plan' => $plan,
                         'hasActiveAccess' => $plan !== 'free',
-                        'isSubscribed' => $user->subscribed('default') || $user->subscribed('premium'),
+                        'isSubscribed' => $user->activeSubscription() !== null,
                         'isPremium' => $plan === 'premium',
                         'hasAiAccess' => $user->hasAiAccess(),
                         'isOnTrial' => $user->isOnAnyTrial(),

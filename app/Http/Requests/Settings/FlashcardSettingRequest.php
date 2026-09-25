@@ -2,13 +2,14 @@
 
 namespace App\Http\Requests\Settings;
 
+use App\Concerns\LimitsArraySize;
 use App\Concerns\ValidatesFlashcardSettings;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
 
 class FlashcardSettingRequest extends FormRequest
 {
-    use ValidatesFlashcardSettings;
+    use LimitsArraySize, ValidatesFlashcardSettings;
 
     public function authorize(): bool
     {
@@ -26,6 +27,8 @@ class FlashcardSettingRequest extends FormRequest
      */
     protected function prepareForValidation(): void
     {
+        $this->ensureArraySizeWithinLimits($this->all(), ['learning_steps' => 20], $this->attributes());
+
         $this->merge(['shuffle_cards' => $this->boolean('shuffle_cards')]);
     }
 

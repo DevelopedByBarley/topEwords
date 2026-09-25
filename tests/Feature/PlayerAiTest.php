@@ -43,6 +43,20 @@ test('player gemini-lookup rejects tokens without the player ability', function 
         ->assertForbidden();
 });
 
+// ── Megerősített e-mail (F5-L3) ──────────────────────────────────────────────
+
+// A webes AI-végpontok verified mögött vannak; a player-úton sem költhet AI-keretet
+// az a token, amelynek fiókja megerősítetlenné vált (pl. e-mail-csere után).
+test('player AI endpoints reject an unverified token user without calling Gemini', function (string $routeName) {
+    Http::fake();
+    Sanctum::actingAs(User::factory()->unverified()->create(), ['player']);
+
+    $this->getJson(route($routeName, ['word' => 'dog']))
+        ->assertForbidden();
+
+    Http::assertNothingSent();
+})->with(['player.gemini-lookup', 'player.gemini-flashcard']);
+
 // ── AI-kitöltés (gemini-lookup) ──────────────────────────────────────────────
 
 test('player gemini-lookup returns dictionary data with a player token', function () {

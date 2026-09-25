@@ -424,20 +424,20 @@ const FEATURE_SLIDES: FeatureSlide[] = [
     },
     {
         id: 'extension',
-        title: 'Tanulj bárhol a neten',
+        title: 'Tanulj nézés közben',
         subtitle:
-            'A Chrome bővítmény bármely oldalon, YouTube-on és Netflixen is működik.',
+            'A Chrome bővítmény YouTube-on és Netflixen működik, más oldalakon a kijelölt szóra a jobb gombos menüből kereshetsz rá.',
         Visual: ExtensionVisual,
         features: [
             {
                 Icon: MousePointerClick,
                 title: 'Dupla kattintás + tartás',
-                desc: 'Bármely oldalon dupla kattints egy szóra és tartsd nyomva: jön a jelentés, a kiejtés és a státusz gombok — és egy kattintással tanulókártyát is készíthetsz belőle.',
+                desc: 'YouTube- és Netflix-feliratokon dupla kattints egy szóra és tartsd nyomva: jön a jelentés, a kiejtés és a státusz gombok — és egy kattintással tanulókártyát is készíthetsz belőle.',
             },
             {
                 Icon: Keyboard,
                 title: 'Gyorsbillentyűs kereső',
-                desc: 'Option+W (Mac) / Alt+W vagy Ctrl+Shift+F: bárhol felugrik a kereső — gépeld be a szót, és ott a jelentése.',
+                desc: 'Option+W (Mac) / Alt+W vagy Ctrl+Shift+F: YouTube-on és Netflixen felugrik a kereső — gépeld be a szót, és ott a jelentése.',
             },
             {
                 Icon: TextSelect,
@@ -446,13 +446,13 @@ const FEATURE_SLIDES: FeatureSlide[] = [
             },
             {
                 Icon: Highlighter,
-                title: 'Kiemelés az oldalon',
-                desc: 'Bekapcsolva a bővítmény olvasás közben kiemeli a szavaidat — a linkeket, gombokat és beviteli mezőket szándékosan kihagyja.',
+                title: 'Kiemelés a feliratban',
+                desc: 'Bekapcsolva a bővítmény a feliratban a státuszuk szerint színezi a szavaidat — egyből látod, mit tanultál már.',
             },
             {
                 Icon: ScanText,
-                title: 'Oldal elemzése és statisztikája',
-                desc: 'A bővítmény ikonjára kattintva egy gombbal átküldheted az oldalt a szövegelemzőbe, vagy helyben megnézheted, hány szót ismersz belőle. Jobb klikkel is megy.',
+                title: 'Oldal elemzése',
+                desc: 'A bővítmény ikonjára kattintva egy gombbal átküldheted a megnyitott oldalt a szövegelemzőbe. Jobb klikkel is megy.',
             },
             {
                 Icon: Youtube,

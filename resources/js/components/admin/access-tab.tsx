@@ -1,23 +1,68 @@
 import { router } from '@inertiajs/react';
-import { Gift, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { ChevronLeft, ChevronRight, Gift, Trash2 } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { Input } from '@/components/ui/input';
+import { admin } from '@/routes';
 import { set as setAccess } from '@/routes/admin/access';
 import { grant as grantFreeMonth } from '@/routes/admin/free-month';
 import type { AccessTabProps } from '@/types/admin';
 
-export default function AccessTab({ accessUsers }: AccessTabProps) {
-    const [accessSearch, setAccessSearch] = useState('');
+/**
+ * A userlista szerveroldalon keresett és lapozott (F9C-L4): a keresés és a
+ * lapváltás partial reload, ami csak a userlistát kéri újra — a teljes
+ * userbázis sosem kerül a böngészőbe.
+ */
+export default function AccessTab({
+    accessUsers,
+    accessSearch,
+}: AccessTabProps) {
+    const [search, setSearch] = useState(accessSearch);
+    const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    const q = accessSearch.trim().toLowerCase();
-    const filteredAccessUsers =
-        q === ''
-            ? accessUsers
-            : accessUsers.filter(
-                  (u) =>
-                      u.name.toLowerCase().includes(q) ||
-                      u.email.toLowerCase().includes(q),
-              );
+    // Unmountkor (tabváltás) a függő debounce ne navigáljon utólag.
+    useEffect(() => {
+        return () => {
+            if (searchTimeout.current) {
+                clearTimeout(searchTimeout.current);
+            }
+        };
+    }, []);
+
+    function reloadAccessUsers(searchValue: string, page: number) {
+        const query: Record<string, string | number> = {};
+        const trimmed = searchValue.trim();
+
+        if (trimmed !== '') {
+            query.access_search = trimmed;
+        }
+
+        if (page > 1) {
+            query.access_page = page;
+        }
+
+        router.get(admin(), query, {
+            only: ['accessUsers', 'accessSearch'],
+            preserveState: true,
+            preserveScroll: true,
+            replace: true,
+        });
+    }
+
+    function handleSearchChange(value: string) {
+        setSearch(value);
+
+        if (searchTimeout.current) {
+            clearTimeout(searchTimeout.current);
+        }
+
+        searchTimeout.current = setTimeout(() => {
+            reloadAccessUsers(value, 1);
+        }, 350);
+    }
+
+    function goToPage(page: number) {
+        reloadAccessUsers(accessSearch, page);
+    }
 
     function setUserPlan(email: string, plan: 'premium' | 'none') {
         router.post(setAccess().url, { email, plan }, { preserveScroll: true });
@@ -43,17 +88,17 @@ export default function AccessTab({ accessUsers }: AccessTabProps) {
                 <Input
                     type="text"
                     placeholder="Keresés név vagy email alapján..."
-                    value={accessSearch}
-                    onChange={(e) => setAccessSearch(e.target.value)}
+                    value={search}
+                    onChange={(e) => handleSearchChange(e.target.value)}
                     className="border-zinc-700 bg-zinc-800 text-zinc-100 placeholder:text-zinc-500"
                 />
                 <div className="max-h-96 space-y-2 overflow-y-auto pr-1">
-                    {filteredAccessUsers.length === 0 ? (
+                    {accessUsers.data.length === 0 ? (
                         <p className="py-4 text-center text-sm text-zinc-600">
                             Nincs találat
                         </p>
                     ) : (
-                        filteredAccessUsers.map((u) => (
+                        accessUsers.data.map((u) => (
                             <div
                                 key={u.id}
                                 className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-zinc-800 px-3 py-2"
@@ -138,6 +183,47 @@ export default function AccessTab({ accessUsers }: AccessTabProps) {
                         ))
                     )}
                 </div>
+                {accessUsers.total > 0 && (
+                    <div className="flex items-center justify-between gap-2 text-xs text-zinc-500">
+                        <span>
+                            {accessUsers.from}–{accessUsers.to} /{' '}
+                            {accessUsers.total} felhasználó
+                        </span>
+                        {accessUsers.last_page > 1 && (
+                            <div className="flex items-center gap-1.5">
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        goToPage(accessUsers.current_page - 1)
+                                    }
+                                    disabled={accessUsers.current_page <= 1}
+                                    aria-label="Előző oldal"
+                                    className="rounded-md bg-zinc-800 p-1 text-zinc-300 transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40"
+                                >
+                                    <ChevronLeft className="size-3.5" />
+                                </button>
+                                <span className="tabular-nums">
+                                    {accessUsers.current_page} /{' '}
+                                    {accessUsers.last_page}
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        goToPage(accessUsers.current_page + 1)
+                                    }
+                                    disabled={
+                                        accessUsers.current_page >=
+                                        accessUsers.last_page
+                                    }
+                                    aria-label="Következő oldal"
+                                    className="rounded-md bg-zinc-800 p-1 text-zinc-300 transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40"
+                                >
+                                    <ChevronRight className="size-3.5" />
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
         </div>
     );

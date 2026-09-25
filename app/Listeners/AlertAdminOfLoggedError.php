@@ -10,8 +10,8 @@ use Throwable;
 
 /**
  * Error szintű (vagy súlyosabb) log-bejegyzésről riasztja az admint. Enélkül egy prod-beli
- * exception csak a laravel.log-ban landolna, és senki nem értesülne róla. Csak prodban él,
- * és a riasztást két rétegben fogjuk, hogy se egy beragadt hiba, se egy incidens-burst ne
+ * exception csak a laravel.log-ban landolna, és senki nem értesülne róla. Prodban és
+ * stagingen él (a teszt-üzem stagingen fut, ott is látni kell a hibákat), és a riasztást két rétegben fogjuk, hogy se egy beragadt hiba, se egy incidens-burst ne
  * árassza el a postafiókot — a levél ezért azt jelzi, hogy "van baj", a részletek a szerver
  * logjában vannak.
  */
@@ -38,7 +38,7 @@ class AlertAdminOfLoggedError
             return;
         }
 
-        if (! app()->isProduction()) {
+        if (! app()->environment(['production', 'staging'])) {
             return;
         }
 
