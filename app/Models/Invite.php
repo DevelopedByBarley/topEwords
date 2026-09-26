@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['code', 'label', 'max_uses', 'expires_at'])]
+#[Fillable(['code', 'label', 'max_uses', 'pro_days', 'expires_at'])]
 class Invite extends Model
 {
     /**
@@ -33,6 +33,7 @@ class Invite extends Model
     {
         return [
             'expires_at' => 'datetime',
+            'pro_days' => 'integer',
         ];
     }
 }

@@ -120,3 +120,76 @@ test('nem admin nem küldhet meghívót', function () {
 
     Notification::assertNothingSent();
 });
+
+/**
+ * A levél összes sora egy szövegben, a benne lévő soronkénti ellenőrzésekhez.
+ */
+function invitationMailBody(Invite $invite): string
+{
+    $mail = (new InvitationSent($invite))->toMail(new AnonymousNotifiable);
+
+    return implode("\n", [...$mail->introLines, ...$mail->outroLines]);
+}
+
+test('Pro induló csomaggal a meghívó eltárolja a napokat, és a levél megemlíti', function () {
+    Notification::fake();
+
+    $this->actingAs($this->admin)
+        ->post(route('admin.invites.store'), ['max_uses' => 1, 'pro_days' => 30, 'email' => 'janos@example.com'])
+        ->assertRedirect();
+
+    $invite = Invite::sole();
+    expect($invite->pro_days)->toBe(30);
+    expect(invitationMailBody($invite))->toContain('30 napig ingyen használhatod a Pro csomagot');
+});
+
+test('Ingyenes induló csomagnál a levél nem ígér Pro-t', function () {
+    $invite = Invite::create(['code' => 'FREE1234', 'max_uses' => 1]);
+
+    expect(invitationMailBody($invite))->not->toContain('Pro csomagot');
+});
+
+test('a pro_days csak 1 és 365 közötti egész lehet', function (mixed $proDays) {
+    $this->actingAs($this->admin)
+        ->post(route('admin.invites.store'), ['max_uses' => 1, 'pro_days' => $proDays])
+        ->assertSessionHasErrors('pro_days');
+
+    expect(Invite::count())->toBe(0);
+})->with([0, 366, 'harminc']);
+
+test('a levél a hibabejelentő oldalra mutat', function () {
+    $invite = Invite::create(['code' => 'REPORT12', 'max_uses' => 1]);
+
+    expect(invitationMailBody($invite))->toContain(route('report.index'));
+});
+
+/**
+ * @param  array<string, mixed>  $overrides
+ */
+function configureStripe(array $overrides = []): void
+{
+    config([
+        'services.stripe.enabled' => true,
+        'cashier.key' => 'pk_test_abc',
+        'cashier.secret' => 'sk_test_abc',
+        'services.stripe.premium_price_id' => 'price_abc',
+        ...$overrides,
+    ]);
+}
+
+test('teszt-módú Stripe-pal a levél megadja a tesztkártyát', function () {
+    configureStripe();
+    $invite = Invite::create(['code' => 'CARD1234', 'max_uses' => 1]);
+
+    expect(invitationMailBody($invite))->toContain('4242 4242 4242 4242');
+});
+
+test('éles vagy kikapcsolt Stripe-nál a tesztkártya nem kerül a levélbe', function (array $overrides) {
+    configureStripe($overrides);
+    $invite = Invite::create(['code' => 'CARD5678', 'max_uses' => 1]);
+
+    expect(invitationMailBody($invite))->not->toContain('4242');
+})->with([
+    'éles kulcs' => [['cashier.key' => 'pk_live_abc', 'cashier.secret' => 'sk_live_abc']],
+    'kikapcsolt fizetés' => [['services.stripe.enabled' => false]],
+]);

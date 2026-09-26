@@ -4,10 +4,14 @@ import { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import type { Invite, InvitesTabProps } from '@/types/admin';
 
+/** A meghívóval adható Pro-próbaidő hosszai (nap). */
+const PRO_DAY_OPTIONS = [7, 14, 30, 60, 90];
+
 export default function InvitesTab({ invites, inviteOnly }: InvitesTabProps) {
     const [inviteLabel, setInviteLabel] = useState('');
     const [inviteMaxUses, setInviteMaxUses] = useState('1');
     const [inviteExpires, setInviteExpires] = useState('');
+    const [inviteProDays, setInviteProDays] = useState('');
     const { extensionStoreUrl } = usePage().props;
     const [inviteEmail, setInviteEmail] = useState('');
     // A bővítmény linkje alapból a beállított Web Store-URL; az admin átírhatja vagy törölheti.
@@ -33,6 +37,7 @@ export default function InvitesTab({ invites, inviteOnly }: InvitesTabProps) {
             {
                 label: inviteLabel || null,
                 max_uses: Number(inviteMaxUses) || 1,
+                pro_days: inviteProDays ? Number(inviteProDays) : null,
                 expires_at: expiresAtIso,
                 email: inviteEmail.trim() || null,
                 extension_url: inviteExtensionUrl.trim() || null,
@@ -43,6 +48,7 @@ export default function InvitesTab({ invites, inviteOnly }: InvitesTabProps) {
                     setInviteLabel('');
                     setInviteMaxUses('1');
                     setInviteExpires('');
+                    setInviteProDays('');
                     setInviteEmail('');
                     setInviteErrors({});
                 },
@@ -108,6 +114,23 @@ export default function InvitesTab({ invites, inviteOnly }: InvitesTabProps) {
                             onChange={(e) => setInviteMaxUses(e.target.value)}
                             className="border-zinc-700 bg-zinc-800 text-zinc-100"
                         />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                        <label className="text-xs text-zinc-500">
+                            Induló csomag
+                        </label>
+                        <select
+                            value={inviteProDays}
+                            onChange={(e) => setInviteProDays(e.target.value)}
+                            className="h-9 rounded-md border border-zinc-700 bg-zinc-800 px-2 text-sm text-zinc-100"
+                        >
+                            <option value="">Ingyenes</option>
+                            {PRO_DAY_OPTIONS.map((days) => (
+                                <option key={days} value={days}>
+                                    Pro – {days} nap
+                                </option>
+                            ))}
+                        </select>
                     </div>
                     <div className="flex flex-col gap-1">
                         <label className="text-xs text-zinc-500">
@@ -197,6 +220,11 @@ export default function InvitesTab({ invites, inviteOnly }: InvitesTabProps) {
                                     <span className="text-xs text-zinc-500 tabular-nums">
                                         {inv.uses}/{inv.max_uses}
                                     </span>
+                                    {inv.pro_days !== null && (
+                                        <span className="rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                                            Pro {inv.pro_days} nap
+                                        </span>
+                                    )}
                                     {inv.label && (
                                         <span className="truncate text-xs text-zinc-400">
                                             {inv.label}

@@ -45,6 +45,8 @@ export interface Invite {
     label: string | null;
     uses: number;
     max_uses: number;
+    /** Hány nap Pro-próbaidővel indul a regisztráló; null = Ingyenes csomag. */
+    pro_days: number | null;
     expires_at: string | null;
     usable: boolean;
     url: string;

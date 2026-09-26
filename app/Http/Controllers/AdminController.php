@@ -55,6 +55,7 @@ class AdminController extends Controller
         $data = $request->validate([
             'label' => ['nullable', 'string', 'max:100'],
             'max_uses' => ['required', 'integer', 'min:1', 'max:10000'],
+            'pro_days' => ['nullable', 'integer', 'min:1', 'max:365'],
             'expires_at' => ['nullable', 'date', 'after:now'],
             'email' => ['nullable', 'email', 'max:255'],
             'extension_url' => ['nullable', 'url:https', 'max:2048'],
@@ -72,6 +73,7 @@ class AdminController extends Controller
             // Kiküldött meghívónál a címke alapból a címzett, hogy a listában látszódjon, kinek ment.
             'label' => $data['label'] ?? ($email !== null ? mb_substr($email, 0, 100) : null),
             'max_uses' => $data['max_uses'],
+            'pro_days' => $data['pro_days'] ?? null,
             'expires_at' => $data['expires_at'] ?? now()->addDays(7),
         ]);
 
@@ -79,6 +81,7 @@ class AdminController extends Controller
             'code' => $invite->code,
             'label' => $invite->label,
             'max_uses' => $invite->max_uses,
+            'pro_days' => $invite->pro_days,
             'expires_at' => $invite->expires_at?->toIso8601String(),
             'sent_to' => $email,
             'extension_url' => $extensionUrl,

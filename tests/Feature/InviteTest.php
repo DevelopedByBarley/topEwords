@@ -119,3 +119,15 @@ test('non-admin cannot create invites', function () {
         ->post(route('admin.invites.store'), ['max_uses' => 1])
         ->assertForbidden();
 });
+
+test('a Pro induló csomagú meghívó a megadott napokra Pro-próbaidőt ad', function () {
+    config(['registration.invite_only' => true]);
+    Invite::create(['code' => 'PRO30', 'max_uses' => 1, 'pro_days' => 30]);
+
+    $this->post(route('register.store'), validRegistration(['invite' => 'PRO30']))
+        ->assertRedirect();
+
+    $user = User::where('email', 'teszt@example.com')->sole();
+    expect($user->currentPlan())->toBe('premium');
+    expect($user->trial_ends_at->isSameDay(now()->addDays(30)))->toBeTrue();
+});

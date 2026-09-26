@@ -32,7 +32,6 @@ class CreateNewUser implements CreatesNewUsers
             ...$this->billingRules(required: false),
         ];
 
-
         if ($inviteOnly) {
             $rules['invite'] = ['required', 'string', function ($attribute, $value, $fail) {
                 $invite = Invite::where('code', $value)->first();
@@ -81,7 +80,12 @@ class CreateNewUser implements CreatesNewUsers
             ]);
 
             if ($invite !== null) {
-                $user->forceFill(['invite_id' => $invite->id])->save(); 
+                // A meghívó induló csomagja: Pro-meghívónál ugyanaz a generikus próbaidő
+                // (trial_ends_at), mint az admin „ingyenes hónap" gombjánál.
+                $user->forceFill([
+                    'invite_id' => $invite->id,
+                    'trial_ends_at' => $invite->pro_days !== null ? now()->addDays($invite->pro_days) : null,
+                ])->save();
                 $invite->increment('uses');
             }
 

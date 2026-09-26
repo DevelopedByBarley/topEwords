@@ -126,6 +126,7 @@ class AdminDashboardService
                 'label' => $i->label,
                 'uses' => $i->uses,
                 'max_uses' => $i->max_uses,
+                'pro_days' => $i->pro_days,
                 'expires_at' => $i->expires_at?->toIso8601String(),
                 'usable' => $i->isUsable(),
                 'url' => url('/register').'?invite='.$i->code,

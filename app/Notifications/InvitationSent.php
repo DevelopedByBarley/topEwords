@@ -3,6 +3,7 @@
 namespace App\Notifications;
 
 use App\Models\Invite;
+use App\Support\Billing;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
@@ -43,11 +44,30 @@ class InvitationSent extends Notification
             $mail->line('A meghívó eddig érvényes: '.$this->invite->expires_at->timezone('Europe/Budapest')->format('Y.m.d. H:i').'.');
         }
 
+        if ($this->invite->pro_days !== null) {
+            $mail->line("A regisztrációtól számítva {$this->invite->pro_days} napig ingyen használhatod a Pro csomagot, a teljes AI-kerettel együtt.");
+        }
+
         if ($this->extensionUrl !== null) {
             $mail->line('A Chrome-bővítményt itt telepítheted — vele YouTube- és Netflix-feliratokon is kikeresheted a szavakat:')
                 ->line("[Chrome-bővítmény telepítése]({$this->extensionUrl})");
         }
 
+        $mail->line('Ha hibát találsz vagy ötleted van, az alkalmazás menüjében a [Hibabejelentés]('.route('report.index').') oldalon jelezheted.');
+
+        if ($this->usesStripeTestMode()) {
+            $mail->line('Ez egy tesztkörnyezet, valódi pénz nem mozdul. Az előfizetést ezzel a tesztkártyával próbálhatod ki: **4242 4242 4242 4242**, bármilyen jövőbeli lejárat és bármilyen háromjegyű CVC.');
+        }
+
         return $mail->salutation("Üdvözlettel: {$appName}");
+    }
+
+    /**
+     * Teszt-módú Stripe-kulccsal (sk_test_) a fizetés nem terhel valódi kártyát, így a
+     * tesztkártya-tipp csak ilyenkor kerül a levélbe — éles kulccsal soha.
+     */
+    private function usesStripeTestMode(): bool
+    {
+        return Billing::enabled() && str_starts_with((string) config('cashier.secret'), 'sk_test_');
     }
 }
