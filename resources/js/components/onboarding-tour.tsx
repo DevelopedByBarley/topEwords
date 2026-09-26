@@ -80,6 +80,21 @@ export default function OnboardingTour() {
                             'A Chrome bővítménnyel YouTube- és Netflix-feliratokon kereshetsz szavakat: dupla kattintás + nyomva tartás, vagy az Option+W (Windows: Alt+W), illetve a Ctrl+Shift+F gyorsbillentyű. Azonnal látod a jelentést, a kiejtést és a státuszt, felveheted a szót vagy kártyát készíthetsz belőle. Bármely más oldalon a kijelölt szóra a jobb gombos menüből kereshetsz rá.',
                     },
                 },
+                {
+                    popover: {
+                        title: '✨ Havi AI-keret',
+                        description: `
+                            <p>Az AI-funkciók egy havi keretből fogynak:</p>
+                            <ul class="my-2 list-disc space-y-1 pl-5">
+                                <li>saját szó AI-kitöltése,</li>
+                                <li>szó-info,</li>
+                                <li>flashcard-generálás.</li>
+                            </ul>
+                            <p>A gyakori szavak adatai többnyire már készen vannak, ezek nem fogyasztanak a keretből. Ha a keret 80%-a elfogyott, a lap tetején jelezzük.</p>
+                            <p class="mt-2">A keret minden hónap elején újraindul. Az állását a <strong>Beállítások → Előfizetés</strong> oldalon látod.</p>
+                        `,
+                    },
+                },
         ];
 
         const steps = allSteps.filter(
