@@ -5,14 +5,17 @@ namespace App\Http\Controllers;
 use App\Models\Invite;
 use App\Models\Report;
 use App\Models\User;
+use App\Notifications\InvitationSent;
 use App\Services\AdminActionLogger;
 use App\Services\AdminDashboardService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
 
 class AdminController extends Controller
 {
@@ -53,7 +56,12 @@ class AdminController extends Controller
             'label' => ['nullable', 'string', 'max:100'],
             'max_uses' => ['required', 'integer', 'min:1', 'max:10000'],
             'expires_at' => ['nullable', 'date', 'after:now'],
+            'email' => ['nullable', 'email', 'max:255'],
+            'extension_url' => ['nullable', 'url:https', 'max:2048'],
         ]);
+
+        $email = $data['email'] ?? null;
+        $extensionUrl = $email !== null ? ($data['extension_url'] ?? null) : null;
 
         do {
             $code = Str::upper(Str::random(8));
@@ -61,7 +69,8 @@ class AdminController extends Controller
 
         $invite = Invite::create([
             'code' => $code,
-            'label' => $data['label'] ?? null,
+            // Kiküldött meghívónál a címke alapból a címzett, hogy a listában látszódjon, kinek ment.
+            'label' => $data['label'] ?? ($email !== null ? mb_substr($email, 0, 100) : null),
             'max_uses' => $data['max_uses'],
             'expires_at' => $data['expires_at'] ?? now()->addDays(7),
         ]);
@@ -71,9 +80,24 @@ class AdminController extends Controller
             'label' => $invite->label,
             'max_uses' => $invite->max_uses,
             'expires_at' => $invite->expires_at?->toIso8601String(),
+            'sent_to' => $email,
+            'extension_url' => $extensionUrl,
         ]);
 
-        return back()->with('success', "Meghívókód létrehozva: {$code}");
+        if ($email === null) {
+            return back()->with('success', "Meghívókód létrehozva: {$code}");
+        }
+
+        try {
+            Notification::route('mail', $email)->notify(new InvitationSent($invite, $extensionUrl));
+        } catch (TransportExceptionInterface $exception) {
+            // A kód ettől még érvényes: az admin a „Link másolása" gombbal kézzel is továbbíthatja.
+            report($exception);
+
+            return back()->with('error', "A meghívókód ({$code}) létrejött, de az e-mailt nem sikerült elküldeni. Másold ki a linket, és küldd el kézzel.");
+        }
+
+        return back()->with('success', "Meghívó elküldve: {$email} (kód: {$code})");
     }
 
     public function destroyInvite(Request $request, Invite $invite): RedirectResponse

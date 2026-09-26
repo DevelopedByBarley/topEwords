@@ -1,4 +1,4 @@
-import { router } from '@inertiajs/react';
+import { router, usePage } from '@inertiajs/react';
 import { Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Input } from '@/components/ui/input';
@@ -8,6 +8,15 @@ export default function InvitesTab({ invites, inviteOnly }: InvitesTabProps) {
     const [inviteLabel, setInviteLabel] = useState('');
     const [inviteMaxUses, setInviteMaxUses] = useState('1');
     const [inviteExpires, setInviteExpires] = useState('');
+    const { extensionStoreUrl } = usePage().props;
+    const [inviteEmail, setInviteEmail] = useState('');
+    // A bővítmény linkje alapból a beállított Web Store-URL; az admin átírhatja vagy törölheti.
+    const [inviteExtensionUrl, setInviteExtensionUrl] = useState(
+        extensionStoreUrl ?? '',
+    );
+    const [inviteErrors, setInviteErrors] = useState<Record<string, string>>(
+        {},
+    );
     const [copiedId, setCopiedId] = useState<number | null>(null);
 
     function createInvite() {
@@ -25,6 +34,8 @@ export default function InvitesTab({ invites, inviteOnly }: InvitesTabProps) {
                 label: inviteLabel || null,
                 max_uses: Number(inviteMaxUses) || 1,
                 expires_at: expiresAtIso,
+                email: inviteEmail.trim() || null,
+                extension_url: inviteExtensionUrl.trim() || null,
             },
             {
                 preserveScroll: true,
@@ -32,7 +43,10 @@ export default function InvitesTab({ invites, inviteOnly }: InvitesTabProps) {
                     setInviteLabel('');
                     setInviteMaxUses('1');
                     setInviteExpires('');
+                    setInviteEmail('');
+                    setInviteErrors({});
                 },
+                onError: (errors) => setInviteErrors(errors),
             },
         );
     }
@@ -106,13 +120,55 @@ export default function InvitesTab({ invites, inviteOnly }: InvitesTabProps) {
                             className="border-zinc-700 bg-zinc-800 text-zinc-100"
                         />
                     </div>
+                </div>
+
+                <div className="flex flex-wrap items-end gap-3">
+                    <div className="flex grow flex-col gap-1">
+                        <label className="text-xs text-zinc-500">
+                            Küldés e-mailben (opcionális)
+                        </label>
+                        <Input
+                            type="email"
+                            value={inviteEmail}
+                            onChange={(e) => setInviteEmail(e.target.value)}
+                            placeholder="pl. janos@example.com"
+                            className="border-zinc-700 bg-zinc-800 text-zinc-100 placeholder:text-zinc-500"
+                        />
+                    </div>
+                    <div className="flex grow flex-col gap-1">
+                        <label className="text-xs text-zinc-500">
+                            Bővítmény linkje (opcionális, csak e-mailnél)
+                        </label>
+                        <Input
+                            type="url"
+                            value={inviteExtensionUrl}
+                            onChange={(e) =>
+                                setInviteExtensionUrl(e.target.value)
+                            }
+                            disabled={inviteEmail.trim() === ''}
+                            placeholder="https://chromewebstore.google.com/detail/…"
+                            className="border-zinc-700 bg-zinc-800 text-zinc-100 placeholder:text-zinc-500 disabled:opacity-50"
+                        />
+                    </div>
                     <button
                         onClick={createInvite}
                         className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
                     >
-                        Kód generálása
+                        {inviteEmail.trim() === ''
+                            ? 'Kód generálása'
+                            : 'Generálás és küldés'}
                     </button>
                 </div>
+
+                {Object.keys(inviteErrors).length > 0 && (
+                    <ul className="space-y-0.5 text-xs text-red-400">
+                        {Object.entries(inviteErrors).map(
+                            ([field, message]) => (
+                                <li key={field}>{message}</li>
+                            ),
+                        )}
+                    </ul>
+                )}
 
                 <div className="max-h-96 space-y-2 overflow-y-auto pr-1">
                     {invites.length === 0 ? (
