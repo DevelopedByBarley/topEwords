@@ -411,3 +411,20 @@
         font-size: 16px;
     }
 }
+
+/*
+ * Mobilos alsó navigációs sáv (MobileBottomNav) által elfoglalt magasság. A
+ * komponens mountoláskor teszi ki a <html data-bottom-nav> attribútumot; a
+ * tartalom alsó paddingja és az alulra rögzített elemek (toast, sütisáv,
+ * lebegő gombok) ezzel az eltolással kerülnek a sáv fölé. md-től a sáv
+ * rejtett, ott az eltolás 0.
+ */
+:root {
+    --bottom-nav-offset: 0px;
+}
+
+@media (width < 48rem) {
+    html[data-bottom-nav] {
+        --bottom-nav-offset: calc(4rem + env(safe-area-inset-bottom));
+    }
+}

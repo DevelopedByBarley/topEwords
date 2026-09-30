@@ -38,7 +38,7 @@ export default function CookieConsent() {
     }
 
     return (
-        <div className="fixed inset-x-0 bottom-0 z-[60] flex justify-center p-3 sm:p-4">
+        <div className="fixed inset-x-0 bottom-(--bottom-nav-offset) z-[60] flex justify-center p-3 sm:p-4">
             <div className="flex w-full max-w-2xl flex-col gap-3 rounded-2xl border bg-card p-4 shadow-lg sm:flex-row sm:items-center sm:gap-4">
                 <Cookie className="size-5 shrink-0 text-muted-foreground" />
                 <p className="flex-1 text-xs leading-relaxed text-muted-foreground">

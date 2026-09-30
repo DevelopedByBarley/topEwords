@@ -1400,7 +1400,7 @@ export default function WordsIndex({
                         ? 'Vissza az alap módra'
                         : 'Fordított mód: magyar → angol'
                 }
-                className={`fixed right-6 bottom-6 z-50 flex cursor-pointer items-center gap-2.5 rounded-full px-5 py-3.5 shadow-xl transition-all duration-200 hover:scale-105 hover:shadow-2xl active:scale-95 ${
+                className={`fixed right-6 bottom-[calc(1.5rem+var(--bottom-nav-offset))] z-50 flex cursor-pointer items-center gap-2.5 rounded-full px-5 py-3.5 shadow-xl transition-all duration-200 hover:scale-105 hover:shadow-2xl active:scale-95 ${
                     flipMode
                         ? 'bg-primary text-primary-foreground ring-4 ring-primary/30'
                         : 'border-2 border-primary/40 bg-card text-foreground hover:border-primary'

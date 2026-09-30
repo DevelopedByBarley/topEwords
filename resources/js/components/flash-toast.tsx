@@ -75,7 +75,7 @@ export default function FlashToast() {
         /prémium|premium|csomag|frissíts/i.test(toast.message);
 
     return (
-        <div className="fixed bottom-4 left-1/2 z-50 w-[calc(100vw-2rem)] max-w-md -translate-x-1/2 animate-in duration-300 fade-in slide-in-from-bottom-4">
+        <div className="fixed bottom-[calc(1rem+var(--bottom-nav-offset))] left-1/2 z-50 w-[calc(100vw-2rem)] max-w-md -translate-x-1/2 animate-in duration-300 fade-in slide-in-from-bottom-4">
             <div
                 className={`flex items-start gap-3 rounded-2xl border px-4 py-3.5 shadow-lg ${
                     toast.kind === 'error'
