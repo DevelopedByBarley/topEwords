@@ -94,11 +94,8 @@ class UserCustomWordController extends Controller
         }
 
         $newAchievements = app(AchievementService::class)->checkAndAward($request->user(), ['streak', 'vocab', 'known', 'custom']);
-        if ($newAchievements) {
-            session()->flash('achievements', $newAchievements);
-        }
 
-        return $this->statusToggleResponse($request, $status, $forms);
+        return $this->statusToggleResponse($request, $status, $forms, $newAchievements);
     }
 
     public function importance(Request $request, UserCustomWord $customWord): RedirectResponse|JsonResponse

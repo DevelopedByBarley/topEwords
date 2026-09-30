@@ -279,13 +279,10 @@ class WordController extends Controller
 
         $newAchievements = app(AchievementService::class)->checkAndAward(
             $request->user(),
-            ['streak', 'vocab', 'known']
+            ['streak', 'vocab', 'known', 'level']
         );
-        if ($newAchievements) {
-            session()->flash('achievements', $newAchievements);
-        }
 
-        return $this->statusToggleResponse($request, $status, $forms);
+        return $this->statusToggleResponse($request, $status, $forms, $newAchievements);
     }
 
     public function importance(Request $request, Word $word): RedirectResponse|JsonResponse
@@ -322,7 +319,18 @@ class WordController extends Controller
             throw $e;
         }
 
-        return $this->importanceToggleResponse($request, $importance);
+        // Új 'known' felvétel — ugyanaz az aktivitás-könyvelés, mint a status()
+        // felvételénél és a player-ikertestvérnél (ExtensionController::updateImportance).
+        if ($request->user()->updateStreak()) {
+            session()->flash('streak_triggered', $request->user()->streak);
+        }
+
+        $newAchievements = app(AchievementService::class)->checkAndAward(
+            $request->user(),
+            ['streak', 'vocab', 'known', 'level']
+        );
+
+        return $this->importanceToggleResponse($request, $importance, $newAchievements);
     }
 
     private function likeEscape(string $value): string

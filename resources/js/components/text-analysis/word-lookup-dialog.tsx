@@ -233,13 +233,17 @@ export default function WordLookupDialog({
         };
 
         try {
-            const { ok, status } = await postJson(savePaths.status, {
+            const { ok, status, data } = await postJson(savePaths.status, {
                 status: newStatus,
             });
 
             if (!ok) {
                 rollback(status);
+
+                return;
             }
+
+            announceAchievements(data.achievements);
         } catch {
             rollback();
         }
@@ -282,13 +286,17 @@ export default function WordLookupDialog({
         };
 
         try {
-            const { ok, status } = await postJson(savePaths.importance, {
+            const { ok, status, data } = await postJson(savePaths.importance, {
                 importance: value,
             });
 
             if (!ok) {
                 rollback(status);
+
+                return;
             }
+
+            announceAchievements(data.achievements);
         } catch {
             rollback();
         }
@@ -568,7 +576,7 @@ export default function WordLookupDialog({
                                             errors={formErrors}
                                             afterWordSlot={
                                                 <>
-                                                    <div className="flex gap-2">
+                                                    <div className="flex flex-col gap-2 sm:flex-row">
                                                         {hasAiAccess && (
                                                             <Button
                                                                 type="button"
@@ -580,7 +588,7 @@ export default function WordLookupDialog({
                                                                     geminiLoading ||
                                                                     !customWordForm.word.trim()
                                                                 }
-                                                                className="flex-1 border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-400 dark:hover:bg-indigo-950/30"
+                                                                className="w-full border-indigo-200 text-indigo-700 hover:bg-indigo-50 sm:w-auto sm:flex-1 dark:border-indigo-800 dark:text-indigo-400 dark:hover:bg-indigo-950/30"
                                                             >
                                                                 {geminiLoading ? (
                                                                     <Loader2 className="size-4 animate-spin" />
@@ -595,7 +603,7 @@ export default function WordLookupDialog({
                                                             href={`https://www.google.com/search?q=${encodeURIComponent(customWordForm.word + ' angol szó: jelentése magyarul, szinonimák, példamondat angolul és magyarul, szófaj, igeragozás ha ige')}&udm=50`}
                                                             target="_blank"
                                                             rel="noopener noreferrer"
-                                                            className="flex flex-1 items-center justify-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-400"
+                                                            className="flex w-full items-center justify-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-100 sm:w-auto sm:flex-1 dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-400"
                                                         >
                                                             <GoogleIcon />
                                                             Google AI
@@ -721,6 +729,19 @@ export default function WordLookupDialog({
             </DialogContent>
         </Dialog>
     );
+}
+
+/**
+ * A JSON-os mentésre visszakapott, frissen feloldott teljesítményeket az
+ * AchievementToast eseményén jelzi — a fetch nem Inertia-látogatás, így a
+ * flash-prop útja itt nem működik.
+ */
+function announceAchievements(achievements: unknown): void {
+    if (Array.isArray(achievements) && achievements.length > 0) {
+        window.dispatchEvent(
+            new CustomEvent('achievements-unlocked', { detail: achievements }),
+        );
+    }
 }
 
 /** A keresett szót 「idézőjelbe」 emeli a kontextus-mondatban. */

@@ -83,13 +83,20 @@ trait TogglesWordStatus
      * visszaküldjük, így a háttér-cache-t helyben tudja foltozni a teljes
      * státusz-térkép újraletöltése nélkül — ez fogja vissza a szerverterhelést.
      *
+     * Az újonnan feloldott teljesítmények JSON-nál a válaszba kerülnek, nem a
+     * sessionbe: a flash különben a következő (akár háttér-fetch) kérésen
+     * nyomtalanul elfogyna, vagy késve, egy másik oldalon ugrana fel.
+     *
      * @param  array<int, string>  $forms
+     * @param  array<int, array{key: string, title: string, description: string, icon: string}>  $achievements
      */
-    private function statusToggleResponse(Request $request, ?string $status, array $forms = []): RedirectResponse|JsonResponse
+    private function statusToggleResponse(Request $request, ?string $status, array $forms = [], array $achievements = []): RedirectResponse|JsonResponse
     {
         if (! $request->hasHeader('X-Inertia') && $request->expectsJson()) {
-            return response()->json(['ok' => true, 'status' => $status, 'forms' => $forms]);
+            return response()->json(['ok' => true, 'status' => $status, 'forms' => $forms, 'achievements' => $achievements]);
         }
+
+        $this->flashAchievements($achievements);
 
         return back();
     }
@@ -100,14 +107,28 @@ trait TogglesWordStatus
      * kliens hibát látva visszaállítja a csillagokat — noha a mentés sikerült);
      * az Inertia-webfelület viszont redirectet igényel. Ugyanaz az elágazás, mint
      * a statusToggleResponse-ban.
+     *
+     * @param  array<int, array{key: string, title: string, description: string, icon: string}>  $achievements
      */
-    private function importanceToggleResponse(Request $request, ?int $importance): RedirectResponse|JsonResponse
+    private function importanceToggleResponse(Request $request, ?int $importance, array $achievements = []): RedirectResponse|JsonResponse
     {
         if (! $request->hasHeader('X-Inertia') && $request->expectsJson()) {
-            return response()->json(['ok' => true, 'importance' => $importance]);
+            return response()->json(['ok' => true, 'importance' => $importance, 'achievements' => $achievements]);
         }
 
+        $this->flashAchievements($achievements);
+
         return back();
+    }
+
+    /**
+     * @param  array<int, array{key: string, title: string, description: string, icon: string}>  $achievements
+     */
+    private function flashAchievements(array $achievements): void
+    {
+        if ($achievements !== []) {
+            session()->flash('achievements', $achievements);
+        }
     }
 
     /**

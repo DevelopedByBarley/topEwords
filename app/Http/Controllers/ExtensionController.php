@@ -532,7 +532,7 @@ class ExtensionController extends Controller
     {
         $request->user()->updateStreak();
 
-        app(AchievementService::class)->checkAndAward($request->user(), ['streak', 'vocab', 'known', 'custom']);
+        app(AchievementService::class)->checkAndAward($request->user(), ['streak', 'vocab', 'known', 'custom', 'level']);
     }
 
     public function statuses(Request $request, WordStatusFormExpander $formExpander): JsonResponse

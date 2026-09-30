@@ -6,6 +6,7 @@ use App\Models\FlashcardReview;
 use App\Models\User;
 use App\Models\UserAchievement;
 use App\Models\Word;
+use Illuminate\Support\Facades\DB;
 
 class AchievementService
 {
@@ -193,7 +194,7 @@ class AchievementService
      * Kérésen belüli memoizálás — egy achievement-ellenőrzés több feltétele
      * is ugyanazokat a darabszámokat kérdezné le.
      *
-     * @var array<string, int|bool>
+     * @var array<string, int|bool|array<string, array<int, int>>>
      */
     private array $memo = [];
 
@@ -268,20 +269,40 @@ class AchievementService
 
     private function isLevelComplete(User $user, int $level): bool
     {
-        return (bool) ($this->memo["level.{$user->id}.{$level}"] ??= (function () use ($user, $level): bool {
-            $total = Word::where('level', $level)->count();
+        $progress = $this->memo["levels.{$user->id}"] ??= $this->levelProgress($user);
 
-            if ($total === 0) {
-                return false;
-            }
+        $total = $progress['totals'][$level] ?? 0;
 
-            $known = $user->knownWords()
-                ->wherePivot('status', 'known')
-                ->where('level', $level)
-                ->count();
+        return $total > 0 && ($progress['known'][$level] ?? 0) >= $total;
+    }
 
-            return $known >= $total;
-        })());
+    /**
+     * Szintenkénti össz- és ismert-szószám két csoportosított lekérdezéssel —
+     * a hat szint-jelvény szintenkénti külön count()-jai helyett (ez a
+     * státusz-kattintás forró útján fut).
+     *
+     * @return array{totals: array<int, int>, known: array<int, int>}
+     */
+    private function levelProgress(User $user): array
+    {
+        $totals = Word::query()
+            ->selectRaw('level, count(*) as aggregate')
+            ->groupBy('level')
+            ->pluck('aggregate', 'level')
+            ->map(fn ($count): int => (int) $count)
+            ->all();
+
+        $known = DB::table('user_word')
+            ->join('words', 'words.id', '=', 'user_word.word_id')
+            ->where('user_word.user_id', $user->id)
+            ->where('user_word.status', 'known')
+            ->selectRaw('words.level, count(*) as aggregate')
+            ->groupBy('words.level')
+            ->pluck('aggregate', 'level')
+            ->map(fn ($count): int => (int) $count)
+            ->all();
+
+        return ['totals' => $totals, 'known' => $known];
     }
 
     private function totalFlashcardReviews(User $user): int

@@ -116,7 +116,7 @@ test('extension JSON request gets a JSON ack instead of a redirect', function ()
 
     $this->postJson(route('words.status', $word), ['status' => 'known'])
         ->assertOk()
-        ->assertExactJson(['ok' => true, 'status' => 'known', 'forms' => ['the']]);
+        ->assertJson(['ok' => true, 'status' => 'known', 'forms' => ['the']]);
 
     expect($this->user->knownWords()->wherePivot('status', 'known')->where('word_id', $word->id)->exists())->toBeTrue();
 });
@@ -127,7 +127,7 @@ test('empty status removes the word (extension un-toggle)', function () {
 
     $this->postJson(route('words.status', $word), ['status' => ''])
         ->assertOk()
-        ->assertExactJson(['ok' => true, 'status' => null, 'forms' => ['the']]);
+        ->assertJson(['ok' => true, 'status' => null, 'forms' => ['the']]);
 
     expect($this->user->knownWords()->where('word_id', $word->id)->exists())->toBeFalse();
 });
@@ -141,7 +141,7 @@ test('empty status removes a word regardless of its current status (no practice 
 
     $this->postJson(route('words.status', $word), ['status' => null])
         ->assertOk()
-        ->assertExactJson(['ok' => true, 'status' => null, 'forms' => ['the']]);
+        ->assertJson(['ok' => true, 'status' => null, 'forms' => ['the']]);
 
     expect($this->user->knownWords()->where('word_id', $word->id)->exists())->toBeFalse();
 });
