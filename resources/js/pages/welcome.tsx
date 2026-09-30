@@ -1329,7 +1329,7 @@ export default function Welcome({
                                     </span>
                                     <div className="mt-3.5 mb-1 flex items-baseline gap-1.5">
                                         <span className="text-[44px] font-bold tracking-tight text-white">
-                                            1 990 Ft
+                                            1 490 Ft
                                         </span>
                                         <span className="text-sm text-white/60">
                                             / hó

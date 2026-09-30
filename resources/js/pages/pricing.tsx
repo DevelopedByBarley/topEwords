@@ -390,10 +390,10 @@ export default function Pricing({
                                                 <Sparkles className="size-3.5 text-indigo-500" />
                                             </div>
                                             <p className="mt-1 text-3xl font-bold">
-                                                1 990 Ft
+                                                1 490 Ft
                                             </p>
                                             <p className="mt-1 text-xs text-muted-foreground">
-                                                / hónap · ~5 €
+                                                / hónap · ~4 €
                                             </p>
                                         </div>
                                         <ul className="mb-6 flex-1 space-y-2.5">
