@@ -134,10 +134,10 @@ export const TOKEN_STATUS_META: Record<TokenStatus, TokenStatusMeta> = {
         iconClass: 'text-blue-500',
     },
     in_list: {
-        highlight: 'bg-red-100 text-red-900 dark:bg-red-900/40 dark:text-red-300',
+        highlight: 'bg-slate-200 text-slate-900 dark:bg-slate-500/50 dark:text-white',
         label: 'Top 10 000, de ismeretlen',
         icon: BookOpen,
-        iconClass: 'text-red-500',
+        iconClass: 'text-slate-500 dark:text-slate-300',
     },
     saved: {
         highlight: 'bg-orange-100 text-orange-900 dark:bg-orange-900/40 dark:text-orange-300',

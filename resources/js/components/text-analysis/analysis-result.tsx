@@ -93,9 +93,9 @@ export default function AnalysisResultView({ result, activeText, segments, onWor
                             {result.learningCount.toLocaleString()}
                         </span>
                     </div>
-                    <div className="flex flex-col gap-1 rounded-2xl bg-red-50 p-3 dark:bg-red-950/20">
-                        <span className="text-xs text-red-700 dark:text-red-400">Top 10k, ismeretlen</span>
-                        <span className="text-2xl font-bold tabular-nums text-red-700 dark:text-red-400">
+                    <div className="flex flex-col gap-1 rounded-2xl bg-slate-100 p-3 dark:bg-slate-600/40">
+                        <span className="text-xs text-slate-700 dark:text-slate-100">Top 10k, ismeretlen</span>
+                        <span className="text-2xl font-bold tabular-nums text-slate-700 dark:text-slate-100">
                             {inListUnknownCount.toLocaleString()}
                         </span>
                     </div>

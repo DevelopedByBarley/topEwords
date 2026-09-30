@@ -1437,7 +1437,7 @@ export default function Handbook() {
                                             <Badge color="default">
                                                 Top 10 000, de ismeretlen
                                             </Badge>,
-                                            'Pirossal: a gyakorisági listán szerepel, de nincs még státusza — ezekkel érdemes kezdeni',
+                                            'Szürkével: a gyakorisági listán szerepel, de nincs még státusza — ezekkel érdemes kezdeni',
                                         ],
                                         [
                                             <Badge color="default">
