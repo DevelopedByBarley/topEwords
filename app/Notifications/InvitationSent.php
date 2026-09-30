@@ -12,7 +12,7 @@ use Illuminate\Notifications\Notification;
  * link a meghívókódot is hordozza, így a címzettnek semmit sem kell begépelnie;
  * a bővítmény linkje opcionális — az admin generáláskor adja meg. Szándékosan NEM
  * ShouldQueue, ahogy a projekt többi értesítése sem: az admin így azonnal látja,
- * ha a küldés elbukott.
+ * ha a küldés elbukott. A tartalom a mail.invitation markdown-nézetben van.
  */
 class InvitationSent extends Notification
 {
@@ -33,33 +33,18 @@ class InvitationSent extends Notification
     {
         $appName = config('app.name');
 
-        $mail = (new MailMessage)
-            ->subject("Meghívó a {$appName} alkalmazásba")
-            ->greeting('Szia!')
-            ->line("Meghívást kaptál a {$appName} angol szótanuló alkalmazásba. Az alábbi gombbal regisztrálhatsz, a meghívókódot a link már tartalmazza.")
-            ->action('Regisztráció', url('/register').'?invite='.$this->invite->code)
-            ->line("Meghívókód: {$this->invite->code}");
-
-        if ($this->invite->expires_at !== null) {
-            $mail->line('A meghívó eddig érvényes: '.$this->invite->expires_at->timezone('Europe/Budapest')->format('Y.m.d. H:i').'.');
-        }
-
-        if ($this->invite->pro_days !== null) {
-            $mail->line("A regisztrációtól számítva {$this->invite->pro_days} napig ingyen használhatod a Pro csomagot, a teljes AI-kerettel együtt.");
-        }
-
-        if ($this->extensionUrl !== null) {
-            $mail->line('A Chrome-bővítményt itt telepítheted — vele YouTube- és Netflix-feliratokon is kikeresheted a szavakat:')
-                ->line("[Chrome-bővítmény telepítése]({$this->extensionUrl})");
-        }
-
-        $mail->line('Ha hibát találsz vagy ötleted van, az alkalmazás menüjében a [Hibabejelentés]('.route('report.index').') oldalon jelezheted.');
-
-        if ($this->usesStripeTestMode()) {
-            $mail->line('Ez egy tesztkörnyezet, valódi pénz nem mozdul. Az előfizetést ezzel a tesztkártyával próbálhatod ki: **4242 4242 4242 4242**, bármilyen jövőbeli lejárat és bármilyen háromjegyű CVC.');
-        }
-
-        return $mail->salutation("Üdvözlettel: {$appName}");
+        return (new MailMessage)
+            ->subject("Meghívót kaptál a {$appName} tesztelésére")
+            ->markdown('mail.invitation', [
+                'appName' => $appName,
+                'code' => $this->invite->code,
+                'registerUrl' => url('/register').'?invite='.$this->invite->code,
+                'expiresAt' => $this->invite->expires_at?->timezone('Europe/Budapest')->format('Y.m.d. H:i'),
+                'proDays' => $this->invite->pro_days,
+                'extensionUrl' => $this->extensionUrl,
+                'reportUrl' => route('report.index'),
+                'showTestCard' => $this->usesStripeTestMode(),
+            ]);
     }
 
     /**

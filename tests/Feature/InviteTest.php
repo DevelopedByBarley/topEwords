@@ -130,4 +130,5 @@ test('a Pro induló csomagú meghívó a megadott napokra Pro-próbaidőt ad', f
     $user = User::where('email', 'teszt@example.com')->sole();
     expect($user->currentPlan())->toBe('premium');
     expect($user->trial_ends_at->isSameDay(now()->addDays(30)))->toBeTrue();
+    expect($user->aiMonthlyLimit())->toBe(config('plans.limits.premium.ai_budget_micros'));
 });

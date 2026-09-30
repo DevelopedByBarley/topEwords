@@ -31,11 +31,10 @@ test('generáláskor megadott e-mail-címre kimegy a meghívó a bővítmény li
     Notification::assertSentOnDemand(
         InvitationSent::class,
         function (InvitationSent $notification, array $channels, AnonymousNotifiable $notifiable) use ($invite) {
-            $mail = $notification->toMail($notifiable);
-            $body = implode("\n", [...$mail->introLines, ...$mail->outroLines]);
+            $body = (string) $notification->toMail($notifiable)->render();
 
             return $notifiable->routes['mail'] === 'janos@example.com'
-                && $mail->actionUrl === url('/register').'?invite='.$invite->code
+                && str_contains($body, 'href="'.url('/register').'?invite='.$invite->code.'"')
                 && str_contains($body, $invite->code)
                 && str_contains($body, 'https://chromewebstore.google.com/detail/abc');
         },
@@ -52,9 +51,9 @@ test('bővítmény-link nélkül is kimegy a meghívó, a bővítményről szól
     Notification::assertSentOnDemand(
         InvitationSent::class,
         function (InvitationSent $notification, array $channels, AnonymousNotifiable $notifiable) {
-            $body = implode("\n", $notification->toMail($notifiable)->outroLines);
+            $body = (string) $notification->toMail($notifiable)->render();
 
-            return ! str_contains($body, 'Chrome-bővítmény');
+            return str_contains($body, 'Regisztrálok') && ! str_contains($body, 'Chrome-bővítmény');
         },
     );
 });
@@ -122,13 +121,11 @@ test('nem admin nem küldhet meghívót', function () {
 });
 
 /**
- * A levél összes sora egy szövegben, a benne lévő soronkénti ellenőrzésekhez.
+ * A kirenderelt (HTML) levél, a benne lévő szöveges ellenőrzésekhez.
  */
 function invitationMailBody(Invite $invite): string
 {
-    $mail = (new InvitationSent($invite))->toMail(new AnonymousNotifiable);
-
-    return implode("\n", [...$mail->introLines, ...$mail->outroLines]);
+    return (string) (new InvitationSent($invite))->toMail(new AnonymousNotifiable)->render();
 }
 
 test('Pro induló csomaggal a meghívó eltárolja a napokat, és a levél megemlíti', function () {
@@ -140,13 +137,13 @@ test('Pro induló csomaggal a meghívó eltárolja a napokat, és a levél megem
 
     $invite = Invite::sole();
     expect($invite->pro_days)->toBe(30);
-    expect(invitationMailBody($invite))->toContain('30 napig ingyen használhatod a Pro csomagot');
+    expect(invitationMailBody($invite))->toContain('30 napig ingyen tiéd a Pro csomag');
 });
 
 test('Ingyenes induló csomagnál a levél nem ígér Pro-t', function () {
     $invite = Invite::create(['code' => 'FREE1234', 'max_uses' => 1]);
 
-    expect(invitationMailBody($invite))->not->toContain('Pro csomagot');
+    expect(invitationMailBody($invite))->not->toContain('Pro csomag');
 });
 
 test('a pro_days csak 1 és 365 közötti egész lehet', function (mixed $proDays) {
@@ -181,7 +178,9 @@ test('teszt-módú Stripe-pal a levél megadja a tesztkártyát', function () {
     configureStripe();
     $invite = Invite::create(['code' => 'CARD1234', 'max_uses' => 1]);
 
-    expect(invitationMailBody($invite))->toContain('4242 4242 4242 4242');
+    expect(invitationMailBody($invite))
+        ->toContain('4242 4242 4242 4242')
+        ->toContain('valódi pénz nem mozdul');
 });
 
 test('éles vagy kikapcsolt Stripe-nál a tesztkártya nem kerül a levélbe', function (array $overrides) {
