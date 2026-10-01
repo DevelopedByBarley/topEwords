@@ -1,7 +1,7 @@
-import { ChevronLeft, ChevronRight, Loader2, ScanText, Trash2, Youtube } from 'lucide-react';
+import { ChevronLeft, Loader2, Trash2, Youtube } from 'lucide-react';
 import LyricsView from '@/components/text-analysis/lyrics-view';
+import { ReaderActions, useReaderScrollReset } from '@/components/text-analysis/reader-controls';
 import type { LyricSegment, PageDirection, VideoOverview, YoutubeTranscript } from '@/components/text-analysis/types';
-import { Button } from '@/components/ui/button';
 
 /** „A teljes videóból/könyvből X%-át ismered" sáv. `'failed'`-nél nem jelenik meg. */
 export function WholeVideoBanner({
@@ -134,10 +134,12 @@ interface YoutubeReaderProps {
 }
 
 export function YoutubeReader({ transcript, page, segments, overview, isLoadingPage, loadingDirection, isAnalyzing, onBack, onPageChange, onAnalyze }: YoutubeReaderProps) {
+    const readerRef = useReaderScrollReset<HTMLDivElement>(page);
+
     return (
         <>
             <div className="flex items-center justify-between gap-2">
-                <button type="button" onClick={onBack} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground">
+                <button type="button" onClick={onBack} className="-my-2 flex shrink-0 items-center gap-1.5 py-2 pr-2 text-xs text-muted-foreground hover:text-foreground">
                     <ChevronLeft className="size-3.5" />
                     Feliratok
                 </button>
@@ -147,9 +149,12 @@ export function YoutubeReader({ transcript, page, segments, overview, isLoadingP
 
             <WholeVideoBanner overview={overview} />
 
-            {/* Lapozás közben a régi felirat halványan látszik — nem ugrik a layout. */}
+            {/* Lapozás közben a régi felirat halványan látszik — nem ugrik a layout.
+                Mobilon nincs belső görgetés: a felirat a lappal együtt görög, a
+                kis dobozban görgetni kényelmetlen volt. */}
             <div
-                className={`max-h-80 overflow-y-auto rounded-3xl bg-card px-5 py-4 text-sm leading-7 shadow-sm transition-opacity md:max-h-104 ${
+                ref={readerRef}
+                className={`scroll-mt-4 rounded-3xl bg-card px-4 py-3 text-sm leading-7 shadow-sm transition-opacity md:max-h-104 md:overflow-y-auto md:px-5 md:py-4 ${
                     isLoadingPage ? 'opacity-50' : ''
                 }`}
                 aria-busy={isLoadingPage}
@@ -163,22 +168,15 @@ export function YoutubeReader({ transcript, page, segments, overview, isLoadingP
                 )}
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-2">
-                <Button variant="outline" size="sm" onClick={() => onPageChange(page - 1)} disabled={page <= 1 || isLoadingPage}>
-                    {isLoadingPage && loadingDirection === 'prev' ? <Loader2 className="size-4 animate-spin" /> : <ChevronLeft className="size-4" />}
-                    Előző
-                </Button>
-                <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => onPageChange(page + 1)} disabled={page >= transcript.total_pages || isLoadingPage}>
-                        Következő
-                        {isLoadingPage && loadingDirection === 'next' ? <Loader2 className="size-4 animate-spin" /> : <ChevronRight className="size-4" />}
-                    </Button>
-                    <Button size="sm" onClick={onAnalyze} disabled={isAnalyzing || isLoadingPage}>
-                        {isAnalyzing ? <Loader2 className="size-4 animate-spin" /> : <ScanText className="size-4" />}
-                        {isAnalyzing ? 'Elemzés...' : 'Oldal elemzése'}
-                    </Button>
-                </div>
-            </div>
+            <ReaderActions
+                page={page}
+                totalPages={transcript.total_pages}
+                isLoadingPage={isLoadingPage}
+                loadingDirection={loadingDirection}
+                isAnalyzing={isAnalyzing}
+                onPageChange={onPageChange}
+                onAnalyze={onAnalyze}
+            />
         </>
     );
 }

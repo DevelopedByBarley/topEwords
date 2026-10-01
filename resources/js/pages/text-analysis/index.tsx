@@ -740,14 +740,24 @@ learningDelta += freq;
         handleLookupStatusChange(word, null, status, 'not_in_list');
     };
 
+    /** Nyitott olvasó (felirat/könyv lapja) — mobilon ilyenkor alul rögzített a lapozósáv. */
+    const isReaderOpen =
+        !result &&
+        ((mode === 'youtube' && activeTranscript !== null) || (mode === 'book' && activeBook !== null && fetchedSource !== null));
+
     return (
         <>
             <Head title="Szövegelemzés" />
 
-            <div className="mx-auto flex w-full max-w-[2000px] flex-1 flex-col gap-6 p-4 md:p-6 xl:px-10 2xl:px-16">
-                {/* Hero */}
+            {/* Mobilon a rögzített olvasó-sáv (ReaderActions) a tartalom alját takarná — a `pb-20` adja neki a helyet. */}
+            <div
+                className={`mx-auto flex w-full max-w-[2000px] flex-1 flex-col gap-4 p-4 md:gap-6 md:p-6 xl:px-10 2xl:px-16 ${
+                    isReaderOpen ? 'pb-20' : ''
+                }`}
+            >
+                {/* Hero — mobilon olvasás és eredmény közben elrejtjük, hogy a szöveg kapja a helyet. */}
                 <div
-                    className="relative overflow-hidden rounded-3xl p-6 md:p-8"
+                    className={`relative overflow-hidden rounded-3xl p-5 md:block md:p-8 ${isReaderOpen || result ? 'hidden' : ''}`}
                     style={{ background: 'linear-gradient(135deg,#4338CA,#4F8EEC)' }}
                 >
                     <div className="pointer-events-none absolute -top-14 -right-14 size-56 rounded-full bg-white/15" />
@@ -1050,7 +1060,7 @@ learningDelta += freq;
                     <div
                         ref={errorRef}
                         role="alert"
-                        className="rounded-2xl bg-destructive/10 px-4 py-3 text-sm text-destructive"
+                        className={`rounded-2xl bg-destructive/10 px-4 py-3 text-sm text-destructive ${isReaderOpen ? 'scroll-mb-24 md:scroll-mb-0' : ''}`}
                     >
                         {error}
                         {upgradeUrl && (

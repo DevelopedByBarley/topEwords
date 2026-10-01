@@ -124,7 +124,7 @@ export default function AnalysisResultView({ result, activeText, segments, onWor
             </div>
 
             {/* Highlighted text / lyrics */}
-            <div className="rounded-3xl bg-card p-5 shadow-sm">
+            <div className="rounded-3xl bg-card p-4 shadow-sm md:p-5">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                     <p className="text-sm font-medium">
                         {lyricSegments ? 'Felirat időbélyegekkel' : 'Szöveg kiemelésekkel'}
@@ -149,8 +149,10 @@ export default function AnalysisResultView({ result, activeText, segments, onWor
                         <>Koppints a kifejezés <strong>első</strong>, majd az <strong>utolsó</strong> szavára — a jelentés ekkor nyílik meg.</>
                     ) : (
                         <>
-                            Kattints egy szóra a jelentéséhez — billentyűzetről a nyilakkal lépkedhetsz, Enterrel nyithatsz.
+                            {/* Érintőképernyőn a billentyűzetes tippek csak a helyet viszik. */}
+                            <span className="pointer-fine:hidden">Koppints egy szóra a jelentéséhez.</span>
                             <span className="hidden pointer-fine:inline">
+                                Kattints egy szóra a jelentéséhez — billentyűzetről a nyilakkal lépkedhetsz, Enterrel nyithatsz.
                                 {' '}Kifejezéshez tartsd lenyomva a{' '}
                                 <kbd className="rounded border bg-muted px-1 font-sans">Shift</kbd> billentyűt, jelöld ki a szavakat, és engedd el.
                             </span>
