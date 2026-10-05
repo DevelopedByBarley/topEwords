@@ -6,11 +6,6 @@ export interface JsonResult {
     data: Record<string, unknown>;
 }
 
-/**
- * Send a JSON request to a Laravel endpoint with CSRF + AJAX headers. Reports
- * the HTTP status instead of silently swallowing non-2xx responses — callers
- * must check `ok`. Network-level failures still reject.
- */
 async function requestJson(
     method: 'POST' | 'DELETE',
     url: string,
@@ -46,10 +41,6 @@ export async function deleteJson(url: string): Promise<JsonResult> {
     return requestJson('DELETE', url);
 }
 
-/**
- * Human-readable message for a failed request. Pass no status for
- * network-level failures (fetch rejected).
- */
 export function httpErrorMessage(
     status?: number,
     fallback = 'A mentés nem sikerült — próbáld újra.',

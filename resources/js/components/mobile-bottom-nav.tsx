@@ -25,10 +25,6 @@ const bottomNavItems: BottomNavItem[] = [
 const itemClassName =
     'flex min-w-0 flex-1 cursor-pointer flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors';
 
-/**
- * Szövegbevitelre alkalmas elem-e a fókuszált elem — ilyenkor mobilon a
- * virtuális billentyűzet nyitva van, és a sáv csak elvenné a helyet.
- */
 function isEditableElement(element: EventTarget | null): boolean {
     if (!(element instanceof HTMLElement)) {
         return false;
@@ -46,12 +42,6 @@ function isEditableElement(element: EventTarget | null): boolean {
     );
 }
 
-/**
- * Mobilos alsó navigációs sáv a három fő funkcióhoz, plusz a teljes oldalsó
- * menüt nyitó „Menü" gombbal. Csak md alatt látszik. A mountolt állapotot a
- * <html data-bottom-nav> jelzi: erre áll be a --bottom-nav-offset (app.css),
- * amivel a tartalom és a többi alulra rögzített elem a sáv fölé tolódik.
- */
 export default function MobileBottomNav() {
     const { isCurrentOrParentUrl } = useCurrentUrl();
     const { setOpenMobile } = useSidebar();

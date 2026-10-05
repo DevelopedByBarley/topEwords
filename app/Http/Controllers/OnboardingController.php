@@ -19,19 +19,10 @@ class OnboardingController extends Controller
 
     private const WORDS_PER_LEVEL = 20;
 
-    /**
-     * The level test shows at most WORDS_PER_LEVEL words on each of the six
-     * levels (120 ids), so this leaves plenty of headroom.
-     */
     private const MAX_SUBMITTED_IDS = 500;
 
     /**
-     * Replaces the per-element `exists:words,id` rule, which ran one query per
-     * id (F6-L3), with a single query per field.
-     *
      * @param  array<string, Collection<int, int>>  $idsByField
-     *
-     * @throws ValidationException
      */
     private function ensureWordIdsExist(array $idsByField): void
     {
@@ -120,7 +111,6 @@ class OnboardingController extends Controller
                 $totalInLevel = Word::where('level', $level)->count();
                 $markCount = (int) round($ratio * $totalInLevel);
 
-                // Mark the most frequent (lowest rank) words in this level
                 $ids = Word::where('level', $level)
                     ->orderBy('rank')
                     ->take($markCount)

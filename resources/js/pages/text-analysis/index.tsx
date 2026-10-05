@@ -28,9 +28,8 @@ import { sanitizeUploadFilename } from '@/lib/sanitize-filename';
 import { analyze as analyzeRoute, fetchSource as fetchSourceRoute, show as textAnalysisShow } from '@/routes/text-analysis';
 import { destroy as destroyBook, index as booksIndex, overview as bookOverviewRoute, page as bookPageRoute, store as storeBook } from '@/routes/text-analysis/books';
 import { destroy as ytDestroy, index as ytIndex, overview as ytOverviewRoute, page as ytPageRoute, store as ytStore } from '@/routes/text-analysis/youtube';
-import type { WordStatus } from '@/types/words';
+import type { FlashcardDeck, WordStatus } from '@/types/words';
 
-/** A szerver oldali `max:15000` validáció párja (TextAnalysisController@analyze). */
 const TEXT_MAX_LENGTH = 15000;
 
 const MODE_TABS: { id: InputMode; label: string; Icon: React.ElementType }[] = [
@@ -41,11 +40,9 @@ const MODE_TABS: { id: InputMode; label: string; Icon: React.ElementType }[] = [
 ];
 
 export default function TextAnalysis() {
-    const { auth } = usePage<{ auth: { user?: { id?: number }; isAdmin?: boolean; subscription?: { hasAiAccess: boolean } | null } }>().props;
+    const { auth, flashcardDecks } = usePage<{ auth: { user?: { id?: number }; isAdmin?: boolean; subscription?: { hasAiAccess: boolean } | null }; flashcardDecks: FlashcardDeck[] }>().props;
     const isAdmin = auth?.isAdmin ?? false;
     const hasAiAccess = isAdmin || (auth?.subscription?.hasAiAccess ?? false);
-    // A tárolt előzmények/session/könyvjelzők a bejelentkezett userhez kötöttek,
-    // hogy közös gépen ne szivárogjanak át a következő fióknak (FL4).
     const userId = auth?.user?.id;
 
     const [sessionData] = useState(() => loadSession(userId));
@@ -67,15 +64,8 @@ export default function TextAnalysis() {
     const [booksLoaded, setBooksLoaded] = useState(false);
     const [activeBook, setActiveBook] = useState<UserBook | null>(sessionData.activeBook ?? null);
     const [bookPage, setBookPage] = useState(sessionData.bookPage ?? 1);
-    /*
-      Helyreállításkor nem kérünk új összesítőt: a `bookOverview` cache-miss a
-      napi elemzés-keretbe számít, egy lap-újratöltés pedig nem elemzés-kérés.
-      Adat nélkül ezért a sávot elrejtjük („failed" = nem mutatjuk) — különben a
-      null-ra a banner örökre a „Teljes könyv kiértékelése…" jelzőn állna.
-    */
     const [bookOverview, setBookOverview] = useState<VideoOverview | 'failed' | null>(sessionData.bookOverview ?? 'failed');
 
-    // YouTube-feliratok (külön rendszer)
     const [transcripts, setTranscripts] = useState<YoutubeTranscript[]>([]);
     const [youtubeLimit, setYoutubeLimit] = useState<number>(1);
     const [youtubeLoaded, setYoutubeLoaded] = useState(false);
@@ -90,18 +80,13 @@ export default function TextAnalysis() {
     const [lookupWord, setLookupWord] = useState<string | null>(null);
     const [lookupContext, setLookupContext] = useState<string | null>(null);
 
-    // Törlés-megerősítés: a natív confirm() helyett a saját dialógusunk, hogy a
-    // felhasználó a törlendő címét kiemelve olvassa (ConfirmDialog-konvenció).
     const [bookToDelete, setBookToDelete] = useState<UserBook | null>(null);
     const [transcriptToDelete, setTranscriptToDelete] = useState<YoutubeTranscript | null>(null);
 
     const errorRef = useRef<HTMLDivElement>(null);
     const resultRef = useRef<HTMLDivElement>(null);
-    // Csak a friss elemzésre ugrunk, a modalból jövő státusz-frissítésekre nem.
     const shouldScrollToResult = useRef(false);
 
-    // A hibasáv a lap tetején van, a lapozó/elemző gomb viszont az alján lehet —
-    // görgetés nélkül a hiba észrevétlen maradna.
     useEffect(() => {
         if (error) {
             errorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -133,12 +118,10 @@ return;
         setMode(isYouTube ? 'youtube' : 'url');
         setUrlInput(urlParam);
 
-        // YouTube linket nem töltünk be automatikusan (könyv jönne létre) — a felhasználó indítja.
         if (isYouTube) {
             return;
         }
 
-        // fetch directly with the param value, not via state (which isn't set yet)
         setIsFetching(true);
         setError(null);
         fetch(fetchSourceRoute.url(), {
@@ -165,7 +148,6 @@ return;
             sessionStorage.setItem(sessionKey(userId), JSON.stringify(session));
         } catch {
             try {
-                // Kvóta-hiba: az eredmény a legnagyobb tétel — nélküle is helyreáll az olvasó.
                 sessionStorage.setItem(sessionKey(userId), JSON.stringify({ ...session, result: null }));
             } catch {
                 // ignore quota errors
@@ -173,14 +155,6 @@ return;
         }
     }, [mode, text, urlInput, fetchedSource, result, activeBook, bookPage, bookOverview, userId]);
 
-    /*
-      A kiválasztott fül listája MOUNTOLÁSKOR is betöltődik, nem csak
-      fül-váltásra. A könyv-lista korábban csak a switchMode()-ból töltött, így
-      ha a lap eleve könyv-módban jött vissza (a mód a sessionStorage-ból áll
-      helyre, pl. másik oldalról visszalépve), a `booksLoaded` örökre false
-      maradt, és a lista a betöltés-jelzőnél ragadt — a könyvek csak akkor jöttek
-      be, ha a felhasználó fület váltott és visszaváltott.
-    */
     useEffect(() => {
         if (mode === 'youtube' && !youtubeLoaded) {
             fetchTranscripts();
@@ -261,7 +235,6 @@ return;
                 setBookOverview('failed');
             }
         } catch {
-            // A teljes könyv %-a opcionális — hiba esetén nem mutatjuk.
             setBookOverview('failed');
         }
     };
@@ -276,8 +249,6 @@ return;
         setIsUploadingBook(true);
         setError(null);
         const formData = new FormData();
-        // A szerver WAF-ja a fájlnévben lévő aposztrófot/idézőjelet SQLi-ként
-        // blokkolja (403), ezért biztonságos névvel küldjük — a tartalom marad.
         formData.append('file', file, sanitizeUploadFilename(file.name));
 
         try {
@@ -308,8 +279,6 @@ return;
             setIsUploadingBook(false);
         }
     };
-
-    // ── YouTube-feliratok (külön rendszer) ──────────────────────────────────────
 
     const getYtBookmarkKey = (id: number) => `yt_bookmark_${id}${userScope}`;
     const saveYtBookmark = (id: number, page: number) =>
@@ -343,7 +312,6 @@ return;
                 setOverview('failed');
             }
         } catch {
-            // A teljes videó %-a opcionális — hiba esetén egyszerűen nem mutatjuk.
             setOverview('failed');
         }
     };
@@ -390,7 +358,6 @@ return;
         fetchOverview(transcript);
     };
 
-    /** Új YouTube videó feliratának lehívása és mentése, majd megnyitása az olvasóban. */
     const loadYoutube = async (rawUrl: string) => {
         const url = rawUrl.trim();
 
@@ -450,8 +417,6 @@ return;
         }
 
         setTranscripts((prev) => prev.filter((t) => t.id !== transcript.id));
-        // A könyvjelző a localStorage-ban él — a felirattal együtt annak is menni kell,
-        // különben árva kulcsok gyűlnek a törölt id-k alatt.
         clearYtBookmark(transcript.id);
 
         if (activeTranscript?.id === transcript.id) {
@@ -500,16 +465,6 @@ return;
         setUpgradeUrl(null);
     };
 
-    /**
-     * A „Új elemzés" olvasó-módban (YouTube-felirat, könyv) csak az eredményt
-     * zárja — a betöltött lap szövege és a teljes % megmarad, a felhasználó
-     * ugyanott lapozhat tovább.
-     *
-     * Könyv-módban ez korábban a teljes reset()-et hívta: az `fetchedSource`
-     * kiürült, az `activeBook` viszont megmaradt, így a fül SEM a listát (azt az
-     * `activeBook` zárta ki), SEM az olvasót (ahhoz kell a szöveg) nem
-     * rendelte — a fül üresen állt, míg a felhasználó fület nem váltott.
-     */
     const handleResultReset = () => {
         if ((mode === 'youtube' && activeTranscript) || (mode === 'book' && activeBook)) {
             setResult(null);
@@ -522,17 +477,6 @@ return;
         reset();
     };
 
-    /**
-     * A betöltött szöveg átvitele a szerkeszthető mezőbe.
-     *
-     * A cikk-kinyerés heurisztikus (ArticleTextExtractor): bekerülhet zaj —
-     * menü-maradvány, bibliográfia, ajánló-lista —, és kimaradhat mondat. Eddig
-     * URL-módban csak egy nem szerkeszthető, 3 soros előnézet volt, és az
-     * elemzés a nyers szövegből ment, tehát a felhasználó nem tudott javítani.
-     *
-     * Szándékosan NEM a switchMode()-ot hívja: az reset()-el, ami épp az itt
-     * átadott szöveget törölné.
-     */
     const editFetchedSource = () => {
         if (fetchedSource === null) {
             return;
@@ -548,11 +492,6 @@ return;
         setMode(m);
         reset();
 
-        // reset() clears fetchedSource, so an already-selected book/transcript
-        // must be deselected too — otherwise the tab renders neither the list
-        // nor the reader and stays blank.
-        // A lista betöltése a mód-effekt dolga (mountoláskor is kell) — itt csak
-        // a kiválasztást bontjuk, különben dupla kérés menne.
         if (m === 'book') {
             setActiveBook(null);
             setBookOverview(null);
@@ -661,11 +600,6 @@ return;
     };
 
     const handleWordClick = (word: string, context?: string) => {
-        // `tokenKey` = kisbetű + ASCII aposztróf. A szövegben tipográfiai aposztróf
-        // áll („couldn’t"), a státusz-térkép kulcsai és a szerver keresése viszont
-        // ASCII-t használnak — nyers alakkal a modalból mentett státusz olyan
-        // kulcsra került, amit a renderelés nem keres, tehát a kiemelés csak
-        // újraelemzés után frissült.
         setLookupWord(tokenKey(word));
         setLookupContext(context || null);
     };
@@ -673,7 +607,6 @@ return;
     const activeText = mode === 'text' ? text : (fetchedSource ?? '');
     const tokenFrequencies = useMemo(() => (result ? computeTokenFrequencies(activeText) : {}), [result, activeText]);
 
-    /** A modal státuszváltásakor optimistán igazítjuk az eredmény-statisztikákat. */
     const handleLookupStatusChange = (word: string, prevStatus: string | null, nextStatus: TokenStatus | null, fallback: TokenStatus) => {
         const freq = tokenFrequencies[word] ?? 0;
         setResult((prev) => {
@@ -681,9 +614,6 @@ return;
 return prev;
 }
 
-            // Többszavas kifejezést a renderelés csak a phraseStatuses-ben keres,
-            // ezért oda írjuk; levételkor töröljük, ahogy az újraelemzés is tenné.
-            // A statisztikákat nem érinti: a kifejezés nem szerepel a token-frekvenciákban.
             if (/\s/.test(word.trim())) {
                 const phraseStatuses = { ...prev.phraseStatuses };
 
@@ -728,19 +658,10 @@ learningDelta += freq;
         });
     };
 
-    /**
-     * Új saját szó/kifejezés felvitele után a szöveg azonnal a választott
-     * státuszt mutassa. Korábban itt fix `not_in_list` került a token-térképbe:
-     * a felvitt szó színe nem változott, a többszavas kifejezés pedig kimaradt a
-     * `phraseStatuses`-ból, ezért csak a MÁSODIK (dialógusból indított)
-     * státuszváltás után lett kiemelt és egyben kattintható. A státuszt ezért
-     * ugyanaz az egy út alkalmazza, mint a dialógus státuszgombjait.
-     */
     const handleCustomAdded = (word: string, status: WordStatus) => {
         handleLookupStatusChange(word, null, status, 'not_in_list');
     };
 
-    /** Nyitott olvasó (felirat/könyv lapja) — mobilon ilyenkor alul rögzített a lapozósáv. */
     const isReaderOpen =
         !result &&
         ((mode === 'youtube' && activeTranscript !== null) || (mode === 'book' && activeBook !== null && fetchedSource !== null));
@@ -749,13 +670,11 @@ learningDelta += freq;
         <>
             <Head title="Szövegelemzés" />
 
-            {/* Mobilon a rögzített olvasó-sáv (ReaderActions) a tartalom alját takarná — a `pb-20` adja neki a helyet. */}
             <div
                 className={`mx-auto flex w-full max-w-[2000px] flex-1 flex-col gap-4 p-4 md:gap-6 md:p-6 xl:px-10 2xl:px-16 ${
                     isReaderOpen ? 'pb-20' : ''
                 }`}
             >
-                {/* Hero — mobilon olvasás és eredmény közben elrejtjük, hogy a szöveg kapja a helyet. */}
                 <div
                     className={`relative overflow-hidden rounded-3xl p-5 md:block md:p-8 ${isReaderOpen || result ? 'hidden' : ''}`}
                     style={{ background: 'linear-gradient(135deg,#4338CA,#4F8EEC)' }}
@@ -769,11 +688,8 @@ learningDelta += freq;
                     </div>
                 </div>
 
-                {/* Mode tabs + history toggle */}
                 {!result && (
                     <div className="flex flex-wrap items-center gap-2">
-                        {/* Mobilon a négy fül egy egyenletes, négyoszlopos sort alkot
-                            (ikon a felirat fölött), hogy egyik se törjön külön sorba. */}
                         <div className="grid w-full grid-cols-4 gap-1.5 sm:flex sm:w-auto sm:gap-2" role="tablist" aria-label="Forrás típusa">
                             {MODE_TABS.map(({ id, label, Icon }) => (
                                 <button
@@ -811,7 +727,6 @@ learningDelta += freq;
                     </div>
                 )}
 
-                {/* History panel */}
                 {!result && showHistory && history.length > 0 && (
                     <HistoryPanel
                         history={history}
@@ -823,7 +738,6 @@ learningDelta += freq;
                     />
                 )}
 
-                {/* Input area */}
                 {!result && (
                     <div className="flex flex-col gap-3">
                         {mode === 'text' && (
@@ -831,8 +745,6 @@ learningDelta += freq;
                                 <Textarea
                                     value={text}
                                     onChange={(e) => setText(e.target.value)}
-                                    // A gomb messze lehet a kurzortól — a szokásos
-                                    // ⌘/Ctrl+Enter is indítsa az elemzést.
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && !isAnalyzing) {
                                             e.preventDefault();
@@ -853,8 +765,6 @@ learningDelta += freq;
                                         Példa szöveg betöltése
                                     </button>
                                     <div className="flex items-center gap-2">
-                                        {/* A számláló mobilon is látszik: a `maxLength` szó nélkül
-                                            vágja el a beillesztett szöveget, ezért látni kell a keretet. */}
                                         <span
                                             id="text-length-counter"
                                             className={`text-xs tabular-nums ${
@@ -996,13 +906,6 @@ learningDelta += freq;
 
                         {mode === 'book' && (
                             <>
-                                {/*
-                                  A lista akkor is látszik, ha van kiválasztott
-                                  könyv, de nincs betöltött lap (pl. a lap
-                                  betöltése elhasalt): olvasó nélkül a fül
-                                  különben üresen maradna. Betöltés közben nem
-                                  villan be — azt az `isLoadingPage` zárja ki.
-                                */}
                                 {(!activeBook || (fetchedSource === null && !isLoadingPage)) && (
                                     <BookList
                                         books={books}
@@ -1051,11 +954,6 @@ learningDelta += freq;
                     </div>
                 )}
 
-                {/*
-                  A hibasáv szándékosan a `!result` kapun KÍVÜL van: eredmény
-                  mellett is jön hiba (lapozás, újraelemzés a lapozóból), és a
-                  kapun belül az néma maradt volna.
-                */}
                 {error && (
                     <div
                         ref={errorRef}
@@ -1071,7 +969,6 @@ learningDelta += freq;
                     </div>
                 )}
 
-                {/* Results */}
                 {result && (
                     <div ref={resultRef} className="scroll-mt-4">
                         <AnalysisResultView
@@ -1122,6 +1019,7 @@ learningDelta += freq;
                 word={lookupWord}
                 context={lookupContext}
                 hasAiAccess={hasAiAccess}
+                flashcardDecks={flashcardDecks}
                 onClose={() => {
  setLookupWord(null); setLookupContext(null);
 }}

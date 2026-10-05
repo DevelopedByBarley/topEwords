@@ -5,20 +5,15 @@ use App\Models\FlashcardDeck;
 use App\Models\FlashcardReview;
 use App\Models\FlashcardSetting;
 use App\Models\User;
+use App\Models\Word;
 use App\Services\FlashcardSrsService;
 use Carbon\Carbon;
 use Illuminate\Http\UploadedFile;
 use Inertia\Inertia;
 use Tests\TestCase;
 
-// --- Deck CRUD ---
-
-/**
- * Load the deferred `dueCounts` prop via an Inertia partial reload.
- */
 function loadDueCounts(TestCase $test): array
 {
-    // Warm-up request so the Inertia asset version (Vite manifest hash) resolves.
     $test->get(route('flashcards.index'))->assertOk();
 
     return $test->get(route('flashcards.index'), [
@@ -34,7 +29,6 @@ test('the deck list exposes the next due timestamp per deck', function () {
     $deck = FlashcardDeck::create(['user_id' => $user->id, 'name' => 'Scheduled Deck']);
     $card = Flashcard::create(['deck_id' => $deck->id, 'front' => 'A', 'back' => 'B', 'direction' => 'front_to_back']);
 
-    // Két jövőbeni esedékesség — a korábbinak kell megjelennie.
     FlashcardReview::create([
         'flashcard_id' => $card->id, 'direction' => 'front_to_back',
         'state' => 'review', 'due_at' => now()->addDays(3),
@@ -55,9 +49,6 @@ test('the deck list exposes the next due timestamp per deck', function () {
         'X-Inertia-Partial-Data' => 'nextDueAt',
     ])->json('props.nextDueAt');
 
-    // Offszettel jelölt ISO8601 kell: a nyers DB-stringet ("2026-07-30 06:15:00")
-    // a böngésző helyi időként olvasná, és UTC alkalmazás-időzóna mellett a
-    // nyári offszet a jövőbeni esedékességet is a múltba tolná.
     expect($nextDueAt[$deck->id])
         ->toMatch('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/')
         ->and(Carbon::parse($nextDueAt[$deck->id])->diffInHours(now(), true))->toBeLessThan(6);
@@ -86,7 +77,6 @@ test('the deck page reports a null next due date when nothing is scheduled', fun
     $deck = FlashcardDeck::create(['user_id' => $user->id, 'name' => 'Fresh Deck']);
     Flashcard::create(['deck_id' => $deck->id, 'front' => 'A', 'back' => 'B', 'direction' => 'front_to_back']);
 
-    // Carbon::parse(null) a mostani időt adná — a null-ágnak külön kell futnia.
     $this->actingAs($user)
         ->get(route('flashcards.show', $deck))
         ->assertOk()
@@ -97,10 +87,7 @@ test('due count excludes uncalibrated imported cards', function () {
     $user = User::factory()->create();
     $deck = FlashcardDeck::create(['user_id' => $user->id, 'name' => 'Import Deck']);
 
-    // An imported card with no review is pending calibration — not study-able yet.
-    // forceCreate: az is_imported rendszer-vezérelt, szándékosan nincs a fillable-ban (MA-4).
     Flashcard::forceCreate(['deck_id' => $deck->id, 'front' => 'A', 'back' => 'B', 'direction' => 'front_to_back', 'is_imported' => true]);
-    // A normal new card is study-able.
     Flashcard::create(['deck_id' => $deck->id, 'front' => 'C', 'back' => 'D', 'direction' => 'front_to_back']);
 
     $dueCounts = loadDueCounts($this->actingAs($user));
@@ -126,7 +113,6 @@ test('a deck can get its own custom settings overriding the global defaults', fu
     $user = User::factory()->create();
     $deck = FlashcardDeck::create(['user_id' => $user->id, 'name' => 'Deck']);
 
-    // No per-deck override exists yet.
     expect($deck->deckSettings)->toBeNull();
 
     $this->actingAs($user)
@@ -143,7 +129,6 @@ test('a deck can get its own custom settings overriding the global defaults', fu
             'max_interval' => 200,
             'lapse_new_interval' => 0,
             'leech_threshold' => 8,
-            // shuffle_cards omitted = unchecked → off for this deck, even though default is on
         ])
         ->assertRedirect(route('flashcards.show', $deck));
 
@@ -158,8 +143,6 @@ test('a learning step above 1440 minutes is rejected on the indexed error key', 
     $user = User::factory()->create();
     $deck = FlashcardDeck::create(['user_id' => $user->id, 'name' => 'Deck']);
 
-    // "2 nap" a paklidialógusban = 2880 perc — a hibának az elem-szintű
-    // learning_steps.1 kulcson kell jönnie, mert a frontend azt jeleníti meg.
     $this->actingAs($user)
         ->from(route('flashcards.show', $deck))
         ->put(route('flashcards.settings.update', $deck), [
@@ -200,13 +183,11 @@ test('non-increasing learning steps are rejected so hard cannot meet or exceed g
         'leech_threshold' => 8,
     ];
 
-    // Equal consecutive steps: the second step must be strictly greater.
     $this->actingAs($user)
         ->from(route('flashcards.show', $deck))
         ->put(route('flashcards.settings.update', $deck), [...$base, 'learning_steps' => [10, 10]])
         ->assertSessionHasErrors(['learning_steps.1']);
 
-    // Descending steps: rejected on the offending index.
     $this->actingAs($user)
         ->from(route('flashcards.show', $deck))
         ->put(route('flashcards.settings.update', $deck), [...$base, 'learning_steps' => [10, 5]])
@@ -214,7 +195,6 @@ test('non-increasing learning steps are rejected so hard cannot meet or exceed g
 
     expect($deck->fresh()->deckSettings)->toBeNull();
 
-    // A strictly increasing config still saves.
     $this->actingAs($user)
         ->put(route('flashcards.settings.update', $deck), [...$base, 'learning_steps' => [1, 10]])
         ->assertSessionHasNoErrors();
@@ -223,8 +203,6 @@ test('non-increasing learning steps are rejected so hard cannot meet or exceed g
 });
 
 test('hard never exceeds good even for a legacy non-increasing learning-step config', function () {
-    // Decks saved before the increasing-steps validation existed may still hold
-    // [10, 10]; the scheduler must never schedule Hard past Good for them.
     $settings = new FlashcardSetting([
         'new_cards_per_day' => 20,
         'max_reviews_per_day' => 200,
@@ -258,7 +236,7 @@ test('hard never exceeds good even for a legacy non-increasing learning-step con
         $good = $goodM->invoke($srs, $review, $settings->learning_steps, $settings);
 
         expect($hard)->toBeLessThanOrEqual($good);
-        expect($hard)->toBeGreaterThanOrEqual($settings->learning_steps[0]); // never below Again
+        expect($hard)->toBeGreaterThanOrEqual($settings->learning_steps[0]);
     }
 });
 
@@ -267,7 +245,6 @@ test('deck shuffle_cards can be turned off (unchecked checkbox)', function () {
     $deck = FlashcardDeck::create(['user_id' => $user->id, 'name' => 'Deck']);
     $deck->deckSettings()->create(['shuffle_cards' => true]);
 
-    // An unchecked checkbox is omitted by the browser — simulate by not sending it.
     $this->actingAs($user)
         ->put(route('flashcards.settings.update', $deck), [
             'new_cards_per_day' => 20,
@@ -324,7 +301,6 @@ test('a deck created with an empty folder_id ends up in no folder', function () 
     $user = User::factory()->create();
     $user->flashcardFolders()->create(['name' => 'Nyelvvizsga']);
 
-    // The new-deck dialog submits folder_id as '' when no folder is selected.
     $this->actingAs($user)
         ->post(route('flashcards.store'), ['name' => 'Szókincs', 'folder_id' => ''])
         ->assertRedirect()
@@ -370,8 +346,6 @@ test('user can rename their own deck without leaving the current page', function
     $user = User::factory()->create();
     $deck = FlashcardDeck::create(['user_id' => $user->id, 'name' => 'Old name', 'description' => 'Old description']);
 
-    // A pakli-listáról indított átnevezésnek helyben kell maradnia, ezért a
-    // kontroller `back()`-kel válaszol, nem a pakli oldalára irányít.
     $this->actingAs($user)
         ->from(route('flashcards.index'))
         ->patch(route('flashcards.update', $deck), [
@@ -397,8 +371,6 @@ test('user cannot rename someone elses deck', function () {
 
     expect($deck->fresh()->name)->toBe('Owned');
 });
-
-// --- Card CRUD ---
 
 test('user can add a card to their deck', function () {
     $user = User::factory()->create();
@@ -431,14 +403,10 @@ test('user can update a card', function () {
     expect($card->fresh()->front)->toBe('apple updated');
 });
 
-// --- MA-4: is_imported nem tömeg-hozzárendelhető (rendszer-vezérelt SRS-flag) ---
-
 test('store ignores a smuggled is_imported flag from the request payload', function () {
     $user = User::factory()->create();
     $deck = FlashcardDeck::create(['user_id' => $user->id, 'name' => 'Deck']);
 
-    // A támadó a manuális create payloadba is_imported:true-t csempész, hogy a saját
-    // kártyáját a kalibrációs sorba tolja a szándékolt új-kártya folyamat helyett.
     $this->actingAs($user)
         ->post(route('flashcards.cards.store', $deck), [
             'front' => 'apple',
@@ -448,7 +416,6 @@ test('store ignores a smuggled is_imported flag from the request payload', funct
         ])
         ->assertRedirect(route('flashcards.show', $deck));
 
-    // A fillable-ból való strukturális kizárás miatt a flag sosem íródik be a payloadból.
     expect((bool) $deck->flashcards()->first()->is_imported)->toBeFalse();
 });
 
@@ -479,7 +446,6 @@ test('csv import still marks cards as imported after is_imported left the fillab
         ->post(route('flashcards.csv.import', $deck), ['csv_file' => $file])
         ->assertRedirect(route('flashcards.show', $deck));
 
-    // Az import query-builder insert()-tel ír (megkerüli a fillable-t) → a flag beíródik.
     expect($deck->flashcards()->count())->toBe(2)
         ->and($deck->flashcards()->where('is_imported', true)->count())->toBe(2);
 });
@@ -489,7 +455,6 @@ test('calibration graduates an imported card by clearing is_imported', function 
     $deck = FlashcardDeck::create(['user_id' => $user->id, 'name' => 'Deck']);
     $card = Flashcard::forceCreate(['deck_id' => $deck->id, 'front' => 'apple', 'back' => 'alma', 'direction' => 'front_to_back', 'is_imported' => true]);
 
-    // Egyirányú kártya → egyetlen irány, ez az utolsó (is_last_direction).
     $this->actingAs($user)
         ->postJson(route('flashcards.calibrate.rate', $deck), [
             'flashcard_id' => $card->id,
@@ -500,7 +465,6 @@ test('calibration graduates an imported card by clearing is_imported', function 
         ->assertOk()
         ->assertJson(['ok' => true]);
 
-    // Az explicit property-set író (a fillable-kivétel után) végzi a graduálást.
     expect((bool) $card->fresh()->is_imported)->toBeFalse();
 });
 
@@ -580,7 +544,6 @@ test('resetting an imported card keeps it in the calibration queue', function ()
         ->post(route('flashcards.cards.reset', [$deck, $card]))
         ->assertRedirect(route('flashcards.show', $deck));
 
-    // Importált kártya: reviewk törölve → visszaesik a kalibrációs sorba (is_imported marad true).
     expect((bool) $card->fresh()->is_imported)->toBeTrue()
         ->and($card->reviews()->count())->toBe(0);
 });
@@ -595,7 +558,6 @@ test('resetting a manually created card does not force it into calibration', fun
         ->post(route('flashcards.cards.reset', [$deck, $card]))
         ->assertRedirect(route('flashcards.show', $deck));
 
-    // Kézzel létrehozott kártya sosem volt importált — reset után sem követelhet kalibrációt (#F1).
     expect((bool) $card->fresh()->is_imported)->toBeFalse()
         ->and($card->reviews()->count())->toBe(0);
 });
@@ -612,14 +574,11 @@ test('bulk reset preserves each card imported flag', function () {
         ->post(route('flashcards.cards.bulk-reset', $deck), ['ids' => [$imported->id, $manual->id]])
         ->assertRedirect(route('flashcards.show', $deck));
 
-    // A bulk reset a review-kat törli, de az is_imported flaget kártyánként megőrzi (#F1).
     expect((bool) $imported->fresh()->is_imported)->toBeTrue()
         ->and((bool) $manual->fresh()->is_imported)->toBeFalse()
         ->and($imported->reviews()->count())->toBe(0)
         ->and($manual->reviews()->count())->toBe(0);
 });
-
-// --- SRS Algorithm ---
 
 test('new card graduates to review after good on last learning step', function () {
     $settings = new FlashcardSetting([
@@ -639,7 +598,7 @@ test('new card graduates to review after good on last learning step', function (
 
     $review = new FlashcardReview([
         'state' => 'learning',
-        'learning_step' => 1, // last step (index 1 of [1,10])
+        'learning_step' => 1,
         'interval' => 0,
         'ease_factor' => 250,
         'repetitions' => 0,
@@ -647,7 +606,6 @@ test('new card graduates to review after good on last learning step', function (
     ]);
 
     $srs = new FlashcardSrsService;
-    // Call private method via reflection
     $method = new ReflectionMethod($srs, 'learningGood');
     $method->invoke($srs, $review, $settings->learning_steps, $settings);
 
@@ -683,7 +641,6 @@ test('review card increases interval on good rating', function () {
     $method = new ReflectionMethod($srs, 'reviewGood');
     $method->invoke($srs, $review, $settings);
 
-    // interval = round(10 * 250/100 * 100/100) = 25
     expect($review->interval)->toBe(25);
     expect($review->repetitions)->toBe(4);
 });
@@ -717,7 +674,7 @@ test('forgotten card increments lapses and becomes relearning', function () {
 
     expect($review->state)->toBe('relearning');
     expect($review->lapses)->toBe(1);
-    expect($review->interval)->toBe(1); // lapse_new_interval=0 → reset to 1
+    expect($review->interval)->toBe(1);
 });
 
 test('lapsed card keeps relearning state and preserved interval through multiple learning steps', function () {
@@ -747,7 +704,6 @@ test('lapsed card keeps relearning state and preserved interval through multiple
 
     $srs = new FlashcardSrsService;
 
-    // Forgotten: relearning with the lapse-reduced interval (100 * 50% = 50) and ease penalty.
     $method = new ReflectionMethod($srs, 'reviewAgain');
     $method->invoke($srs, $review, $settings);
 
@@ -755,15 +711,12 @@ test('lapsed card keeps relearning state and preserved interval through multiple
     expect($review->interval)->toBe(50);
     expect($review->ease_factor)->toBe(210);
 
-    // First Good on step 0 of [1, 10]: must STAY relearning, not fall back to 'learning'.
     $learningGood = new ReflectionMethod($srs, 'learningGood');
     $learningGood->invoke($srs, $review, $settings->learning_steps, $settings);
 
     expect($review->state)->toBe('relearning');
     expect($review->learning_step)->toBe(1);
 
-    // Second Good graduates: the preserved interval and penalized ease must survive,
-    // instead of resetting to graduating_interval / starting_ease like a new card.
     $learningGood->invoke($srs, $review, $settings->learning_steps, $settings);
 
     expect($review->state)->toBe('review');
@@ -827,7 +780,7 @@ test('card is marked as leech after exceeding leech threshold', function () {
         'state' => 'review',
         'interval' => 5,
         'ease_factor' => 250,
-        'lapses' => 2, // one more → equals threshold
+        'lapses' => 2,
     ]);
 
     $srs = new FlashcardSrsService;
@@ -842,7 +795,7 @@ test('graduating interval uses the actual last step and matches the preview', fu
     $settings = new FlashcardSetting([
         'new_cards_per_day' => 20,
         'max_reviews_per_day' => 200,
-        'learning_steps' => [1, 1440], // last step is a full day (24h)
+        'learning_steps' => [1, 1440],
         'graduating_interval' => 1,
         'easy_interval' => 4,
         'starting_ease' => 250,
@@ -856,7 +809,7 @@ test('graduating interval uses the actual last step and matches the preview', fu
 
     $review = new FlashcardReview([
         'state' => 'learning',
-        'learning_step' => 1, // last step of [1, 1440]
+        'learning_step' => 1,
         'interval' => 0,
         'ease_factor' => 250,
         'repetitions' => 0,
@@ -865,14 +818,11 @@ test('graduating interval uses the actual last step and matches the preview', fu
 
     $srs = new FlashcardSrsService;
 
-    // What the Good button promised before answering.
     $preview = $srs->getButtonPreviews($review, $settings);
 
     $method = new ReflectionMethod($srs, 'learningGood');
     $method->invoke($srs, $review, $settings->learning_steps, $settings);
 
-    // Hard lands at round(1440 * 1.5 / 1440) = 2 days, so Good graduates one day beyond
-    // it (3 days) to stay distinct. Preview and actual must agree.
     expect($preview['good'])->toBe('3 nap');
     expect($review->interval)->toBe(3);
 });
@@ -881,7 +831,7 @@ test('hard and good never collapse to the same interval when the last learning s
     $settings = new FlashcardSetting([
         'new_cards_per_day' => 20,
         'max_reviews_per_day' => 200,
-        'learning_steps' => [1, 10, 1440], // final step is a full day
+        'learning_steps' => [1, 10, 1440],
         'graduating_interval' => 1,
         'easy_interval' => 2,
         'starting_ease' => 250,
@@ -895,7 +845,7 @@ test('hard and good never collapse to the same interval when the last learning s
 
     $review = new FlashcardReview([
         'state' => 'learning',
-        'learning_step' => 2, // last step of [1, 10, 1440]
+        'learning_step' => 2,
         'interval' => 0,
         'ease_factor' => 250,
         'repetitions' => 0,
@@ -910,15 +860,11 @@ test('hard and good never collapse to the same interval when the last learning s
 });
 
 test('hard does not render as "24 óra" when good graduates to a single day', function () {
-    // A ~16 h final step (958 min) whose Hard (958 × 1.5 = 1437 min) was
-    // previously clamped to just under a day and rounded to "24 óra" —
-    // visually identical to Good's "1 nap". The fix keeps Hard a full hour
-    // below the day boundary and rolls the label to days once it hits 24 h.
     $settings = new FlashcardSetting([
         'new_cards_per_day' => 20,
         'max_reviews_per_day' => 200,
         'learning_steps' => [10, 958],
-        'graduating_interval' => 1, // Good graduates to exactly 1 day
+        'graduating_interval' => 1,
         'easy_interval' => 2,
         'starting_ease' => 250,
         'easy_bonus' => 130,
@@ -931,7 +877,7 @@ test('hard does not render as "24 óra" when good graduates to a single day', fu
 
     $review = new FlashcardReview([
         'state' => 'learning',
-        'learning_step' => 1, // last step of [10, 958]
+        'learning_step' => 1,
         'interval' => 0,
         'ease_factor' => 250,
         'repetitions' => 0,
@@ -950,15 +896,11 @@ test('formatMinutes rolls near-day minute values up to days instead of "24 óra"
     $format = new ReflectionMethod(FlashcardSrsService::class, 'formatMinutes');
     $srs = new FlashcardSrsService;
 
-    // 1436–1439 min all round to 24.0 h; they must render as "1 nap", not "24 óra".
     expect($format->invoke($srs, 1439))->toBe('1 nap');
     expect($format->invoke($srs, 1436))->toBe('23.9 óra');
     expect($format->invoke($srs, 1380))->toBe('23 óra');
 });
 
-/**
- * Default SRS settings for scheduling tests, with per-test overrides.
- */
 function makeSrsSettings(array $overrides = []): FlashcardSetting
 {
     return new FlashcardSetting([
@@ -979,8 +921,6 @@ function makeSrsSettings(array $overrides = []): FlashcardSetting
 }
 
 test('review buttons stay strictly ordered for a lapsed card at the ease floor', function (int $interval) {
-    // Ease at the 130 floor vs Hard's 120 modifier: rounding used to make
-    // Hard and Good tie at short intervals (e.g. round(3.6) = round(3.9) = 4).
     $settings = makeSrsSettings();
     $srs = new FlashcardSrsService;
 
@@ -1004,7 +944,6 @@ test('review buttons stay strictly ordered for a lapsed card at the ease floor',
     expect($goodReview->interval)->toBeGreaterThan($hardReview->interval);
     expect($easyReview->interval)->toBeGreaterThan($goodReview->interval);
 
-    // The button previews must promise exactly what answering schedules.
     $preview = $srs->getButtonPreviews($makeReview(), $settings);
     expect($preview['hard'])->toBe($hardReview->interval.' nap');
     expect($preview['good'])->toBe($goodReview->interval.' nap');
@@ -1012,8 +951,6 @@ test('review buttons stay strictly ordered for a lapsed card at the ease floor',
 })->with([1, 2, 3, 4, 10]);
 
 test('good stays above hard even when a low interval modifier pushes its raw value below', function () {
-    // interval_modifier 80 + ease 130: raw Good = round(10 × 1.3 × 0.8) = 10,
-    // raw Hard = round(10 × 1.2) = 12 — without ordering, Hard would beat Good.
     $settings = makeSrsSettings(['interval_modifier' => 80]);
     $srs = new FlashcardSrsService;
 
@@ -1035,7 +972,6 @@ test('good stays above hard even when a low interval modifier pushes its raw val
 });
 
 test('learning hard never overtakes the good delay with tightly spaced steps', function () {
-    // 1.5 × 10 = 15 minutes would overtake the next step's 12 minutes.
     $settings = makeSrsSettings(['learning_steps' => [10, 12]]);
 
     $review = new FlashcardReview([
@@ -1063,7 +999,7 @@ test('relearning easy graduates one day beyond good', function () {
         'ease_factor' => 210,
         'repetitions' => 5,
         'lapses' => 1,
-        'learning_step' => 1, // last step of [1, 10]
+        'learning_step' => 1,
     ]);
 
     $preview = $srs->getButtonPreviews($makeReview(), $settings);
@@ -1087,14 +1023,11 @@ test('both-direction card shows its second side the day it was introduced even a
     $settings = $srs->defaultSettings();
     $settings->new_cards_per_day = 1;
 
-    // Introduce one direction today.
     $review = $srs->getOrCreateReview($card, 'front_to_back');
     $srs->processReview($review, FlashcardSrsService::GOOD, $settings);
 
     $due = $srs->getDueCards($deck->id, $settings);
 
-    // The still-new other direction must remain available — it is the same physical
-    // card already counted toward today's single new-card slot.
     expect($due->contains(fn ($item) => $item['direction'] === 'back_to_front'))->toBeTrue();
 });
 
@@ -1115,29 +1048,20 @@ test('countDueCards matches the study queue getDueCards builds', function () {
         $attributes,
     ));
 
-    // 'both' card introduced today: its learning direction is not yet due, its other
-    // direction is still new and comes through free (pre-counted toward the limit).
     $introducedToday = $makeCard(['direction' => 'both']);
     FlashcardReview::create(['flashcard_id' => $introducedToday->id, 'direction' => 'front_to_back', 'state' => 'learning', 'due_at' => now()->addHour(), 'introduced_on' => $today]);
 
-    // Plain new cards; the 'both' one takes a single new-card slot but yields two items.
     $makeCard([]);
     $makeCard(['direction' => 'both']);
     $makeCard([]);
 
-    // Imported card without any review — pending calibration, excluded entirely.
     $makeCard(['is_imported' => true]);
 
-    // Imported 'both' card with one calibrated ('new') direction: that direction counts,
-    // the review-less one is still awaiting calibration.
     $importedHalfCalibrated = $makeCard(['direction' => 'both', 'is_imported' => true]);
     FlashcardReview::create(['flashcard_id' => $importedHalfCalibrated->id, 'direction' => 'front_to_back', 'state' => 'new']);
 
-    // Fifth new-card slot is taken by the half-calibrated import — this one is over the limit.
     $makeCard([]);
 
-    // One due learning card; two due review cards against a review budget of one
-    // (a third card was already reviewed today and shrinks max_reviews_per_day).
     $learningDue = $makeCard([]);
     FlashcardReview::create(['flashcard_id' => $learningDue->id, 'direction' => 'front_to_back', 'state' => 'learning', 'due_at' => now()->subMinute(), 'introduced_on' => $yesterday]);
 
@@ -1149,18 +1073,14 @@ test('countDueCards matches the study queue getDueCards builds', function () {
     $reviewedToday = $makeCard([]);
     FlashcardReview::create(['flashcard_id' => $reviewedToday->id, 'direction' => 'front_to_back', 'state' => 'review', 'due_at' => now()->addDay(), 'introduced_on' => $yesterday, 'reviewed_on' => $today]);
 
-    // Stale review on a direction the card no longer studies — ignored by the queue.
     $staleDirection = $makeCard([]);
     FlashcardReview::create(['flashcard_id' => $staleDirection->id, 'direction' => 'back_to_front', 'state' => 'review', 'due_at' => now()->subMinute()]);
 
     $counts = $srs->countDueCards($deck->id, $settings);
     $queue = $srs->getDueCards($deck->id, $settings);
 
-    // free 'both' second side (1) + three plain new (1+2+1) + calibrated import side (1)
     expect($counts['new'])->toBe(6)
-        // due learning (1) + due review capped at the remaining budget (1)
         ->and($counts['review'])->toBe(2)
-        // and the split mirrors the hydrated queue exactly
         ->and($counts['new'])->toBe($queue->filter(fn (array $item) => ! $item['review'] || $item['review']->state === 'new')->count())
         ->and($counts['review'])->toBe($queue->filter(fn (array $item) => $item['review'] && $item['review']->state !== 'new')->count());
 });
@@ -1180,4 +1100,60 @@ test('deck show page reports due counts without hydrating the whole deck', funct
             ->component('flashcards/show')
             ->where('newDueCount', 1)
             ->where('reviewDueCount', 1));
+});
+
+test('import from word answers a json request with the new card instead of redirecting', function () {
+    $user = User::factory()->create();
+    $deck = FlashcardDeck::create(['user_id' => $user->id, 'name' => 'Deck']);
+    $word = Word::create(['word' => 'apple', 'meaning_hu' => 'alma', 'rank' => 1]);
+
+    $response = $this->actingAs($user)
+        ->postJson(route('flashcards.cards.import', $deck), ['word_id' => $word->id])
+        ->assertCreated();
+
+    $card = $deck->flashcards()->sole();
+
+    expect($response->json('card_id'))->toBe($card->id)
+        ->and($card->word_id)->toBe($word->id)
+        ->and($card->front)->toBe('apple')
+        ->and($card->back)->toBe('alma');
+});
+
+test('import from custom word answers a json request with the new card', function () {
+    $user = User::factory()->create();
+    $deck = FlashcardDeck::create(['user_id' => $user->id, 'name' => 'Deck']);
+    $customWord = $user->customWords()->create(['word' => 'gizmo', 'meaning_hu' => 'kütyü']);
+
+    $this->actingAs($user)
+        ->postJson(route('flashcards.cards.import', $deck), ['custom_word_id' => $customWord->id])
+        ->assertCreated();
+
+    expect($deck->flashcards()->sole()->front)->toBe('gizmo');
+});
+
+test('json import from word reports the card limit as a json error', function () {
+    config(['plans.limits.free.flashcards' => 0]);
+
+    $user = User::factory()->create();
+    $deck = FlashcardDeck::create(['user_id' => $user->id, 'name' => 'Deck']);
+    $word = Word::create(['word' => 'apple', 'meaning_hu' => 'alma', 'rank' => 1]);
+
+    $this->actingAs($user)
+        ->postJson(route('flashcards.cards.import', $deck), ['word_id' => $word->id])
+        ->assertForbidden()
+        ->assertJsonPath('message', fn (string $message) => str_contains($message, 'kártyakeret'));
+
+    expect($deck->flashcards()->count())->toBe(0);
+});
+
+test('json import into another user deck is forbidden', function () {
+    $owner = User::factory()->create();
+    $deck = FlashcardDeck::create(['user_id' => $owner->id, 'name' => 'Deck']);
+    $word = Word::create(['word' => 'apple', 'meaning_hu' => 'alma', 'rank' => 1]);
+
+    $this->actingAs(User::factory()->create())
+        ->postJson(route('flashcards.cards.import', $deck), ['word_id' => $word->id])
+        ->assertForbidden();
+
+    expect($deck->flashcards()->count())->toBe(0);
 });

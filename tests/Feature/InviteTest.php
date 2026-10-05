@@ -43,7 +43,6 @@ test('a valid invite allows registration and is consumed, starting on the free p
     $user = User::where('email', 'teszt@example.com')->first();
     expect($user)->not->toBeNull();
     expect($user->invite_id)->toBe($invite->id);
-    // Registration grants no trial — new accounts start free (trial is subscription-only).
     expect($user->trial_ends_at)->toBeNull();
     expect($user->currentPlan())->toBe('free');
     expect($invite->fresh()->uses)->toBe(1);
@@ -52,7 +51,7 @@ test('a valid invite allows registration and is consumed, starting on the free p
 test('an exhausted invite is rejected', function () {
     config(['registration.invite_only' => true]);
     $invite = Invite::create(['code' => 'USED', 'max_uses' => 1]);
-    $invite->increment('uses'); // uses = max_uses
+    $invite->increment('uses');
 
     $this->post(route('register.store'), validRegistration(['invite' => 'USED']))
         ->assertSessionHasErrors('invite');
@@ -73,7 +72,6 @@ test('an invite cannot be consumed beyond max_uses', function () {
 
     expect($invite->fresh()->uses)->toBe(1);
 
-    // A second consumption of the now-exhausted code must fail atomically.
     expect(fn () => $action->create([
         'name' => 'Second', 'email' => 'second@example.com',
         'password' => 'Password123!@#x', 'password_confirmation' => 'Password123!@#x',

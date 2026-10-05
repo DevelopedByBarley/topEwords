@@ -10,9 +10,6 @@ const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
 createInertiaApp({
     title: (title) => (title ? `${title} - ${appName}` : appName),
-    // Keret nélkül renderelt oldalak: a publikus felület (a kézikönyv is,
-    // mert az vendégként és bejelentkezve más keretet kap — lásd
-    // `pages/handbook.tsx`) és az admin.
     layout: (name) => {
         switch (true) {
             case name === 'welcome':
@@ -45,5 +42,4 @@ createInertiaApp({
     },
 });
 
-// This will set light / dark mode on load...
 initializeTheme();

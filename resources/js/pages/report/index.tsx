@@ -26,7 +26,6 @@ const DESCRIPTION_MAX = 2000;
 
 const DESCRIPTION_MIN = 10;
 
-/** Ennél hosszabb leírásnál már mutatjuk, hogy közel a limit. */
 const DESCRIPTION_WARN_AT = 1900;
 
 const DRAFT_STORAGE_KEY = 'report:draft';
@@ -46,10 +45,6 @@ interface Draft {
     word: WordResult | null;
 }
 
-/**
- * A félig megírt bejelentés visszaolvasása. Egy lejárt session vagy egy véletlen
- * frissítés enélkül nyom nélkül elvinne egy hosszan megfogalmazott leírást.
- */
 function readDraft(): Draft | null {
     if (typeof window === 'undefined') {
         return null;
@@ -134,11 +129,6 @@ export default function ReportIndex() {
         [],
     );
 
-    /**
-     * A szótári szavak keresése. A `words/search` a felhasználó saját szavait is
-     * visszaadja, azokat viszont ki kell szűrni: külön táblában élnek, az id-jük
-     * egy másik szótári szóra mutatna — és a sajátjait a Szólistában maga javítja.
-     */
     const handleWordSearch = useCallback((value: string) => {
         setWordQuery(value);
 
@@ -222,8 +212,6 @@ export default function ReportIndex() {
             preserveScroll: true,
             onSuccess: () => {
                 clearDraft();
-                // Nem `reset()`: annak a kezdőértéke a visszaolvasott piszkozat
-                // lenne, így egy szó-bejelentés után a `word_id` beragadna.
                 form.setData({
                     category: 'bug',
                     description: '',

@@ -12,14 +12,12 @@ interface Achievement {
 export default function AchievementToast() {
     const { flash } = usePage().props;
     const achievements = flash?.achievements ?? [];
-    // Use a stable string key so the effect reliably fires when new achievements arrive
     const achievementKeys = achievements.map((a) => a.key).join(',');
 
     const [queue, setQueue] = useState<Achievement[]>([]);
     const [current, setCurrent] = useState<Achievement | null>(null);
     const [exiting, setExiting] = useState(false);
 
-    // Inertia flash (word status changes, custom words, deck creation)
     useEffect(() => {
         if (achievements.length > 0) {
             setQueue((prev) => [...prev, ...achievements]);
@@ -27,7 +25,6 @@ export default function AchievementToast() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [achievementKeys]);
 
-    // Custom event (flashcard study — uses raw fetch, not Inertia)
     useEffect(() => {
         const handler = (e: Event) => {
             const incoming = (e as CustomEvent<Achievement[]>).detail ?? [];
@@ -42,7 +39,6 @@ export default function AchievementToast() {
     const DISPLAY_MS = 4000;
     const EXIT_MS = 400;
 
-    // Pick next item from queue when idle
     useEffect(() => {
         if (current !== null || queue.length === 0) return;
         const next = queue[0];
@@ -51,7 +47,6 @@ export default function AchievementToast() {
         setCurrent(next);
     }, [current, queue]);
 
-    // Auto-dismiss timer — separate effect so setCurrent() doesn't cancel it
     useEffect(() => {
         if (!current) return;
         const exitTimer = setTimeout(() => setExiting(true), DISPLAY_MS);
@@ -86,7 +81,6 @@ export default function AchievementToast() {
                             <p className="text-sm text-muted-foreground">{current.description}</p>
                         </div>
                     </div>
-                    {/* Progress bar */}
                     <div className="h-1 w-full bg-yellow-100 dark:bg-yellow-950">
                         <div
                             className="h-1 bg-yellow-400 dark:bg-yellow-500"

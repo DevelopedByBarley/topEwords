@@ -17,11 +17,9 @@ interface WordFormFieldsProps {
     onChange: (form: WordFormData) => void;
     errors?: Record<string, string>;
     autoFocus?: boolean;
-    /** Opcionális tartalom a szó/szófaj sor után (pl. AI kitöltés gomb) */
     afterWordSlot?: ReactNode;
 }
 
-/** A szóalak-mezőket tartalmazó szófajok, és az egyes blokkokhoz tartozó mezők. */
 const FORM_POS = ['verb', 'noun', 'adj'] as const;
 type FormPos = (typeof FORM_POS)[number];
 
@@ -47,9 +45,6 @@ export default function WordFormFields({
     const set = (patch: Partial<WordFormData>) =>
         onChange({ ...form, ...patch });
 
-    // Egy szó több szófaj alakjait is hordozhatja (pl. "interest" → főnév + igealakok),
-    // mert a párosítás/kiemelés a szófajtól függetlenül mind a 9 alak-oszlopot olvassa.
-    // Az elsődleges szófaj blokkja mindig látszik; a többi egy lenyíló alá kerül.
     const primaryPos = (FORM_POS as readonly string[]).includes(
         form.part_of_speech,
     )
@@ -66,9 +61,6 @@ export default function WordFormFields({
 
     const [showOther, setShowOther] = useState(hasOtherForms);
 
-    // Ha utólag (pl. AI-autofill) más szófaj alakjai töltődnek be, nyissuk ki a
-    // lenyílót — különben a beküldött adat láthatatlan maradna. Csak nyitunk:
-    // a felhasználó által kézzel kinyitott szekciót nem csukjuk vissza.
     useEffect(() => {
         if (hasOtherForms) {
             setShowOther(true);

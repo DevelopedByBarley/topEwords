@@ -1,16 +1,3 @@
-/**
- * Allowlist-based HTML sanitizer for user-stored rich text (flashcard front/back,
- * notes). Strips anything not on the tag/attribute allowlist, every `on*` event
- * handler, and `javascript:`/`data:` URLs — so stored HTML (e.g. a flashcard
- * created via the extension API with a raw `<img onerror=…>`) cannot execute when
- * rendered via `dangerouslySetInnerHTML`.
- *
- * Uses the DOM when available. During SSR (no `document`) it fails **safe** —
- * returning an empty string rather than applying a weaker regex sanitizer that
- * could let markup slip through. Rich text is always re-rendered on the client
- * after hydration, where the full DOM-based sanitizer runs, so nothing is lost.
- */
-
 const ALLOWED_TAGS = new Set([
     'p', 'br', 'div', 'span', 'strong', 'b', 'em', 'i', 'u', 's', 'strike',
     'del', 'ins', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
@@ -18,7 +5,6 @@ const ALLOWED_TAGS = new Set([
     'table', 'thead', 'tbody', 'tr', 'td', 'th',
 ]);
 
-// Tags whose entire subtree is dropped (never unwrapped to text).
 const DROP_TAGS = new Set([
     'script', 'style', 'iframe', 'object', 'embed', 'svg', 'math', 'form',
     'link', 'meta', 'base', 'noscript', 'template',
@@ -34,8 +20,6 @@ function sanitizeWithDom(dirty: string): string {
     const tpl = document.createElement('template');
     tpl.innerHTML = dirty;
 
-    // Snapshot before mutating; children of dropped/unwrapped nodes are also in
-    // the list and get processed in their own turn.
     const elements = Array.from(tpl.content.querySelectorAll('*'));
 
     for (const el of elements) {
@@ -47,7 +31,6 @@ function sanitizeWithDom(dirty: string): string {
         }
 
         if (!ALLOWED_TAGS.has(tag)) {
-            // Unwrap unknown-but-not-dangerous tags: keep their children/text.
             el.replaceWith(...Array.from(el.childNodes));
             continue;
         }
@@ -84,8 +67,6 @@ export function sanitizeHtml(dirty: string | null | undefined): string {
         return '';
     }
 
-    // SSR (nincs DOM): fail-safe — üres string, nem gyengébb regex-szűrő. A kliens
-    // hidratáláskor a teljes DOM-alapú sanitizerrel újrarendereli a tartalmat.
     if (typeof document === 'undefined') {
         return '';
     }

@@ -10,15 +10,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-/**
- * Az `is_imported` SZÁNDÉKOSAN nincs a fillable-ban: rendszer-vezérelt SRS-besorolási
- * flag, amit kizárólag a tömeges import (query-builder `insert`, mass-assignt megkerüli)
- * és a kalibráció (explicit `$card->is_imported = ...; save()`) állít — sosem user-payload.
- * A user-facing `store`/`update` a `validated()`-en megy át, ami nem tartalmazza; a fillable-ból
- * való kizárás ezt STRUKTURÁLISAN garantálja, nem a FormRequest-fegyelemre bízza (MA-4).
- * Elvetett alternatíva: a fillable-ban hagyni és a FormRequest hiányzó szabályára hagyatkozni —
- * az egy jövőbeli `$request->all()`-alapú create-helyen néma keret-megkerülést nyitna.
- */
 #[Fillable(['deck_id', 'word_id', 'front', 'front_notes', 'front_speak', 'back', 'back_notes', 'back_speak', 'direction', 'color'])]
 class Flashcard extends Model
 {
@@ -34,11 +25,6 @@ class Flashcard extends Model
         return $this->belongsTo(Word::class);
     }
 
-    /**
-     * A rich-text mezők tároláskor szűrve kerülnek a DB-be (F7-L3). A tömeges
-     * `insert()`-utak ezt megkerülik, de azok vagy már tárolt (szűrt) értéket
-     * másolnak (megfordítás), vagy escape-elt szöveget írnak (CSV-import).
-     */
     protected function front(): Attribute
     {
         return self::sanitizedHtml();
@@ -69,9 +55,6 @@ class Flashcard extends Model
         return $this->hasMany(FlashcardReview::class);
     }
 
-    /**
-     * Importált kártyák, amelyeknek még nincs minden irányban aktív (kalibrált) review-ja.
-     */
     public function scopeUncalibrated(Builder $query): Builder
     {
         $activeStates = self::ACTIVE_REVIEW_STATES;

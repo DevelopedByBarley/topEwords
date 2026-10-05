@@ -141,8 +141,6 @@ export default function DeckSettingsDialog({
     onClose: () => void;
 }) {
     const hasCustom = deckSettings !== null;
-    // Start from the deck's own override, otherwise the values it currently
-    // inherits from the global settings, otherwise the built-in defaults.
     const [activeSettings, setActiveSettings] = useState<
         NonNullable<DeckSettings>
     >(deckSettings ?? globalSettings ?? DEFAULT_SETTINGS);
@@ -152,8 +150,6 @@ export default function DeckSettingsDialog({
     type StepUnit = 'perc' | 'óra' | 'nap';
     type StepEntry = { value: number; unit: StepUnit };
 
-    // A backend 1440 percben (1 nap) maximálja a tanulási lépést, ezért
-    // egységenként ennyi a beírható maximum.
     const UNIT_MAX: Record<StepUnit, number> = { perc: 1440, óra: 24, nap: 1 };
 
     function clampStepValue(value: number, unit: StepUnit): number {
@@ -252,7 +248,6 @@ export default function DeckSettingsDialog({
                         {({ processing, errors }) => (
                             <>
                                 <div className="min-h-0 flex-1 space-y-6 overflow-y-auto pt-2 pr-1">
-                                    {/* Presets */}
                                     <div className="space-y-2">
                                         <h4 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
                                             Gyors beállítás
@@ -423,10 +418,6 @@ export default function DeckSettingsDialog({
                                                     Lépés hozzáadása
                                                 </Button>
                                             </div>
-                                            {/* A learning_steps.* szabályok elem-szintű
-                                        kulcsokon (learning_steps.0, …) adnak
-                                        hibát, ezért nem elég a learning_steps
-                                        kulcsot nézni. */}
                                             {Object.entries(errors)
                                                 .filter(
                                                     ([key]) =>
@@ -581,7 +572,6 @@ export default function DeckSettingsDialog({
 
                                         <Separator />
 
-                                        {/* Shuffle */}
                                         <div className="space-y-3">
                                             <h4 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
                                                 Sorrend
@@ -611,11 +601,8 @@ export default function DeckSettingsDialog({
                                             </label>
                                         </div>
                                     </div>{' '}
-                                    {/* end key={presetKey} */}
                                 </div>
 
-                                {/* A mentés a hosszú űrlap alján is elérhető
-                                marad, nem kell hozzá végig görgetni. */}
                                 <DialogFooter className="mt-4 shrink-0 border-t pt-4 sm:justify-between">
                                     {hasCustom ? (
                                         <Button

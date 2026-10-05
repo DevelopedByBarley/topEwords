@@ -31,8 +31,6 @@ class FlashcardStudyController extends Controller
             $card = $item['card'];
             $direction = $item['direction'];
 
-            // GET request: don't create review rows — use the eager-loaded review,
-            // or an unsaved default instance for never-answered cards.
             $review = $item['review'] ?? $this->srs->newReviewFor($card, $direction);
             $previews = $this->srs->getButtonPreviews($review, $settings);
 
@@ -121,8 +119,6 @@ class FlashcardStudyController extends Controller
         $prev = $review->previous_state;
 
         if ($prev === null) {
-            // Nincs eltárolt előző állapot (pl. dupla visszavonás vagy kalibrált kártya) —
-            // törlés helyett no-op, különben elveszne a tanulási előzmény.
             return response()->json(['ok' => false, 'error' => 'Nincs visszavonható értékelés.'], 409);
         }
 

@@ -164,7 +164,6 @@ const STATUS_META: Record<
     },
 };
 
-/** A mobil demó automatikus szó-váltásának üteme. */
 const WORD_AUTOPLAY_MS = 4000;
 
 const DETAIL_BUTTONS: Status[] = [
@@ -175,7 +174,6 @@ const DETAIL_BUTTONS: Status[] = [
     'Gyakorlásra',
 ];
 
-/** A pinnelt desktop-jelenet lépései — a szekció szövegének négy ígérete. */
 const SCENES = [
     'Válaszd ki a szót',
     'Jelöld a státuszát',
@@ -183,18 +181,10 @@ const SCENES = [
     'Kérj AI-segítséget',
 ];
 
-/** A jelenet ezt a szót mutatja végig. */
 const SCENE_INDEX = 0;
 const SCENE_STATUS: Status = 'Tudom';
 const SCENE_IMPORTANCE = 4;
 
-/**
- * Szólista-szekció a landing oldalon.
- *
- * Mobilon (és `prefers-reduced-motion` mellett) az interaktív demó automata
- * szó-váltással; `lg`-től felfelé egy pinnelt, scroll-vezérelt jelenet, ahol
- * a görgetés lépteti végig a szekció négy ígéretét ugyanazon a szón.
- */
 export function WordlistScrollSection() {
     const [filter, setFilter] = useState<'Összes' | 'Tanulom' | 'Tudom'>(
         'Összes',
@@ -249,11 +239,6 @@ export function WordlistScrollSection() {
                     },
                 });
 
-                /*
-                 * A két oszlop kissé eltérő sebességgel sodródik a pin alatt —
-                 * ez adja a mélységet. A lépések látványát a `scene` state
-                 * vezérli CSS-átmenetekkel, nem a timeline.
-                 */
                 gsap.to(q('[data-layer="list"]'), {
                     yPercent: -6,
                     ease: 'none',
@@ -295,7 +280,6 @@ export function WordlistScrollSection() {
                         { y: 26, opacity: 0, duration: 0.6 },
                         0.85,
                     )
-                    /* Kitöltő idő, hogy a belépő ne nyúljon a teljes görgetésre. */
                     .to({}, { duration: 3.1 }, 1.45);
 
                 return () => {
@@ -340,7 +324,6 @@ export function WordlistScrollSection() {
     const sel = words[selWord] ?? words[0];
     const selMeta = sel.status ? STATUS_META[sel.status] : null;
 
-    /* A jelenet állapotai: a lépés dönti el, mi van már beállítva. */
     const sceneWord = INITIAL_WORDS[SCENE_INDEX];
     const sceneStatus = scene >= 1 ? SCENE_STATUS : null;
     const sceneMeta = sceneStatus ? STATUS_META[sceneStatus] : null;
@@ -375,7 +358,6 @@ export function WordlistScrollSection() {
                 </div>
 
                 <div className="mx-auto grid max-w-[1080px] grid-cols-[1.1fr_1fr] items-start gap-6 max-lg:grid-cols-1">
-                    {/* list */}
                     <div className="min-w-0 overflow-hidden rounded-[20px] border border-neutral-200 bg-white shadow-[0_20px_50px_rgba(0,0,0,.06)]">
                         <div className="flex items-center justify-between px-5 pt-4.5 pb-3.5">
                             <div className="flex items-center gap-2 font-semibold text-[#171717]">
@@ -502,7 +484,6 @@ export function WordlistScrollSection() {
                         </div>
                     </div>
 
-                    {/* detail */}
                     <div className="overflow-hidden rounded-[20px] border border-neutral-200 bg-white shadow-[0_20px_50px_rgba(0,0,0,.06)]">
                         <div className="border-b border-neutral-100 bg-[#f7f7fb] p-5">
                             <div className="flex items-center justify-between">
@@ -621,7 +602,6 @@ export function WordlistScrollSection() {
                 </div>
             </div>
 
-            {/* Desktop: pinnelt, scroll-vezérelt jelenet */}
             <div className="hidden lg:block lg:motion-reduce:hidden">
                 <div
                     ref={stageRef}

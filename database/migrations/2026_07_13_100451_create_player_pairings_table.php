@@ -6,13 +6,6 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * A desktop lejátszó eszköz-párosítási kérelmei (device-flow minta).
-     * Egy sor egy folyamatban lévő párosítás: az app kapja a user_code-ot
-     * (a felhasználó a böngészőben ezt hagyja jóvá) és a poll_secret-et
-     * (csak hash-elve tároljuk — adatbázis-szivárgás esetén sem váltható tokenre).
-     * A sor a token kiadásakor törlődik, ezért a beváltás egyszer használatos.
-     */
     public function up(): void
     {
         Schema::create('player_pairings', function (Blueprint $table) {

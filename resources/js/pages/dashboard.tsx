@@ -47,7 +47,6 @@ interface Props {
     studiedToday: boolean;
     lastActivityDate: string | null;
     customStats: CustomStats;
-    /** Deferred prop: az első renderkor még nincs itt. */
     dueFlashcards?: { cards: number; decks: number };
 }
 
@@ -85,10 +84,6 @@ const LEVEL_COLORS: Record<string, { bar: string; bg: string; text: string }> =
         },
     };
 
-/**
- * Kerekítés helyett „<1%”, amíg van már ismert szó: 10 000-es nevezőnél az
- * első több tucat megjelölés különben 0%-nak látszana.
- */
 function formatPercent(percent: number, known: number): string {
     if (percent === 0 && known > 0) {
         return '<1%';
@@ -169,7 +164,6 @@ function StatTile({
     );
 }
 
-/** Egy lépés a „Folytasd itt” sávban. */
 function NextStepCard({
     icon: Icon,
     title,
@@ -230,8 +224,6 @@ export default function Dashboard({
         customStats.total > 0
             ? Math.round((customStats.known / customStats.total) * 100)
             : 0;
-    // A sorozat akkor is „élő”, ha az utolsó aktivitás tegnap volt — ilyenkor
-    // ma még meg kell tartani, ezért ez a nap a legfontosabb üzenet az oldalon.
     const streakAtRisk = streak > 0 && !studiedToday;
 
     return (
@@ -239,7 +231,6 @@ export default function Dashboard({
             <Head title="Haladás" />
 
             <div className="mx-auto flex h-full w-full max-w-[2000px] flex-1 flex-col gap-6 p-4 md:p-6 xl:px-10 2xl:px-16">
-                {/* Hero */}
                 <div
                     className="relative overflow-hidden rounded-3xl p-6 md:p-8"
                     style={{
@@ -281,7 +272,6 @@ export default function Dashboard({
                     </div>
                 </div>
 
-                {/* Folytasd itt */}
                 <div>
                     <h2 className="mb-3 text-sm font-semibold tracking-wide text-muted-foreground uppercase">
                         {isNewUser ? 'Kezdd itt' : 'Folytasd itt'}
@@ -338,7 +328,6 @@ export default function Dashboard({
                     </div>
                 </div>
 
-                {/* Streak */}
                 <div
                     className={`rounded-3xl border p-5 shadow-sm ${
                         streakAtRisk
@@ -390,7 +379,6 @@ export default function Dashboard({
                     )}
                 </div>
 
-                {/* Összesített */}
                 <div className="rounded-3xl border border-indigo-100 bg-white p-5 shadow-sm dark:border-neutral-700 dark:bg-card">
                     <div className="mb-4 flex items-center justify-between gap-2">
                         <div>
@@ -439,7 +427,6 @@ export default function Dashboard({
                     </div>
                 </div>
 
-                {/* Szintek */}
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     {levelStats.map((level) => {
                         const colors = LEVEL_COLORS[level.color];
@@ -560,7 +547,6 @@ export default function Dashboard({
                     })}
                 </div>
 
-                {/* Saját szavak */}
                 <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm dark:border-neutral-700 dark:bg-card">
                     <div className="mb-4 flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2">
@@ -661,7 +647,6 @@ export default function Dashboard({
 
                 <ExtensionBanner />
 
-                {/* codebarley.hu promo */}
                 <a
                     href="https://codebarley.hu"
                     target="_blank"

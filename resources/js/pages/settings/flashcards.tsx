@@ -115,7 +115,6 @@ export default function FlashcardSettings({
                 >
                     {({ processing, recentlySuccessful, errors }) => (
                         <>
-                            {/* Daily limits */}
                             <div className="space-y-4">
                                 <h3 className="text-sm font-semibold">
                                     Napi korlátok
@@ -152,7 +151,6 @@ export default function FlashcardSettings({
 
                             <Separator />
 
-                            {/* Learning steps */}
                             <div className="space-y-4">
                                 <div>
                                     <h3 className="text-sm font-semibold">
@@ -209,9 +207,6 @@ export default function FlashcardSettings({
                                         Lépés hozzáadása
                                     </Button>
                                 </div>
-                                {/* A learning_steps.* szabályok elem-szintű
-                                    kulcsokon (learning_steps.0, …) adnak hibát,
-                                    ezért nem elég a learning_steps kulcsot nézni. */}
                                 {Object.entries(errors)
                                     .filter(
                                         ([key]) =>
@@ -228,7 +223,6 @@ export default function FlashcardSettings({
 
                             <Separator />
 
-                            {/* Graduation */}
                             <div className="space-y-4">
                                 <h3 className="text-sm font-semibold">
                                     Végzés & könnyű intervallum
@@ -263,7 +257,6 @@ export default function FlashcardSettings({
 
                             <Separator />
 
-                            {/* Ease factors */}
                             <div className="space-y-4">
                                 <h3 className="text-sm font-semibold">
                                     Ease (könnyűségi) faktorok
@@ -333,7 +326,6 @@ export default function FlashcardSettings({
 
                             <Separator />
 
-                            {/* Lapses */}
                             <div className="space-y-4">
                                 <h3 className="text-sm font-semibold">
                                     Tévesztések
@@ -368,7 +360,6 @@ export default function FlashcardSettings({
 
                             <Separator />
 
-                            {/* Shuffle */}
                             <div className="space-y-4">
                                 <h3 className="text-sm font-semibold">
                                     Sorrendbeállítás
@@ -399,7 +390,6 @@ export default function FlashcardSettings({
 
                             <Separator />
 
-                            {/* Calibration intervals */}
                             <div className="space-y-4">
                                 <div>
                                     <h3 className="text-sm font-semibold">

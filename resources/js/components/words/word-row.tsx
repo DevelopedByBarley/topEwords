@@ -21,17 +21,11 @@ interface WordRowProps {
     onStatus: (word: Word, status: Exclude<WordStatus, null>) => void;
     onCustomStatus: (id: number, status: Exclude<WordStatus, null>) => void;
     onPractice: (word: string, meaning_hu: string | null) => void;
-    /** Admin gyors alak-kitöltő: csak adminnak látszik, csak a fő listás szavakon. */
     isAdmin: boolean;
     aiFillState?: 'idle' | 'loading' | 'done';
     onAiFill: (word: Word) => void;
 }
 
-/**
- * Egyetlen sor a szólistában. Memoizált: a szülő state-változásai (pl. gépelés
- * a keresőmezőbe) nem renderelik újra az akár 1000 sort, csak ha maga a sor
- * adata vagy a megjelenítési mód változik.
- */
 function WordRow({
     item,
     flipMode,

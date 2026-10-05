@@ -11,7 +11,6 @@ return new class extends Migration
         Schema::table('users', function (Blueprint $table) {
             $table->unsignedInteger('ai_credits_used')->default(0)->after('ai_access');
             $table->timestamp('ai_credits_reset_at')->nullable()->after('ai_credits_used');
-            // Per-user felülírás; null = a konfigurációs alap havi keret.
             $table->unsignedInteger('ai_credit_limit')->nullable()->after('ai_credits_reset_at');
         });
     }

@@ -127,7 +127,6 @@ const RATING_BUTTONS = [
     },
 ];
 
-/** Meddig látszik az értékelés visszajelzése — kicsit hosszabb az animációnál. */
 const RATE_FLASH_MS = 950;
 
 function stateLabel(state: string): string {
@@ -173,12 +172,6 @@ function InfoRow({
     );
 }
 
-/**
- * Az épp leadott értékelést mutatja: a közben már megjelent következő kártya
- * felső éléről úszik fel a kártya fölötti sávba. A függőleges nyugalmi helyzetet
- * a hívó adja (`className`), mert a helye képernyőnként más — a horgony
- * mindkét helyen nulla magasságú, így nem tol el semmit.
- */
 function RateFlashBadge({
     flash,
     className,
@@ -263,7 +256,6 @@ function resolveCardSides(card: Card): {
 
 type HistoryEntry = { id: number; direction: string };
 
-/** Az épp értékelt kártya után felúszó visszajelzés. */
 type RateFlash = { key: number; rating: number; preview: string };
 
 export default function FlashcardStudy({
@@ -285,20 +277,13 @@ export default function FlashcardStudy({
         'question' | 'answer' | null
     >(null);
     const [flash, setFlash] = useState<RateFlash | null>(null);
-    // Melyik irányból csússzon be a következő kártya: előre értékeléskor,
-    // visszafelé visszavonáskor.
     const [navDirection, setNavDirection] = useState<'forward' | 'back'>(
         'forward',
     );
-    // Minden értékelés új kulcsot kap, így a gyors egymás utáni gombnyomásoknál
-    // az animáció újraindul a régi lefutása helyett.
     const flashKeyRef = useRef(0);
     const flashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    // Track in-flight rating fetches keyed by "id-direction" so undo can wait for them
     const pendingRatings = useRef<Map<string, Promise<void>>>(new Map());
     const answerRef = useRef<HTMLDivElement>(null);
-    // Bumped on every stop so stale onend/timeout callbacks bail out instead of
-    // queuing the next chunk after the user has interrupted playback.
     const speakSessionRef = useRef(0);
     const speakTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -431,8 +416,6 @@ export default function FlashcardStudy({
             stopSpeaking();
             setSubmitting(true);
 
-            // A visszajelzés a gombok helyéről indul, és túléli a kártyaváltást:
-            // a következő kártya fölé úszik fel, hogy látszódjon mit nyomtunk.
             flashKeyRef.current += 1;
 
             if (flashTimeoutRef.current) {
@@ -449,7 +432,6 @@ export default function FlashcardStudy({
                 setFlash(null);
             }, RATE_FLASH_MS);
 
-            // Advance immediately — never block on the network
             setNavDirection('forward');
             setHistory((prev) => [...prev, { id: cardId, direction }]);
             const next = currentIndex + 1;
@@ -461,9 +443,6 @@ export default function FlashcardStudy({
                 setRevealed(false);
             }
 
-            // Fire-and-forget: submit rating in the background, but surface
-            // failures (expired session, throttle, 500) — otherwise ratings
-            // are lost silently while the UI keeps advancing.
             const promise = postJson(submitReview(deck.id).url, {
                 flashcard_id: cardId,
                 direction,
@@ -525,14 +504,10 @@ export default function FlashcardStudy({
         clearFlash();
         setUndoing(true);
 
-        // Wait for any in-flight rating for this card before undoing
         if (pendingRatings.current.has(key)) {
             await pendingRatings.current.get(key);
         }
 
-        // Only roll back the UI if the server-side undo succeeded — otherwise
-        // the screen would step back while the review still counts on the
-        // server, and re-rating the card would create a duplicate review.
         try {
             const { ok, status } = await postJson(undoReview(deck.id).url, {
                 flashcard_id: last.id,
@@ -561,27 +536,18 @@ export default function FlashcardStudy({
         setNavDirection('back');
         setHistory((prev) => prev.slice(0, -1));
         setDone(false);
-        // Derive the index from the history instead of decrementing: rating the
-        // last card sets `done` without advancing currentIndex, so a plain
-        // decrement would slip one card back too far (and could go below 0).
         setCurrentIndex(Math.max(0, history.length - 1));
         setRevealed(false);
     }, [history, undoing, deck.id, stopSpeaking, clearFlash]);
 
-    // Stop any in-flight speech when leaving the study view.
     useEffect(() => stopSpeaking, [stopSpeaking]);
 
-    // A visszajelzés időzítője ne fusson le a nézet elhagyása után.
     useEffect(() => clearFlash, [clearFlash]);
 
-    // Scroll back to the top after the new card has rendered. Runs before paint
-    // so a tall next card never leaves the view stuck at the previous scroll
-    // position. Tied to currentIndex so it also covers undo navigation.
     useLayoutEffect(() => {
         window.scrollTo({ top: 0, behavior: 'instant' });
     }, [currentIndex]);
 
-    // Keyboard shortcuts
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
             if (
@@ -598,8 +564,6 @@ export default function FlashcardStudy({
                 return;
             }
 
-            // On the done screen only undo is allowed; the reveal/rating keys
-            // would act on the already-rated last card.
             if (done) {
                 return;
             }
@@ -634,8 +598,6 @@ export default function FlashcardStudy({
             <>
                 <Head title="Kész!" />
                 <div className="relative flex min-h-[80vh] flex-col items-center justify-center gap-6 px-4 text-center">
-                    {/* Az utolsó kártya értékelése is kap visszajelzést, pedig
-                        már a záróképernyő látszik. */}
                     {flash && (
                         <RateFlashBadge
                             key={flash.key}
@@ -682,10 +644,7 @@ export default function FlashcardStudy({
         <>
             <Head title={`Tanulás · ${deck.name}`} />
 
-            {/* Nincs `min-w`: a 360 px-es alsó korlát 320 px-es kijelzőn
-                vízszintes görgetést okozott a tanulás közben. */}
             <div className="mx-auto flex min-h-[80vh] w-full max-w-2xl flex-col px-4 pb-20 md:py-6">
-                {/* Header */}
                 <div className="mb-6 flex items-center justify-between">
                     <Link
                         href={show(deck.id)}
@@ -712,7 +671,6 @@ export default function FlashcardStudy({
                     </div>
                 </div>
 
-                {/* Progress bar */}
                 <div className="mb-8 h-1 w-full overflow-hidden rounded-full bg-muted">
                     <div
                         className="h-full rounded-full bg-primary transition-all duration-500"
@@ -720,13 +678,7 @@ export default function FlashcardStudy({
                     />
                 </div>
 
-                {/* Az értékelés visszajelzésének horgonya: a haladás-sáv és a
-                    kártya közti sáv. Nulla magasságú, ezért nem tol el semmit.
-                    Kártyaváltáskor a lap tetejére ugrunk, így ez a sáv hosszú
-                    kártyánál is a képen van. */}
                 <div className="relative h-0">
-                    {/* A kulcs a gyors, egymás utáni értékeléseknél újraindítja
-                        az animációt a félbehagyott helyett. */}
                     {flash && (
                         <RateFlashBadge
                             key={flash.key}
@@ -736,10 +688,7 @@ export default function FlashcardStudy({
                     )}
                 </div>
 
-                {/* Card */}
                 <div className="flex flex-1 flex-col gap-4">
-                    {/* Question — a kulcs miatt minden kártyaváltásnál újra
-                        lefut a becsúszó animáció */}
                     <div
                         key={`${current.id}-${current.study_direction}`}
                         className={`relative flex min-h-64 animate-in cursor-pointer flex-col items-center justify-center rounded-3xl bg-card p-5 text-center shadow-sm duration-300 select-none fade-in motion-reduce:animate-none sm:p-8 ${
@@ -853,7 +802,6 @@ export default function FlashcardStudy({
                         )}
                     </div>
 
-                    {/* Answer */}
                     {revealed && (
                         <div
                             ref={answerRef}
@@ -903,7 +851,6 @@ export default function FlashcardStudy({
                         </div>
                     )}
 
-                    {/* Rating buttons */}
                     {revealed && (
                         <div className="mt-2 grid animate-in grid-cols-2 gap-2 duration-200 fade-in slide-in-from-bottom-2 sm:grid-cols-4">
                             {RATING_BUTTONS.map(
@@ -935,7 +882,6 @@ export default function FlashcardStudy({
                 </div>
             </div>
 
-            {/* Card info dialog */}
             {current && (
                 <Dialog open={showInfo} onOpenChange={setShowInfo}>
                     <DialogContent className="flex max-h-[85dvh] w-[calc(100vw-2rem)] flex-col sm:max-w-sm">
@@ -950,7 +896,6 @@ export default function FlashcardStudy({
                         </DialogHeader>
 
                         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pt-1">
-                            {/* Current state */}
                             <div>
                                 <p className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
                                     Jelenlegi állapot
@@ -1024,7 +969,6 @@ export default function FlashcardStudy({
                                 </p>
                             </div>
 
-                            {/* Previous state */}
                             {current.review.previous_state && (
                                 <div>
                                     <p className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
@@ -1088,7 +1032,6 @@ export default function FlashcardStudy({
                                 </div>
                             )}
 
-                            {/* Next steps */}
                             <div>
                                 <p className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
                                     Következő lépések

@@ -97,7 +97,6 @@ export default function CardForm({
                 return;
             }
 
-            // Az AI nem létező szónak ítélte (gibberish / elgépelés): jelezzük.
             if (data.is_real_word === false) {
                 setGeminiError(
                     data.message ?? 'Ez nem tűnik valódi angol szónak.',
@@ -149,9 +148,6 @@ export default function CardForm({
         }
     };
 
-    // A szótár-API (dictionaryapi.dev) válasza külső, nem megbízható adat, ami
-    // közvetlenül HTML-be kerül a szerkesztőbe — escape-elni kell, nehogy egy
-    // kompromittált vagy hibás API-válasz HTML-t injektáljon a kártyába.
     const escapeHtml = (value: string) =>
         value
             .replace(/&/g, '&amp;')
@@ -184,7 +180,6 @@ export default function CardForm({
         >
             {({ processing, errors }) => (
                 <>
-                    {/* Gemini AI banner */}
                     {hasAiAccess && (
                         <div className="flex items-center justify-between gap-3 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 dark:border-indigo-800 dark:bg-indigo-950/30">
                             <div className="flex min-w-0 items-center gap-3">
@@ -224,7 +219,6 @@ export default function CardForm({
                         </div>
                     )}
 
-                    {/* Front + Back editors */}
                     <div className="grid gap-4 py-5 sm:grid-cols-2">
                         <div className="space-y-2">
                             <div className="flex items-center justify-between">
@@ -284,7 +278,6 @@ export default function CardForm({
                         </div>
                     </div>
 
-                    {/* Dictionary results */}
                     {dictError && (
                         <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
                             {dictError}
@@ -354,7 +347,6 @@ export default function CardForm({
                         </div>
                     )}
 
-                    {/* Options row */}
                     <div className="flex flex-wrap gap-4 rounded-xl border bg-muted/30 px-4 py-3">
                         <div className="grid min-w-40 gap-1.5">
                             <Label className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
@@ -402,7 +394,6 @@ export default function CardForm({
                         </div>
                     </div>
 
-                    {/* Action buttons */}
                     <div className="flex items-center gap-3 pt-1">
                         <Button
                             type="submit"

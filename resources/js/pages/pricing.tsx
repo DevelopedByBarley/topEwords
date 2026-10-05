@@ -29,12 +29,6 @@ interface Props {
     trialDays: number;
 }
 
-/**
- * Egy csomag-funkció sora. A `value` (pl. „50" vagy „Korlátlan") kiemelve
- * jelenik meg a `label` előtt, hogy a limitek gyorsan átfuthatók legyenek.
- * A `heading: true` egy halvány szekció-címkét jelöl (nincs pipa). Az `info`
- * egy (i) buborékban ad rövid magyarázatot a szakszavakhoz.
- */
 type PlanFeature = {
     value?: string;
     label: string;
@@ -42,8 +36,6 @@ type PlanFeature = {
     info?: string;
 };
 
-// Rövid, közérthető magyarázatok a szakszavakhoz. Egy helyen tartjuk, mert több
-// csomagkártyán is ugyanaz a szöveg jelenik meg.
 const INFO = {
     flashcards:
         'A tanulókártyák (flashcardok) egyik oldalán a szó, a másikon a jelentése áll – ezekkel memorizálhatsz. A csomagok témák szerint rendezik a kártyáidat.',
@@ -74,7 +66,6 @@ const FREE_FEATURES: PlanFeature[] = [
     },
 ];
 
-// A Pro csomag (nem-AI) többlete az Ingyeneshez képest…
 const PRO_FEATURES: PlanFeature[] = [
     { heading: true, label: 'Minden az Ingyenesből, plusz:' },
     { value: 'Korlátlan', label: 'tanulókártya és kártyacsomag' },
@@ -87,7 +78,6 @@ const PRO_FEATURES: PlanFeature[] = [
     },
 ];
 
-// …és az öt AI-funkció (ezeket külön kiemeljük a kártyán, teljes kerettel).
 const AI_FEATURES: PlanFeature[] = [
     {
         label: 'Az AI megkeresi és elmagyarázza a szavak jelentését',
@@ -102,10 +92,6 @@ const AI_FEATURES: PlanFeature[] = [
     },
 ];
 
-/**
- * Kis (i) ikon, amire rámutatva / rákoppintva rövid magyarázat jelenik meg.
- * A szakszavakat (tanulókártya, SRS, streak stb.) tesszük vele érthetővé.
- */
 function InfoTip({ text }: { text: string }) {
     return (
         <Tooltip>
@@ -125,11 +111,6 @@ function InfoTip({ text }: { text: string }) {
     );
 }
 
-/**
- * Egyetlen funkció-sor egy csomagkártyán. A `value` félkövéren, a `label`
- * halványabban jelenik meg, így a limitek egy pillantással átfuthatók. Ha van
- * `info`, egy (i) buborék magyarázza a szakszót.
- */
 function FeatureRow({
     feature,
     checkClass,
@@ -183,8 +164,6 @@ export default function Pricing({
     }>().props;
     const isLoggedIn = !!auth?.user;
 
-    // A "most" időpontot state-inicializálóban rögzítjük, mert a render tiszta
-    // függvény kell legyen (react-hooks/purity) — betöltésenként úgyis frissül.
     const [now] = useState(() => Date.now());
     const trialDaysLeft = trialEndsAt
         ? Math.max(
@@ -228,7 +207,6 @@ export default function Pricing({
 
             <TooltipProvider delayDuration={100}>
                 <PublicLayout className="mx-auto w-full max-w-7xl px-6 py-16">
-                        {/* Flash messages (fizetés eredménye) */}
                         {flash?.success && (
                             <div className="mb-8 flex items-start gap-2 rounded-xl border border-green-200 bg-green-50 px-5 py-4 text-sm text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-300">
                                 <Check className="mt-0.5 size-4 shrink-0" />
@@ -248,7 +226,6 @@ export default function Pricing({
                             </div>
                         )}
 
-                        {/* Header */}
                         <div className="mb-12 text-center">
                             <h1 className="mb-3 text-4xl font-bold tracking-tight">
                                 Egyszerű árazás
@@ -291,7 +268,6 @@ export default function Pricing({
                             </div>
                         ) : (
                             <>
-                                {/* Status banners */}
                                 {isOnTrial && trialDaysLeft > 0 && (
                                     <div className="mb-8 rounded-xl border border-blue-200 bg-blue-50 px-6 py-4 text-center dark:border-blue-800 dark:bg-blue-950">
                                         <p className="text-sm font-medium text-blue-700 dark:text-blue-300">
@@ -329,9 +305,7 @@ export default function Pricing({
                                     </div>
                                 )}
 
-                                {/* Pricing cards */}
                                 <div className="mx-auto grid max-w-3xl gap-6 md:grid-cols-2">
-                                    {/* Free */}
                                     <div className="flex flex-col rounded-2xl border bg-card p-6">
                                         <div className="mb-4">
                                             <p className="text-sm font-medium text-muted-foreground">
@@ -375,7 +349,6 @@ export default function Pricing({
                                         )}
                                     </div>
 
-                                    {/* Pro */}
                                     <div className="relative flex flex-col rounded-2xl border-2 border-indigo-400 bg-card p-6 dark:border-indigo-600">
                                         <div className="absolute -top-3 left-1/2 -translate-x-1/2">
                                             <span className="rounded-full bg-linear-to-br from-indigo-500 to-indigo-400 px-3 py-1 text-xs font-semibold whitespace-nowrap text-white">
@@ -448,7 +421,6 @@ export default function Pricing({
                                     </div>
                                 </div>
 
-                                {/* ÁFA + elállási tájékoztató */}
                                 {stripeConfigured && (
                                     <div className="mx-auto mt-6 max-w-2xl space-y-3">
                                         <p className="text-center text-xs text-muted-foreground">
@@ -520,7 +492,6 @@ export default function Pricing({
                                     </div>
                                 )}
 
-                                {/* FAQ */}
                                 <div className="mt-16">
                                     <h2 className="mb-6 text-center text-xl font-semibold">
                                         Gyakori kérdések

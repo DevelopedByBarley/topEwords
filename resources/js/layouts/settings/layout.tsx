@@ -51,7 +51,6 @@ export default function SettingsLayout({ children }: PropsWithChildren) {
     const { isCurrentOrParentUrl } = useCurrentUrl();
     const { billingEnabled } = usePage().props;
 
-    // Az előfizetés tab csak akkor látszik, ha a fizetés él
     const sidebarNavItems = billingEnabled
         ? [...baseNavItems, subscriptionNavItem]
         : baseNavItems;

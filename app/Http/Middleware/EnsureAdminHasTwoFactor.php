@@ -8,21 +8,6 @@ use Illuminate\Support\Facades\Date;
 use Laravel\Fortify\Features;
 use Symfony\Component\HttpFoundation\Response;
 
-/**
- * Az admin-felület csak MEGERŐSÍTETT kétlépcsős azonosítással érhető el (F9C-L2).
- *
- * Az admin-fiók az egyetlen kiemelt fiók: egy kiszivárgott jelszóval a teljes
- * userbázis, az ingyenes Pro-hozzáférés és a közös szótár is elérhető volna. A
- * `can:admin` mögé kötve csak az adminra hat; nem-admin kérést változatlanul
- * továbbenged, így a controllerben ellenőrzött admin-végpontokra is ráköthető.
- *
- * 2FA nélkül a böngészős kérés a Biztonság oldalra kerül (ha a jelszó-megerősítés
- * lejárt, előbb arra, majd vissza ide, hogy a flash-üzenet ne vesszen el a
- * közbülső átirányításon), a JSON-kérés 403-at kap.
- *
- * Kikapcsolni csak helyi környezetben lehet (`ADMIN_REQUIRE_TWO_FACTOR=false`),
- * minden más környezetben a kényszer a config értékétől függetlenül él.
- */
 class EnsureAdminHasTwoFactor
 {
     public const MESSAGE = 'Az admin-felület csak bekapcsolt és megerősített kétlépcsős azonosítással érhető el. Kapcsold be itt, a Biztonság oldalon.';
@@ -62,11 +47,6 @@ class EnsureAdminHasTwoFactor
             || (bool) config('app.admin_requires_two_factor', true);
     }
 
-    /**
-     * A Biztonság oldal `password.confirm` mögött van (SecurityController). Ha a
-     * megerősítés lejárt, az oda szóló átirányítás a flash-üzenetet a
-     * jelszó-oldalon (ahol nincs toast) elhasználná.
-     */
     private function securityPageNeedsPasswordConfirmation(Request $request): bool
     {
         if (! Features::canManageTwoFactorAuthentication()

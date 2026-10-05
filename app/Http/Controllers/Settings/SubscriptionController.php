@@ -19,14 +19,6 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class SubscriptionController extends Controller implements HasMiddleware
 {
-    /**
-     * Az előfizetés lemondása/visszavonása jelszó-megerősítéshez kötött:
-     * eltérített, bejelentkezve hagyott munkamenetből ne lehessen jelszó nélkül
-     * lemondani a fizető előfizetést. A megerősítést az `edit`-re is kérjük, így a
-     * cancel/resume POST a már megerősített ablakon belül fut — ugyanaz a minta,
-     * mint a SecurityController player-eszköz-visszavonásánál. A számla-letöltés és
-     * a Stripe-portál kimarad (a portál maga is újra hitelesít).
-     */
     public static function middleware(): array
     {
         return Features::canManageTwoFactorAuthentication()
@@ -49,8 +41,6 @@ class SubscriptionController extends Controller implements HasMiddleware
             ];
         }
 
-        // Kiállított (dokumentum-azonosítóval rendelkező) NAV-számlák — a még csak
-        // lefoglalt, de be nem fejezett sorok nem tölthetők le, ezért kimaradnak.
         $invoices = $user->billingoInvoices()
             ->whereNotNull('billingo_document_id')
             ->latest()
@@ -66,11 +56,6 @@ class SubscriptionController extends Controller implements HasMiddleware
             'hasActiveAccess' => $user->hasActiveAccess(),
             'isSubscribed' => $activeSub !== null,
             'isPremium' => $user->subscriptionPlan() === 'premium',
-            // A past_due előfizetés a Cashier deactivatePastDue=true defaultja miatt már
-            // NEM valid() → activeSubscription() null → isPremium hamis, épp amikor a fizető
-            // usernek a recovery-figyelmeztetés kellene. Ezért a valid()-et megkerülő, dedikált
-            // helperből adjuk át, hogy a banner az isPremium blokkon kívül is renderelhető
-            // legyen. (Az azonnali Free-re esés maga szándékos fail-closed marad — csak az UX pótlódik.)
             'hasPastDueSubscription' => $user->hasPastDueSubscription(),
             'hasAiAccess' => $user->hasAiAccess(),
             'isOnTrial' => $user->isOnAnyTrial(),
@@ -86,20 +71,11 @@ class SubscriptionController extends Controller implements HasMiddleware
         ]);
     }
 
-    /**
-     * Letölti a felhasználó egy kiállított NAV-számlájának PDF-jét a Billingóról.
-     * Idegen számlánál is 404-et adunk (nem 403-at), hogy a válaszkód ne áruljon el
-     * infót arról, hogy az adott ID létezik-e — így ID-tippeléssel nem enumerálható.
-     */
     public function downloadInvoice(Request $request, BillingoInvoice $invoice, BillingoClient $client): StreamedResponse
     {
         abort_unless($invoice->user_id === $request->user()->id, 404);
         abort_unless($invoice->isIssued(), 404);
 
-        // A Billingo-hívás hibája (hálózati timeout/DNS vagy hibás HTTP-válasz, pl. törölt
-        // dokumentum) ne 500-azzon nyers stack trace-szel — érthető üzenettel dobjunk 404-et.
-        // A HttpClientException a RequestException (HTTP-hibaválasz) és a ConnectionException
-        // (hálózati timeout) közös őse, így mindkettőt elkapjuk.
         try {
             $pdf = $client->downloadDocument((int) $invoice->billingo_document_id);
         } catch (HttpClientException $e) {
@@ -125,12 +101,10 @@ class SubscriptionController extends Controller implements HasMiddleware
             return back();
         }
 
-        // Már lemondva (grace period) — ne adjunk hamis "sikeresen lemondva" visszajelzést.
         if ($subscription->onGracePeriod()) {
             return back()->with('info', 'Az előfizetésed már le van mondva, az időszak végéig aktív marad.');
         }
 
-        // Stripe API-hívás — hibája ne 500-azzon, hanem érthető üzenettel térjen vissza.
         try {
             $subscription->cancel();
         } catch (ApiErrorException $e) {
@@ -147,7 +121,6 @@ class SubscriptionController extends Controller implements HasMiddleware
         $subscription = $request->user()->activeSubscription();
 
         if ($subscription !== null && $subscription->onGracePeriod()) {
-            // Stripe API-hívás — hibája ne 500-azzon, hanem érthető üzenettel térjen vissza.
             try {
                 $subscription->resume();
             } catch (ApiErrorException $e) {
@@ -164,13 +137,10 @@ class SubscriptionController extends Controller implements HasMiddleware
 
     public function portal(Request $request): RedirectResponse|\Illuminate\Http\Response
     {
-        // Stripe ügyfél nélkül a portál hívása kivételt dobna
         if (! $request->user()->hasStripeId()) {
             return redirect()->route('pricing');
         }
 
-        // A portál-URL kérése Stripe API-hívás — hibája (pl. a Customer Portal nincs
-        // live módban konfigurálva) ne 500-azzon, hanem érthető üzenettel térjen vissza.
         try {
             $portalUrl = $request->user()->billingPortalUrl(route('subscription.edit'));
         } catch (ApiErrorException $e) {
@@ -179,8 +149,6 @@ class SubscriptionController extends Controller implements HasMiddleware
             return back()->with('error', 'A számlázási portál most nem érhető el. Kérlek próbáld újra kicsit később.');
         }
 
-        // A Stripe portál külső URL — Inertia POST-nál Inertia::location kell,
-        // különben a kliens nem navigál (sima redirectnél "nem történik semmi").
         return Inertia::location($portalUrl);
     }
 }

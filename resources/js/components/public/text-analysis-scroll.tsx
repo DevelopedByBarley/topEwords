@@ -16,9 +16,6 @@ import { useEffect, useRef, useState } from 'react';
 import { ScrollReveal } from '@/components/public/scroll-reveal';
 import { gsap, ScrollTrigger } from '@/lib/scroll-trigger';
 
-/**
- * A jelenet lépései — a pinnelt desktop-változat alatt futó jelző címkéi.
- */
 const SCENES = [
     'Nézz YouTube-ot vagy Netflixet',
     'Kattints egy ismeretlen szóra',
@@ -49,13 +46,6 @@ const ANALYZE_BULLETS = [
     },
 ];
 
-/**
- * Szövegelemzés-szekció a landing oldalon.
- *
- * Két, egymást kizáró elrendezés: mobilon a klasszikus, statikus lista
- * (a pinnelt jelenet kis kijelzőn szétesne), `lg`-től felfelé pedig egy
- * teljes képernyős, scroll-vezérelt GSAP-jelenet parallax-rétegekkel.
- */
 export function TextAnalysisScrollSection() {
     const [popupMode, setPopupMode] = useState<'word' | 'phrase'>('word');
     const [scene, setScene] = useState(0);
@@ -118,7 +108,6 @@ export function TextAnalysisScrollSection() {
                     },
                 });
 
-                /** A két háttér-folt eltérő sebessége adja a mélységet. */
                 gsap.to(q('[data-layer="glow-a"]'), {
                     yPercent: -38,
                     ease: 'none',
@@ -129,7 +118,6 @@ export function TextAnalysisScrollSection() {
                     ease: 'none',
                     scrollTrigger: scrub,
                 });
-                /* A cím lassabban sodródik, mint a jelenet — ez adja a mélységet. */
                 gsap.to(q('[data-layer="heading"]'), {
                     yPercent: -16,
                     ease: 'none',
@@ -205,7 +193,6 @@ export function TextAnalysisScrollSection() {
                         opacity: 0,
                         duration: 0.7,
                     })
-                    /* A kártya alapból `opacity-0` — így nem villan fel a pin előtt. */
                     .fromTo(
                         q('[data-layer="analysis"]'),
                         { opacity: 0, y: 70, scale: 0.96 },
@@ -241,7 +228,6 @@ export function TextAnalysisScrollSection() {
 
     return (
         <section id="szovegelemzes" ref={rootRef} className="bg-white">
-            {/* Mobil: klasszikus, statikus elrendezés */}
             <div className="px-5 pt-24 pb-12 lg:hidden lg:motion-reduce:block">
                 <div className="mx-auto max-w-[1000px]">
                     <div className="mx-auto max-w-[640px] text-center">
@@ -347,13 +333,6 @@ export function TextAnalysisScrollSection() {
                                             YouTube
                                         </span>
                                     </div>
-                                    {/*
-                                     * Offline lejátszó kivezetve a főoldalról (2026-07-28):
-                                     * <span className="absolute top-3.5 right-3.5 z-3 inline-flex items-center gap-1.25 rounded-full bg-green-500/92 px-2.75 py-1.25 text-xs font-bold text-white">
-                                     *     <Download size={15} />
-                                     *     Offline
-                                     * </span>
-                                     */}
                                     <div
                                         className="absolute inset-0"
                                         style={{
@@ -551,15 +530,6 @@ export function TextAnalysisScrollSection() {
                                 )}
                             </div>
 
-                            {/*
-                             * Offline lejátszó kivezetve a főoldalról (2026-07-28):
-                             * <div className="mt-4 flex items-center justify-center gap-2">
-                             *     <LayoutGrid size={18} className="text-indigo-700" />
-                             *     <span className="text-[13px] font-medium text-[#525252]">
-                             *         Saját TopWords lejátszó — macOS &amp; Windows
-                             *     </span>
-                             * </div>
-                             */}
                         </div>
 
                         <div className="ts-textrow mt-7.5 grid grid-cols-1 items-center gap-8 lg:grid-cols-[1.15fr_1fr] lg:gap-10">
@@ -593,13 +563,6 @@ export function TextAnalysisScrollSection() {
                                         />
                                         Netflix
                                     </span>
-                                    {/*
-                                     * Offline lejátszó kivezetve a főoldalról (2026-07-28):
-                                     * <span className="inline-flex items-center gap-1.5 rounded-full border border-green-200 bg-green-50 px-3.5 py-2 text-[13px] font-semibold text-green-700">
-                                     *     <Download size={17} />
-                                     *     Offline lejátszó
-                                     * </span>
-                                     */}
                                 </div>
                             </div>
                             <div className="flex flex-col gap-2.75">
@@ -700,7 +663,6 @@ export function TextAnalysisScrollSection() {
                 </div>
             </div>
 
-            {/* Desktop: pinnelt, scroll-vezérelt jelenet */}
             <div className="hidden lg:block lg:motion-reduce:hidden">
                 <div
                     ref={stageRef}
@@ -745,11 +707,6 @@ export function TextAnalysisScrollSection() {
                         </p>
                     </div>
 
-                    {/*
-                     * A jelenet szélessége a rendelkezésre álló magasságból
-                     * jön, hogy a 16:9-es mockup és a lépés-jelző alacsonyabb
-                     * laptop-kijelzőn se fusson egymásra.
-                     */}
                     <div
                         className="relative w-full"
                         style={{
@@ -1088,10 +1045,6 @@ export function TextAnalysisScrollSection() {
                 </div>
             </div>
 
-            {/*
-             * Közös lezárás mindkét változat alá: desktopon ez a statikus sáv
-             * választja el a pinnelt jelenetet a következő szekció jelenetétől.
-             */}
             <div className="px-5 pb-24">
                 <div className="mx-auto grid max-w-[1000px] grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4">
                     {ANALYZE_BULLETS.map((b, i) => (

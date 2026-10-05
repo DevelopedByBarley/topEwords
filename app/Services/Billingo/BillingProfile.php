@@ -4,16 +4,6 @@ namespace App\Services\Billingo;
 
 use App\Models\User;
 
-/**
- * A felhasználó számlázási adatainak pillanatképe a fizetés (dispatch) időpontjában.
- *
- * A számlázó job ezt szerializálja a User modell helyett: a NAV-számla kiállítási
- * kötelezettsége a fiók törlésével nem szűnik meg, a modell viszont a feldolgozásig
- * eltűnhet (a SerializesModels ilyenkor már a deszerializáláskor ModelNotFoundException-t
- * dobna, és a job failed() handlere sem futna le). A pillanatkép csak az InvoiceGenerator
- * által ténylegesen olvasott mezőket tartja — ugyanaz a gondolat, mint a Stripe invoice-ra
- * a GenerateBillingoInvoice::onlyNeededFields().
- */
 final readonly class BillingProfile
 {
     public function __construct(
@@ -32,9 +22,6 @@ final readonly class BillingProfile
         public ?int $billingoPartnerId = null,
     ) {}
 
-    /**
-     * A pillanatkép a felhasználó aktuális (adatbázisbeli) számlázási adataiból.
-     */
     public static function fromUser(User $user): self
     {
         return new self(

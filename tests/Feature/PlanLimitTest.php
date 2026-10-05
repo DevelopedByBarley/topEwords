@@ -60,41 +60,33 @@ test('extension writes follow a shared daily quota, unlimited on Pro', function 
     $free = User::factory()->create();
     $freeLimit = $free->planLimit('extension_writes_per_day');
 
-    // A napi keret alatt még mehet.
     Cache::put("extension_writes_daily_{$free->id}_".today()->format('Y-m-d'), $freeLimit - 1, now()->endOfDay());
     expect($free->canWriteFromExtension())->toBeTrue();
 
-    // A keretet elérve elzár.
     Cache::put("extension_writes_daily_{$free->id}_".today()->format('Y-m-d'), $freeLimit, now()->endOfDay());
     expect($free->canWriteFromExtension())->toBeFalse();
 
-    // A Pro (null = korlátlan) sosem fogy el, és nem is számol.
     $pro = User::factory()->premium()->create();
     Cache::put("extension_writes_daily_{$pro->id}_".today()->format('Y-m-d'), 9999, now()->endOfDay());
     expect($pro->canWriteFromExtension())->toBeTrue();
 
     expect($pro->reserveExtensionWrite())->toBeTrue();
-    expect($pro->extensionWritesToday())->toBe(9999); // korlátlan → nem növel
+    expect($pro->extensionWritesToday())->toBe(9999);
 });
 
 test('reserveExtensionWrite atomically consumes the daily quota and refunds at the cap', function () {
     $free = User::factory()->create();
     $freeLimit = $free->planLimit('extension_writes_per_day');
 
-    // Egy hellyel a keret alatt: a foglalás átmegy és növeli a számlálót.
     Cache::put("extension_writes_daily_{$free->id}_".today()->format('Y-m-d'), $freeLimit - 1, now()->endOfDay());
     expect($free->reserveExtensionWrite())->toBeTrue()
         ->and($free->extensionWritesToday())->toBe($freeLimit);
 
-    // Betelt keretnél elutasít, és a számláló nem szalad túl (visszaadja a foglalást).
     expect($free->reserveExtensionWrite())->toBeFalse()
         ->and($free->extensionWritesToday())->toBe($freeLimit);
 });
 
 test('reserveExtensionWrite fails closed when the counter row is missing (increment returns false)', function () {
-    // Race-ablak: az éjféli prune / cache:clear a Cache::add és Cache::increment
-    // között törli a sort, így az increment false-t ad. A (false > $limit) === false
-    // miatt az írás számlálatlanul átmenne — a fail-closed ágnak el kell utasítania (L2).
     $free = User::factory()->create();
 
     Cache::shouldReceive('add')->once()->andReturn(true);
@@ -122,7 +114,6 @@ test('reserveFlashcardSlots runs the insert while under the limit and blocks it 
     $deck = $free->flashcardDecks()->create(['name' => 'D']);
     $limit = $free->planLimit('flashcards');
 
-    // Egy hellyel a keret alatt: az insert lefut, a foglalás sikeres.
     $deck->flashcards()->createMany(collect(range(1, $limit - 1))->map(fn ($i) => [
         'front' => "F{$i}", 'back' => "B{$i}", 'direction' => 'front_to_back',
     ])->all());
@@ -137,7 +128,6 @@ test('reserveFlashcardSlots runs the insert while under the limit and blocks it 
         ->and($ran)->toBeTrue()
         ->and($free->flashcards()->count())->toBe($limit);
 
-    // Betelt keretnél az insert closure NEM fut le, a szám nem lép a limit fölé.
     $blockedRan = false;
     $blocked = $free->reserveFlashcardSlots(1, function () use (&$blockedRan) {
         $blockedRan = true;
@@ -160,10 +150,8 @@ test('reserveFlashcardSlots skips the count and always runs for unlimited plans'
 });
 
 test('reserveFlashcardDeckSlot runs the create under the limit and blocks it at the cap', function () {
-    // M2: a pakli-létrehozás keret-ellenőrzése + insert közös zár alatt fut, hogy
-    // párhuzamos POST-ok ne csússzanak át ugyanazon az elavult pakli-számon.
     $free = User::factory()->create();
-    $limit = $free->planLimit('decks'); // free = 5
+    $limit = $free->planLimit('decks');
     $free->flashcardDecks()->createMany(collect(range(1, $limit - 1))->map(fn ($i) => ['name' => "D{$i}"])->all());
 
     $deck = $free->reserveFlashcardDeckSlot(fn () => $free->flashcardDecks()->create(['name' => 'utolsó']));
@@ -171,7 +159,6 @@ test('reserveFlashcardDeckSlot runs the create under the limit and blocks it at 
     expect($deck)->not->toBeNull()
         ->and($free->flashcardDecks()->count())->toBe($limit);
 
-    // Betelt keretnél a create closure NEM fut le, a szám nem lép a limit fölé.
     $blockedRan = false;
     $blocked = $free->reserveFlashcardDeckSlot(function () use (&$blockedRan) {
         $blockedRan = true;
@@ -194,13 +181,6 @@ test('reserveFlashcardDeckSlot skips the count and always runs for unlimited pla
         ->and($pro->flashcardDecks()->count())->toBe(21);
 });
 
-/**
- * A plan-limit zár torlódását szimulálja: a Cache::lock(...)->block(...) azonnal
- * LockTimeoutException-nel bukik. A valós block(10) kivárása 10 mp-re lassítaná a
- * tesztet, a wait-seconds seam (InvoiceGenerator / StripeWebhookController mintája)
- * pedig az auth-olt User-modellen HTTP-tesztből nem elérhető — ezért a fájlban már
- * bevált Cache-facade-mockot használjuk (lásd a fail-closed teszteket fentebb).
- */
 function fakeContendedPlanLimitLock(): void
 {
     $lock = Mockery::mock(Lock::class);
@@ -208,9 +188,6 @@ function fakeContendedPlanLimitLock(): void
     Cache::shouldReceive('lock')->once()->andReturn($lock);
 }
 
-// LIMIT-L1: zár-timeoutkor a webes végpontok barátságos "próbáld újra" hibát adnak
-// 500 helyett, és garantáltan semmi nem íródik az adatbázisba (az insert a zár
-// alatt futna, ami meg sem szerződött).
 test('zár-timeout a kártya-létrehozásnál barátságos hibát ad, nem 500-at (LIMIT-L1)', function () {
     $user = User::factory()->create();
     $deck = $user->flashcardDecks()->create(['name' => 'D']);
@@ -300,9 +277,6 @@ test('zár-timeout a pakli-létrehozásnál barátságos hibát ad, nem 500-at (
     expect($user->flashcardDecks()->count())->toBe(0);
 });
 
-// ÁTMENETILEG KIVEZETVE: a kvíz nincs bekötve az induló feature-körben
-// (routes/words.php). A csomaglimit-logika többi tesztje ebben a fájlban fut.
-// Visszakapcsoláskor: a ->group() hívást kell törölni.
 test('quiz round size is capped by the plan', function () {
     Word::insert(collect(range(1, 40))->map(fn ($i) => [
         'word' => "qw{$i}",
@@ -323,9 +297,6 @@ test('quiz round size is capped by the plan', function () {
         ->and($premiumProps['freeQuizLimit'])->toBeNull();
 })->group('kivezetett');
 
-// ÁTMENETILEG KIVEZETVE: a mondatkiegészítés nincs bekötve az induló feature-körben
-// (routes/words.php). A csomaglimit-logika többi tesztje ebben a fájlban fut.
-// Visszakapcsoláskor: a ->group() hívást kell törölni.
 test('cloze round size is capped by the plan', function () {
     Word::insert(collect(range(1, 40))->map(fn ($i) => [
         'word' => "clozeword{$i}",
@@ -354,13 +325,11 @@ test('daily text analysis is capped per plan', function (string $state, int $lim
 
     $cacheKey = "text_analysis_daily_{$user->id}_".today()->format('Y-m-d');
 
-    // One below the cap still succeeds.
     Cache::put($cacheKey, $limit - 1, now()->endOfDay());
     $this->actingAs($user)
         ->postJson(route('text-analysis.analyze'), ['text' => 'the quick dog'])
         ->assertOk();
 
-    // At the cap it is blocked.
     Cache::put($cacheKey, $limit, now()->endOfDay());
     $this->actingAs($user)
         ->postJson(route('text-analysis.analyze'), ['text' => 'the quick dog'])
@@ -389,8 +358,6 @@ test('a failed text analysis does not consume the daily quota', function () {
 });
 
 test('an analysis without any word does not consume the daily quota (F9D-L6)', function () {
-    // Korábban ['!!!', '???', 'dog'] → [200, 200, 403]: a Free keret (2) elfogyott
-    // két üres elemzésen, és a valódi szöveg már nem fért bele.
     $user = User::factory()->create();
     $cacheKey = "text_analysis_daily_{$user->id}_".today()->format('Y-m-d');
 
@@ -437,3 +404,18 @@ test('saved youtube transcript limit is reported per plan', function (string $st
     'free' => ['free', 3],
     'premium' => ['premium', 40],
 ]);
+
+test('zár-timeout a szóból JSON-importnál 409-es JSON-hibát ad (LIMIT-L1)', function () {
+    $user = User::factory()->create();
+    $deck = $user->flashcardDecks()->create(['name' => 'D']);
+    $word = Word::create(['word' => 'lock', 'meaning_hu' => 'zár', 'rank' => 1]);
+
+    fakeContendedPlanLimitLock();
+
+    $this->actingAs($user)
+        ->postJson(route('flashcards.cards.import', $deck), ['word_id' => $word->id])
+        ->assertStatus(409)
+        ->assertJsonStructure(['message']);
+
+    expect($deck->flashcards()->count())->toBe(0);
+});

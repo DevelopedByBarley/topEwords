@@ -20,16 +20,10 @@ class ClozeController extends Controller
         $level = $request->integer('level') ?: null;
         $folderId = $request->integer('folder') ?: null;
         $user = $request->user();
-        // Per-round cloze cap from the plan (null = unlimited on premium); 500 is
-        // the technical ceiling since the word queries below fetch at most 500.
         $roundLimit = $user->planLimit('cloze_per_round');
         $maxCount = $roundLimit ?? 500;
         $count = min(max((int) $request->input('count', 0), 0), $maxCount);
 
-        // Parse comma-separated ids param for manual word selection.
-        // A kézi kiválasztás is plafonos: Free-n a plan-limit, prémiumon az
-        // 500-as technikai plafon — kraftolt ?ids= URL-lel sem kérhető
-        // korlátlan whereIn + óriás payload.
         $idsParam = $request->string('ids')->trim()->value();
         $selectedIds = $idsParam !== '' ? array_filter(array_map('trim', explode(',', $idsParam))) : [];
         if (count($selectedIds) > $maxCount) {
@@ -88,7 +82,6 @@ class ClozeController extends Controller
         $customAvailable = $customWordQuery?->count() ?? 0;
         $available = $query->count() + $customAvailable;
 
-        // In setup mode: return selectable word list
         $selectableWords = [];
         $selectableTruncated = false;
         if ($count === 0 && count($selectedIds) === 0) {
@@ -119,9 +112,6 @@ class ClozeController extends Controller
 
             $selectableWords = $regularSelectable->concat($customSelectable)->values()->all();
 
-            // A választható lista rendes szavaknál 500-ra, saját szavaknál
-            // 200-ra van vágva; ha az elérhető készlet ennél nagyobb, a UI
-            // ezt jelzi (a "Mind be" gomb nem jelölné ki a teljes készletet).
             $selectableTruncated = $query->count() > 500 || $customAvailable > 200;
         }
 
@@ -144,10 +134,6 @@ class ClozeController extends Controller
                 $customShare = $available > 0 ? (int) round($count * ($customAvailable / $available)) : 0;
                 $regularShare = $count - $customShare;
 
-                // Túligényléses (2×) fetch: a makeCloze ejti azokat a szavakat,
-                // amelyeknek egyik alakja sem szerepel a saját példamondatukban —
-                // a többletből pótoljuk őket, hogy a kör a kért darabszámú
-                // maradjon, amíg a szűrt készletből telik.
                 $regularWords = (clone $query)
                     ->inRandomOrder()
                     ->limit($regularShare * 2)
@@ -165,8 +151,6 @@ class ClozeController extends Controller
                     break;
                 }
 
-                // splitAll: a '/'-szeparált alternatívák ("got/gotten") külön
-                // alakként keresendők a példamondatban, együtt sosem szerepelnek.
                 $cloze = $this->makeCloze($word->example_en, WordFormVariants::splitAll([
                     $word->word,
                     $word->form_base,
@@ -224,9 +208,6 @@ class ClozeController extends Controller
 
             shuffle($items);
 
-            // Hány kért szóhoz nem készült feladat (egyik alakjuk sem szerepel
-            // a saját példamondatukban) — a frontend ebből jelzi, hogy a kör
-            // rövidebb a vártnál, néma csonkolás helyett.
             $missingCount = $useSelectedIds
                 ? $regularWords->count() + $customWords->count() - count($items)
                 : max(0, min($count, $available) - count($items));
@@ -250,10 +231,6 @@ class ClozeController extends Controller
         ]);
     }
 
-    /**
-     * A cloze-kör befejezése: streak-frissítés + streak-achievementek, a kvíz
-     * complete-mintájára — enélkül a csak cloze-zal gyakorló user streakje elhal.
-     */
     public function complete(Request $request, AchievementService $service): JsonResponse
     {
         if ($request->user()->updateStreak()) {
@@ -266,8 +243,6 @@ class ClozeController extends Controller
     }
 
     /**
-     * Find the first matching word form in the sentence and replace it with _____.
-     *
      * @param  array<string>  $forms
      * @return array{sentence: string, answer: string}|null
      */
@@ -281,11 +256,6 @@ class ClozeController extends Controller
             $pattern = '/\b'.preg_quote($form, '/').'\b/iu';
 
             if (preg_match($pattern, $example, $matches)) {
-                // A mondatban ténylegesen szereplő alakot tartjuk meg, az eredeti
-                // kis/nagybetűvel — mondatkezdő szónál a „Honesty" olvashatóbb, mint
-                // a „honesty". A helyesség-ellenőrzés a kliensen amúgy is
-                // kis/nagybetű-független (normalize()), így a megjelenített casing
-                // szabadon követheti a mondatot.
                 $answer = $matches[0];
                 $sentence = preg_replace($pattern, '_____', $example, 1);
 

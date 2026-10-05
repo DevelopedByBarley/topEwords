@@ -33,11 +33,6 @@ export default function PasswordInput({
                     }}
                     {...props}
                 />
-                {/*
-                 * A gomb szándékosan a natív tab-sorrendben marad: a jelszó
-                 * visszaolvasása pont annak a felhasználónak segít a legtöbbet,
-                 * aki nem egérrel dolgozik. Korábban ki volt véve belőle.
-                 */}
                 <button
                     type="button"
                     onClick={() => setShowPassword((prev) => !prev)}
@@ -62,10 +57,6 @@ export default function PasswordInput({
                 </button>
             </div>
 
-            {/*
-             * Bekapcsolt Caps Lock mellett a takart jelszó elgépelése láthatatlan,
-             * és a felhasználó a fiókját hiszi elveszettnek — ezért jelezzük.
-             */}
             {capsLockOn && (
                 <p
                     role="status"

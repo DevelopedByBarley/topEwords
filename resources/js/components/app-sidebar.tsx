@@ -12,8 +12,6 @@ import {
     Medal,
     ScanText,
     Sparkles,
-    // Induláskor kivezetve (2026-07-26) a „Gyakorlás" csoporttal együtt:
-    // NotebookPen, PenLine, Shuffle, Swords,
 } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
@@ -38,10 +36,6 @@ import { index as flashcardsIndex } from '@/routes/flashcards';
 import { index as reportIndex } from '@/routes/report';
 import { show as textAnalysisShow } from '@/routes/text-analysis';
 import { index as wordsIndex } from '@/routes/words';
-// Induláskor kivezetve (2026-07-26) — a route-ok kikommentelve, így ezek a
-// Wayfinder-akciók nem generálódnak. Visszahozáskor együtt élesítendők:
-// import { index as irregularVerbsIndex } from '@/routes/irregular-verbs';
-// import { cloze as wordsCloze, practice as wordsPractice, quiz as wordsQuiz } from '@/routes/words';
 import type { NavItem } from '@/types';
 
 const tanulasTailItems: NavItem[] = [
@@ -65,9 +59,6 @@ const navGroups: { label?: string; items: NavItem[] }[] = [
     {
         items: [
             {
-                // A menüpont neve megegyezik az oldal címével („Haladás”), a
-                // vegyes tartalmú csoport pedig „Továbbiak” lett — korábban két
-                // különböző dolgot hívtunk ugyanúgy.
                 title: 'Haladás',
                 href: dashboard(),
                 icon: LayoutGrid,
@@ -101,30 +92,9 @@ const navGroups: { label?: string; items: NavItem[] }[] = [
             },
         ],
     },
-    // INDULÁSKOR KIVEZETVE (2026-07-26): a „Gyakorlás" csoport elemei kikerültek
-    // az induló feature-körből. A csoport maga üresen marad a tömbben, mert a
-    // render pozíció szerint indexeli a navGroups-ot ([3] = Haladás).
     {
         label: 'Gyakorlás',
         items: [
-            // {
-            //     title: 'Kvíz',
-            //     href: wordsQuiz(),
-            //     icon: Swords,
-            //     tourId: 'tour-quiz',
-            // },
-            // {
-            //     title: 'Mondatkiegészítés',
-            //     href: wordsCloze(),
-            //     icon: PenLine,
-            //     tourId: 'tour-cloze',
-            // },
-            // {
-            //     title: 'Rendhagyó igék',
-            //     href: irregularVerbsIndex.url(),
-            //     icon: Shuffle,
-            //     tourId: 'tour-irregular-verbs',
-            // },
         ],
     },
     {
@@ -150,20 +120,12 @@ const navGroups: { label?: string; items: NavItem[] }[] = [
     },
 ];
 
-/**
- * A bővítmény menüpontja mindenkinek látszik. Amíg a store-listing nem él
- * (`CHROME_WEB_STORE_URL` üres), a kézikönyv bővítmény-szekciójára visz;
- * beállított linkkel új lapon nyíló store-link lesz belőle.
- */
 function extensionNavItem(storeUrl: string | null): NavItem {
     return storeUrl
         ? { title: 'Chrome bővítmény', href: storeUrl, icon: Chrome, isExternal: true }
         : { title: 'Chrome bővítmény', href: '/handbook#extension', icon: Chrome };
 }
 
-// A „Letöltések" oldal `can:admin` mögé került (routes/web.php): a felhasználók
-// a store-ból telepítenek, a fejlesztői .zip és a Player buildjei viszont itt
-// maradnak elérhetők — ez a menüpont csak adminnak jelenik meg.
 const adminNavItems: NavItem[] = [
     {
         title: 'Letöltések (dev)',
@@ -186,10 +148,6 @@ export function AppSidebar() {
     const isAdmin: boolean = (props as any)?.auth?.isAdmin ?? false;
     const extensionStoreUrl: string | null =
         (props as any)?.extensionStoreUrl ?? null;
-    // A „Mappák" gomb csak a szólista-oldalon jelenik meg. A korábbi
-    // quiz/cloze/practice kizárások az induláskor kivezetett gyakorlókat
-    // szűrték ki; azok route-jai megszűntek (routes/words.php), így az
-    // aloldal-kizárás egyetlen szabályra egyszerűsödött.
     const isOnWordsPage = url.startsWith(wordsIndex.url());
 
     return (
@@ -295,31 +253,6 @@ export function AppSidebar() {
                     </SidebarMenu>
                 </SidebarGroup>
 
-                {/*
-                  * INDULÁSKOR KIVEZETVE (2026-07-26): a teljes „Gyakorlás"
-                  * csoport (Kvíz, Mondatkiegészítés, Rendhagyó igék, Szabad
-                  * írás) nem része az induló feature-körnek. A route-ok is
-                  * kikommentelve a routes/words.php-ban. Visszahozáskor ez a
-                  * blokk és a hozzá tartozó importok élesíthetők újra.
-                  *
-                  * <NavMain
-                  *     label={navGroups[2].label}
-                  *     items={[
-                  *         ...navGroups[2].items,
-                  *         ...(isAdmin
-                  *             ? [
-                  *                   {
-                  *                       title: 'Szabad írás',
-                  *                       href: wordsPractice(),
-                  *                       icon: NotebookPen,
-                  *                       isAi: true,
-                  *                       tourId: 'tour-practice',
-                  *                   },
-                  *               ]
-                  *             : []),
-                  *     ]}
-                  * />
-                  */}
                 <NavMain
                     label={navGroups[3].label}
                     items={[

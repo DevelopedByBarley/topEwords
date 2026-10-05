@@ -11,7 +11,6 @@ Route::middleware(['auth'])->group(function () {
     Route::redirect('settings', '/settings/profile');
 
     Route::get('settings/profile', [ProfileController::class, 'edit'])->name('profile.edit')->middleware('throttle:60,1,settings-view');
-    // Az e-mail-váltás verifikációs levelet küld — a szűk sapka az email-bombingot fogja meg.
     Route::patch('settings/profile', [ProfileController::class, 'update'])->name('profile.update')->middleware('throttle:6,1,profile-update');
 });
 

@@ -17,26 +17,6 @@ use Symfony\Component\Console\Output\BufferedOutput;
 
 uses(RefreshDatabase::class);
 
-/**
- * F2-W-3 / REC-1: az időzített Stripe-egyeztetés döntési logikája ÉS a kör-féke.
- *
- * A Stripe webhookok legalább-egyszer és sorrend nélkül érkeznek; egy végleg elveszett
- * customer.subscription.deleted a helyi sort tartósan aktívan hagyná (beragadt
- * „ingyen prémium"). A parancs a Stripe-ot tekinti igazságforrásnak.
- *
- * REC-1 kör-fék: egy rossz módú/fiókú STRIPE_SECRET a Stripe MINDEN retrieve-jére
- * resource_missing-et adna → a parancs fék nélkül lezárná az ÖSSZES fizető állományt.
- * A kör-fék: ha egy futás az aktív állomány túl nagy hányadát zárná le, NEM zár le
- * semmit, hanem riaszt és FAILURE-rel kilép.
- *
- * A Stripe HTTP-rétegének felépítése helyett a döntési logikát (reconcile) mockolt
- * Subscription-nel, a handle()-szintű féket pedig előre-programozott döntés-térképpel
- * gyakoroljuk (lásd ReconcilerProbe / KillSwitchProbe).
- */
-
-/**
- * A parancs protected reconcile()-jét publikussá tevő teszt-alosztály.
- */
 class ReconcilerProbe extends ReconcileStripeSubscriptions
 {
     public function reconcilePublic(Subscription $subscription, bool $dryRun = false): CloseDecision|ReconcileOutcome
@@ -53,39 +33,25 @@ class ReconcilerProbe extends ReconcileStripeSubscriptions
     }
 }
 
-/**
- * A handle() kör-fékét HTTP nélkül tesztelő alosztály: a reconcile()-t egy előre
- * megadott döntés-térképpel (stripe_id → döntés) helyettesíti, így valós DB-sorokon
- * futtatható a teljes fék-logika a Stripe-hívás felépítése nélkül. Rögzíti, mely
- * sorok kerültek ténylegesen lezárásra (closeDeadSubscription meghívva).
- */
 class KillSwitchProbe extends ReconcileStripeSubscriptions
 {
-    /** @var array<string, CloseDecision|ReconcileOutcome> stripe_id → döntés */
+    /** @var array<string, CloseDecision|ReconcileOutcome> */
     public array $decisions = [];
 
-    /** @var array<int, string> a ténylegesen lezárt subok stripe_id-jai */
+    /** @var array<int, string> */
     public array $closed = [];
 
-    /** A fiók-ellenőrzés (Pro ár lekérése) eredménye — HTTP nélkül. */
     public bool $accountVerified = true;
 
-    /** Hányszor kérdezte meg a parancs a fiók-ellenőrzést. */
     public int $accountChecks = 0;
 
-    /** @var array<int, string> a parancs által egyeztetésre kiválasztott subok stripe_id-jai */
+    /** @var array<int, string> */
     public array $examined = [];
 
     public BufferedOutput $buffer;
 
     /**
-     * A handle() a $this->info()/$this->error()-t hívja, ami setInput/setOutput nélkül
-     * (közvetlen hívásnál, nem artisan()-on át) null $output-ra írna. Bekötünk egy
-     * buffered output-ot, hogy a fék-logika HTTP és Stripe nélkül futtatható legyen.
-     * A #[Signature] attribútum nem öröklődik az alosztályra, ezért az opciókat a
-     * valódi parancs definíciójával kötjük be.
-     *
-     * @param  array<string, mixed>  $options  pl. ['--dry-run' => true]
+     * @param  array<string, mixed>  $options
      */
     public function runHandle(array $options = []): int
     {
@@ -117,10 +83,6 @@ class KillSwitchProbe extends ReconcileStripeSubscriptions
     }
 }
 
-/**
- * Egy Stripe-státuszt visszaadó, mockolt előfizetés — a retrieve egy sima
- * (status property-vel bíró) objektumot ad, ahogy a Stripe SDK is tenné.
- */
 function mockSubscriptionReturningStripeStatus(string $localStatus, string $stripeStatus): Subscription&MockInterface
 {
     $subscription = Mockery::mock(Subscription::class)->makePartial();
@@ -132,9 +94,6 @@ function mockSubscriptionReturningStripeStatus(string $localStatus, string $stri
 }
 
 /**
- * N darab helyileg AKTÍV előfizetés-sor egy-egy friss userhez (az active() scope-ba
- * esnek: stripe_status='active', ends_at=null). Visszaadja a stripe_id-k tömbjét.
- *
  * @return array<int, string>
  */
 function seedActiveSubscriptions(int $count): array
@@ -158,12 +117,9 @@ function seedActiveSubscriptions(int $count): array
     return $stripeIds;
 }
 
-// ── reconcile() döntési logika ────────────────────────────────────────────────
-
 test('a Stripe-nál törölt (canceled) előfizetésre lezárás-döntést ad', function () {
     $subscription = mockSubscriptionReturningStripeStatus(localStatus: 'active', stripeStatus: 'canceled');
 
-    // A close-ágon NEM ír DB-t (a handle() teszi, a fék után) — csak döntést ad.
     $subscription->shouldNotReceive('markAsCanceled');
     $subscription->shouldNotReceive('syncStripeStatus');
 
@@ -199,7 +155,6 @@ test('a Stripe-nál is aktív előfizetést nem bántja (Unchanged)', function (
 test('az eltérő, de élő státuszt (pl. past_due) szinkronizálja, nem zárja le', function () {
     $subscription = mockSubscriptionReturningStripeStatus(localStatus: 'active', stripeStatus: 'past_due');
 
-    // A Stripe-nál él (past_due), csak elveszett egy frissítés → szinkron, NEM lezárás.
     $subscription->shouldReceive('syncStripeStatus')->once();
     $subscription->shouldNotReceive('markAsCanceled');
 
@@ -207,9 +162,6 @@ test('az eltérő, de élő státuszt (pl. past_due) szinkronizálja, nem zárja
 });
 
 test('a resource_missingtől eltérő Stripe-hibát nem nyeli el (nem zár le tévedésből)', function () {
-    // Átmeneti Stripe-hiba (pl. rate_limit) NEM jelenti, hogy az előfizetés halott —
-    // a kivételnek tovább kell buknia, hogy a handle() hibaágán naplózódjon, és a sor
-    // érintetlen maradjon. Semmiképp nem zárhatunk le élő előfizetést egy API-hiba miatt.
     $subscription = Mockery::mock(Subscription::class)->makePartial();
     $subscription->stripe_status = 'active';
     $subscription->shouldReceive('asStripeSubscription')
@@ -222,10 +174,7 @@ test('a resource_missingtől eltérő Stripe-hibát nem nyeli el (nem zár le t�
         ->toThrow(InvalidRequestException::class);
 });
 
-// ── REC-1 kör-fék (handle-szint, valós DB-sorokon) ────────────────────────────
-
 test('REC-1: a kör-fék NEM zár le semmit, ha a lezárás-jelöltek a küszöb fölött az állomány többségét érintik', function () {
-    // 10 aktív sor, mind resource_missing (a rossz módú STRIPE_SECRET esete) → 100%.
     $stripeIds = seedActiveSubscriptions(10);
 
     $probe = new KillSwitchProbe;
@@ -235,14 +184,12 @@ test('REC-1: a kör-fék NEM zár le semmit, ha a lezárás-jelöltek a küszöb
 
     $exitCode = $probe->runHandle();
 
-    // A fék tripelt: SEMMI nem záródott le, FAILURE-rel tért vissza, az állomány érintetlen.
     expect($probe->closed)->toBeEmpty();
     expect($exitCode)->toBe(ReconcileStripeSubscriptions::FAILURE);
     expect(Subscription::query()->active()->count())->toBe(10);
 });
 
 test('REC-1: a kör-fék ENGEDI a lezárást, ha csak néhány sor (küszöb alatti darabszám) halott', function () {
-    // 100 aktív sorból csak 3 halott → 3% és 3 < küszöb (5) → a fék NEM aktív, lezár.
     $stripeIds = seedActiveSubscriptions(100);
 
     $probe = new KillSwitchProbe;
@@ -253,14 +200,12 @@ test('REC-1: a kör-fék ENGEDI a lezárást, ha csak néhány sor (küszöb ala
 
     $exitCode = $probe->runHandle();
 
-    // A 3 halott lezárult, a többi érintetlen, SUCCESS.
     expect($probe->closed)->toHaveCount(3);
     expect($exitCode)->toBe(ReconcileStripeSubscriptions::SUCCESS);
     expect(Subscription::query()->active()->count())->toBe(97);
 });
 
 test('REC-1: a küszöb (5) fölötti, de az állomány kisebbségét érintő lezárás átmegy', function () {
-    // 100 aktív sorból 10 halott → 10% ≤ 50% (a fél alatt) ÉS 10 ≥ 5 → a fék NEM tripel, lezár.
     $stripeIds = seedActiveSubscriptions(100);
 
     $probe = new KillSwitchProbe;
@@ -277,7 +222,6 @@ test('REC-1: a küszöb (5) fölötti, de az állomány kisebbségét érintő l
 });
 
 test('REC-1: kis állományon a fék nem akad be (1 sorból 1 lezárás = 100%, de a küszöb alatt)', function () {
-    // A legitim „1-2 beragadt sor" apró állományon: 2 sorból 1 halott → 50% de 1 < küszöb (5).
     $stripeIds = seedActiveSubscriptions(2);
 
     $probe = new KillSwitchProbe;
@@ -290,11 +234,7 @@ test('REC-1: kis állományon a fék nem akad be (1 sorból 1 lezárás = 100%, 
     expect(Subscription::query()->active()->count())->toBe(1);
 });
 
-// ── F9A-L2: fiók-ellenőrzés, inkluzív fék-határ, dry-run ──────────────────────
-
 test('F9A-L2: rossz fiókú kulcsnál kis állományon sem zár le semmit (a fék 5 alatt nem véd)', function () {
-    // Élesítéskor 1–4 előfizető, a kulcs egy másik fiókhoz tartozik → minden
-    // retrieve resource_missing. A kör-fék itt nem aktív, a fiók-ellenőrzés fogja meg.
     $stripeIds = seedActiveSubscriptions(3);
 
     $probe = new KillSwitchProbe;
@@ -322,7 +262,6 @@ test('F9A-L2: igazolt fiókkal a valódi resource_missing lezárása 1 előfizet
 });
 
 test('F9A-L2: Stripe-státusz alapú (canceled) lezárásnál nincs fiók-ellenőrzés — a kulcs bizonyítottan jó', function () {
-    // A „canceled" választ csak a helyes fiók adhatja, így ez az út nem függ a Pro ártól.
     $stripeIds = seedActiveSubscriptions(3);
 
     $probe = new KillSwitchProbe;
@@ -393,10 +332,6 @@ test('F9A-L2: a --dry-run kapcsoló a valódi parancson regisztrálva van', func
         ->assertSuccessful();
 });
 
-/**
- * A stripe-php HTTP-rétegét helyettesítő hamis kliens: a Pro ár lekérésére a megadott
- * státusszal felel, és rögzíti a hívott URL-eket. Valódi Stripe-hívás nem indul.
- */
 function fakeStripePriceEndpoint(int $status): ArrayObject
 {
     $calls = new ArrayObject;
@@ -436,11 +371,6 @@ test('F9A-L2: a fiók-ellenőrzés a konfigurált Pro árat kéri le a Stripe-t�
     'az ár ismeretlen → rossz fiókú/módú kulcs' => [404, false],
 ]);
 
-// ── F9A-L4: a lezárt trialing sor nem ad hozzáférést a trial végéig ─────────
-
-/**
- * Egy userhez egy helyileg trialing, jövőbeli trial_ends_at-ű előfizetés.
- */
 function seedTrialingSubscription(array $userAttributes = []): User
 {
     $user = User::factory()->create(['stripe_id' => 'cus_'.uniqid(), ...$userAttributes]);
@@ -489,18 +419,11 @@ test('F9A-L4: a lezárás nem nyit új ingyenes próbaidőt, és az admin-ajánd
 
     $user->refresh();
 
-    // Az előfizetés-rekord megmaradt → a trial-jogosultság továbbra sincs meg.
     expect($user->isEligibleForSubscriptionTrial())->toBeFalse()
-        // A users.trial_ends_at (admin-adta hónap) érintetlen, és továbbra is prémiumot ad.
         ->and($user->trial_ends_at->timestamp)->toBe($giftEndsAt->timestamp)
         ->and($user->currentPlan())->toBe('premium');
 });
 
-// ── F9A-L3: a past_due / unpaid sorokat is egyezteti ─────────────────────────
-
-/**
- * Egy userhez egy adott helyi státuszú előfizetés-sor. Visszaadja a stripe_id-t.
- */
 function seedSubscriptionWithStatus(string $status, ?CarbonInterface $endsAt = null): string
 {
     $user = User::factory()->create(['stripe_id' => 'cus_'.uniqid()]);
@@ -555,7 +478,6 @@ test('F9A-L3: a Stripe-nál már törölt unpaid sort lezárja', function () {
 test('F9A-L3: a past_due sorok lezárására is érvényes a fiók-ellenőrzés és a kör-fék', function () {
     $stripeIds = [seedSubscriptionWithStatus('past_due'), seedSubscriptionWithStatus('unpaid')];
 
-    // Rossz fiókú kulcs: minden retrieve resource_missing — a past_due/unpaid sorok sem záródhatnak le.
     $probe = new KillSwitchProbe;
     $probe->accountVerified = false;
     foreach ($stripeIds as $id) {
@@ -565,7 +487,6 @@ test('F9A-L3: a past_due sorok lezárására is érvényes a fiók-ellenőrzés 
     expect($probe->runHandle())->toBe(ReconcileStripeSubscriptions::FAILURE)
         ->and($probe->closed)->toBeEmpty();
 
-    // Kör-fék: 6 vizsgált sorból 5 lezárás-jelölt (≥ 50%, ≥ 5) → semmit nem zár le.
     $more = [seedSubscriptionWithStatus('past_due'), seedSubscriptionWithStatus('past_due'), seedSubscriptionWithStatus('unpaid')];
     seedSubscriptionWithStatus('active');
 

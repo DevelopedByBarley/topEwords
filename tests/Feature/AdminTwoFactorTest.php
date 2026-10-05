@@ -4,11 +4,6 @@ use App\Http\Middleware\EnsureAdminHasTwoFactor;
 use App\Models\User;
 use App\Models\Word;
 
-/**
- * Az admin-felület csak megerősített 2FA-val érhető el (F9C-L2): egy
- * kiszivárgott admin-jelszó önmagában ne adja a teljes userbázist, az ingyenes
- * Pro-hozzáférést és a közös szótár szerkesztését.
- */
 beforeEach(function () {
     config(['app.admin_email' => 'admin@example.com']);
 });

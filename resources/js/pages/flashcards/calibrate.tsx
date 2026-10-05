@@ -166,8 +166,6 @@ export default function FlashcardCalibrate({
 
             setCounts((prev) => ({ ...prev, [rating]: prev[rating] + 1 }));
 
-            // Fire-and-forget, but surface failures (expired session, 500) —
-            // otherwise calibration ratings are lost silently.
             postJson(rateCard(deck.id).url, {
                 flashcard_id: current.id,
                 rating,
@@ -413,7 +411,6 @@ export default function FlashcardCalibrate({
             <Head title={`Kalibráció · ${deck.name}`} />
 
             <div className="mx-auto flex min-h-[80vh] max-w-2xl flex-col px-4 py-6">
-                {/* Header */}
                 <div className="mb-6 flex items-center justify-between">
                     <Link
                         href={show(deck.id)}
@@ -441,7 +438,6 @@ export default function FlashcardCalibrate({
                     </div>
                 </div>
 
-                {/* Inline settings panel */}
                 {showSettings && (
                     <div className="mb-6 flex flex-col gap-3 rounded-xl border bg-card p-4">
                         <p className="text-xs text-muted-foreground">
@@ -484,7 +480,6 @@ export default function FlashcardCalibrate({
                     </div>
                 )}
 
-                {/* Progress bar */}
                 <div className="mb-8 h-1 w-full overflow-hidden rounded-full bg-muted">
                     <div
                         className="h-full rounded-full bg-primary transition-all duration-300"
@@ -498,7 +493,6 @@ export default function FlashcardCalibrate({
                     </div>
                 )}
 
-                {/* Card */}
                 <div
                     className="mb-6 overflow-hidden rounded-2xl border bg-card shadow-sm"
                     style={
@@ -517,7 +511,6 @@ export default function FlashcardCalibrate({
                             </span>
                         </div>
                     )}
-                    {/* Question side */}
                     <div className="p-6 text-center">
                         <p className="mb-2 text-[10px] tracking-wide text-muted-foreground uppercase">
                             {current.calibration_direction === 'front_to_back'
@@ -604,7 +597,6 @@ export default function FlashcardCalibrate({
                     )}
                 </div>
 
-                {/* Rating buttons — only visible after flip */}
                 {showBack ? (
                     <>
                         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">

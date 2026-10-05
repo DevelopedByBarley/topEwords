@@ -40,7 +40,6 @@ function grammarIssueText(
     return issue.explanation_hu ?? issue.issue ?? JSON.stringify(issue);
 }
 
-/** AI-alapú mondatírás gyakorló modal egy adott szóhoz. */
 export default function PracticeModal({ word, onClose }: PracticeModalProps) {
     const [text, setText] = useState('');
     const [loading, setLoading] = useState(false);

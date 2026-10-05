@@ -6,10 +6,6 @@ use App\Notifications\TwoFactorChallengeFailing;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 
-/**
- * Sorozatos hibás 2FA-kód → e-mail a fióktulajdonosnak (F9C-L5). A challenge-ig
- * csak a jelszó birtokában lehet eljutni, tehát ez kiszivárgott jelszóra utal.
- */
 function loginToTwoFactorChallenge(User $user): void
 {
     test()->post(route('login'), ['email' => $user->email, 'password' => 'password'])
@@ -55,7 +51,6 @@ test('egy órán belül legfeljebb egy levél megy ki, akárhány hiba jön', fu
 
     for ($i = 0; $i < NotifyUserOfTwoFactorFailures::THRESHOLD * 2; $i++) {
         $this->post(route('two-factor.login.store'), ['recovery_code' => "wrong-{$i}"]);
-        // A percenkénti limiter ne állítsa meg a próbákat a teszt közben.
         $this->travel(15)->seconds();
     }
 

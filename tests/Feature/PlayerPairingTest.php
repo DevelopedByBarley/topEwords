@@ -9,8 +9,6 @@ beforeEach(function () {
 });
 
 /**
- * Elindít egy párosítást az API-n és visszaadja a lejátszónak szánt választ.
- *
  * @return array{user_code: string, poll_secret: string, verification_url: string}
  */
 function startPairing(): array
@@ -20,16 +18,12 @@ function startPairing(): array
         ->json();
 }
 
-// ── Párosítás indítása ────────────────────────────────────────────────────────
-
 test('pair returns a user code and poll secret without authentication', function () {
     $pair = startPairing();
 
     expect($pair['user_code'])->toMatch('/^[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$/')
         ->and($pair['poll_secret'])->toHaveLength(64)
         ->and($pair['verification_url'])->toContain('/player/connect')
-        // A kód szándékosan NINCS az URL-ben: a felhasználó kézzel írja be,
-        // így egy kapott link nem tehet egy-kattintásossá idegen jóváhagyást.
         ->and($pair['verification_url'])->not->toContain($pair['user_code']);
 });
 
@@ -65,15 +59,11 @@ test('pair deletes expired pairing requests', function () {
     expect(PlayerPairing::where('user_code', 'AAAA-BBBB')->exists())->toBeFalse();
 });
 
-// ── Jóváhagyás a böngészőben ──────────────────────────────────────────────────
-
 test('connect page requires authentication', function () {
     $this->get(route('player.connect'))->assertRedirect(route('login'));
 });
 
 test('connect page ignores a code passed in the url', function () {
-    // Phishing-védelem: hiába érkezik kód az URL-ben, az oldal nem tölti elő —
-    // a felhasználónak a lejátszóban látott kódot kézzel kell beírnia.
     $this->actingAs($this->user)
         ->get(route('player.connect', ['code' => 'abcd efgh']))
         ->assertSuccessful()
@@ -138,8 +128,6 @@ test('approve requires authentication', function () {
     $this->post(route('player.approve'), ['code' => 'XXXX-XXXX'])->assertRedirect(route('login'));
 });
 
-// ── Token-beváltás ────────────────────────────────────────────────────────────
-
 test('exchange returns pending before approval', function () {
     $pair = startPairing();
 
@@ -163,7 +151,6 @@ test('exchange returns a working token after approval and is single use', functi
         'user' => ['email' => $this->user->email],
     ]);
 
-    // A párosítási sor törlődött → a beváltás nem ismételhető.
     expect(PlayerPairing::count())->toBe(0);
 
     $this->postJson(route('player.pair.exchange'), [
@@ -171,7 +158,6 @@ test('exchange returns a working token after approval and is single use', functi
         'poll_secret' => $pair['poll_secret'],
     ])->assertNotFound();
 
-    // A kapott token használható a player API-n.
     $this->flushHeaders();
 
     $this->getJson(route('player.me'), ['Authorization' => 'Bearer '.$response->json('token')])
@@ -219,11 +205,6 @@ test('exchange rejects and deletes an expired pairing', function () {
     expect(PlayerPairing::count())->toBe(0);
 });
 
-// ── A player API védelme ──────────────────────────────────────────────────────
-
-/**
- * Végigviszi a teljes párosítást és visszaadja a kiadott Bearer tokent.
- */
 function issuePlayerToken(User $user): string
 {
     $pair = startPairing();

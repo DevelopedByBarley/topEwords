@@ -3,7 +3,6 @@
 use App\Http\Controllers\AdminController;
 use Illuminate\Support\Facades\Route;
 
-// Az `admin.2fa` megerősített kétlépcsős azonosítást kér (F9C-L2).
 Route::middleware(['auth', 'verified', 'can:admin', 'admin.2fa'])->group(function () {
     Route::get('admin', [AdminController::class, 'index'])->name('admin');
     Route::post('admin/access', [AdminController::class, 'setAccess'])->name('admin.access.set');

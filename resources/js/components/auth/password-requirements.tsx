@@ -1,9 +1,5 @@
 import { cn } from '@/lib/utils';
 
-/**
- * A `Password::defaults()` élesben érvényes szabályai (AppServiceProvider).
- * Csak tájékoztat — a beküldést nem tiltja, az érdemi ellenőrzés a szerveré.
- */
 const rules: { label: string; isMet: (value: string) => boolean }[] = [
     { label: 'legalább 12 karakter', isMet: (v) => v.length >= 12 },
     {
@@ -14,7 +10,6 @@ const rules: { label: string; isMet: (value: string) => boolean }[] = [
     { label: 'speciális karakter', isMet: (v) => /[^\p{L}\p{N}]/u.test(v) },
 ];
 
-/** „a, b és c” — felsorolás magyar kötőszóval. */
 function joinLabels(labels: string[]): string {
     if (labels.length < 2) {
         return labels.join('');
@@ -23,12 +18,6 @@ function joinLabels(labels: string[]): string {
     return `${labels.slice(0, -1).join(', ')} és ${labels[labels.length - 1]}`;
 }
 
-/**
- * Tömör jelszó-visszajelzés: egy négyszegmensű sáv és egyetlen szöveges sor.
- *
- * Pipás felsorolás volt itt, de keskeny hasábban rendezetlenül tördelődött —
- * ez a forma egy-két sorban elfér, és csak a még hiányzó feltételeket mondja ki.
- */
 export default function PasswordRequirements({
     id,
     value,

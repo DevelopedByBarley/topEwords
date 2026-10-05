@@ -4,20 +4,12 @@ use App\Models\User;
 use App\Services\AiUsageService;
 use Illuminate\Support\Facades\Http;
 
-/**
- * Az AI-keret figyelmeztetése megosztott propon (`aiBudgetWarning`) megy minden
- * belső oldalra, de csak akkor tartalmaz adatot, ha a keret tényleg fogyni
- * kezdett — állandó keret-kijelző szándékosan nincs.
- */
 function freeAiLimit(): int
 {
     return (int) config('plans.limits.free.ai_budget_micros');
 }
 
 /**
- * Beállítja a felhasznált keretet úgy, hogy a periódus-váltó reset ne nullázza
- * (jövőbeli `ai_credits_reset_at`).
- *
  * @param  array<string, mixed>  $attributes
  */
 function userWithAiUsage(int $usedMicros, array $attributes = []): User
@@ -67,8 +59,6 @@ test('a kimerült keret „exhausted" szintet és 0%-ot ad', function () {
 });
 
 test('a maradék százalék felfelé kerekít, így a még használható keret sosem 0%', function () {
-    // Egyetlen mikro-dollár maradt: a lefelé kerekítés itt 0%-ot adna, ami
-    // kimerültnek mutatná a még használható keretet.
     $this->actingAs(userWithAiUsage(freeAiLimit() - 1))
         ->get('/dashboard')
         ->assertSuccessful()
@@ -100,20 +90,6 @@ test('vendégként a prop null, nem hasal el a hiányzó felhasználón', functi
         ->assertInertia(fn ($page) => $page->where('aiBudgetWarning', null));
 });
 
-/*
-|--------------------------------------------------------------------------
-| Élő frissítés: az AI-végpontok válasza (`ai.budget` middleware)
-|--------------------------------------------------------------------------
-|
-| A megosztott prop csak oldalváltáskor frissül, ezért a keretet fogyasztó
-| végpontok a válaszukban is visszaadják a hívás UTÁNI keret-állapotot — így a
-| sáv a keret elfogyásának pillanatában megjelenik, extra kérés nélkül.
-*/
-
-/**
- * A Gemini-válasz mockolása. inTok=300 + outTok=250 a gemini-2.5-flash-lite
- * áraival 130 mikro-dollár tényleges költség.
- */
 function fakeGeminiForBudget(array $json): void
 {
     config(['services.gemini.api_key' => 'test-key']);
@@ -144,7 +120,6 @@ test('a sikeres AI-hívás válasza tartalmazza a keret-állapotot, küszöb ala
 test('a küszöb fölötti hívás válasza a hívás utáni „low" állapotot adja', function () {
     fakeGeminiForBudget(['meaning_hu' => 'teszt', 'part_of_speech' => 'noun']);
 
-    // A küszöb fölött, de a becsült foglalás még belefér a keretbe.
     $used = (int) floor(freeAiLimit() * 0.875);
 
     $this->actingAs(userWithAiUsage($used))

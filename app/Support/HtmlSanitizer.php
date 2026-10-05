@@ -5,21 +5,6 @@ namespace App\Support;
 use Dom\Element;
 use Dom\HTMLDocument;
 
-/**
- * A tanulókártyák rich-text mezőinek szerveroldali szűrése a tároláskor (F7-L3).
- *
- * A megjelenítés a `resources/js/lib/sanitize-html.ts` allowlistájával szűr —
- * ez a második réteg, hogy fegyverezett HTML (`<img onerror>`, `<script>`) be se
- * kerüljön az adatbázisba, és egy jövőbeli, szűrést kihagyó megjelenítési hely
- * (e-mail, export, új komponens) se nyisson stored XSS-t. Az allowlista a
- * kliensével bitre azonos; a HtmlSanitizerTest őrzi az egyezést.
- *
- * A HTML5-parser (`Dom\HTMLDocument`) ugyanúgy értelmezi a markupot, mint a
- * böngésző, így nincs parser-eltérésből adódó kerülőút. Ártalmatlan bemenetnél
- * az eredeti string bájtra változatlan marad — csak akkor írunk át, ha a szűrő
- * ténylegesen eltávolított valamit. PHP 8.4 alatt (nincs HTML5-parser) a bemenet
- * változatlan: ott a kliensoldali réteg véd.
- */
 class HtmlSanitizer
 {
     /** @var list<string> */
@@ -31,8 +16,6 @@ class HtmlSanitizer
     ];
 
     /**
-     * Ezek teljes részfával törlődnek (sosem bontjuk ki szöveggé).
-     *
      * @var list<string>
      */
     public const DROP_TAGS = [
@@ -56,7 +39,6 @@ class HtmlSanitizer
 
     public static function clean(?string $html): ?string
     {
-        // Markup nélkül nincs mit szűrni — a sima szöveg (pl. „rock & roll") érintetlen.
         if ($html === null || ! str_contains($html, '<') || ! self::isSupported()) {
             return $html;
         }
@@ -80,8 +62,6 @@ class HtmlSanitizer
 
     private static function sanitizeTree(Element $root): void
     {
-        // Pillanatkép a módosítás előtt; a törölt/kibontott elemek gyerekei is a
-        // listában vannak, és a saját körükben dolgozódnak fel (mint a kliensen).
         foreach (iterator_to_array($root->querySelectorAll('*')) as $element) {
             $tag = strtolower($element->localName);
 

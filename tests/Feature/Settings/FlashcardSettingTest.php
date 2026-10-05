@@ -138,7 +138,6 @@ test('shuffle_cards can be turned off (unchecked checkbox)', function () {
     $user = User::factory()->create();
     FlashcardSetting::factory()->for($user)->create(['shuffle_cards' => true]);
 
-    // An unchecked checkbox is omitted by the browser — simulate by not sending it.
     $this->actingAs($user)
         ->put(route('flashcard-settings.update'), [
             'new_cards_per_day' => 20,
@@ -162,7 +161,6 @@ test('shuffle_cards can be turned off (unchecked checkbox)', function () {
 test('an invalid learning step errors on an element-level key with a readable name', function () {
     $user = User::factory()->create();
 
-    // A kiürített lépés-mező a kliensen Number('') = 0-ként megy fel → min:1 bukik.
     $this->actingAs($user)
         ->put(route('flashcard-settings.update'), [
             'new_cards_per_day' => 20,

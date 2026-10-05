@@ -6,12 +6,6 @@ use App\Models\Report;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
-/**
- * Admin-értesítés új felhasználói bejelentésről. Enélkül csak az admin felület
- * badge-éből derülne ki, hogy jött valami — vagyis akkor, ha valaki magától
- * benéz oda. Szándékosan NEM ShouldQueue: a projektben egyetlen értesítés sem
- * queue-zott, és egy beteg worker mellett pont a bajról szóló levél maradna el.
- */
 class ReportSubmitted extends Notification
 {
     public function __construct(private readonly Report $report) {}
@@ -34,8 +28,6 @@ class ReportSubmitted extends Notification
             ->line("Kategória: {$category}");
 
         if ($reporter !== null) {
-            // Válasz-cím: az adminnak elég a levélre válaszolnia, nem kell
-            // kikeresnie a címet az admin felületről.
             $mail->replyTo($reporter->email, $reporter->name)
                 ->line("Bejelentő: {$reporter->name} ({$reporter->email})");
         }

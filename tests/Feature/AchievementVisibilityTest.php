@@ -4,11 +4,6 @@ use App\Models\User;
 use App\Models\UserAchievement;
 use App\Services\AchievementService;
 
-/**
- * A kivezetett funkciók (jelenleg: kvíz) teljesítményei nem jelenhetnek meg a
- * Teljesítmények oldalon, és nem is számíthatnak bele a haladásba — a
- * route-juk nélkül elérhetetlen célok lennének.
- */
 function onboardedUser(): User
 {
     return User::factory()->create(['onboarding_completed_at' => now()]);
@@ -28,8 +23,6 @@ test('a kivezetett csoportok teljesítményei nem látszanak a listában', funct
 test('a haladás csak a látható teljesítményekből számol', function () {
     $user = onboardedUser();
 
-    // Egy korábban (a kivezetés előtt) megszerzett kvíz-jelvény nem tolhatja
-    // 100% fölé a haladást.
     UserAchievement::create([
         'user_id' => $user->id,
         'achievement_key' => 'quiz_first',
@@ -58,12 +51,10 @@ test('a nézet minden mezőt megkap egy jelvény kirajzolásához', function () 
         ->flatMap(fn (array $group): array => $group['items'])
         ->firstWhere('key', 'custom_first');
 
-    // A Teljesítmények oldal ezekre a mezőkre épül: hiányuk néma UI-törés lenne.
     expect($item)->toHaveKeys(['key', 'title', 'description', 'icon', 'unlocked', 'unlocked_at'])
         ->and($item['unlocked'])->toBeTrue()
         ->and($item['unlocked_at'])->toBe(now()->format('Y. m. d.'));
 
-    // A zárolt jelvényeknél nincs dátum — a kártya ilyenkor a lakat-állapotot mutatja.
     $locked = collect($props['grouped'])
         ->flatMap(fn (array $group): array => $group['items'])
         ->firstWhere('key', 'custom_10');

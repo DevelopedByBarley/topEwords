@@ -3,7 +3,6 @@ import type { ReactNode } from 'react';
 interface FilterChipProps {
     active: boolean;
     onClick: () => void;
-    /** Aktív állapot színeinek felülírása (pl. státusz-specifikus szín) */
     activeClass?: string;
     title?: string;
     children: ReactNode;

@@ -5,11 +5,6 @@ use App\Models\User;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
-/**
- * Tartós Gemini-kiesés forgatókönyvei: riasztható error-log a teljes
- * lánc-kudarcról, circuit breaker a worker-kimerülés ellen, és a belső
- * reserve()-race helyes (429-es) hibaalakja.
- */
 beforeEach(function () {
     config(['services.gemini.api_key' => 'test-key']);
     config(['app.admin_email' => 'admin@example.com']);
@@ -25,8 +20,6 @@ function fakeGeminiOutage(): void
 }
 
 test('teljes lánc-kudarc error szinten logol, hogy az admin-riasztás kimenjen', function () {
-    // Az AlertAdminOfLoggedError csak error+ szintre riaszt; a próbánkénti
-    // warning nem elég — a lánc végső kudarcának error-nak kell lennie.
     Log::spy();
     fakeGeminiOutage();
 
@@ -47,12 +40,10 @@ test('a küszöbnyi lánc-kudarc kinyitja a breakert: azonnali 503 Gemini-hívá
 
     $user = User::factory()->create(['ai_access' => true]);
 
-    // Két teljes lánc-kudarc (kérésenként 2 modell × 2 próba = 4 hívás).
     $this->actingAs($user)->getJson(route('text-analysis.gemini-lookup', ['word' => 'dog']))->assertStatus(502);
     $this->actingAs($user)->getJson(route('text-analysis.gemini-lookup', ['word' => 'cat']))->assertStatus(502);
     Http::assertSentCount(8);
 
-    // A breaker nyitva: azonnali 503, upstream-hívás nélkül.
     $this->actingAs($user)
         ->getJson(route('text-analysis.gemini-lookup', ['word' => 'sun']))
         ->assertServiceUnavailable()
@@ -60,7 +51,6 @@ test('a küszöbnyi lánc-kudarc kinyitja a breakert: azonnali 503 Gemini-hívá
 
     Http::assertSentCount(8);
 
-    // A blokkolt kérés a havi AI-keretet sem foglalja (a kudarcok refundáltak).
     expect($user->fresh()->ai_credits_used)->toBe(0);
 });
 
@@ -76,13 +66,9 @@ test('sikeres válasz nullázza a breaker kudarc-számlálóját', function () {
     ];
 
     Http::fakeSequence('generativelanguage.googleapis.com/*')
-        // 1. kérés: teljes kudarc (kudarc #1).
         ->pushStatus(503)->pushStatus(503)->pushStatus(503)->pushStatus(503)
-        // 2. kérés: siker → a számláló nullázódik.
         ->push($ok)
-        // 3. kérés: teljes kudarc — de ez megint csak a #1, nem éri el a küszöböt.
         ->pushStatus(503)->pushStatus(503)->pushStatus(503)->pushStatus(503)
-        // 4. kérés: a breaker zárva maradt, az upstream-hívás lefut.
         ->push($ok);
 
     $user = User::factory()->create(['ai_access' => true]);
@@ -96,9 +82,6 @@ test('sikeres válasz nullázza a breaker kudarc-számlálóját', function () {
 });
 
 test('a belső reserve()-en elbukó kérés (keret-race) ai_limit kóddal 429-et kap', function () {
-    // Az aiLimitGuard elő-szűrőjét megkerülve hívjuk a callGeminit — így
-    // szimulálható a guard és a reserve() közti race, amikor a keret időközben
-    // kimerült: a válasznak a guarddal azonos alakú 429-nek kell lennie, nem 502-nek.
     Http::fake();
 
     $limit = (int) config('plans.limits.free.ai_budget_micros');

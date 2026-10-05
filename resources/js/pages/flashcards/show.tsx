@@ -193,12 +193,6 @@ export default function FlashcardShow({
             setEditingCard(card);
         }
     }, [flash?.importedCardId, flashcards]);
-    /**
-     * A kártyasorok esedékesség-címkéi ("3 nap múlva") nem másodperc-pontosak,
-     * ezért nem időzítőről frissülnek: a referenciaidő akkor számol újra,
-     * amikor a lista maga is (szerver-oldali frissüléskor). Így a hero
-     * visszaszámlálója nem rendereli újra az összes betöltött kártyasort.
-     */
     const [listNow, setListNow] = useState(() => Date.now());
 
     useEffect(() => {
@@ -221,8 +215,6 @@ export default function FlashcardShow({
     const hasDueCards = newDueCount + reviewDueCount > 0;
 
     useEffect(() => {
-        // A visszaszámláló csak akkor látszik, ha nincs esedékes kártya —
-        // különben az időzítő fölöslegesen dolgozna.
         if (!nextDueAt || hasDueCards) {
             return;
         }
@@ -337,11 +329,6 @@ export default function FlashcardShow({
 
     const clearSelection = () => setSelectedIds(new Set());
 
-    /**
-     * A kártyasorok `React.memo`-val vannak kihagyva az újrarenderelésből —
-     * ez csak akkor működik, ha a lefelé adott függvények referenciája is
-     * állandó marad.
-     */
     const handleEditCard = useCallback((card: Flashcard) => {
         setEditingCard(card);
         setShowNewForm(false);
@@ -384,7 +371,6 @@ export default function FlashcardShow({
             <Head title={deck.name} />
 
             <div className="mx-auto flex h-full w-full max-w-[2000px] flex-1 flex-col gap-6 p-4 md:p-6 xl:px-10 2xl:px-16">
-                {/* Hero: deck info + study CTA */}
                 <div
                     className="relative overflow-hidden rounded-3xl p-6 md:p-8"
                     style={{
@@ -426,8 +412,6 @@ export default function FlashcardShow({
                             )}
                         </div>
 
-                        {/* A due-számok nem deferred propok, így a fő akció
-                            azonnal látszik — nem várunk a kártyalistára. */}
                         {(flashcards === undefined || flashcards.length > 0) &&
                             (() => {
                                 const dueCount = newDueCount + reviewDueCount;
@@ -505,7 +489,6 @@ export default function FlashcardShow({
                     </div>
                 </div>
 
-                {/* Calibration banner */}
                 {uncalibratedCount > 0 && (
                     <div className="flex flex-col justify-between gap-3 rounded-2xl bg-amber-50 px-4 py-4 sm:flex-row sm:items-center sm:px-5 dark:bg-amber-950/30">
                         <div>
@@ -537,14 +520,12 @@ export default function FlashcardShow({
                     </div>
                 )}
 
-                {/* Flash message */}
                 {flash?.success && (
                     <div className="rounded-md border border-green-500/30 bg-green-500/10 px-4 py-2.5 text-sm text-green-700 dark:text-green-400">
                         {flash.success}
                     </div>
                 )}
 
-                {/* Calibration modal */}
                 <Dialog
                     open={showCalibrateModal}
                     onOpenChange={setShowCalibrateModal}
@@ -586,8 +567,6 @@ export default function FlashcardShow({
                     </DialogContent>
                 </Dialog>
 
-                {/* Műveletek: elöl az egyetlen elsődleges akció (kártya
-                    felvitele), utána az import/export és a beállítások. */}
                 <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
                     <Button
                         onClick={() => {
@@ -653,7 +632,6 @@ export default function FlashcardShow({
                         </>
                     }
                 >
-                    {/* Szűrők */}
                     {(flashcards?.length ?? 0) > 0 && (
                         <section className="flex flex-col gap-3 rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm md:p-5 dark:border-neutral-700 dark:bg-card">
                             <div className="relative max-w-sm">
@@ -681,7 +659,6 @@ export default function FlashcardShow({
                                 )}
                             </div>
 
-                            {/* Állapot-szűrő chipek */}
                             <div className="flex flex-wrap items-center gap-1.5">
                                 <SlidersHorizontal className="hidden size-3.5 text-muted-foreground sm:block" />
                                 {STATE_FILTER_OPTIONS.map(
@@ -721,7 +698,6 @@ export default function FlashcardShow({
                                 )}
                             </div>
 
-                            {/* Találatszám */}
                             {(search || stateFilter) && (
                                 <p className="text-xs text-muted-foreground">
                                     <span className="tabular-nums">
@@ -744,7 +720,6 @@ export default function FlashcardShow({
                         </section>
                     )}
 
-                    {/* Kártyalista */}
                     {(flashcards?.length ?? 0) === 0 ? (
                         <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed py-16 text-center">
                             <BookOpen className="mb-4 size-12 text-muted-foreground opacity-30" />
@@ -838,14 +813,10 @@ export default function FlashcardShow({
                         </div>
                     )}
 
-                    {/* Hely a rögzített tömeges művelet-sávnak, hogy ne
-                        takarja el a lista utolsó sorait. */}
                     {someSelected && <div className="h-20" aria-hidden />}
                 </Deferred>
             </div>
 
-            {/* Tömeges műveletek — rögzítve az ablak aljához, hogy a lista
-                bármely pontjáról elérhető legyen kigörgetés nélkül. */}
             {someSelected && (
                 <div className="fixed inset-x-0 bottom-(--bottom-nav-offset) z-40 animate-in border-t bg-background px-4 py-3 shadow-[0_-4px_16px_-8px_rgb(0_0_0/0.25)] duration-150 slide-in-from-bottom-2 md:bg-background/95 md:backdrop-blur">
                     <div className="mx-auto flex max-w-[2000px] flex-wrap items-center gap-1.5">
@@ -976,7 +947,6 @@ export default function FlashcardShow({
                 defaultFolderId={null}
             />
 
-            {/* Card stats dialog */}
             {statsCard && (
                 <CardStatsDialog
                     card={statsCard}
@@ -985,7 +955,6 @@ export default function FlashcardShow({
                 />
             )}
 
-            {/* Card preview dialog */}
             {previewCard && (
                 <CardPreviewDialog
                     card={previewCard}
@@ -998,7 +967,6 @@ export default function FlashcardShow({
                 />
             )}
 
-            {/* Deck settings dialog */}
             <DeckSettingsDialog
                 deck={deck}
                 deckSettings={deckSettings}
@@ -1007,7 +975,6 @@ export default function FlashcardShow({
                 onClose={() => setShowSettings(false)}
             />
 
-            {/* Practice modal */}
             <Dialog
                 open={practiceCard !== null}
                 onOpenChange={(open) => {
@@ -1145,7 +1112,6 @@ export default function FlashcardShow({
                 </DialogContent>
             </Dialog>
 
-            {/* Card edit / new dialog */}
             <Dialog
                 open={showNewForm || editingCard !== null}
                 onOpenChange={(open) => {

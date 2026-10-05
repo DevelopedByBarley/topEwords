@@ -19,9 +19,6 @@ class Report extends Model
     public const CATEGORIES = ['bug', 'missing_feature', 'word_data', 'other'];
 
     /**
-     * A kategóriák emberi neve — az admin-értesítő levélhez. A felületek saját
-     * (magyar) címkéiket viszik, ez a szerver-oldali szövegek forrása.
-     *
      * @var array<string, string>
      */
     public const CATEGORY_LABELS = [

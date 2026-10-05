@@ -5,12 +5,6 @@ import { useExtensionInstalled } from '@/hooks/use-extension-installed';
 
 const DISMISS_KEY = 'topwords_ext_banner_dismissed';
 
-/**
- * A bővítmény telepítésére hívó banner a dashboardon. A CTA a Chrome Web
- * Store-listingre visz, ha a `CHROME_WEB_STORE_URL` env-kulcs be van állítva;
- * addig „hamarosan" állapotot mutat. A fejlesztői .zip letöltése szándékosan
- * nincs itt: az admin-only, a /downloads oldalon érhető el.
- */
 export function ExtensionBanner() {
     const { extensionStoreUrl } = usePage().props;
     const installed = useExtensionInstalled();
@@ -36,7 +30,6 @@ export function ExtensionBanner() {
 
     return (
         <div className="relative overflow-hidden rounded-2xl border-2 border-blue-200 bg-linear-to-br from-blue-50 via-indigo-50 to-blue-100 p-5 shadow-lg shadow-blue-500/10 dark:border-blue-900/50 dark:from-blue-950/30 dark:via-indigo-950/20 dark:to-blue-950/20">
-            {/* decorative glow */}
             <div className="pointer-events-none absolute -top-10 -right-10 size-36 rounded-full bg-blue-400/20 blur-3xl dark:bg-blue-500/10" />
 
             <button

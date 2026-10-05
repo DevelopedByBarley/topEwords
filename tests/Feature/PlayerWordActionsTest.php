@@ -9,9 +9,6 @@ use Illuminate\Support\Facades\Schema;
 use Laravel\Sanctum\Sanctum;
 
 beforeEach(function () {
-    // Alap: Pro felhasználó, hogy a napi írás-keret ne szóljon bele az alap-
-    // esetekbe; a Free-kvótát külön tesztek fedik le. A player végpontokat a
-    // lejátszó `player` ability-jű Sanctum tokennel hívja.
     $this->user = User::factory()->premium()->create();
 
     Word::insert([
@@ -21,8 +18,6 @@ beforeEach(function () {
 
     $this->apple = Word::where('word', 'apple')->firstOrFail();
 });
-
-// ── Auth ─────────────────────────────────────────────────────────────────────
 
 test('update-status requires authentication', function () {
     $this->postJson(route('player.update-status'), ['id' => 1, 'is_custom' => false, 'status' => 'known'])
@@ -40,8 +35,6 @@ test('update-importance requires authentication', function () {
     $this->postJson(route('player.update-importance'), ['id' => 1, 'is_custom' => false, 'importance' => 3])
         ->assertUnauthorized();
 });
-
-// ── Státusz: szótári szó ─────────────────────────────────────────────────────
 
 test('update-status sets a status on a dictionary word', function () {
     Sanctum::actingAs($this->user, ['player']);
@@ -114,8 +107,6 @@ test('update-status updates the streak when a status is set', function () {
         ->and($this->user->last_activity_date?->isToday())->toBeTrue();
 });
 
-// ── Státusz: saját szó ───────────────────────────────────────────────────────
-
 test('update-status sets a status on an own custom word', function () {
     Sanctum::actingAs($this->user, ['player']);
     $custom = $this->user->customWords()->create(['word' => 'serendipity', 'meaning_hu' => 'véletlen szerencse']);
@@ -137,8 +128,6 @@ test('update-status cannot touch another user\'s custom word', function () {
 
     expect($foreign->refresh()->status)->toBe('known');
 });
-
-// ── Státusz: napi írás-keret ─────────────────────────────────────────────────
 
 test('status set is blocked once a free user exhausts the daily write quota', function () {
     $free = User::factory()->create();
@@ -166,8 +155,6 @@ test('status removal is allowed even with an exhausted quota', function () {
 });
 
 test('a failed custom-word status write refunds the reserved daily quota', function () {
-    // Ha a foglalás utáni DB-írás elbukik, a lefoglalt napi slot nem veszhet el
-    // (az add-word/create-flashcard-dal azonos refund-szemantika, S1).
     $free = User::factory()->create();
     $custom = $free->customWords()->create(['word' => 'serendipity', 'meaning_hu' => 'véletlen szerencse']);
     $start = 2;
@@ -181,7 +168,6 @@ test('a failed custom-word status write refunds the reserved daily quota', funct
     $this->postJson(route('player.update-status'), ['id' => $custom->id, 'is_custom' => true, 'status' => 'saved'])
         ->assertStatus(500);
 
-    // A lefoglalt keret visszakerült: nem maradt elveszett napi slot.
     expect($free->extensionWritesToday())->toBe($start)
         ->and($custom->refresh()->status)->toBeNull();
 
@@ -189,9 +175,6 @@ test('a failed custom-word status write refunds the reserved daily quota', funct
 });
 
 test('a failed dictionary-word status write refunds the reserved daily quota', function () {
-    // Ugyanaz a refund-garancia a szótári (pivot) ágon is (S1). A pivot-írást a
-    // köztes tábla eltüntetésével buktatjuk el, hogy a syncWithoutDetaching dobjon;
-    // a RefreshDatabase a teszt végén amúgy is visszaállítja a sémát.
     $free = User::factory()->create();
     $start = 2;
     Cache::put("extension_writes_daily_{$free->id}_".today()->format('Y-m-d'), $start, now()->endOfDay());
@@ -204,8 +187,6 @@ test('a failed dictionary-word status write refunds the reserved daily quota', f
 
     expect($free->extensionWritesToday())->toBe($start);
 });
-
-// ── Fontosság ────────────────────────────────────────────────────────────────
 
 test('update-importance sets importance on an already marked word', function () {
     Sanctum::actingAs($this->user, ['player']);
@@ -228,7 +209,6 @@ test('PL-L6: meglévő jelölés fontosság-módosítása nem könyvel streaket 
     $this->postJson(route('player.update-importance'), ['id' => $this->apple->id, 'is_custom' => false, 'importance' => 4])
         ->assertSuccessful();
 
-    // A puszta jelölés-módosítás nem új szófelvétel — a streak nem indul el.
     expect($this->user->refresh()->streak)->toBe(0)
         ->and($this->user->last_activity_date)->toBeNull();
 });
@@ -246,8 +226,6 @@ test('update-importance marks an unmarked word as known', function () {
 });
 
 test('PL-L6: fontosság-útvonalú új known szó könyveli a streaket és achievementet', function () {
-    // Az importance-ág is új 'known' szót vesz fel — ugyanúgy aktivitás, mint az
-    // update-status, ezért a streak/achievement-könyvelésnek is le kell futnia.
     Sanctum::actingAs($this->user, ['player']);
 
     $this->postJson(route('player.update-importance'), ['id' => $this->apple->id, 'is_custom' => false, 'importance' => 5])
@@ -256,8 +234,6 @@ test('PL-L6: fontosság-útvonalú új known szó könyveli a streaket és achie
     expect($this->user->refresh()->streak)->toBe(1)
         ->and($this->user->last_activity_date?->isToday())->toBeTrue();
 });
-
-// ── Fontosság: napi írás-keret (PL-M1) ───────────────────────────────────────
 
 test('importance-adding a word consumes a daily write slot on the free plan', function () {
     $free = User::factory()->create();
@@ -308,9 +284,6 @@ test('importance removal on an unmarked word is allowed even with an exhausted q
 });
 
 test('a failed importance pivot write refunds the reserved daily quota', function () {
-    // A guard utáni pivot-írás bukásakor a lefoglalt slot visszajár (S1). A
-    // tábla-eldobás itt nem játszik (már a guard ELŐTTI $existing-select is
-    // elhasalna rajta), ezért SQLite-triggerrel csak az INSERT-et buktatjuk el.
     $free = User::factory()->create();
     $start = 2;
     Cache::put("extension_writes_daily_{$free->id}_".today()->format('Y-m-d'), $start, now()->endOfDay());
@@ -364,11 +337,7 @@ test('update-importance rejects an out-of-range value', function () {
         ->assertUnprocessable();
 });
 
-// ── F1-L2: e-mail-verifikáció a tartalom-írás előtt ──────────────────────────
-
 test('F1-L2: an unverified user cannot write via the player write endpoints', function () {
-    // A weboldal `verified` middleware-t követel az írásra; ugyanez kell a
-    // player/extension API-n is, hogy a megerősítetlen fiók se írhasson tartalmat.
     $unverified = User::factory()->premium()->unverified()->create();
     Sanctum::actingAs($unverified, ['player']);
 
@@ -385,7 +354,6 @@ test('F1-L2: an unverified user cannot write via the player write endpoints', fu
 });
 
 test('F1-L2: a verified user can still write via the player endpoints', function () {
-    // Regresszió-őr: a verified-kapu ne zárja ki a megerősített fiókot.
     Sanctum::actingAs($this->user, ['player']);
 
     $this->postJson(route('player.update-status'), ['id' => $this->apple->id, 'is_custom' => false, 'status' => 'learning'])

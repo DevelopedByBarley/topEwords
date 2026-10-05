@@ -1,20 +1,5 @@
 <?php
 
-/**
- * A jogi tájékoztatás és a bővítmény-publikáláshoz kötött formai elvárások
- * őrszem-tesztjei. Ezek a szövegek/mezők jogi és Chrome Web Store-követelmények
- * (AI-tájékoztatás + a külső AI-ra vonatkozó felelősség-kizárás, adatfeldolgozók
- * megnevezése, 132 karakteres store-leírás), ezért véletlen törlésük ne
- * csendben, hanem piros teszttel derüljön ki.
- */
-/**
- * A jogi oldal forrása egyetlen szóközökre normalizált sorként.
- *
- * A JSX-ben a prettier tetszőleges ponton tördel, így a több szavas horgonyok
- * ("intelligenciát (AI) használ") formázáskor kettétörnek, és a teszt a szöveg
- * VÁLTOZATLANSÁGA mellett is elhasal. A whitespace összevonásával a horgonyok a
- * tényleges tartalmat őrzik, nem a sortöréseket.
- */
 function legalPage(string $name): string
 {
     $source = file_get_contents(resource_path("js/pages/legal/{$name}.tsx"));
@@ -39,8 +24,6 @@ test('a jogi oldalak vendégként is elérhetők', function (string $url, string
 test('az ÁSZF tájékoztat az AI használatáról és kizárja a külső AI-ért a felelősséget', function () {
     $terms = legalPage('terms');
 
-    // A prettier tetszőleges ponton töri a sorokat, ezért rövid, tördelés-tűrő
-    // horgonyokra állítunk (a teljes mondatra állítva a teszt formázásra bukna).
     expect($terms)
         ->toContain('intelligenciát (AI) használ')
         ->toContain('Google (Gemini API)')
@@ -65,15 +48,11 @@ test('az adatkezelési tájékoztató megnevezi az adatfeldolgozókat, kitöltet
         ->toContain('Gemini API')
         ->toContain('Billingo')
         ->toContain('Rackhost')
-        // A Ploi nem tárol külön adatot, de rendszergazdai hozzáférése van a
-        // szerverhez, ezért a GDPR 13. cikk szerinti címzett-felsorolásban a helye.
         ->toContain('Ploi')
         ->not->toContain('[tárhelyszolgáltató');
 });
 
 test('a jogi oldalak megnevezik a szolgáltatót az Ekertv. szerinti kötelező adatokkal', function (string $page) {
-    // Ekertv. 4. §: név, székhely, nyilvántartási szám és elektronikus elérhetőség
-    // nélkül a szolgáltatás jogsértő. A GDPR ugyanezt kéri az adatkezelőről.
     expect(legalPage($page))
         ->toContain('Szaniszló Árpád egyéni vállalkozó')
         ->toContain('3881 Abaújszántó')
@@ -82,10 +61,6 @@ test('a jogi oldalak megnevezik a szolgáltatót az Ekertv. szerinti kötelező 
 })->with(['terms', 'privacy']);
 
 test('a checkout kifejezett nyilatkozatot kér a teljesítés azonnali megkezdéséről', function () {
-    // A 45/2014. Korm. rendelet szerinti elállási kivétel csak akkor
-    // érvényesíthető, ha a felhasználó a megrendeléskor kifejezetten kéri az
-    // azonnali teljesítést, és tudomásul veszi az elállási jog elvesztését.
-    // A szerveroldali kikényszerítést a PricingCheckoutGatekeeperTest fedi.
     $pricing = file_get_contents(resource_path('js/pages/pricing.tsx'));
 
     expect($pricing)
@@ -98,7 +73,6 @@ test('a checkout kifejezett nyilatkozatot kér a teljesítés azonnali megkezdé
 test('a bővítmény manifestje megfelel a Chrome Web Store formai korlátainak', function () {
     $manifest = json_decode(extensionFile('manifest.json'), true, 512, JSON_THROW_ON_ERROR);
 
-    // A store a 132 karakternél hosszabb leírást elutasítja.
     expect(mb_strlen($manifest['description']))->toBeLessThanOrEqual(132)
         ->and($manifest['manifest_version'])->toBe(3)
         ->and($manifest['host_permissions'])->toBe(['https://topwords.eu/*'])
@@ -121,15 +95,11 @@ test('a bővítmény az AI-generált tartalom mellett is kiírja a felelősség-
         ->toContain('AI_DISCLAIMER_HTML')
         ->toContain('felelősséget nem vállal');
 
-    // Ott jelenik meg, ahol a generált tartalom látszik: AI-flashcard előnézet
-    // és a kereső AI-kitöltő űrlapja.
     expect(extensionFile('src/flashcard-modal.js'))->toContain('AI_DISCLAIMER_HTML');
     expect(extensionFile('src/search-modal.js'))->toContain('AI_DISCLAIMER_HTML');
 });
 
 test('a felirat-gyorsgesztusok csak valódi felhasználói eseményre indulnak', function () {
-    // Szintetikus egérrel egy rosszindulatú oldal különben státuszt írathatna
-    // (hosszú-nyomás / dupla-klikk ág).
     $gestures = str(extensionFile('src/shared.js'))
         ->after('function attachCaptionWordGestures')
         ->value();
@@ -142,14 +112,12 @@ test('a bővítmény-szakasz a tényleges működést írja le (F7-L1)', functio
     $manifest = json_decode(extensionFile('manifest.json'), true);
     $matches = collect($manifest['content_scripts'])->pluck('matches')->flatten()->unique()->values()->all();
 
-    // Ha a bővítmény újra minden oldalon futna, a tájékoztatót is igazítani kell.
     expect($matches)->toBe(['https://www.youtube.com/*', 'https://www.netflix.com/*']);
 
     expect($privacy)
         ->not->toContain('bármely weboldalon')
         ->not->toContain('oldal-statisztikához')
         ->toContain('kizárólag a YouTube és a Netflix oldalain fut')
-        // A háttérszkript a szó→státusz térképet is a helyi tárolóba írja.
         ->toContain('szó→státusz térképét');
 
     expect(extensionFile('background.js'))->toContain("STATUS_CACHE_KEY = 'tw_statusCache'");

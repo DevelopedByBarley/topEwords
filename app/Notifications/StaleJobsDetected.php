@@ -5,10 +5,6 @@ namespace App\Notifications;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
-/**
- * Admin-riasztás régóta esedékes, fel nem dolgozott queue jobokról — a tipikus ok a leállt
- * worker. Szándékosan NEM ShouldQueue: ha a worker áll, a queue-ba tett riasztás sosem érne célba.
- */
 class StaleJobsDetected extends Notification
 {
     /**

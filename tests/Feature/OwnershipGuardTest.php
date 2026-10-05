@@ -1,16 +1,5 @@
 <?php
 
-/*
- * T-3 + T-12 (audit-2026-09): őrző tesztek a teljes IDOR-felületre.
- *
- * A tulajdonos-ellenőrzés ma kézzel, a controllerek `abort_unless(...)` / `Gate::authorize`
- * soraiban történik (nincs scopeBindings, a legtöbb modellhez nincs policy). Ez a fájl
- * minden felhasználói erőforrást átvevő route-ot végigpróbál egy idegen felhasználóval,
- * és ellenőrzi, hogy (1) a válasz a várt 403/404, (2) a sértett adata bitre változatlan,
- * (3) a tulajdonos viszont sikerrel eléri. A szerkezeti háló (utolsó teszt) elbukik, ha
- * új, paramétert átvevő route jelenik meg, ami itt nincs lefedve.
- */
-
 use App\Models\BillingoInvoice;
 use App\Models\Flashcard;
 use App\Models\FlashcardDeck;
@@ -32,8 +21,6 @@ use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 /**
- * Egy felhasználó teljes, route-okon elérhető erőforrás-készlete.
- *
  * @return array{user: User, deck: FlashcardDeck, targetDeck: FlashcardDeck, card: Flashcard, folder: Folder, word: Word, flashcardFolder: FlashcardFolder, customWord: UserCustomWord, book: UserBook, transcript: YoutubeTranscript, invoice: BillingoInvoice, tokenId: int, invite: Invite, report: Report}
  */
 function ownershipGuardFixtures(User $user): array
@@ -113,9 +100,6 @@ function ownershipGuardFixtures(User $user): array
 }
 
 /**
- * A felhasználóhoz tartozó összes sor pillanatképe — egy támadás után ennek bitre
- * változatlannak kell lennie.
- *
  * @param  array<string, mixed>  $fixtures
  * @return array<string, array<int, mixed>>
  */
@@ -160,9 +144,6 @@ function ownershipGuardSnapshot(array $fixtures): array
 }
 
 /**
- * Érvényes pakli-beállítás payload (a FormRequest a controller-ellenőrzés ELŐTT fut,
- * ezért hiányos payloaddal 422 jönne 403 helyett — lásd 03-adat-es-jog.md).
- *
  * @return array<string, mixed>
  */
 function ownershipGuardDeckSettingsPayload(): array
@@ -185,14 +166,6 @@ function ownershipGuardDeckSettingsPayload(): array
 }
 
 /**
- * Az összes lefedett eset.
- *
- * - `route`: "METHOD uri" — ez köti az esetet a route-listához (szerkezeti háló).
- * - `attack`: a várt státusz, ha a `target` (URL-ben szereplő) erőforrás egy másik
- *   felhasználóé, a kérést pedig az `actor` küldi a saját erőforrásaival a payloadban.
- * - `owner`: a tulajdonos sikeres elérését is ellenőrizzük-e (target === actor).
- * - `request`: fn (target, actor) => [method, url, payload].
- *
  * @return array<string, array{route: string, attack: int, owner: bool, request: Closure(array<string, mixed>, array<string, mixed>): array{0: string, 1: string, 2: array<string, mixed>}}>
  */
 function ownershipGuardCases(): array
@@ -200,7 +173,6 @@ function ownershipGuardCases(): array
     $case = fn (string $route, int $attack, bool $owner, Closure $request): array => compact('route', 'attack', 'owner', 'request');
 
     return [
-        // --- Paklik: FlashcardDeckController ---
         'deck show' => $case('GET flashcards/{deck}', 403, true,
             fn ($t, $a) => ['GET', route('flashcards.show', $t['deck']), []]),
         'deck update' => $case('PATCH flashcards/{deck}', 403, true,
@@ -212,7 +184,6 @@ function ownershipGuardCases(): array
         'deck settings destroy' => $case('DELETE flashcards/{deck}/settings', 403, true,
             fn ($t, $a) => ['DELETE', route('flashcards.settings.destroy', $t['deck']), []]),
 
-        // --- Kalibráció, tanulás, CSV ---
         'calibrate show' => $case('GET flashcards/{deck}/calibrate', 403, true,
             fn ($t, $a) => ['GET', route('flashcards.calibrate', $t['deck']), []]),
         'calibrate rate' => $case('POST flashcards/{deck}/calibrate', 403, true,
@@ -238,7 +209,6 @@ function ownershipGuardCases(): array
                 'csv_file' => UploadedFile::fake()->createWithContent('cards.csv', "front,back\nhello,szia\n"),
             ]]),
 
-        // --- Kártyák: FlashcardCardController ---
         'card store' => $case('POST flashcards/{deck}/cards', 403, true,
             fn ($t, $a) => ['POST', route('flashcards.cards.store', $t['deck']), [
                 'front' => 'INJECTED', 'back' => 'INJECTED', 'direction' => 'front_to_back',
@@ -274,7 +244,6 @@ function ownershipGuardCases(): array
                 'ids' => [$t['card']->id], 'target_deck_id' => $a['targetDeck']->id, 'reset_progress' => 1,
             ]]),
 
-        // --- Szülő-gyerek keverés: SAJÁT pakli + IDEGEN kártya / cél / payload-azonosító ---
         'card update via own deck' => $case('PATCH flashcards/{deck}/cards/{flashcard}', 403, false,
             fn ($t, $a) => ['PATCH', route('flashcards.cards.update', [$a['deck'], $t['card']]), [
                 'front' => 'HACKED', 'back' => 'HACKED', 'direction' => 'front_to_back',
@@ -326,7 +295,6 @@ function ownershipGuardCases(): array
                 'flashcard_id' => $t['card']->id, 'rating' => 3, 'direction' => 'front_to_back', 'is_last_direction' => 1,
             ]]),
 
-        // --- Kártya-mappák ---
         'flashcard folder update' => $case('PATCH flashcards/folders/{flashcardFolder}', 403, true,
             fn ($t, $a) => ['PATCH', route('flashcards.folders.update', $t['flashcardFolder']), ['name' => 'HACKED']]),
         'flashcard folder destroy' => $case('DELETE flashcards/folders/{flashcardFolder}', 403, true,
@@ -338,7 +306,6 @@ function ownershipGuardCases(): array
         'own deck put into foreign flashcard folder' => $case('PATCH flashcards/folders/{flashcardFolder}/decks/{flashcardDeck}', 403, false,
             fn ($t, $a) => ['PATCH', route('flashcards.folders.decks.update', [$t['flashcardFolder'], $a['deck']]), ['in_folder' => 1]]),
 
-        // --- Szó-mappák ---
         'folder update' => $case('PATCH folders/{folder}', 403, true,
             fn ($t, $a) => ['PATCH', route('folders.update', $t['folder']), ['name' => 'HACKED']]),
         'folder destroy' => $case('DELETE folders/{folder}', 403, true,
@@ -346,7 +313,6 @@ function ownershipGuardCases(): array
         'folder word toggle' => $case('PATCH folders/{folder}/words/{word}', 403, true,
             fn ($t, $a) => ['PATCH', route('folders.words.update', [$t['folder'], $t['word']]), ['in_folder' => 0]]),
 
-        // --- Saját szavak ---
         'custom word update' => $case('PATCH custom-words/{customWord}', 403, true,
             fn ($t, $a) => ['PATCH', route('custom-words.update', $t['customWord']), ['meaning_hu' => 'HACKED']]),
         'custom word destroy' => $case('DELETE custom-words/{customWord}', 403, true,
@@ -356,13 +322,11 @@ function ownershipGuardCases(): array
         'custom word importance' => $case('POST custom-words/{customWord}/importance', 403, true,
             fn ($t, $a) => ['POST', route('custom-words.importance', $t['customWord']), ['importance' => 5]]),
 
-        // --- Globális szótár-szó: a státusz/fontosság a KÉRŐ saját pivotját írja ---
         'word status only touches own pivot' => $case('POST words/{word}/status', 200, true,
             fn ($t, $a) => ['POST', route('words.status', $t['word']), ['status' => 'known']]),
         'word importance only touches own pivot' => $case('POST words/{word}/importance', 200, true,
             fn ($t, $a) => ['POST', route('words.importance', $t['word']), ['importance' => 5]]),
 
-        // --- Szövegelemzés: könyvek, YouTube ---
         'book page' => $case('GET text-analysis/books/{book}/page', 403, true,
             fn ($t, $a) => ['GET', route('text-analysis.books.page', $t['book']), []]),
         'book overview' => $case('GET text-analysis/books/{book}/overview', 403, true,
@@ -376,13 +340,11 @@ function ownershipGuardCases(): array
         'youtube destroy' => $case('DELETE text-analysis/youtube/{transcript}', 403, true,
             fn ($t, $a) => ['DELETE', route('text-analysis.youtube.destroy', $t['transcript']), []]),
 
-        // --- Beállítások: számla (404, nem enumerálható), lejátszó-token (user-scoped no-op) ---
         'invoice download' => $case('GET settings/subscription/invoices/{invoice}', 404, true,
             fn ($t, $a) => ['GET', route('subscription.invoice.download', $t['invoice']), []]),
         'player device revoke' => $case('DELETE settings/security/player-devices/{tokenId}', 302, true,
             fn ($t, $a) => ['DELETE', route('security.player-devices.destroy', ['tokenId' => $t['tokenId']]), []]),
 
-        // --- Admin-kapus route-ok: sima felhasználónak 403, bármely azonosítóval ---
         'admin free month' => $case('POST admin/free-month/{user}', 403, false,
             fn ($t, $a) => ['POST', route('admin.free-month.grant', $t['user']->email), []]),
         'admin invite destroy' => $case('DELETE admin/invites/{invite}', 403, false,
@@ -401,8 +363,6 @@ function ownershipGuardCases(): array
 }
 
 /**
- * Paramétert átvevő route-ok, amelyeknek szándékosan NINCS tulajdonos-esetük.
- *
  * @return array<string, string>
  */
 function ownershipGuardExclusions(): array
@@ -413,9 +373,6 @@ function ownershipGuardExclusions(): array
 }
 
 /**
- * Egységes kérés-küldés: JSON Accept (így a validációs hiba 422, nem rejtett redirect),
- * form-adatként, hogy a fájlfeltöltés is működjön.
- *
  * @param  array<string, mixed>  $payload
  */
 function ownershipGuardSend(TestCase $test, string $method, string $url, array $payload): TestResponse
@@ -426,8 +383,6 @@ function ownershipGuardSend(TestCase $test, string $method, string $url, array $
 }
 
 beforeEach(function () {
-    // A RequirePassword mögötti route-ot (player-devices) is a tulajdonos-ellenőrzésig
-    // kell engedni, különben a teszt a jelszó-megerősítésen "zöldülne".
     $this->withSession(['auth.password_confirmed_at' => time()]);
 });
 
@@ -439,7 +394,6 @@ it('blocks another user from reaching a foreign resource', function (string $cas
     $victimResources = ownershipGuardFixtures($victim);
     $attackerResources = ownershipGuardFixtures($attacker);
 
-    // Idegen számlánál a Billingo-hívásnak el sem szabad indulnia (T-3).
     $this->mock(BillingoClient::class, fn ($mock) => $mock->shouldNotReceive('downloadDocument'));
 
     $before = ownershipGuardSnapshot($victimResources);

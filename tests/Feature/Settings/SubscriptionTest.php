@@ -8,9 +8,6 @@ use Inertia\Testing\AssertableInertia as Assert;
 use Laravel\Fortify\Features;
 
 test('subscription page marks non-subscribed premium-access users correctly', function (array $attributes) {
-    // Lifetime / admin-adta (plan_override) hozzáférésnél nincs Stripe-előfizetés,
-    // de a UI-nak prémium hozzáférést kell mutatnia — nem "Alap csomag" + CTA-t
-    // (a checkout-gatekeeper úgyis elutasítaná a fizetést).
     $user = User::factory()->create($attributes);
 
     $this->actingAs($user)
@@ -28,8 +25,6 @@ test('subscription page marks non-subscribed premium-access users correctly', fu
 ]);
 
 test('cancelling a subscription requires a confirmed password', function () {
-    // FA-L2: eltérített, bejelentkezve hagyott munkamenetből ne lehessen jelszó
-    // nélkül lemondani a fizető előfizetést — a password.confirm a lemondás elé áll.
     $this->skipUnlessFortifyFeature(Features::twoFactorAuthentication());
 
     Features::twoFactorAuthentication([
@@ -77,8 +72,6 @@ test('the subscription page lists only issued invoices', function () {
         'invoice_number' => 'TESZT-2026-1',
     ]);
 
-    // Lefoglalt, de ki nem állított sor (nincs dokumentum-azonosítója) — nem tölthető le,
-    // ezért nem szabad megjelennie a listában.
     BillingoInvoice::create([
         'user_id' => $user->id,
         'stripe_invoice_id' => 'in_reserved',
@@ -119,8 +112,6 @@ test('a user can download their own issued invoice pdf', function () {
 });
 
 test('a network timeout during invoice download yields a 404, not a 500', function () {
-    // A Billingo-hívás hálózati timeoutja ConnectionException-t dob (nem RequestException-t).
-    // A közös HttpClientException ősre való catch nélkül ez nyers 500-at adna.
     Http::fake(function () {
         throw new ConnectionException('cURL error 28: timed out');
     });
@@ -170,8 +161,6 @@ test('an unissued invoice cannot be downloaded', function () {
 });
 
 test('the cancel and resume routes share a rate limit', function () {
-    // Előfizetés nélkül a cancel/resume azonnal back()-kel tér vissza (nincs valódi
-    // Stripe-hívás), így biztonságosan tesztelhető a közös throttle:10,1 korlát.
     $user = User::factory()->create();
     $confirmed = ['auth.password_confirmed_at' => time()];
 
@@ -187,7 +176,6 @@ test('the cancel and resume routes share a rate limit', function () {
             ->assertStatus(302);
     }
 
-    // A két végpont közös (nevesített) bucketet használ — a 11. kezelési kísérlet 429.
     $this->actingAs($user)
         ->withSession($confirmed)
         ->post(route('subscription.cancel'))
@@ -200,8 +188,6 @@ test('the cancel and resume routes share a rate limit', function () {
 });
 
 test('the subscription portal route is rate limited', function () {
-    // Stripe ügyfél nélkül a portál a /pricing-re irányít (nincs valódi Stripe-hívás),
-    // így biztonságosan tesztelhető a throttle:10,1 korlát.
     $user = User::factory()->create();
 
     foreach (range(1, 10) as $i) {

@@ -8,16 +8,6 @@ import type { AiBudgetWarning } from '@/types';
 
 const STORAGE_KEY = 'tw-ai-budget-dismissed';
 
-/**
- * Az AI-keret figyelmeztetése. Állandó keret-kijelző szándékosan nincs: a sáv
- * csak akkor jelenik meg, amikor a keret tényleg fogyni kezd (a küszöböt a
- * backend dönti el — `AiUsageService::warning()` `null`-t ad, amíg nincs mit
- * jelezni), illetve a keret kimerülésekor.
- *
- * Elbocsátható, de a dismiss csak az adott szintre és az adott keret-periódusra
- * érvényes: a „fogy" sáv elrejtése után a kimerülés újra megszólal, és a keret
- * újraindulásával minden újra megjelenhet.
- */
 export default function AiBudgetBanner() {
     const { aiBudgetWarning, auth, billingEnabled } = usePage().props;
     const [dismissedKey, setDismissedKey] = useState<string | null>(() => {
@@ -27,9 +17,6 @@ export default function AiBudgetBanner() {
             return null;
         }
     });
-    // Az AI-hívások válaszából érkező élő állapot, azzal a megosztott proppal
-    // együtt, ami mellé érkezett. A prop cseréje (oldalváltás) így magától
-    // elavulttá teszi az élő értéket — a szerver-adat a frissebb.
     const [live, setLive] = useState<{
         basedOn: AiBudgetWarning | null;
         value: AiBudgetWarning | null;
@@ -104,8 +91,6 @@ export default function AiBudgetBanner() {
                     </>
                 )}
             </span>
-            {/* A fizetés kikapcsolt állapotában sem az Árazás, sem az Előfizetés
-                oldal nem elérhető a menüből — ilyenkor CTA nélkül marad a sáv. */}
             {billingEnabled && (
                 <Link
                     href={isFree ? pricing() : editSubscription()}

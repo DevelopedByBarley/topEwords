@@ -5,13 +5,6 @@ use App\Models\User;
 use App\Services\AdminDashboardService;
 use Inertia\Testing\AssertableInertia as Assert;
 
-/**
- * Az admin-oldal user-listái csak a megjelenítéshez kellő mezőket küldhetik a
- * böngészőbe. A mostActive korábban a teljes users-sort küldte (stripe_id,
- * számlázási cím, adószám, telefon — F9C-L1), mert a withCount() `users.*`-ot
- * tett a lekérdezésbe. A zárt (etc() nélküli) prop-ellenőrzés minden új mezőre
- * elbukik.
- */
 beforeEach(function () {
     config(['app.admin_email' => 'admin@example.com']);
 
@@ -59,10 +52,6 @@ test('az admin-oldal válaszában nem szerepel a stripe_id és a számlázási a
         ->not->toContain('billing_');
 });
 
-/**
- * Az accessUsers szerveroldalon keresett és lapozott (F9C-L4): korábban minden
- * /admin-betöltés a teljes userbázist (név + e-mail) küldte a böngészőbe.
- */
 test('az accessUsers lapozott, és csak a megjelenítéshez kellő mezőket küldi', function () {
     User::factory()->count(AdminDashboardService::ACCESS_USERS_PER_PAGE + 5)->create();
     $totalUsers = User::count();

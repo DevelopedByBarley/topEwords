@@ -13,15 +13,13 @@ return new class extends Migration
             $table->id();
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
             $table->string('title');
-            $table->string('file_type', 10); // 'pdf' or 'epub'
+            $table->string('file_type', 10);
             $table->unsignedSmallInteger('total_pages');
             $table->timestamps();
 
             $table->index('user_id');
         });
 
-        // MEDIUMBLOB supports up to 16 MB — enough for any compressed book text.
-        // SQLite (tests) has no MEDIUMBLOB; its BLOB type is unbounded anyway.
         if (DB::getDriverName() === 'mysql') {
             DB::statement('ALTER TABLE user_books ADD COLUMN compressed_text MEDIUMBLOB NOT NULL AFTER file_type');
         } else {

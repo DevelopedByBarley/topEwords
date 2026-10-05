@@ -1,16 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { gsap, ScrollTrigger } from '@/lib/scroll-trigger';
 
-/**
- * Görgetésre felúszó-beúszó burkoló a landing statikus blokkjaihoz.
- *
- * A pinnelt jelenetek (szólista, szövegelemzés, flashcard) saját timeline-t
- * futtatnak — ez a komponens a köztük lévő közönséges szekciókat és
- * kártyarácsokat hozza mozgásba, blokkonként egyszer.
- *
- * Rácsban a `delay`-t az elem indexéből érdemes számolni, így a kártyák
- * egymás után jelennek meg, nem egyszerre.
- */
 export function ScrollReveal({
     as: Tag = 'div',
     className,
@@ -47,14 +37,6 @@ export function ScrollReveal({
                 scrollTrigger: {
                     trigger: el,
                     start: 'top 88%',
-                    /*
-                     * Szándékosan NEM `once: true`: a felette lévő pinnelt
-                     * szekciók csak a saját `useEffect`-jükben épülnek be a
-                     * laphosszba, és egy `once` trigger addigra már kilőne és
-                     * megsemmisülne. Így viszont életben marad, a `refresh()`
-                     * újraszámolja a helyét — előrefelé pedig csak egyszer
-                     * játszik le, visszafelé nem fordul vissza.
-                     */
                     toggleActions: 'play none none none',
                 },
             });
@@ -62,7 +44,6 @@ export function ScrollReveal({
             return () => tween.kill();
         });
 
-        /* A pinnelt szekciók spacer-e módosítja a laphosszt — újramérés kell. */
         const refresh = requestAnimationFrame(() => ScrollTrigger.refresh());
 
         return () => {

@@ -44,9 +44,6 @@ test('billing details can be updated', function () {
 test('billing update requires the fields the checkout gatekeeper checks', function () {
     $user = User::factory()->create();
 
-    // Csak country + type — a hasBillingDetails() által vizsgált mezők hiányoznak.
-    // A korábbi viselkedés ezt hibátlanul elmentette, így a checkout kapuőr
-    // visszadobta a usert ide (kijuthatatlan hurok). Most validációs hibát kell adnia.
     $this->actingAs($user)
         ->put(route('billing.update'), [
             'billing_country' => 'HU',
@@ -76,7 +73,6 @@ test('company billing requires a tax number', function () {
             'billing_phone' => '+36301234567',
             'billing_company_registration_number' => '01-09-999999',
             'billing_type' => 'company',
-            // billing_tax_number szándékosan hiányzik
         ])
         ->assertSessionHasErrors('billing_tax_number');
 });
@@ -94,7 +90,6 @@ test('company billing requires a company registration number', function () {
             'billing_address' => 'Kossuth Lajos utca 1.',
             'billing_phone' => '+36301234567',
             'billing_type' => 'company',
-            // billing_company_registration_number szándékosan hiányzik
         ])
         ->assertSessionHasErrors('billing_company_registration_number');
 });
@@ -122,8 +117,6 @@ test('switching from company to individual clears the stored tax number and regi
         'billing_company_registration_number' => '01-09-999999',
     ]);
 
-    // Egyénire váltva a company-only mezők a UI-ban unmountolnak, így be sem
-    // érkeznek — a régi adatoknak mégsem szabad a fiókon ragadniuk.
     $this->actingAs($user)
         ->put(route('billing.update'), [
             'billing_name' => 'Kiss János',
@@ -147,7 +140,7 @@ test('a malformed tax number is rejected', function () {
     $this->actingAs($user)
         ->put(route('billing.update'), [
             'billing_name' => 'Példa Kft.',
-            'billing_tax_number' => '12345678', // hiányzik a -c-kk rész
+            'billing_tax_number' => '12345678',
             'billing_country' => 'HU',
             'billing_zip' => '1234',
             'billing_city' => 'Budapest',
@@ -171,7 +164,7 @@ test('a malformed company registration number is rejected', function () {
             'billing_city' => 'Budapest',
             'billing_address' => 'Kossuth Lajos utca 1.',
             'billing_phone' => '+36301234567',
-            'billing_company_registration_number' => '999999', // hibás formátum
+            'billing_company_registration_number' => '999999',
             'billing_type' => 'company',
         ])
         ->assertSessionHasErrors('billing_company_registration_number');
@@ -180,7 +173,6 @@ test('a malformed company registration number is rejected', function () {
 test('an individual may not submit a tax number', function () {
     $user = User::factory()->create();
 
-    // Direkt POST (a UI unmountolja a mezőt, de a DB-konzisztenciát a szabály védi).
     $this->actingAs($user)
         ->put(route('billing.update'), [
             'billing_name' => 'Kiss János',

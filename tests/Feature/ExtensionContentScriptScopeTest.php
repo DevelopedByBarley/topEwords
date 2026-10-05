@@ -1,23 +1,7 @@
 <?php
 
 /**
- * A bővítmény content script moduljai (manifest.json content_scripts.js) EGY
- * közös globális lexikális scope-ban futnak a lapon. Ha két modul ugyanazon a
- * néven deklarál felső szintű `let`/`const`/`class`-t, a később betöltő fájl
- * teljes egészében eldobódik egy „Identifier X has already been declared"
- * SyntaxError-ral — a hibát semmi nem jelzi a felületen, csak a hozzá tartozó
- * funkció (modal, gyorsbillentyű) tűnik el némán.
- *
- * Ez a teszt a 1.33-as regresszió után született: a search-modal.js
- * `statusSaveInFlight` zára ütközött a lookup-popup.js azonos nevű zárával,
- * ezért a keresőmodal és a saját-szó felviteli űrlap sem YouTube-on, sem
- * Netflixen nem nyílt meg.
- */
-
-/**
- * Egy content script felső szintű (nulla indentációs szintű) deklarált nevei.
- *
- * @return array<string, int> deklarált név => sorszám
+ * @return array<string, int>
  */
 function extensionTopLevelDeclarations(string $file): array
 {
@@ -72,8 +56,6 @@ test('a content script modulok nem deklarálnak ütköző felső szintű neveket
 });
 
 test('a kicsomagolt store-csomag azonos a forrással', function () {
-    // A build-zip.sh a manifest verziójával nevezi el a kicsomagolt mappát, így a
-    // verzióemelés után is az aktuális csomagot vetjük össze a forrással.
     $packaged = base_path('chrome-extension/topwords-extension-'.extensionManifest()['version']);
 
     if (! is_dir($packaged)) {

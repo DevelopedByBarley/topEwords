@@ -9,14 +9,6 @@ use Symfony\Component\HttpFoundation\Response;
 
 class SecurityHeaders
 {
-    /**
-     * Attach hardening response headers.
-     *
-     * Headers that never break local development run everywhere. HSTS and the
-     * Content-Security-Policy run only in production and staging (T-4): HSTS must
-     * not be sent over plain HTTP, and a CSP would break Vite's dev server (HMR
-     * websocket + inline refresh script). There the assets are static and same-origin.
-     */
     public function handle(Request $request, Closure $next): Response
     {
         $response = $next($request);
@@ -41,15 +33,6 @@ class SecurityHeaders
         return $response;
     }
 
-    /**
-     * The production Content-Security-Policy.
-     *
-     * Inline script/style are allowed because the root template ships an inline
-     * dark-mode script, an inline background-color style block, and Tailwind
-     * injects inline styles; the app has no untrusted HTML sinks (stored rich
-     * text is sanitized via lib/sanitize-html). The real wins here are the
-     * navigation/framing locks: clickjacking and base-tag/form-action hijacking.
-     */
     private function contentSecurityPolicy(): string
     {
         return implode('; ', [

@@ -7,7 +7,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class YoutubeTranscript extends Model
 {
-    /** Ennyi időbélyeges felirat-sor jut egy oldalra. */
     public const SEGMENTS_PER_PAGE = 50;
 
     protected $fillable = ['user_id', 'video_id', 'title', 'compressed_segments', 'total_pages', 'text_size'];
@@ -18,8 +17,6 @@ class YoutubeTranscript extends Model
     }
 
     /**
-     * Az összes időbélyeges szegmens kitömörítve.
-     *
      * @return array<int, array{t: int, x: string}>
      */
     public function segments(): array
@@ -28,8 +25,6 @@ class YoutubeTranscript extends Model
     }
 
     /**
-     * Egy oldal (1-indexelt): a szegmens-szelet + a hozzá tartozó sima szöveg.
-     *
      * @return array{segments: array<int, array{t: int, x: string}>, text: string}
      */
     public function getPage(int $page): array

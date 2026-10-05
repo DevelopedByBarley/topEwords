@@ -64,7 +64,6 @@ export type Deck = {
 
 export type OtherDeck = { id: number; name: string };
 
-/** A pakli-listán megjelenő pakli — a kártyaszámmal együtt. */
 export type DeckSummary = Deck & { flashcards_count: number };
 
 export type DeckFolder = { id: number; name: string; decks_count: number };

@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import type { Invite, InvitesTabProps } from '@/types/admin';
 
-/** A meghívóval adható Pro-próbaidő hosszai (nap). */
 const PRO_DAY_OPTIONS = [7, 14, 30, 60, 90];
 
 export default function InvitesTab({ invites, inviteOnly }: InvitesTabProps) {
@@ -14,7 +13,6 @@ export default function InvitesTab({ invites, inviteOnly }: InvitesTabProps) {
     const [inviteProDays, setInviteProDays] = useState('');
     const { extensionStoreUrl } = usePage().props;
     const [inviteEmail, setInviteEmail] = useState('');
-    // A bővítmény linkje alapból a beállított Web Store-URL; az admin átírhatja vagy törölheti.
     const [inviteExtensionUrl, setInviteExtensionUrl] = useState(
         extensionStoreUrl ?? '',
     );
@@ -24,10 +22,6 @@ export default function InvitesTab({ invites, inviteOnly }: InvitesTabProps) {
     const [copiedId, setCopiedId] = useState<number | null>(null);
 
     function createInvite() {
-        // A datetime-local érték ("2026-07-10T12:00") időzóna nélküli, a szerver app-időzónája
-        // viszont UTC — nyersen küldve a lejárat órákkal csúszna. A helyi időpontot abszolút
-        // ISO-8601-re (UTC offszettel) konvertáljuk, hogy a szerver pontosan azt kapja, amire
-        // az admin a saját idejében gondolt.
         const expiresAtIso = inviteExpires
             ? new Date(inviteExpires).toISOString()
             : null;
@@ -73,8 +67,6 @@ export default function InvitesTab({ invites, inviteOnly }: InvitesTabProps) {
             setCopiedId(invite.id);
             setTimeout(() => setCopiedId(null), 1500);
         } catch {
-            // Nem-secure kontextus vagy elutasított írás: ne hazudjunk sikert,
-            // hanem adjuk oda a linket, hogy az admin kézzel másolhassa.
             window.prompt('Másold ki a linket:', invite.url);
         }
     }

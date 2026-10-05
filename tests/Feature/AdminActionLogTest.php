@@ -9,11 +9,6 @@ use Illuminate\Support\Facades\Log;
 use Mockery\MockInterface;
 use Psr\Log\LoggerInterface;
 
-/**
- * Admin-műveletnapló (F9C-L2): minden admin-írás egy sort kap az `admin`
- * csatornán — ki, mit, kin, régi → új érték. Enélkül utólag nem derülne ki,
- * ki adott Prót egy usernek vagy ki írta át a közös szótárat.
- */
 beforeEach(function () {
     config(['app.admin_email' => 'admin@example.com']);
 

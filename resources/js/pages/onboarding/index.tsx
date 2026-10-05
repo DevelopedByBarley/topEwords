@@ -1,7 +1,4 @@
 import { Head, router } from '@inertiajs/react';
-// A kivezetett diákhoz/pontokhoz tartozó ikonok kikommentelve (2026-07-29):
-// Brain (Kvíz), CalendarCheck (Napi ismétlés), Repeat (Rendhagyó igék),
-// Download / Link2 / MonitorPlay / Play (Player-dia).
 import type { LucideIcon } from 'lucide-react';
 import {
     ArrowLeftRight,
@@ -34,7 +31,6 @@ import { useState } from 'react';
 import { STATUS_CONFIG } from '@/components/words/word-config';
 import type { Appearance } from '@/hooks/use-appearance';
 import { useAppearance } from '@/hooks/use-appearance';
-// import { show as showDownload } from '@/routes/downloads';
 import { complete as onboardingComplete } from '@/routes/onboarding';
 
 interface Word {
@@ -139,8 +135,6 @@ function WordListVisual() {
 }
 
 function PracticeVisual() {
-    // Az SRS négy értékelő gombja — a kvíz-mockup helyett, mert a kvíz nem
-    // része az induló feature-körnek.
     const ratings = [
         { t: 'Újra', tone: 'text-red-600 dark:text-red-400' },
         { t: 'Nehéz', tone: 'text-orange-600 dark:text-orange-400' },
@@ -268,66 +262,6 @@ function ExtensionVisual() {
     );
 }
 
-/*
- * A Player-dia kivezetve (2026-07-29) — a topwords Player letöltése
- * `can:admin` mögé került, így nem hirdetjük az onboardingban. A mockup
- * itt marad, hogy visszakapcsoláskor ne kelljen újraírni.
- *
- * function PlayerVisual() {
- *     const subtitleWords = [
- *         { t: 'The' },
- *         { t: 'crew' },
- *         { t: 'finally', status: 'learning' },
- *         { t: 'reached' },
- *         { t: 'the' },
- *         { t: 'summit.', status: 'saved' },
- *     ];
- *
- *     return (
- *         <div className="rounded-2xl border bg-muted/30 p-4">
- *             <div className="relative mx-auto mb-3 flex aspect-video max-w-sm items-center justify-center overflow-hidden rounded-2xl border bg-slate-900">
- *                 <div className="flex size-12 items-center justify-center rounded-full bg-white/15">
- *                     <Play className="ml-0.5 size-5 fill-white text-white" />
- *                 </div>
- *                 <div className="absolute bottom-2 left-0 right-0 px-2 text-center text-xs font-medium text-white">
- *                     {subtitleWords.map((w, i) => (
- *                         <span key={i}>
- *                             {w.status ? (
- *                                 <span
- *                                     className={`rounded px-1 ${statusEntry(w.status).pillActive}`}
- *                                 >
- *                                     {w.t}
- *                                 </span>
- *                             ) : (
- *                                 w.t
- *                             )}{' '}
- *                         </span>
- *                     ))}
- *                 </div>
- *             </div>
- *             <div className="flex items-center justify-center gap-2 text-xs font-medium text-muted-foreground">
- *                 <MonitorPlay className="size-4 text-primary" />
- *                 Mac & Windows asztali app
- *             </div>
- *         </div>
- *     );
- * }
- */
-
-/*
- * Az induló feature-körhöz igazítva (2026-07-29). Kikerült innen:
- *   – „Rendhagyó igék", „Kvíz", „Mondatkiegészítés", „Napi ismétlés": a
- *     route-jaik ki vannak kommentelve (routes/words.php), nem elérhetők.
- *   – a teljes „player" dia: a topwords Player letöltése `can:admin` mögé
- *     került, így a felhasználó nem tudná beszerezni az appot.
- * Visszahozáskor a kivett dia/pont ide kerül vissza (a PlayerVisual és a
- * hozzá tartozó ikon-importok szándékosan bent maradtak).
- */
-/**
- * Egy funkció-kártya az onboarding dián. Az `ai: true` jelölteket AI-jelvény és
- * indigó kiemelés különbözteti meg — ugyanaz a vizuális nyelv, mint a
- * kézikönyv AiBadge-én.
- */
 type SlideFeature = {
     Icon: LucideIcon;
     title: string;
@@ -507,7 +441,6 @@ export default function Onboarding({
     const totalKnown = knownIds.size;
     const totalWords = allWords.length;
 
-    // Find the first level where you know < 80% → that's where to start
     const recommendedLevel = (() => {
         for (let i = 0; i < levels.length; i++) {
             const lvl = levels[i];
@@ -552,7 +485,6 @@ export default function Onboarding({
 
             <div className="flex min-h-screen items-center justify-center bg-background p-4">
                 <div className="w-full max-w-2xl">
-                    {/* STEP: ask-test */}
                     {step === 'ask-test' && (
                         <div className="text-center">
                             <div className="mb-6 flex justify-center">
@@ -599,7 +531,6 @@ export default function Onboarding({
                         </div>
                     )}
 
-                    {/* STEP: test */}
                     {step === 'test' && (
                         <div>
                             <div className="mb-6">
@@ -686,7 +617,6 @@ export default function Onboarding({
                         </div>
                     )}
 
-                    {/* STEP: result */}
                     {step === 'result' && (
                         <div>
                             <div className="mb-6 text-center">
@@ -791,7 +721,6 @@ export default function Onboarding({
                         </div>
                     )}
 
-                    {/* STEP: features */}
                     {step === 'features' &&
                         (() => {
                             const slide = FEATURE_SLIDES[featureSlide];
@@ -801,7 +730,6 @@ export default function Onboarding({
 
                             return (
                                 <div>
-                                    {/* Progress dots */}
                                     <div className="mb-5 flex items-center justify-center gap-2">
                                         {FEATURE_SLIDES.map((s, i) => (
                                             <span
@@ -817,7 +745,6 @@ export default function Onboarding({
                                         ))}
                                     </div>
 
-                                    {/* Visual mockup */}
                                     <div className="mb-5">
                                         <SlideVisual />
                                     </div>
@@ -831,7 +758,6 @@ export default function Onboarding({
                                         </p>
                                     </div>
 
-                                    {/* Egyetlen funkciónál ne maradjon üres féloszlop. */}
                                     <div
                                         className={`mb-6 grid gap-3 ${slide.features.length > 1 ? 'sm:grid-cols-2' : ''}`}
                                     >
@@ -841,7 +767,6 @@ export default function Onboarding({
                                                     key={title}
                                                     className="relative overflow-hidden rounded-2xl border bg-card p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
                                                 >
-                                                    {/* Halvány sarok-fény az onboarding zöld akcentusából. */}
                                                     <div
                                                         aria-hidden="true"
                                                         className="pointer-events-none absolute -top-10 -right-10 size-24 rounded-full bg-green-500/15 blur-2xl"
@@ -867,13 +792,6 @@ export default function Onboarding({
                                             ),
                                         )}
                                     </div>
-
-                                    {/*
-                                     * A „player" dia letöltő gombjai kivezetve (2026-07-29)
-                                     * a diával együtt — a letöltés `can:admin` mögé került.
-                                     * Visszahozáskor a FEATURE_SLIDES player-diájával együtt
-                                     * élesítendő (showDownload + Download import is kell).
-                                     */}
 
                                     <div className="flex gap-3">
                                         <button
@@ -919,7 +837,6 @@ export default function Onboarding({
                             );
                         })()}
 
-                    {/* STEP: theme */}
                     {step === 'theme' && (
                         <div className="text-center">
                             <div className="mb-6 flex justify-center">

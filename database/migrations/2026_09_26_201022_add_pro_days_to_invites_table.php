@@ -9,7 +9,6 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('invites', function (Blueprint $table) {
-            // Hány nap Pro-próbaidővel indul a meghívóval regisztráló; null = Ingyenes csomag.
             $table->unsignedSmallInteger('pro_days')->nullable()->after('max_uses');
         });
     }

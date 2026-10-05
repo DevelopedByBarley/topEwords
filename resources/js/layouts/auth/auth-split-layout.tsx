@@ -15,7 +15,6 @@ export default function AuthSplitLayout({
 
     return (
         <div className="grid min-h-dvh lg:grid-cols-[2fr_3fr]">
-            {/* Left panel — starry indigo branded */}
             <div
                 className="relative hidden h-full flex-col overflow-hidden p-10 text-white lg:flex"
                 style={{
@@ -36,11 +35,6 @@ export default function AuthSplitLayout({
 
                 <div className="relative z-10 flex flex-1 flex-col items-start justify-center gap-8 py-8">
                     <div className="space-y-3">
-                        {/*
-                         * Szándékosan nem <h2>: az oldal egyetlen címsora a jobb
-                         * oldali <h1> (az űrlap címe). Egy előtte álló h2 fordított
-                         * címsor-sorrendet adna a képernyőolvasónak.
-                         */}
                         <p className="text-4xl leading-tight font-bold">
                             Tanulj okosan,
                             <br />
@@ -53,8 +47,6 @@ export default function AuthSplitLayout({
                         </p>
                     </div>
 
-                    {/* Demo progress card — díszítő minta kitalált adatokkal, ezért a
-                        képernyőolvasó számára rejtett. */}
                     <div
                         aria-hidden="true"
                         className="w-full rounded-2xl bg-white p-5 shadow-xl dark:bg-neutral-800"
@@ -120,7 +112,6 @@ export default function AuthSplitLayout({
                 </div>
             </div>
 
-            {/* Right panel — form */}
             <div className="flex items-center justify-center p-8 lg:p-12">
                 <div
                     className={cn(

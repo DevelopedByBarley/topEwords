@@ -84,8 +84,6 @@ test('F1-L7: password reset revokes player device tokens', function () {
         return true;
     });
 
-    // A reset a „kompromittált fiók" tipikus belépője — a player Bearer-tokenek
-    // nem élhetik túl; a szélesebb jogkörű token nem ennek a purge-nek a dolga.
     $remaining = $user->tokens()->get();
 
     expect($remaining)->toHaveCount(1)

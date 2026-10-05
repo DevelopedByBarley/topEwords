@@ -86,7 +86,6 @@ import type {
     WordStatus,
 } from '@/types/words';
 
-/** A backend `WordIndexFilters::ALLOWED_PER_PAGE` értékei. */
 const PER_PAGE_OPTIONS = [20, 50, 100, 200, 300, 400, 500, 1000] as const;
 
 const STORAGE_KEY = 'words_filters';
@@ -121,8 +120,6 @@ export default function WordsIndex({
         Record<string, string>
     >({});
     const [geminiLoading, setGeminiLoading] = useState(false);
-    // Ha az AI a beírt ragozott alakot alapszóra lemmatizálta (helped → help),
-    // ez a tájékoztató üzenet jelzi a cserét a kitöltés-gomb alatt.
     const [geminiBaseFormNotice, setGeminiBaseFormNotice] = useState<
         string | null
     >(null);
@@ -145,14 +142,10 @@ export default function WordsIndex({
     const [customImportSuccess, setCustomImportSuccess] = useState(false);
     const [wordImportSuccess, setWordImportSuccess] = useState(false);
     const [savingCustomWord, setSavingCustomWord] = useState(false);
-    // Kétlépcsős törlés a saját szó modalban: a gomb előbb megerősítést kér.
     const [confirmDeleteCustom, setConfirmDeleteCustom] = useState(false);
     const [hintDismissed, setHintDismissed] = useState(
         () => localStorage.getItem(HINT_STORAGE_KEY) === '1',
     );
-    // A forrás-szűrő az URL-ben él (a többi szűrővel azonos módon), így a
-    // dashboard „Saját szavak → Kezelés" linkje egyből ide tud navigálni,
-    // és a szűrt nézet megosztható/visszatölthető.
     const customFilter: 'all' | 'custom' =
         filters.source === 'custom' ? 'custom' : 'all';
     const [practiceModalWord, setPracticeModalWord] =
@@ -169,10 +162,6 @@ export default function WordsIndex({
     const isAdmin: boolean = auth?.isAdmin ?? false;
     const hasAiAccess: boolean =
         isAdmin || (auth?.subscription?.hasAiAccess ?? false);
-    // Az admin alak-kitöltő által beírt mezők soronként. A words prop
-    // Inertia-oldali, tehát nem frissül magától; enélkül a szó adatlapja a
-    // kitöltés ELŐTTI (üres) alakokat mutatná, és úgy tűnne, mintha nem
-    // történt volna semmi.
     const [aiFilledFields, setAiFilledFields] = useState<
         Record<number, Partial<Word>>
     >({});
@@ -199,9 +188,6 @@ export default function WordsIndex({
             return customWords.map((w) => ({ type: 'custom', data: w }));
         }
 
-        // The main list is paginated by rank, so pages have no alphabetical
-        // range to slot custom words into. Merge every matching custom word
-        // into the first page — each one shows up exactly once.
         const customForPage = words.current_page === 1 ? customWords : [];
 
         return [
@@ -218,8 +204,6 @@ export default function WordsIndex({
         );
     }, [customFilter, customWords, words.data, words.current_page]);
 
-    // Saját-szavak nézetben a lista nincs lapozva, ezért a fejléc a betöltött
-    // elemek számát mutatja, nem a fő lista (szűrt) összesenét.
     const listedTotal =
         customFilter === 'custom' ? customWords.length : words.total;
     const hasActiveFilters =
@@ -244,12 +228,9 @@ export default function WordsIndex({
         const search = new URLSearchParams(window.location.search);
         const addWord = search.get('add');
 
-        // Üres `?add=` is nyit: a dashboard „Hozzáadás" gombja szó nélkül,
-        // a bővítmény pedig előtöltött szóval hívja ugyanezt az űrlapot.
         if (addWord !== null) {
             setCustomWordForm({ ...EMPTY_WORD_FORM, word: addWord.trim() });
             setShowAddCustomWord(true);
-            // Clean the ?add= param from the URL without reloading
             const clean = new URL(window.location.href);
             clean.searchParams.delete('add');
             window.history.replaceState({}, '', clean.toString());
@@ -291,8 +272,6 @@ export default function WordsIndex({
         }
     }, []);
 
-    // A kereső-debounce unmountkor törlendő, különben gyors oldalváltás után
-    // a késői router.get visszanavigálná a usert a szólistára.
     useEffect(() => {
         return () => {
             if (searchTimeout.current) {
@@ -303,8 +282,6 @@ export default function WordsIndex({
 
     const navigate = useCallback(
         (params: WordFilterPatch, options?: { preserveScroll?: boolean }) => {
-            // Egy szűrő-kattintás mindig felülírja a még függő kereső-debounce-t,
-            // különben az 350 ms-mal később visszaírná a régi keresőszót.
             if (searchTimeout.current) {
                 clearTimeout(searchTimeout.current);
                 searchTimeout.current = null;
@@ -518,8 +495,6 @@ export default function WordsIndex({
         }, 350);
     }
 
-    // A sor-kezelők useCallback-ben vannak, hogy a memoizált WordRow propjai
-    // stabilak maradjanak — enélkül a memo semmit sem érne.
     const handleStatus = useCallback((word: Word, newStatus: WordStatus) => {
         const nextStatus = word.status === newStatus ? null : newStatus;
 
@@ -529,13 +504,7 @@ export default function WordsIndex({
             {
                 preserveScroll: true,
                 preserveState: true,
-                // Gyors, egymás utáni kattintásoknál minden hívás fusson
-                // párhuzamosan, ne szakítsa meg (és görgesse vissza) az
-                // előzőt — az Inertia a párhuzamos optimista frissítéseket
-                // propról propra követi.
                 async: true,
-                // A jelölés a lapozó/betű-annotációkat is érinti, ezért azokat
-                // is újratöltjük, különben a pöttyök és a zöld oldalak elavulnak.
                 only: [
                     'words',
                     'stats',
@@ -575,12 +544,6 @@ export default function WordsIndex({
         );
     }, []);
 
-    /**
-     * Lekéri az AI szóadatot és beolvasztja a megadott űrlapba. Több modal is
-     * használja (saját szó hozzáadása, admin szó szerkesztése), ezért a setter és
-     * a hiba-kezelő paraméterként jön. A lekérés és a beolvasztás a közös
-     * `@/lib/gemini-word`-ben él — ugyanazt futtatja a szövegelemző dialógusa is.
-     */
     async function handleGeminiAutofill(
         rawWord: string,
         applyForm: (updater: (prev: WordFormData) => WordFormData) => void,
@@ -593,8 +556,6 @@ export default function WordsIndex({
             return;
         }
 
-        // Korábbi hiba (pl. "nem valódi szó") és lemma-jelzés törlése, hogy egy
-        // sikeres újralekérés ne hagyja a régi üzenetet a képernyőn.
         setErrors({});
         setGeminiBaseFormNotice(null);
         setGeminiLoading(true);
@@ -659,9 +620,6 @@ export default function WordsIndex({
             importance: customWordForm.importance,
         };
 
-        // Minden kitöltött alak-mezőt elküldünk, a szófajtól függetlenül: egy szó
-        // több szófaj alakjait is hordozhatja (pl. "interest" főnév + igealakok),
-        // és a párosítás/kiemelés mind a 9 oszlopot olvassa.
         payload.form_base = customWordForm.form_base.trim() || null;
         payload.verb_past = customWordForm.verb_past.trim() || null;
         payload.verb_past_participle =
@@ -691,9 +649,6 @@ export default function WordsIndex({
         });
     }
 
-    // Admin gyors alak-kitöltő. A sorok memoizáltak, ezért a kezelő üres
-    // dependency-vel stabil, és soronként csak a SAJÁT állapotát kapja meg —
-    // így egy kitöltés nem rendereli újra a másik 999 sort.
     const [aiFillStates, setAiFillStates] = useState<
         Record<number, 'loading' | 'done'>
     >({});
@@ -728,10 +683,6 @@ export default function WordsIndex({
         }
 
         const filled = Array.isArray(data.filled) ? data.filled : [];
-        // A képzett alakok (basic → basically) önálló szóként kerülnek a fő
-        // listába, saját jelentéssel és mindenkinél jelöletlen státusszal — nem
-        // a tő alá. A 10 000 utáni rangot kapnak (7. szint), tehát nem a most
-        // látott oldalon jelennek meg; ezért nincs is mit újratölteni.
         const created = Array.isArray(data.created) ? data.created : [];
 
         setAiFillStates((prev) => ({ ...prev, [word.id]: 'done' }));
@@ -808,8 +759,6 @@ export default function WordsIndex({
                 preserveScroll: true,
                 preserveState: true,
                 async: true,
-                // Jelöletlen szónál a backend "known" pivotot hoz létre, ezért
-                // a fejléc-statisztika és a lapozó/betű-annotációk is változhatnak.
                 only: [
                     'words',
                     'stats',
@@ -833,9 +782,6 @@ export default function WordsIndex({
         );
     }
 
-    // Biztonsági szelep az alak-kitöltőhöz: az AI által beszúrt képzett alakok a
-    // mindenki által használt listába kerülnek, ezért kell út a rossz sor
-    // eltávolítására. ConfirmDialog, nem natív confirm() — visszafordíthatatlan.
     const [deleteWordId, setDeleteWordId] = useState<number | null>(null);
     const deleteWordTarget =
         deleteWordId !== null
@@ -868,7 +814,6 @@ export default function WordsIndex({
         <>
             <Head title="Top 10 000 angol szó" />
 
-            {/* Practice modal */}
             <PracticeModal
                 key={practiceModalWord?.word ?? 'practice'}
                 word={practiceModalWord}
@@ -876,7 +821,6 @@ export default function WordsIndex({
             />
 
             <div className="mx-auto flex h-full w-full max-w-[2000px] flex-1 flex-col gap-6 p-4 pb-24 md:p-6 md:pb-28 xl:px-10 2xl:px-16">
-                {/* Hero */}
                 <div
                     className="relative overflow-hidden rounded-3xl p-6 md:p-8"
                     style={{
@@ -934,7 +878,6 @@ export default function WordsIndex({
                     onAddCustomWord={() => setShowAddCustomWord(true)}
                 />
 
-                {/* Add custom word dialog */}
                 <Dialog
                     open={showAddCustomWord}
                     onOpenChange={(open) => {
@@ -1074,7 +1017,6 @@ export default function WordsIndex({
                     isAdmin={isAdmin}
                 />
 
-                {/* Folder dialog */}
                 <Dialog
                     open={showFolderSheet}
                     onOpenChange={setShowFolderSheet}
@@ -1243,7 +1185,6 @@ export default function WordsIndex({
                     </DialogContent>
                 </Dialog>
 
-                {/* Word list */}
                 <section className="overflow-hidden rounded-3xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-700 dark:bg-card">
                     <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
                         <p className="text-sm font-medium tabular-nums">
@@ -1336,7 +1277,6 @@ export default function WordsIndex({
                     )}
                 </section>
 
-                {/* Pagination */}
                 {words.last_page > 1 && customFilter !== 'custom' && (
                     <div className="flex flex-wrap justify-center gap-1">
                         {words.links.map((link, i) => {
@@ -1392,7 +1332,6 @@ export default function WordsIndex({
                 )}
             </div>
 
-            {/* Flip mode FAB */}
             <button
                 onClick={() => setFlipMode((v) => !v)}
                 title={
@@ -1412,7 +1351,6 @@ export default function WordsIndex({
                 </span>
             </button>
 
-            {/* Custom word detail modal */}
             <Dialog
                 open={selectedCustomWordId !== null}
                 onOpenChange={(open) => {
@@ -1679,7 +1617,6 @@ export default function WordsIndex({
                 </DialogContent>
             </Dialog>
 
-            {/* Custom word edit modal */}
             <Dialog
                 open={editCustomWordId !== null}
                 onOpenChange={(open) => {
@@ -1750,7 +1687,6 @@ export default function WordsIndex({
                 </DialogContent>
             </Dialog>
 
-            {/* Word detail modal */}
             <Dialog
                 open={selectedWord !== null}
                 onOpenChange={(open) => {
@@ -1762,7 +1698,6 @@ export default function WordsIndex({
                 <DialogContent className="flex max-h-[90dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
                     {selectedWord && (
                         <>
-                            {/* Hero */}
                             <div className="border-b bg-linear-to-br from-primary/8 to-primary/3 px-6 pt-5 pr-14 pb-4">
                                 <div className="flex items-start justify-between gap-3">
                                     <div className="min-w-0 flex-1">
@@ -1812,14 +1747,12 @@ export default function WordsIndex({
                                 </div>
                             </div>
 
-                            {/* Scrollable body */}
                             <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-5">
                                 <WordDetailSections
                                     data={selectedWord}
                                     flipMode={flipMode}
                                 />
 
-                                {/* Státusz */}
                                 <StatusButtons
                                     variant="modal"
                                     current={selectedWord.status}
@@ -1828,7 +1761,6 @@ export default function WordsIndex({
                                     }
                                 />
 
-                                {/* Fontosság */}
                                 <ImportanceStars
                                     value={selectedWord.importance}
                                     onChange={(v) =>
@@ -1836,7 +1768,6 @@ export default function WordsIndex({
                                     }
                                 />
 
-                                {/* Mappák */}
                                 {folders.length > 0 && (
                                     <div>
                                         <p className="mb-2 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
@@ -1875,7 +1806,6 @@ export default function WordsIndex({
                                     </div>
                                 )}
 
-                                {/* Flashcard deckhez adás */}
                                 {flashcardDecks.length > 0 && (
                                     <div>
                                         <p className="mb-2 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
@@ -1945,7 +1875,6 @@ export default function WordsIndex({
                                     </p>
                                 )}
 
-                                {/* AI szó-infó (AI-hozzáférésű felhasználóknak) */}
                                 {hasAiAccess && (
                                     <div className="flex flex-col gap-3 border-t pt-4">
                                         <WordInsightPanel
@@ -1955,7 +1884,6 @@ export default function WordsIndex({
                                     </div>
                                 )}
 
-                                {/* Hibás adat jelentése */}
                                 <div className="flex flex-col gap-3 border-t pt-4">
                                     <Button
                                         variant="ghost"
@@ -1970,7 +1898,6 @@ export default function WordsIndex({
                                     </Button>
                                 </div>
 
-                                {/* Admin szerkesztés */}
                                 {isAdmin && (
                                     <div className="flex flex-col gap-3 border-t pt-4">
                                         <Button
@@ -1999,7 +1926,6 @@ export default function WordsIndex({
                     )}
                 </DialogContent>
             </Dialog>
-            {/* Hibás szóadat jelentése modal */}
             <Dialog
                 open={reportWordId !== null}
                 onOpenChange={(open) => {
@@ -2086,7 +2012,6 @@ export default function WordsIndex({
                     </form>
                 </DialogContent>
             </Dialog>
-            {/* Admin word edit modal */}
             {isAdmin && (
                 <Dialog
                     open={editWordId !== null}

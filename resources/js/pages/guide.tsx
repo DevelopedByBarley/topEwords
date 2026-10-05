@@ -4,8 +4,6 @@ import { useState } from 'react';
 import PublicLayout from '@/layouts/public-layout';
 import { handbook } from '@/routes';
 
-// A 'Kvíz' kategória kivezetve (2026-07-29): a kvíz és a mondatkiegészítés
-// nem része az induló feature-körnek — lásd routes/words.php.
 type CategoryKey =
     | 'Összes'
     | 'Kezdő lépések'
@@ -125,13 +123,6 @@ function categoryCount(cat: CategoryKey): number {
     return VIDEOS.filter((v) => v.category === cat).length;
 }
 
-/**
- * Egy tervezett videó kártyája.
- *
- * A borítón szándékosan NINCS lejátszás-gomb: a videók még nem készültek el,
- * és a korábbi play-ikon kattintható tartalmat ígért, ami nem létezett. A
- * „Hamarosan" felirat őszintén jelzi, hogy ez egy terv, nem egy elérhető lecke.
- */
 function VideoCard({ video, index }: { video: Video; index: number }) {
     return (
         <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white dark:border-neutral-700 dark:bg-neutral-900">
@@ -188,7 +179,6 @@ export default function Guide() {
             </Head>
 
             <PublicLayout className="mx-auto w-full max-w-300 px-6 py-10">
-                {/* Title */}
                 <div className="mb-8">
                     <h1 className="text-3xl font-extrabold tracking-tight text-neutral-900 dark:text-neutral-50">
                         Tananyag
@@ -212,7 +202,6 @@ export default function Guide() {
                     </p>
                 </div>
 
-                {/* Category filter */}
                 <div className="mb-8 flex flex-wrap gap-2">
                     {CATEGORIES.map((cat) => (
                         <button
@@ -238,7 +227,6 @@ export default function Guide() {
                     ))}
                 </div>
 
-                {/* Video grid */}
                 <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
                     {visibleVideos.map((video, i) => (
                         <VideoCard

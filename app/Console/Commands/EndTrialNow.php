@@ -39,17 +39,10 @@ class EndTrialNow extends Command
             return self::FAILURE;
         }
 
-        // Élesben ez VALÓDI kártyaterhelést indít, ezért az elgépelt e-mail ellen
-        // a megerősítés az érintett felhasználót is kiírja (P7-L3). A guard
-        // szándékosan a fenti feloldás UTÁN fut, hogy legyen mit megmutatni.
         if (! $this->confirmToProceed("Éles terhelés indul: {$user->email} ({$subscription->stripe_id})")) {
             return self::FAILURE;
         }
 
-        // A Stripe a trial_end=now hatására azonnal lezárja a próbaidőt, kiállítja és
-        // levonja az első valódi számlát, majd elküldi az invoice.payment_succeeded
-        // webhookot — pontosan úgy, mint a trial természetes lejártakor. A helyi
-        // trial_ends_at-et a customer.subscription.updated webhook szinkronizálja.
         $subscription->updateStripeSubscription(['trial_end' => 'now']);
 
         $this->info("Trial azonnal lejáratva: {$user->email} ({$subscription->stripe_id}).");

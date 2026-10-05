@@ -12,7 +12,6 @@ use Illuminate\Support\Facades\DB;
 
 class FlashcardSrsService
 {
-    // Rating constants
     const AGAIN = 1;
 
     const HARD = 2;
@@ -41,8 +40,6 @@ class FlashcardSrsService
     }
 
     /**
-     * Returns preview labels for each rating button without saving.
-     *
      * @return array{again: string, hard: string, good: string, easy: string}
      */
     public function getButtonPreviews(FlashcardReview $review, FlashcardSetting|FlashcardDeckSetting $settings): array
@@ -89,10 +86,6 @@ class FlashcardSrsService
 
         $hours = round($minutes / 60, 1);
 
-        // Round to days once the displayed hour count reaches a full day, so a
-        // near-day delay (e.g. 1439 min → 23.98 h → "24 óra") never renders the
-        // same as Good's "1 nap". Comparing the rounded hours, not the raw
-        // minutes, closes the 1436–1439 min gap the >= 1440 check left open.
         if ($hours >= 24) {
             return $this->formatDays((int) round($minutes / 1440));
         }
@@ -126,7 +119,6 @@ class FlashcardSrsService
             'reviewed_on' => $review->reviewed_on,
         ];
 
-        // Track when the card first left 'new' state (once only)
         if ($review->state === 'new' && $review->introduced_on === null) {
             $review->introduced_on = $today;
         }
@@ -142,9 +134,6 @@ class FlashcardSrsService
         $review->save();
     }
 
-    /**
-     * Get or create a FlashcardReview for a specific direction.
-     */
     public function getOrCreateReview(Flashcard $flashcard, string $direction): FlashcardReview
     {
         return FlashcardReview::firstOrCreate(
@@ -153,9 +142,6 @@ class FlashcardSrsService
         );
     }
 
-    /**
-     * Unsaved review instance with default values — for previews without touching the DB.
-     */
     public function newReviewFor(Flashcard $flashcard, string $direction): FlashcardReview
     {
         return new FlashcardReview([
@@ -181,8 +167,6 @@ class FlashcardSrsService
     }
 
     /**
-     * Returns all directions a flashcard should be studied in.
-     *
      * @return string[]
      */
     public function directionsFor(Flashcard $flashcard): array
@@ -193,9 +177,6 @@ class FlashcardSrsService
     }
 
     /**
-     * Fetch the study items due in the given deck.
-     * Each item is ['card' => Flashcard, 'direction' => string, 'review' => FlashcardReview|null].
-     *
      * @return Collection<int, array{card: Flashcard, direction: string, review: FlashcardReview|null}>
      */
     public function getDueCards(int $deckId, FlashcardSetting|FlashcardDeckSetting $settings): Collection
@@ -207,9 +188,6 @@ class FlashcardSrsService
             ->with('reviews')
             ->get();
 
-        // Count how many unique cards were already introduced / reviewed today.
-        // We count per physical card (not per direction) so that a 'both'-direction
-        // card doesn't consume two slots toward the daily limit.
         $newCardIdsIntroducedToday = [];
         $reviewCardIdsDoneToday = [];
 
@@ -235,7 +213,6 @@ class FlashcardSrsService
                 $review = $card->reviews->firstWhere('direction', $direction);
 
                 if (! $review || $review->state === 'new') {
-                    // Imported cards with no review are pending calibration — exclude from new queue
                     if ($card->is_imported && ! $review) {
                         continue;
                     }
@@ -250,8 +227,6 @@ class FlashcardSrsService
             }
         }
 
-        // Cards already started today (one direction of a 'both' card) are pre-counted,
-        // so their remaining new direction comes through without consuming another slot.
         $result = $this->takeByUniqueCards($newItems, $settings->new_cards_per_day, $newCardIdsIntroducedToday)
             ->merge($learningItems)
             ->merge($this->takeByUniqueCards($reviewItems, $effectiveReviewLimit))
@@ -265,26 +240,13 @@ class FlashcardSrsService
     }
 
     /**
-     * Count the study items getDueCards() would return, without hydrating models.
-     *
-     * Mirrors getDueCards() exactly (calibration exclusion, per-direction items,
-     * unique-card daily limits) but aggregates the reviews per card in SQL, so
-     * large decks are never fully loaded just to render a badge number.
-     *
-     * @return array{new: int, review: int} 'new' = items without a review or in 'new'
-     *                                      state; 'review' = due learning/relearning/review items
+     * @return array{new: int, review: int}
      */
     public function countDueCards(int $deckId, FlashcardSetting|FlashcardDeckSetting $settings): array
     {
         $now = Carbon::now()->toDateTimeString();
         $today = Carbon::today()->toDateString();
 
-        // A review only counts as a study item if its direction is one the card still
-        // uses (getDueCards() iterates directionsFor() and skips stale directions).
-        // The IS NOT NULL guard keeps the LEFT JOIN's all-NULL row (card without any
-        // review) from slipping through the 'both' branch. The daily-limit trackers
-        // (introduced_on / reviewed_on) intentionally look at every review, matching
-        // the unfiltered loop in getDueCards().
         $matchesDirection = "flashcard_reviews.id IS NOT NULL AND (flashcards.direction = 'both' OR flashcard_reviews.direction = flashcards.direction)";
 
         $cards = DB::table('flashcards')
@@ -304,9 +266,6 @@ class FlashcardSrsService
             ", [$now, $now, $today, $today, $today])
             ->get();
 
-        // Same budget arithmetic as takeByUniqueCards(): cards introduced today are
-        // pre-counted toward the new limit, so only (limit - introducedToday) further
-        // unique cards may enter the new queue; reviews done today shrink that limit.
         $newBudget = max(0, $settings->new_cards_per_day - $cards->where('introduced_today', 1)->count());
         $reviewBudget = max(0, $settings->max_reviews_per_day - $cards->where('reviewed_today', 1)->count());
 
@@ -314,14 +273,11 @@ class FlashcardSrsService
         $reviewCount = 0;
 
         foreach ($cards as $card) {
-            // Directions with a 'new' review, plus directions with no review at all —
-            // except on imported cards, where review-less directions await calibration.
             $missingDirections = $card->is_imported ? 0 : $card->direction_count - $card->review_rows;
             $newItems = $card->new_state_rows + $missingDirections;
 
             if ($newItems > 0) {
                 if ($card->introduced_today) {
-                    // Already counted toward today's limit — remaining directions come through free.
                     $newCount += $newItems;
                 } elseif ($newBudget > 0) {
                     $newCount += $newItems;
@@ -341,16 +297,6 @@ class FlashcardSrsService
     }
 
     /**
-     * Shuffle items ensuring no two adjacent items share the same card ID.
-     * A 'both'-direction card produces two items with the same card ID; this method
-     * guarantees they are never placed next to each other (as long as there are at
-     * least two distinct card IDs in the collection).
-     *
-     * Strategy: Fisher–Yates shuffle, then a repair pass that moves same-card-ID
-     * neighbours to a random non-adjacent position. Bounded by n² iterations so
-     * it always terminates even if the arrangement is impossible (e.g. only one
-     * unique card ID present).
-     *
      * @param  Collection<int, array{card: Flashcard, direction: string, review: FlashcardReview|null}>  $items
      * @return Collection<int, array{card: Flashcard, direction: string, review: FlashcardReview|null}>
      */
@@ -373,17 +319,16 @@ class FlashcardSrsService
             }
 
             if ($conflict === -1) {
-                break; // No conflicts — done
+                break;
             }
 
-            // Positions that are not immediately adjacent to the conflict
             $candidates = array_values(array_filter(
                 range(0, $n - 1),
                 fn ($j) => $j !== $conflict && $j !== $conflict + 1
             ));
 
             if (empty($candidates)) {
-                break; // Only one unique card ID — impossible to resolve
+                break;
             }
 
             $target = $candidates[array_rand($candidates)];
@@ -394,11 +339,8 @@ class FlashcardSrsService
     }
 
     /**
-     * Take items from a collection until $limit unique card IDs have been collected.
-     * This ensures a 'both'-direction card only counts as one toward the daily limit.
-     *
      * @param  Collection<int, array{card: Flashcard, direction: string, review: FlashcardReview|null}>  $items
-     * @param  array<int, bool>  $preCountedCardIds  Card IDs that already count toward the limit (included for free)
+     * @param  array<int, bool>  $preCountedCardIds
      * @return Collection<int, array{card: Flashcard, direction: string, review: FlashcardReview|null}>
      */
     private function takeByUniqueCards(Collection $items, int $limit, array $preCountedCardIds = []): Collection
@@ -425,7 +367,7 @@ class FlashcardSrsService
 
     private function processLearning(FlashcardReview $review, int $rating, FlashcardSetting|FlashcardDeckSetting $settings): void
     {
-        $steps = array_map('intval', $settings->learning_steps); // array of minutes
+        $steps = array_map('intval', $settings->learning_steps);
 
         match ($rating) {
             self::AGAIN => $this->learningAgain($review, $steps),
@@ -448,25 +390,6 @@ class FlashcardSrsService
         $review->due_at = Carbon::now()->addMinutes($this->learningHardMinutes($review, $steps, $settings));
     }
 
-    /**
-     * Hard delay during learning: 1.5× the current step, clamped into the
-     * [Again, Good) window so the buttons always keep Again <= Hard < Good,
-     * even with tightly spaced or non-increasing learning steps (e.g. [10, 10]
-     * or [10, 11], where 1.5 × 10 would tie or overtake Good).
-     *
-     * Ordering is the hard invariant, in priority Hard < Good, then Hard >= Again:
-     *   - The natural 1.5× value is first floored to Again, then capped just
-     *     below Good, so Hard never meets or exceeds Good.
-     *   - When Good leaves no whole-minute room above Again (a degenerate
-     *     non-increasing config such as [10, 10]), Hard falls back to Again
-     *     rather than dipping below it — Hard = Again is acceptable, Hard < Again
-     *     is not. Such configs are rejected on save; this only guards decks that
-     *     stored them before that validation existed.
-     *
-     * When Good graduates to whole days, Hard stays a full hour below the day
-     * boundary instead of a single minute, so "Nehéz" never rounds up to the
-     * same label Good's "1 nap" shows (1439 min would display as "24 óra").
-     */
     private function learningHardMinutes(FlashcardReview $review, array $steps, FlashcardSetting|FlashcardDeckSetting $settings): int
     {
         $step = min($review->learning_step ?? 0, count($steps) - 1);
@@ -478,14 +401,9 @@ class FlashcardSrsService
 
         $natural = max($again + 1, (int) round($steps[$step] * 1.5));
 
-        // Cap below Good first; if that pushed Hard under Again, restore Again
-        // (still strictly below Good whenever Good > Again).
         return max($again, min($natural, $hardCeiling));
     }
 
-    /**
-     * The delay (in minutes) Good would schedule from the current learning step.
-     */
     private function learningGoodMinutes(FlashcardReview $review, array $steps, FlashcardSetting|FlashcardDeckSetting $settings): int
     {
         $step = min($review->learning_step ?? 0, count($steps) - 1);
@@ -502,10 +420,6 @@ class FlashcardSrsService
         return $days * 1440;
     }
 
-    /**
-     * A lapsed card must stay 'relearning' through every learning step, otherwise
-     * graduation would treat it as a brand-new card and reset its interval and ease.
-     */
     private function learningStateFor(FlashcardReview $review): string
     {
         return $review->state === 'relearning' ? 'relearning' : 'learning';
@@ -517,8 +431,6 @@ class FlashcardSrsService
 
         if ($nextStep >= count($steps)) {
             $isRelearning = $review->state === 'relearning';
-            // Capture the current step before resetting so the graduating interval
-            // matches what getButtonPreviews showed for this rating.
             $currentStep = min($review->learning_step, count($steps) - 1);
 
             $review->state = 'review';
@@ -526,10 +438,8 @@ class FlashcardSrsService
             $review->repetitions = max(1, $review->repetitions);
 
             if ($isRelearning) {
-                // Relearning card: interval and ease were already set by reviewAgain — just reschedule.
                 $review->due_at = Carbon::now()->addDays(max(1, $review->interval));
             } else {
-                // New card graduating for the first time.
                 $interval = $this->graduatingInterval($settings, $steps, $currentStep);
                 $review->interval = $interval;
                 $review->ease_factor = $settings->starting_ease;
@@ -545,8 +455,6 @@ class FlashcardSrsService
     private function learningEasy(FlashcardReview $review, FlashcardSetting|FlashcardDeckSetting $settings, array $steps): void
     {
         $isRelearning = $review->state === 'relearning';
-        // Capture the current step before resetting so the easy interval matches
-        // what getButtonPreviews showed for this rating.
         $currentStep = min($review->learning_step, count($steps) - 1);
 
         $review->state = 'review';
@@ -554,11 +462,9 @@ class FlashcardSrsService
         $review->repetitions = max(1, $review->repetitions);
 
         if ($isRelearning) {
-            // Relearning card: the preserved interval plus an extra day, ease stays.
             $review->interval = $this->relearningEasyInterval($review, $settings);
             $review->due_at = Carbon::now()->addDays($review->interval);
         } else {
-            // New card graduating easy — must be at least 1 more day than graduating via Good.
             $interval = $this->easyInterval($settings, $steps, $currentStep);
             $review->interval = $interval;
             $review->ease_factor = $settings->starting_ease;
@@ -566,15 +472,6 @@ class FlashcardSrsService
         }
     }
 
-    /**
-     * Graduating interval via Good — kept strictly above what Hard would show.
-     *
-     * When the final learning step is itself a day or more, Hard already lands in
-     * multi-day territory (step × 1.5). Good must graduate to at least one day beyond
-     * Hard, otherwise both ratings collapse onto the same interval and the buttons
-     * become indistinguishable. When Hard is still sub-day (the common case), Hard is
-     * shown in minutes, so Good only needs the configured graduating interval.
-     */
     private function graduatingInterval(FlashcardSetting|FlashcardDeckSetting $settings, array $steps, int $currentStep): int
     {
         $safeStep = min($currentStep, count($steps) - 1);
@@ -585,18 +482,11 @@ class FlashcardSrsService
         return max($settings->graduating_interval, $minFromHard);
     }
 
-    /**
-     * Easy interval — always at least 1 day more than the graduating (Good) interval.
-     */
     private function easyInterval(FlashcardSetting|FlashcardDeckSetting $settings, array $steps, int $currentStep): int
     {
         return max($settings->easy_interval, $this->graduatingInterval($settings, $steps, $currentStep) + 1);
     }
 
-    /**
-     * Easy on a relearning card: one day beyond the preserved (Good) interval,
-     * so Easy always beats Good, capped at max_interval.
-     */
     private function relearningEasyInterval(FlashcardReview $review, FlashcardSetting|FlashcardDeckSetting $settings): int
     {
         return min(max(1, $review->interval) + 1, $settings->max_interval);
@@ -655,14 +545,6 @@ class FlashcardSrsService
         );
     }
 
-    /**
-     * Good interval — kept strictly above Hard, otherwise the two buttons collapse.
-     *
-     * A lapsed card's ease can drop to the 130 floor while Hard's default modifier
-     * is 120; at short intervals rounding makes the raw values tie (e.g. 3 days:
-     * round(3.6) = round(3.9) = 4), and a low interval_modifier can even push the
-     * raw Good below Hard. Both intervals can still meet at max_interval.
-     */
     private function goodIntervalFor(FlashcardReview $review, FlashcardSetting|FlashcardDeckSetting $settings): int
     {
         $byEase = (int) round($review->interval * $review->ease_factor / 100 * $settings->interval_modifier / 100);
@@ -673,9 +555,6 @@ class FlashcardSrsService
         );
     }
 
-    /**
-     * Easy interval — kept strictly above Good the same way Good is kept above Hard.
-     */
     private function easyIntervalFor(FlashcardReview $review, FlashcardSetting|FlashcardDeckSetting $settings): int
     {
         $byEase = (int) round(

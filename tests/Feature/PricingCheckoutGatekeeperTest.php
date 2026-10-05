@@ -8,8 +8,6 @@ use Laravel\Cashier\SubscriptionBuilder;
 use Stripe\Exception\ApiConnectionException;
 
 beforeEach(function () {
-    // A checkout 404-el, ha a fizetés nincs élesítve (Billing::enabled()); a
-    // gatekeeper-viselkedés csak élő Stripe-konfig mellett vizsgálható.
     config([
         'services.stripe.enabled' => true,
         'cashier.key' => 'pk_test_real',
@@ -19,8 +17,6 @@ beforeEach(function () {
 });
 
 test('checkout requires explicit consent and records it on success', function () {
-    // A consent szerveroldali kikényszerítése: kliensoldali pipa nélküli közvetlen POST
-    // sem indíthat fizetést. A felhasználónak van számlázási adata, de nincs consent.
     $user = User::factory()->withBilling()->create();
 
     $this->actingAs($user)
@@ -31,7 +27,6 @@ test('checkout requires explicit consent and records it on success', function ()
 });
 
 test('success page shows a pending message when the subscription is not active yet', function () {
-    // A webhook még nem hozta létre az előfizetést — ne "azonnal elérhető"-t ígérjünk.
     $user = User::factory()->create();
 
     $this->actingAs($user)
@@ -58,9 +53,6 @@ test('success page confirms success once the subscription is active', function (
 });
 
 test('a lejárt aláírású success-link nem 403, hanem info üzenettel a pricing oldalra visz', function () {
-    // A Stripe Checkout session 24 óráig él — a lassan fizető felhasználó lejárt
-    // aláírással érkezhet vissza, közvetlenül egy SIKERES fizetés után. Nyers 403
-    // helyett kecses visszairányítást kap.
     $user = User::factory()->create();
 
     $this->actingAs($user)
@@ -77,9 +69,6 @@ test('aláírás nélküli success-hívás sem 403, hanem a pricing oldalra visz
 });
 
 test('trial is disabled by default', function () {
-    // Üzleti döntés (2026-07): nincs próbaidőszak. A config default 0 —
-    // SUBSCRIPTION_TRIAL_DAYS env nélkül a pricing oldal nem hirdet trialt,
-    // és a checkout sem ad. Env-ből kapcsolható vissza.
     $this->get(route('pricing'))
         ->assertInertia(fn (Assert $page) => $page
             ->component('pricing')
@@ -88,7 +77,6 @@ test('trial is disabled by default', function () {
 });
 
 test('pricing page exposes the configured trial length as a prop', function () {
-    // A trial hossz egyetlen forrásból (config) jön — a UI nem hardcode-olja.
     config(['registration.subscription_trial_days' => 9]);
 
     $this->get(route('pricing'))
@@ -113,15 +101,12 @@ test('checkout does not gate users with complete billing details', function () {
     $response = $this->actingAs($user)
         ->post(route('pricing.checkout', 'premium'));
 
-    // Nem irányít a billing settings-re — a gatekeeper átengedi.
     if ($response->isRedirect()) {
         expect($response->headers->get('Location'))->not->toContain('billing');
     }
 });
 
 test('checkout blocks users who already have non-Stripe access', function () {
-    // Admin-adta (plan_override) hozzáférésnél nincs Stripe-előfizetés, így a swap-ág nem fogná
-    // meg — szerveroldalon kell elzárni, nehogy fölöslegesen fizetős előfizetést indítson.
     $user = User::factory()->withBilling()->create();
     $user->plan_override = 'premium';
     $user->save();
@@ -135,8 +120,6 @@ test('checkout blocks users who already have non-Stripe access', function () {
 });
 
 test('checkout blocks lifetime access users without a subscription', function () {
-    // Élethosszig tartó hozzáférésnél sincs Stripe-előfizetés — a gate a generikus
-    // próbaidő átengedése után is zárja el a fölösleges fizetést.
     $user = User::factory()->withBilling()->create();
     $user->lifetime_access = true;
     $user->save();
@@ -150,9 +133,6 @@ test('checkout blocks lifetime access users without a subscription', function ()
 });
 
 test('past_due előfizetésnél a checkout elzárva, a kártya-frissítés felé irányít', function () {
-    // S-L7: past_due-nál az activeSubscription() null (deactivatePastDue default), így a
-    // swap-ág nem fogná meg a meglévő előfizetést — a checkout egy MÁSODIK előfizetést
-    // indítana mellé. A helyes út a kártya frissítése, ezért szerveroldalon elzárjuk.
     $user = User::factory()->withBilling()->create(['stripe_id' => 'cus_'.uniqid()]);
     $user->subscriptions()->create([
         'type' => 'premium',
@@ -171,8 +151,6 @@ test('past_due előfizetésnél a checkout elzárva, a kártya-frissítés felé
 });
 
 test('a lemondott (ends_at kitöltött) past_due előfizetés nem zárja el a checkoutot', function () {
-    // A már lezárt előfizetésre nincs mit "helyreállítani" — ott az újra-előfizetés a
-    // helyes út, a hasPastDueSubscription() az ends_at-os sorokra nem szól.
     $user = User::factory()->create(['stripe_id' => 'cus_'.uniqid()]);
     $user->subscriptions()->create([
         'type' => 'premium',
@@ -187,9 +165,6 @@ test('a lemondott (ends_at kitöltött) past_due előfizetés nem zárja el a ch
 });
 
 test('a nem-fizetős kapuk a billing-kapu ELŐTT futnak: plan_override user billing-adat nélkül is a helyes üzenetet kapja', function () {
-    // S-L5: a plan_override/lifetime user nem fizet, ezért fölösleges (és félrevezető)
-    // előbb a számlázási adatokat kérni. Billing nélkül is a "már van hozzáférésed"
-    // üzenetet kell kapnia, nem a billing.edit-et.
     $user = User::factory()->create(['plan_override' => 'premium']);
 
     expect($user->hasBillingDetails())->toBeFalse();
@@ -203,9 +178,6 @@ test('a nem-fizetős kapuk a billing-kapu ELŐTT futnak: plan_override user bill
 });
 
 test('a nem-fizetős kapuk a billing-kapu ELŐTT futnak: past_due user billing-adat nélkül is a kártya-frissítés felé megy', function () {
-    // S-L5: past_due-nál a helyes út a kártya frissítése (subscription.edit), nem az új
-    // fizetés — ezért a past_due kapunak a billing-kapu ELÉ kell futnia, különben a
-    // billing nélkül maradt fiók tévesen a billing.edit-re kerülne.
     $user = User::factory()->create(['stripe_id' => 'cus_'.uniqid()]);
     $user->subscriptions()->create([
         'type' => 'premium',
@@ -224,9 +196,6 @@ test('a nem-fizetős kapuk a billing-kapu ELŐTT futnak: past_due user billing-a
 });
 
 test('grace period alatt (lemondva, de aktív) a checkout a lemondás-visszavonás felé terel, nem swap-ol', function () {
-    // S-L6: grace period alatt az activeSubscription() nem null → a swap-ág fogná meg, és
-    // az azonos árra "Már ez az aktív csomagod"-ot adna, ami a lemondott felhasználónak
-    // félrevezető. A subscription.edit-re tereljük, ahol a "Lemondás visszavonása" gomb van.
     $user = User::factory()->withBilling()->create(['stripe_id' => 'cus_'.uniqid()]);
     $user->subscriptions()->create([
         'type' => 'premium',
@@ -246,11 +215,6 @@ test('grace period alatt (lemondva, de aktív) a checkout a lemondás-visszavon�
 });
 
 test('a generikus próbaidő (ajándék hónap) alatt is lehet előfizetni, a megmaradt idő a checkout próbaidejeként megy tovább', function () {
-    // M2: a hasActiveAccess() gate eddig a generikus trialt is elzárta a checkouttól,
-    // így az ajándék hónap alatt nem lehetett konvertálni. Az átengedés önmagában
-    // viszont kevés: előfizetés-létrejöttekor a Cashier webhookja nullázza a
-    // users.trial_ends_at-ot, ezért a megmaradt ajándék-időt trialUntil()-lal az
-    // előfizetés próbaidejeként visszük tovább — különben szó nélkül elveszne.
     $trialEndsAt = now()->addDays(20)->startOfSecond();
 
     $builder = Mockery::mock(SubscriptionBuilder::class);
@@ -266,10 +230,8 @@ test('a generikus próbaidő (ajándék hónap) alatt is lehet előfizetni, a me
     $user->shouldReceive('hasVerifiedEmail')->andReturnTrue();
     $user->shouldReceive('hasBillingDetails')->andReturnTrue();
     $user->shouldReceive('activeSubscription')->andReturnNull();
-    // A hasMany a mock-osztálynévből képezné az idegen kulcsot (mockery_..._user_id) → mockolni kell.
     $user->shouldReceive('hasPastDueSubscription')->andReturnFalse();
     $user->shouldReceive('newSubscription')->once()->with('premium', 'price_pro')->andReturn($builder);
-    // A consent-naplózás (forceFill->save) ne próbáljon DB-be írni a mock usernél.
     $user->shouldReceive('save')->andReturnTrue();
     $user->trial_ends_at = $trialEndsAt;
 
@@ -279,8 +241,6 @@ test('a generikus próbaidő (ajándék hónap) alatt is lehet előfizetni, a me
 });
 
 test('ha a konfigurált első-előfizetési trial hosszabb a megmaradt ajándék-időnél, a hosszabb érvényesül', function () {
-    // A két próbaidő-forrás közül a későbbi végdátum nyer — a rövidebb ajándék-maradék
-    // ne vágja le a felhasználónak amúgy járó hosszabb first-subscription trialt.
     config(['registration.subscription_trial_days' => 9]);
 
     $builder = Mockery::mock(SubscriptionBuilder::class);
@@ -296,7 +256,6 @@ test('ha a konfigurált első-előfizetési trial hosszabb a megmaradt ajándék
     $user->shouldReceive('hasVerifiedEmail')->andReturnTrue();
     $user->shouldReceive('hasBillingDetails')->andReturnTrue();
     $user->shouldReceive('activeSubscription')->andReturnNull();
-    // A hasMany a mock-osztálynévből képezné az idegen kulcsot (mockery_..._user_id) → mockolni kell.
     $user->shouldReceive('hasPastDueSubscription')->andReturnFalse();
     $user->shouldReceive('isEligibleForSubscriptionTrial')->andReturnTrue();
     $user->shouldReceive('newSubscription')->once()->with('premium', 'price_pro')->andReturn($builder);
@@ -309,25 +268,17 @@ test('ha a konfigurált első-előfizetési trial hosszabb a megmaradt ajándék
 });
 
 test('a Stripe oldali hiba a csomagváltáskor nem dől 500-ba, hanem érthető hibaüzenettel tér vissza', function () {
-    // A swap() Stripe API-hibája (pl. hálózat, törölt ár) ne kezeletlen kivételként
-    // 500-azzon a felhasználónak — a kontroller elkapja és barátságos üzenettel küldi vissza.
     $subscription = Mockery::mock(Subscription::class);
-    // A Pro-tól eltérő aktuális ár, hogy a "már ez az aktív csomagod" ág ne fogja
-    // meg, hanem valóban a swap() fusson (és dobja a Stripe-hibát).
     $subscription->shouldReceive('getAttribute')->with('stripe_price')->andReturn('price_old');
-    // Az Inertia share (isOnAnyTrial) a válasz összeállításakor lekérdezi.
     $subscription->shouldReceive('onTrial')->andReturnFalse();
-    // A grace-kapu (S-L6) a swap előtt ellenőrzi — itt nincs grace, hogy a swap fusson.
     $subscription->shouldReceive('onGracePeriod')->andReturnFalse();
     $subscription->shouldReceive('swap')->once()->andThrow(new ApiConnectionException('boom'));
 
     $user = Mockery::mock(User::class)->makePartial();
-    // A checkout most a 'verified' middleware mögött van (megerősített e-mail kell).
     $user->shouldReceive('hasVerifiedEmail')->andReturnTrue();
     $user->shouldReceive('hasBillingDetails')->andReturnTrue();
     $user->shouldReceive('activeSubscription')->andReturn($subscription);
     $user->shouldReceive('subscriptionPlan')->andReturn('premium');
-    // A consent-naplózás (forceFill->save) ne próbáljon DB-be írni a mock usernél.
     $user->shouldReceive('save')->andReturnTrue();
 
     $this->actingAs($user)
@@ -337,9 +288,6 @@ test('a Stripe oldali hiba a csomagváltáskor nem dől 500-ba, hanem érthető 
 });
 
 test('a trial csak az első előfizetéshez jár — korábbi előfizetés után már nem', function () {
-    // #R3: a Cashier előfizetés-rekord lemondás után is megmarad, így a megléte
-    // jelzi a korábbi előfizetést. Enélkül lemondás + újra-checkout ismételgetésével
-    // korlátlan ingyenes próbaidő lenne szerezhető.
     $user = User::factory()->create();
 
     expect($user->isEligibleForSubscriptionTrial())->toBeTrue();
@@ -357,7 +305,6 @@ test('a trial csak az első előfizetéshez jár — korábbi előfizetés után
 });
 
 test('a pricing oldal nem hirdet próbaidőt a korábban már előfizetett felhasználónak', function () {
-    // A checkout már nem adna trialt (#R3), így a UI se ígérjen — a trialDays prop 0.
     config(['registration.subscription_trial_days' => 7]);
 
     $user = User::factory()->create();
@@ -391,24 +338,18 @@ test('hasBillingDetails returns true when all details are set', function () {
 });
 
 test('hasBillingDetails returns false when billing_country is missing', function () {
-    // S-L2: a checkout-kaput enélkül átcsúszó fiók NAV-számláján a partner-payload
-    // némán 'HU'-ra esne — a kapunak explicit meg kell követelnie az országot.
     $user = User::factory()->withBilling()->create(['billing_country' => '']);
 
     expect($user->hasBillingDetails())->toBeFalse();
 });
 
 test('hasBillingDetails returns false when billing_type is missing', function () {
-    // S-L3: billing_type nélkül a Billingo cég-ága (adószám) sosem futna — a régről
-    // billing_type nélkül maradt fiók nem csúszhat át a checkout-kapun.
     $user = User::factory()->withBilling()->create(['billing_type' => '']);
 
     expect($user->hasBillingDetails())->toBeFalse();
 });
 
 test('hasBillingDetails requires a tax number for company billing', function () {
-    // Cégként az adószám a belföldi cégszámlán jogszabály szerint kötelező — enélkül
-    // a checkout nem indulhat, különben adószám nélküli cégszámla készülne.
     $company = User::factory()->withBilling()->create([
         'billing_type' => 'company',
         'billing_tax_number' => null,

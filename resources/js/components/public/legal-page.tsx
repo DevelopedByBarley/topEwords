@@ -5,15 +5,6 @@ export type LegalSection = {
     title: string;
 };
 
-/**
- * Az ÁSZF és az Adatkezelési tájékoztató közös kerete.
- *
- * Mindkét dokumentum több száz soros, tíz-egynéhány számozott ponttal. Korábban
- * egyetlen görgethető szövegfalként jelentek meg: aki egy konkrét pontot
- * keresett (pl. elállási jog, adatmegőrzés), annak végig kellett görgetnie.
- * Innentől a pontok horgonyozhatók, és nagyobb kijelzőn ragadó tartalomjegyzék
- * kíséri őket.
- */
 export function LegalPage({
     title,
     effectiveFrom,

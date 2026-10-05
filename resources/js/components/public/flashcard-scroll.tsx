@@ -13,11 +13,6 @@ import { useEffect, useRef, useState } from 'react';
 import { ScrollReveal } from '@/components/public/scroll-reveal';
 import { gsap, ScrollTrigger } from '@/lib/scroll-trigger';
 
-/**
- * Az SRS négy értékelési fokozata — a címke, a szín, a következő ismétlés
- * távolsága és az algoritmus viselkedése egy helyen. A leírások szándékosan
- * zsargon nélküliek: a látogató nem tudja, mi az az ease faktor.
- */
 const SRS_STEPS = [
     {
         label: 'Újra',
@@ -45,10 +40,6 @@ const SRS_STEPS = [
     },
 ];
 
-/**
- * A hero-mockup ugyanezeket a fokozatokat mutatja, ezért innen veszi őket —
- * így az árak/intervallumok egyetlen helyen élnek.
- */
 export const RATE_DEFS = SRS_STEPS.map(({ label, time, color }) => ({
     label,
     time,
@@ -129,7 +120,6 @@ const FLASH_CAPS = [
     },
 ];
 
-/** A pinnelt desktop-jelenet lépései. */
 const SCENES = [
     'Jön a következő kártya',
     'Fordítsd meg',
@@ -139,13 +129,6 @@ const SCENES = [
 
 const SCENE_CARD = DEMO_DECK[0];
 
-/**
- * Flashcard SRS-szekció a landing oldalon.
- *
- * Ugyanaz a kétágú felépítés, mint a szövegelemzés-szekciónál: mobilon (és
- * `prefers-reduced-motion` mellett) az interaktív, statikus demó, `lg`-től
- * felfelé egy pinnelt, scroll-vezérelt GSAP-jelenet.
- */
 export function FlashcardScrollSection() {
     const [flipped, setFlipped] = useState(false);
     const [deckIndex, setDeckIndex] = useState(0);
@@ -191,7 +174,6 @@ export function FlashcardScrollSection() {
                     },
                 });
 
-                /** A háttér-foltok eltérő sebessége adja a mélységet. */
                 gsap.to(q('[data-layer="glow-a"]'), {
                     yPercent: -32,
                     ease: 'none',
@@ -202,7 +184,6 @@ export function FlashcardScrollSection() {
                     ease: 'none',
                     scrollTrigger: scrub,
                 });
-                /* A cím lassabban sodródik, mint a jelenet — ez adja a mélységet. */
                 gsap.to(q('[data-layer="heading"]'), {
                     yPercent: -16,
                     ease: 'none',
@@ -236,14 +217,12 @@ export function FlashcardScrollSection() {
                         '-=0.5',
                     )
 
-                    /* 2. jelenet: a kártya megfordul */
                     .to(q('[data-layer="card-inner"]'), {
                         rotationY: 180,
                         duration: 1.1,
                         ease: 'power2.inOut',
                     })
 
-                    /* 3. jelenet: értékelés — a „Jó” gomb kiemelkedik */
                     .from(q('[data-layer="rate"]'), {
                         opacity: 0,
                         y: 18,
@@ -257,7 +236,6 @@ export function FlashcardScrollSection() {
                     })
                     .to(q('[data-rate="Jó"]'), { scale: 1, duration: 0.3 })
 
-                    /* 4. jelenet: az ütemezés magyarázata veszi át a helyet */
                     .to(q('[data-layer="card-wrap"]'), {
                         opacity: 0,
                         scale: 0.92,
@@ -289,7 +267,6 @@ export function FlashcardScrollSection() {
 
     return (
         <section id="flashcard" ref={rootRef} className="bg-white">
-            {/* Mobil: interaktív, statikus demó */}
             <div className="px-5 pt-24 pb-12 lg:hidden lg:motion-reduce:block">
                 <div className="mx-auto mb-14 max-w-[760px] text-center">
                     <h2 className="text-[clamp(30px,4vw,46px)] leading-[1.1] font-bold tracking-[-1px] text-[#171717]">
@@ -418,7 +395,6 @@ export function FlashcardScrollSection() {
                 </div>
             </div>
 
-            {/* Desktop: pinnelt, scroll-vezérelt jelenet */}
             <div className="hidden lg:block lg:motion-reduce:hidden">
                 <div
                     ref={stageRef}
@@ -636,7 +612,6 @@ export function FlashcardScrollSection() {
                 </div>
             </div>
 
-            {/* Közös: a flashcard-képességek rácsa */}
             <div className="px-5 pb-24">
                 <div className="mx-auto grid max-w-[1120px] grid-cols-[repeat(auto-fit,minmax(210px,1fr))] gap-3.5">
                     {FLASH_CAPS.map((c, i) => (

@@ -5,10 +5,6 @@ namespace App\Notifications;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
-/**
- * Admin-riasztás prod-beli error szintű log-bejegyzésről. Szándékosan NEM ShouldQueue:
- * ha épp a queue infrastruktúra a hibás, a queue-ba tett riasztás sosem érne célba.
- */
 class ApplicationErrorDetected extends Notification
 {
     public function __construct(

@@ -29,9 +29,6 @@ class StoreReportRequest extends FormRequest
     }
 
     /**
-     * Magyar, mezőre szabott hibaüzenetek — az alapértelmezett fordítás a
-     * nyers mezőnevet ("word id") mutatná a felhasználónak.
-     *
      * @return array<string, string>
      */
     public function messages(): array

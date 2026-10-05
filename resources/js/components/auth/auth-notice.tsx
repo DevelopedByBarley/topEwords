@@ -8,12 +8,6 @@ const tones = {
         'border-green-200 bg-green-50 text-green-900 dark:border-green-900 dark:bg-green-950/40 dark:text-green-100',
 };
 
-/**
- * Az auth-oldalak tájékoztató sávja (pl. „elküldtük a megerősítő e-mailt”).
- *
- * `role="status"`: a szerverről érkező visszajelzést a képernyőolvasó is
- * bemondja — a korábbi sima zöld szöveg némán jelent meg.
- */
 export default function AuthNotice({
     icon: Icon,
     tone = 'info',

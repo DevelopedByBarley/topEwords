@@ -26,9 +26,6 @@ test('user can add a custom word', function () {
 });
 
 test('custom word persists form columns across word classes', function () {
-    // "interest" is primarily a noun, but also a verb. Its verb forms must be
-    // saved even though part_of_speech is "noun", so analysis/highlighting can
-    // recognise "interested"/"interesting" too.
     $this->post(route('custom-words.store'), [
         'word' => 'interest',
         'meaning_hu' => 'érdeklődés',
@@ -107,8 +104,6 @@ test('different users can have the same custom word', function () {
 });
 
 test('JSON store request reports validation failure as 422 with a message', function () {
-    // A szóelemző dialógus (word-lookup-dialog.tsx) erre a szerződésre épít:
-    // JSON-kérésnél a validációs hiba 422 + kitöltött `message` mező.
     $this->postJson(route('custom-words.store'), [
         'word' => 'ephemeral',
         'status' => 'known',
@@ -305,8 +300,6 @@ test('extension JSON request gets a JSON ack for custom word status', function (
 });
 
 test('custom word importance returns JSON for extension/JSON callers', function () {
-    // Ugyanaz a hiba, mint a globális szónál: a fetch a redirectet HTML-oldalra
-    // követte volna. A JSON-ág kell, hogy a csillagozás ne mutasson hamis hibát.
     $word = UserCustomWord::create([
         'user_id' => $this->user->id,
         'word' => 'ephemeral',
@@ -383,8 +376,6 @@ test('user cannot delete another users custom word', function () {
 });
 
 test('extension-origin custom word creation consumes the daily extension quota and blocks over it', function () {
-    // M4: az /extension/add-word megkerülhető lenne a webes custom-words.store-ra
-    // váltva; extension-originből ez az út is a közös napi keretbe számít.
     $this->postJson(route('custom-words.store'), [
         'word' => 'ephemeral',
         'meaning_hu' => 'illékony',
@@ -409,7 +400,6 @@ test('extension-origin custom word creation consumes the daily extension quota a
 });
 
 test('web-origin custom word creation does not consume the extension quota', function () {
-    // A weboldalról (nem extension-origin) indított felvétel nem fogyaszt keretet.
     $this->post(route('custom-words.store'), [
         'word' => 'ephemeral',
         'meaning_hu' => 'illékony',
@@ -442,7 +432,6 @@ test('words page carries the custom source filter so the dashboard link can pres
 });
 
 test('words page rejects an unknown source filter value', function () {
-    // Csak a 'custom' érvényes; bármi más a teljes listát jelenti.
     $this->get(route('words.index', ['source' => 'kacsa']))
         ->assertInertia(fn ($page) => $page->where('filters.source', ''));
 });

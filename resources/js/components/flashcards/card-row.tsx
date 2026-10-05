@@ -96,7 +96,6 @@ function CardRow({
                     aria-label="Kártya kijelölése"
                 />
 
-                {/* Card content — clickable for preview */}
                 <button
                     type="button"
                     onClick={() => onPreview(card)}
@@ -119,7 +118,6 @@ function CardRow({
                         {plainText(card.back, 70)}
                     </div>
 
-                    {/* Mobilon az állapot a tartalom alatt */}
                     <div className="mt-1.5 flex items-center gap-1.5 sm:hidden">
                         <span
                             className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${stateBadgeClass(reviewState)}`}
@@ -138,7 +136,6 @@ function CardRow({
                     </div>
                 </button>
 
-                {/* State badge + due — fixed column (csak desktopon) */}
                 <div className="hidden w-24 shrink-0 flex-col items-end gap-0.5 sm:flex">
                     <span
                         className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${stateBadgeClass(reviewState)}`}
@@ -156,7 +153,6 @@ function CardRow({
                     )}
                 </div>
 
-                {/* Actions */}
                 <div className="flex shrink-0 items-center gap-1">
                     {onPractice && (
                         <button
@@ -351,9 +347,4 @@ function CardRow({
     );
 }
 
-/**
- * Egy paklinézetben több száz sor is a DOM-ban lehet (a „Több betöltése"
- * halmoz), ezért a sor memoizált: a szülő állapotváltozásai — például a hero
- * visszaszámlálója — nem renderelik újra az egész listát.
- */
 export default memo(CardRow);

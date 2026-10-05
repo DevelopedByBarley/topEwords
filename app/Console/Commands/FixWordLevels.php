@@ -8,10 +8,6 @@ use Illuminate\Console\Command;
 use Illuminate\Console\ConfirmableTrait;
 use Illuminate\Support\Facades\DB;
 
-/**
- * A parancs a teljes `words` tábla `level` oszlopát átírja, ezért éles
- * környezetben megerősítést kér (P7-L3). Automatizált futtatáshoz `--force`.
- */
 #[Signature('words:fix-levels {--force : Megerősítés nélkül fut éles környezetben is}')]
 #[Description('Set the correct level for all words based on their rank')]
 class FixWordLevels extends Command

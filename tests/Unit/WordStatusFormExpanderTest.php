@@ -21,8 +21,6 @@ test('splits slash-separated alternative forms into separate variants', function
 test('phrase rows keep only the multi-word variants of slash-separated forms', function () {
     $expander = new WordStatusFormExpander;
 
-    // A "got on/gotten on" mindkét változata többszavas, ezért bekerül; az
-    // egyszavas form_base ("get") kifejezésnél továbbra is kimarad.
     $forms = $expander->formsFor((object) [
         'word' => 'get on',
         'status' => 'saved',

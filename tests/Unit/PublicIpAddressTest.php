@@ -2,9 +2,6 @@
 
 use App\Support\PublicIpAddress;
 
-// Az SSRF-szűrő teljes nem-publikus listája (F6-L1). A 100.64.0.0/10 (CGNAT) a
-// filter_var NO_PRIV/NO_RES szűrőjén átment; a többi eset a lista teljességét őrzi.
-
 test('rejects non-public addresses', function (string $ip) {
     expect(PublicIpAddress::isPublic($ip))->toBeFalse();
 })->with([

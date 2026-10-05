@@ -114,14 +114,8 @@ export default function Quiz({
     const [score, setScore] = useState(0);
     const [wrongAnswers, setWrongAnswers] = useState<QuizWord[]>([]);
     const [finished, setFinished] = useState(false);
-    // Amíg az „Újra" utáni új kör propjai megérkeznek, ezt tartjuk true-n, hogy a
-    // régi words[0] kérdés ne villanjon fel (és ne legyen megválaszolható) a
-    // szerver-kör előtt. A words-változásra futó effect nullázza.
     const [restarting, setRestarting] = useState(false);
 
-    // Új kvíz (új words prop) érkezésekor visszaállítjuk az állapotot — különben
-    // az Inertia újrahasználja a komponenst, és a régi current/answerState/finished
-    // beragadna.
     useEffect(() => {
         setCurrent(0);
         setSelected(null);
@@ -228,9 +222,6 @@ export default function Quiz({
     }
 
     function restart() {
-        // Nem nullázzuk a current/finished-et itt: a régi words még a propban van,
-        // a szinkron reset felvillantaná az előző kör 1. kérdését. A restarting
-        // flaggel loading-állapotot mutatunk, a words-effect állítja helyre.
         setRestarting(true);
 
         if (filters.ids !== '') {
@@ -245,7 +236,6 @@ export default function Quiz({
         }
     }
 
-    // ── Empty screen ─────────────────────────────────────────────────────────
     if (isEmpty) {
         return (
             <>
@@ -273,7 +263,6 @@ export default function Quiz({
         );
     }
 
-    // ── Setup screen ─────────────────────────────────────────────────────────
     if (isSetup) {
         return (
             <QuizSetup
@@ -288,9 +277,6 @@ export default function Quiz({
         );
     }
 
-    // ── Új kör töltése („Újra") ──────────────────────────────────────────────
-    // A régi words még a propban van; amíg az új kör meg nem érkezik, spinnert
-    // mutatunk a felvillanó régi 1. kérdés helyett.
     if (restarting) {
         return (
             <>
@@ -302,7 +288,6 @@ export default function Quiz({
         );
     }
 
-    // ── Finished screen ───────────────────────────────────────────────────────
     if (finished) {
         const percent = Math.round((score / words.length) * 100);
 
@@ -381,27 +366,20 @@ export default function Quiz({
         );
     }
 
-    // Vissza-navigációnál az Inertia a régi state-tel rendereli újra a komponenst:
-    // rövidebb words listánál a beragadt current index kifuthat a tartományból,
-    // mielőtt a fenti reset-effect lefutna. Ilyenkor nincs kártya — egy üres
-    // képkocka a fehér képernyős TypeError helyett; a reset-effect helyreállít.
     if (!card) {
         return null;
     }
 
     const OPTION_LABELS = ['A', 'B', 'C', 'D'];
 
-    // ── Quiz screen ───────────────────────────────────────────────────────────
     return (
         <>
             <Head title={`Kvíz – ${current + 1}/${words.length}`} />
 
             <div className="flex min-h-dvh flex-col">
-                {/* Violet header with word */}
                 <div className="relative overflow-hidden bg-amber-400 px-4 pt-5 pb-10">
                     <div className="pointer-events-none absolute -top-12 -right-12 size-48 rounded-full bg-white/10" />
 
-                    {/* Header row */}
                     <div className="relative mx-auto flex max-w-xl items-center justify-between">
                         <Link
                             href={quizRoute()}
@@ -418,7 +396,6 @@ export default function Quiz({
                         </span>
                     </div>
 
-                    {/* Progress bar */}
                     <div className="relative mx-auto mt-4 max-w-xl">
                         <div className="h-2 w-full overflow-hidden rounded-full bg-white/25">
                             <div
@@ -428,7 +405,6 @@ export default function Quiz({
                         </div>
                     </div>
 
-                    {/* Word */}
                     <div className="relative mx-auto mt-8 max-w-xl pb-4 text-center">
                         {card.rank !== null && (
                             <span className="mb-3 inline-block rounded-full bg-white/20 px-3 py-0.5 text-xs font-medium text-white/90">
@@ -444,9 +420,7 @@ export default function Quiz({
                     </div>
                 </div>
 
-                {/* Content area */}
                 <div className="mx-auto flex w-full max-w-xl flex-1 flex-col gap-4 px-4 py-6">
-                    {/* Options */}
                     <div className="grid grid-cols-1 gap-3">
                         {card.options.map((option, i) => {
                             const isCorrect = option === card.meaning_hu;
@@ -507,10 +481,8 @@ export default function Quiz({
                         })}
                     </div>
 
-                    {/* Extra info after answer */}
                     {answerState !== 'unanswered' && (
                         <div className="animate-in space-y-3 rounded-3xl bg-accent/60 p-5 text-sm duration-200 fade-in slide-in-from-bottom-2">
-                            {/* Igealakok */}
                             {card.part_of_speech === 'verb' &&
                                 card.verb_past && (
                                     <div>
@@ -558,7 +530,6 @@ export default function Quiz({
                                         </div>
                                     </div>
                                 )}
-                            {/* Többes szám */}
                             {card.part_of_speech === 'noun' &&
                                 card.noun_plural && (
                                     <div className="flex items-center gap-2">
@@ -570,7 +541,6 @@ export default function Quiz({
                                         </span>
                                     </div>
                                 )}
-                            {/* Fokozás */}
                             {card.part_of_speech === 'adj' &&
                                 card.adj_comparative && (
                                     <div className="grid grid-cols-2 gap-x-4 gap-y-1">
@@ -588,7 +558,6 @@ export default function Quiz({
                                         </span>
                                     </div>
                                 )}
-                            {/* Szinonimák */}
                             {card.synonyms && (
                                 <p className="text-muted-foreground">
                                     <span className="font-semibold text-foreground">
@@ -597,7 +566,6 @@ export default function Quiz({
                                     {card.synonyms}
                                 </p>
                             )}
-                            {/* Példamondat */}
                             {card.example_en && (
                                 <div>
                                     <p className="italic">
@@ -613,7 +581,6 @@ export default function Quiz({
                         </div>
                     )}
 
-                    {/* Next button */}
                     {answerState !== 'unanswered' && (
                         <div className="sticky bottom-4 mt-auto pt-2">
                             <Button
@@ -634,7 +601,6 @@ export default function Quiz({
     );
 }
 
-// ── Setup component ───────────────────────────────────────────────────────────
 function QuizSetup({
     available,
     folders,
@@ -731,7 +697,6 @@ function QuizSetup({
             <Head title="Kvíz beállítása" />
 
             <div className="space-y-6 px-4 py-6">
-                {/* Hero */}
                 <div
                     className="relative overflow-hidden rounded-3xl p-6 md:p-8"
                     style={{ background: 'linear-gradient(135deg,#4338CA,#4F8EEC)' }}
@@ -752,7 +717,6 @@ function QuizSetup({
                 <div
                     className={`grid gap-6 ${folders.length > 0 ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}
                 >
-                    {/* Folder filter */}
                     {folders.length > 0 && (
                         <div className="rounded-3xl bg-card p-5 shadow-sm">
                             <p className="mb-3 text-sm font-semibold">Mappa</p>
@@ -787,7 +751,6 @@ function QuizSetup({
                         </div>
                     )}
 
-                    {/* Status filter */}
                     <div className="rounded-3xl bg-card p-5 shadow-sm">
                         <p className="mb-3 text-sm font-semibold">
                             Melyik szavakból?
@@ -811,7 +774,6 @@ function QuizSetup({
                         </div>
                     </div>
 
-                    {/* Level filter */}
                     <div className="rounded-3xl bg-card p-5 shadow-sm">
                         <p className="mb-3 text-sm font-semibold">Szint</p>
                         <div className="grid grid-cols-2 gap-2">
@@ -829,7 +791,6 @@ function QuizSetup({
                         </div>
                     </div>
 
-                    {/* Count + Start */}
                     <div className="rounded-3xl bg-card p-5 shadow-sm">
                         <p className="mb-3 text-sm font-semibold">
                             Hány szó?{' '}
@@ -892,7 +853,6 @@ function QuizSetup({
                     </div>
                 </div>
 
-                {/* Selectable word list */}
                 {selectableWords.length > 0 && (
                     <div className="rounded-3xl bg-card p-5 shadow-sm">
                         <div className="mb-4 flex items-center justify-between gap-4">

@@ -5,10 +5,6 @@ namespace App\Notifications;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
-/**
- * Admin-riasztás torlódó queue-ról — a tipikus ok a leállt queue worker. Szándékosan
- * NEM ShouldQueue: ha a worker áll, a queue-ba tett riasztás sosem érne célba.
- */
 class QueueBacklogDetected extends Notification
 {
     public function __construct(

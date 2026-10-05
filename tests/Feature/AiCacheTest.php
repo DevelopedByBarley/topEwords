@@ -9,10 +9,6 @@ beforeEach(function () {
     config(['app.admin_email' => 'admin@example.com']);
 });
 
-/**
- * Egyetlen sikeres Gemini-választ ad vissza, majd minden további hívásnál hibázik.
- * Így a cache-találatot bizonyítjuk: a második kérés nem érhet el Geminit.
- */
 function fakeGeminiOnce(array $json): void
 {
     Http::fakeSequence('generativelanguage.googleapis.com/*')
@@ -32,7 +28,6 @@ test('a context nélküli szólekérdezés második hívása cache-ből jön, Ge
 
     expect(AiWordCache::where('cache_key', 'lookup:dog:en:v6')->exists())->toBeTrue();
 
-    // A második hívás cache-ből jön: ha Geminihez fordulna, az 500-as fake hibázna.
     $this->actingAs($user)
         ->getJson(route('text-analysis.gemini-lookup', ['word' => 'dog']))
         ->assertSuccessful()
@@ -47,11 +42,10 @@ test('a cache-találat nem terheli a felhasználó AI-keretét', function () {
 
     $this->actingAs($user)->getJson(route('text-analysis.gemini-lookup', ['word' => 'dog']))->assertSuccessful();
     $afterFirst = $user->fresh()->ai_credits_used;
-    expect($afterFirst)->toBe(130); // 300*0.10 + 250*0.40
+    expect($afterFirst)->toBe(130);
 
     $this->actingAs($user)->getJson(route('text-analysis.gemini-lookup', ['word' => 'dog']))->assertSuccessful();
 
-    // A második (cache-elt) hívás nem növelte a keretet.
     expect($user->fresh()->ai_credits_used)->toBe($afterFirst);
 });
 
@@ -85,7 +79,6 @@ test('a flashcard és a word insight külön cache-sort kap ugyanarra a szóra',
 
     expect(AiWordCache::where('cache_key', 'insight:run:en:v2')->exists())->toBeTrue();
 
-    // Második insight-hívás cache-ből (a fake második válasza 500 lenne).
     $this->actingAs($user)->getJson(route('text-analysis.word-insight', ['word' => 'run']))->assertSuccessful();
     Http::assertSentCount(1);
 });
@@ -98,7 +91,6 @@ test('egy nem létező szóra adott insight-választ nem tárol a cache', functi
         ->getJson(route('text-analysis.word-insight', ['word' => 'asdfgh']))
         ->assertSuccessful();
 
-    // A hallucinált insight nem mérgezheti meg a megosztott cache-t.
     expect(AiWordCache::count())->toBe(0);
 });
 
@@ -110,15 +102,11 @@ test('a valódi szóra adott insight cache-elődik, a második hívás onnan jö
 
     expect(AiWordCache::where('cache_key', 'insight:run:en:v2')->exists())->toBeTrue();
 
-    // A második hívás cache-ből jön: ha Geminihez fordulna, az 500-as fake hibázna.
     $this->actingAs($user)->getJson(route('text-analysis.word-insight', ['word' => 'run']))->assertSuccessful();
     Http::assertSentCount(1);
 });
 
 test('a fix előtt cache-elt insight-sor (is_real_word nélkül) továbbra is kiszolgálódik', function () {
-    // Visszafelé kompatibilitás: a kulcs (insight:dog:en:v2) nem változott, így a
-    // régi, is_real_word mező nélküli sorok bent maradtak. A `?? true` miatt ezek
-    // érvényes találatként szolgálódnak ki, nem esnek ki és nem generálnak új hívást.
     AiWordCache::create([
         'cache_key' => 'insight:dog:en:v2',
         'task' => 'insight',
@@ -148,7 +136,6 @@ test('egy nem létező szóra adott AI-választ nem tárol a cache', function ()
         ->assertJson(['is_real_word' => false])
         ->assertJsonMissing(['meaning_hu' => '']);
 
-    // A hallucinált válasz nem mérgezheti meg a megosztott cache-t.
     expect(AiWordCache::count())->toBe(0);
 });
 
@@ -164,7 +151,6 @@ test('a nem létező szó minden hívásnál újra értékelődik (nincs negatí
     $this->actingAs($user)->getJson(route('text-analysis.gemini-lookup', ['word' => 'asdfgh']))->assertJson(['is_real_word' => false]);
     $this->actingAs($user)->getJson(route('text-analysis.gemini-lookup', ['word' => 'asdfgh']))->assertJson(['is_real_word' => false]);
 
-    // Nincs cache-elve → mindkét hívás Geminihez fordul.
     Http::assertSentCount(2);
 });
 
@@ -196,7 +182,6 @@ test('a valódi szóra generált flashcard cache-elődik, a második hívás onn
 
     expect(AiWordCache::where('cache_key', 'flashcard:run:en:v3')->exists())->toBeTrue();
 
-    // A második hívás cache-ből jön (a fake második válasza 500 lenne).
     $this->actingAs($user)->getJson(route('text-analysis.gemini-flashcard', ['word' => 'run']))->assertSuccessful();
     Http::assertSentCount(1);
 });
@@ -211,14 +196,10 @@ test('egy nem létező szóra a flashcard nem cache-elődik, és jelzi a hibát'
         ->assertJson(['is_real_word' => false])
         ->assertJsonMissing(['front' => '']);
 
-    // A hallucinált flashcard nem mérgezheti meg a megosztott cache-t.
     expect(AiWordCache::count())->toBe(0);
 });
 
 test('a flashcard a kisbetűsített szót küldi a Gemininek, így a cache-kulcs és a prompt nem térhet el', function () {
-    // CACHE-1: a cache-kulcs mindig Str::lower()-t használ. Ha a prompt megőrizné a
-    // nagybetűt, a "March" (hónap) válasza a flashcard:march sorba kerülne, és egy
-    // későbbi "march" (menetel) kérés a hónap-tartalmat kapná vissza.
     fakeGeminiOnce([
         'is_real_word' => true,
         'cloze_sentences' => [['sentence' => 'They _____ on.', 'hints' => ['menetel']]],

@@ -21,8 +21,6 @@ return new class extends Migration
             $table->index('user_id');
         });
 
-        // Tömörített, időbélyeges felirat-szegmensek JSON-ja (gzip). MySQL: MEDIUMBLOB (max 16 MB),
-        // SQLite (tesztek): a BLOB típus eleve korlátlan.
         if (DB::getDriverName() === 'mysql') {
             DB::statement('ALTER TABLE youtube_transcripts ADD COLUMN compressed_segments MEDIUMBLOB NOT NULL AFTER title');
         } else {

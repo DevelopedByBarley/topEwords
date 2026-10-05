@@ -5,11 +5,6 @@ namespace App\Notifications;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
-/**
- * Figyelmeztetés a fióktulajdonosnak: valaki a helyes jelszóval, de hibás
- * kétlépcsős kóddal próbál belépni (App\Listeners\NotifyUserOfTwoFactorFailures).
- * Szándékosan NEM ShouldQueue, a projekt többi értesítésével egyezően.
- */
 class TwoFactorChallengeFailing extends Notification
 {
     public function __construct(

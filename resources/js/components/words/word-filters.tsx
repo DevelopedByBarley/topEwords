@@ -22,18 +22,14 @@ import type { Folder, WordFilterPatch, WordFilterValues } from '@/types/words';
 
 interface WordFiltersProps {
     filters: WordFilterValues;
-    /** A kereső beírt (debounce előtti) értéke — a szülő birtokolja. */
     search: string;
     onSearchChange: (value: string) => void;
     onChange: (patch: WordFilterPatch) => void;
-    /** Minden szűrő alaphelyzetbe — a szülő a kereső-debounce-t is eldobja. */
     onReset: () => void;
     folders: Folder[];
     markedLetters: string[];
-    /** A saját szavak száma — a „Forrás” csoport csak akkor jelenik meg, ha van. */
     customTotal: number;
     perPageOptions: readonly number[];
-    /** Az „Alakok” csoport (admin alak-kitöltő haladása) csak adminnak látszik. */
     isAdmin: boolean;
 }
 
@@ -41,12 +37,6 @@ const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 
 const PANEL_STORAGE_KEY = 'words_filters_open';
 
-/**
- * A szólista keresője és szűrői. A ritkábban használt csoportok (szint,
- * fontosság, mappa, forrás, betű) egy összecsukható panelben laknak, hogy a
- * szólista ne csússzon két képernyővel lejjebb; ami épp aktív, az mindig
- * látszik egy törölhető chipként.
- */
 export default function WordFilters({
     filters,
     search,
@@ -76,7 +66,6 @@ export default function WordFilters({
             ? filters.letter
             : null;
 
-    /** Az aktív szűrők törölhető chipjei — a keresőmező külön sorban van. */
     const activeChips: { key: string; label: string; clear: () => void }[] = [];
 
     if (filters.level !== null) {

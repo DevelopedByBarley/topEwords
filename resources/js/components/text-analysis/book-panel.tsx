@@ -5,17 +5,8 @@ import type { PageDirection, UserBook } from '@/components/text-analysis/types';
 import { Button } from '@/components/ui/button';
 import { showToast } from '@/lib/toast';
 
-/**
- * A felhasználó összes könyvének kinyert szövegére vonatkozó keret
- * (`TextAnalysisController::BOOK_STORAGE_LIMIT`) — nem a fájlok mérete.
- */
 const STORAGE_LIMIT_MB = 30;
 
-/**
- * Egyetlen feltöltött EPUB maximális mérete — a szerver oldali
- * `TextAnalysisController::MAX_BOOK_UPLOAD_KB` párja. Külön konstans a
- * tárhely-kerettől: két független limit.
- */
 const MAX_FILE_MB = 3;
 
 const STORAGE_LIMIT_BYTES = STORAGE_LIMIT_MB * 1024 * 1024;
@@ -88,7 +79,6 @@ export function BookList({ books, bookLimit, usedStorage, booksLoaded, isUploadi
                 </Button>
             </div>
 
-            {/* A letiltott gomb `title`-je touchon nem olvasható — az okot ki is írjuk. */}
             {limitReached ? (
                 <p className="text-xs text-amber-600 dark:text-amber-400">
                     {bookLimitReached
@@ -188,9 +178,6 @@ export function BookReader({ book, page, text, isLoadingPage, loadingDirection, 
                 <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{page} / {book.total_pages}</span>
             </div>
 
-            {/* Lapozás közben a régi oldal halványan látszik: nem ugrik a layout,
-                és a felhasználó látja, honnan lép tovább. Mobilon nincs belső
-                görgetés — a szöveg a lappal együtt görög. */}
             <div
                 ref={readerRef}
                 className={`scroll-mt-4 rounded-3xl bg-card px-4 py-3 text-sm leading-7 shadow-sm transition-opacity md:max-h-104 md:overflow-y-auto md:px-5 md:py-4 ${

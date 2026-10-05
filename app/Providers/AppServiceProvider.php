@@ -14,20 +14,13 @@ use Illuminate\Validation\Rules\Password;
 
 class AppServiceProvider extends ServiceProvider
 {
-    /**
-     * Register any application services.
-     */
     public function register(): void
     {
-        // A Billingo kliens az API kulccsal — egy helyen, a konfigból feloldva.
         $this->app->singleton(BillingoClient::class, fn (): BillingoClient => new BillingoClient(
             (string) config('services.billingo.api_key'),
         ));
     }
 
-    /**
-     * Bootstrap any application services.
-     */
     public function boot(): void
     {
         $this->assertKnownEnvironment();
@@ -43,34 +36,10 @@ class AppServiceProvider extends ServiceProvider
     }
 
     /**
-     * A környezetek, amelyekben a teljes hardening él (T-4 / F1-L2).
-     *
-     * A staging jellemzően éles adatmásolaton, publikusan elérhetően fut, ezért
-     * ugyanazt a védelmet kapja, mint a production: erős jelszó-policy, a
-     * destruktív parancsok tiltása, Secure session-cookie (config/session.php),
-     * HSTS + CSP (SecurityHeaders), APP_DEBUG-tilalom, Billingo-, log- és
-     * queue retry_after-guard.
-     * Csak a production marad: a Stripe live-kulcs assert (a staging tipikusan
-     * teszt-módú Stripe-kulccsal fut) és az admin hiba-riasztás (a staging hibái
-     * ne ébresszék az üzemeltetőt).
-     *
      * @var list<string>
      */
     public const HARDENED_ENVIRONMENTS = ['production', 'staging'];
 
-    /**
-     * Fail loudly if APP_ENV is set to an unrecognized value.
-     *
-     * ENV-1 / HDR-1 defense-in-depth: nearly every production hardening layer
-     * (CSP + HSTS, the SESSION_SECURE_COOKIE fail-safe, Password::defaults(),
-     * DB::prohibitDestructiveCommands, the Stripe live-key assert and the error
-     * alert) keys off an exact environment match ('production', and since T-4
-     * also 'staging' — see HARDENED_ENVIRONMENTS). A typo — APP_ENV=prod / live / "production " — would SILENTLY drop
-     * all of them at once. An empty/unset APP_ENV fails safe to 'production'
-     * (config/app.php), so the only dangerous state is an actively mistyped,
-     * non-empty value; a boot-time whitelist turns that silent downgrade into a
-     * hard boot failure. We never treat production itself as unknown.
-     */
     public function assertKnownEnvironment(): void
     {
         $known = ['local', 'testing', 'staging', 'production'];
@@ -88,17 +57,6 @@ class AppServiceProvider extends ServiceProvider
         }
     }
 
-    /**
-     * Fail loudly if APP_DEBUG is left on in production.
-     *
-     * ENV-2 defense-in-depth: config/app.php fails safe (APP_DEBUG defaults to
-     * false), but a .env copied from .env.example ships APP_DEBUG=true. If that
-     * line survives a production deploy, every 500 leaks a full Whoops/Ignition
-     * stack trace and config values. The default is safe, so this only fires on
-     * an explicit, mistyped APP_DEBUG=true under APP_ENV=production. T-4: a
-     * publikus, éles adatmásolaton futó staging ugyanígy szivárogtatna, ezért
-     * ott is tilos.
-     */
     public function assertDebugDisabledInProduction(): void
     {
         if ($this->isHardenedEnvironment() && config('app.debug')) {
@@ -110,14 +68,6 @@ class AppServiceProvider extends ServiceProvider
         }
     }
 
-    /**
-     * Fail loudly if Stripe is enabled but the webhook signing secret is missing.
-     *
-     * The stripe/* routes are CSRF-exempt, so Cashier's signature check is the only
-     * thing authenticating incoming webhooks. Cashier attaches that middleware ONLY
-     * when the secret is non-empty — an empty secret silently disables verification
-     * and would accept forged webhooks (e.g. a free premium upgrade). Refuse to boot.
-     */
     public function assertStripeWebhookSecured(): void
     {
         if (config('services.stripe.enabled') && empty(config('cashier.webhook.secret'))) {
@@ -129,16 +79,6 @@ class AppServiceProvider extends ServiceProvider
         }
     }
 
-    /**
-     * Fail loudly in production if the Stripe secret key is a TEST-mode key.
-     *
-     * REC-1 defense-in-depth: a test-mode (or wrong-account) STRIPE_SECRET makes the
-     * Stripe API answer resource_missing for every live subscription retrieve, which
-     * the daily cashier:reconcile-subscriptions would read as "deleted". The reconcile
-     * command now has a blast-radius kill switch, but the far cheaper fix is to never
-     * boot production with a mismatched key. We only assert when Stripe is enabled and
-     * a secret is present (empty/local keys are the developer's concern, not this guard).
-     */
     public function assertStripeSecretMatchesEnvironment(): void
     {
         if (! app()->isProduction() || ! config('services.stripe.enabled')) {
@@ -157,15 +97,6 @@ class AppServiceProvider extends ServiceProvider
         }
     }
 
-    /**
-     * Fail loudly in production/staging if Billingo invoicing is enabled but misconfigured.
-     *
-     * T-33 / F9B-L2: üres API-kulccsal minden számlázó job bukna, a 0-s block_id pedig
-     * a Billingo-fiók automatikusan választott tömbjébe küldené a NAV-számlát — több
-     * tömbös éles fiókban akár rossz sorszámtartományba, naplóbejegyzés nélkül. Élesben
-     * és stagingen ezért kötelező a kulcs és az explicit block_id; a lokális teszt-profil
-     * (BLOCK_ID=0) továbbra is az automatikus tömbválasztást használhatja.
-     */
     public function assertBillingoConfigured(): void
     {
         if (! $this->isHardenedEnvironment() || ! config('services.billingo.enabled')) {
@@ -182,16 +113,6 @@ class AppServiceProvider extends ServiceProvider
         }
     }
 
-    /**
-     * Fail loudly in production/staging if the default log stack has unbounded retention.
-     *
-     * T-16 / F4-L2: az adatvédelmi tájékoztató legfeljebb 12 hónapos megőrzést ígér a
-     * technikai naplókra (IP-cím, hibanapló). A `single` csatorna sosem forgatott,
-     * korlátlanul növő fájlt ír, a `daily` csatorna 0 napos beállítása pedig szintén
-     * korlátlan megőrzés (Monolog: 0 = nincs törlés). Az ígéret így nem múlhat egy
-     * elfelejtett LOG_STACK soron: a ténylegesen írt csatornák között nem lehet `single`,
-     * és minden `daily` csatorna 1–365 napot tarthat meg.
-     */
     public function assertLogRetentionBounded(): void
     {
         if (! $this->isHardenedEnvironment()) {
@@ -215,16 +136,6 @@ class AppServiceProvider extends ServiceProvider
         }
     }
 
-    /**
-     * Fail loudly in production/staging if the queue's retry_after does not exceed the
-     * Billingo invoice job's timeout.
-     *
-     * Ha a retry_after nem nagyobb a GenerateBillingoInvoice timeoutjánál, a queue egy még
-     * futó számlázó jobot újra kiad egy másik workernek — a párhuzamos második futás
-     * dupla NAV-számlát állíthat ki. A config/queue.php alapértéke biztonságos, de egy
-     * DB_QUEUE_RETRY_AFTER / REDIS_QUEUE_RETRY_AFTER env-felülírás ezt csendben
-     * visszahozná. Csak a retry_after-t ismerő database/redis driverre vonatkozik.
-     */
     public function assertQueueRetryAfterExceedsInvoiceTimeout(): void
     {
         if (! $this->isHardenedEnvironment()) {
@@ -255,8 +166,6 @@ class AppServiceProvider extends ServiceProvider
     }
 
     /**
-     * Az alapértelmezett log-csatorna ténylegesen írt csatornái (a stack kibontva).
-     *
      * @return list<string>
      */
     private function effectiveLogChannels(): array
@@ -273,19 +182,11 @@ class AppServiceProvider extends ServiceProvider
         ));
     }
 
-    /**
-     * Production vagy staging — a teljes hardening itt él (lásd HARDENED_ENVIRONMENTS).
-     */
     private function isHardenedEnvironment(): bool
     {
         return app()->environment(self::HARDENED_ENVIRONMENTS);
     }
 
-    /**
-     * Configure default behaviors for production-ready applications.
-     *
-     * T-4: a destruktív parancsok tiltása és az erős jelszó-policy stagingen is él.
-     */
     protected function configureDefaults(): void
     {
         Date::use(CarbonImmutable::class);

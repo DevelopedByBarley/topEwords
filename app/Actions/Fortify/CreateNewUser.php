@@ -17,8 +17,6 @@ class CreateNewUser implements CreatesNewUsers
     use BillingValidationRules, PasswordValidationRules, ProfileValidationRules;
 
     /**
-     * Validate and create a newly registered user.
-     *
      * @param  array<string, string>  $input
      */
     public function create(array $input): User
@@ -80,8 +78,6 @@ class CreateNewUser implements CreatesNewUsers
             ]);
 
             if ($invite !== null) {
-                // A meghívó induló csomagja: Pro-meghívónál ugyanaz a generikus próbaidő
-                // (trial_ends_at), mint az admin „ingyenes hónap" gombjánál.
                 $user->forceFill([
                     'invite_id' => $invite->id,
                     'trial_ends_at' => $invite->pro_days !== null ? now()->addDays($invite->pro_days) : null,

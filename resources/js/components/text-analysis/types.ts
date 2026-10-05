@@ -10,16 +10,13 @@ export interface UserBook {
     total_pages: number;
 }
 
-/** Melyik lapozó-gomb tölt éppen — csak az forogjon, amit a felhasználó megnyomott. */
 export type PageDirection = 'prev' | 'next' | null;
 
-/** Egy YouTube-felirat időbélyeges sora: t = kezdés másodpercben, x = szöveg. */
 export interface LyricSegment {
     t: number;
     x: string;
 }
 
-/** Egy elmentett YouTube-felirat (külön a könyvektől). */
 export interface YoutubeTranscript {
     id: number;
     title: string;
@@ -27,7 +24,6 @@ export interface YoutubeTranscript {
     total_pages: number;
 }
 
-/** A teljes videó összesített megértési statisztikája. */
 export interface VideoOverview {
     comprehension: number;
     totalWords: number;
@@ -36,7 +32,6 @@ export interface VideoOverview {
     learningCount: number;
 }
 
-/** Másodperc → m:ss (vagy h:mm:ss) formátum. */
 export function formatTimestamp(seconds: number): string {
     const s = Math.max(0, Math.floor(seconds));
     const h = Math.floor(s / 3600);
@@ -58,11 +53,6 @@ export interface HistoryEntry {
 
 export type TokenStatus = 'known' | 'learning' | 'saved' | 'pronunciation' | 'practice' | 'in_list' | 'not_in_list';
 
-/**
- * Egy megtalált szó szótári mezői (TextAnalysisController::lookupDetails).
- * Ugyanaz az adatkör, amit a szólista részletező modálja is kiír, hogy a
- * szövegelemző dialógusa ugyanazt a nézetet (WordDetailSections) renderelhesse.
- */
 export interface LookupWordDetails {
     word: string;
     meaning_hu: string | null;
@@ -101,25 +91,17 @@ export interface AnalysisResult {
     knownCount: number;
     learningCount: number;
     tokenStatuses: Record<string, TokenStatus>;
-    /** Normalized multi-word phrase → status, for phrase-level highlighting. */
     phraseStatuses?: Record<string, TokenStatus>;
     topUnknown: UnknownWord[];
 }
 
 export interface TokenStatusMeta {
-    /** A szóra kerülő kiemelés — üres, ha a státusz nem kap színt. */
     highlight: string;
-    /** A jelmagyarázatban megjelenő megnevezés. */
     label: string;
     icon: React.ElementType;
     iconClass: string;
 }
 
-/**
- * A kiemelés-színek és a jelmagyarázat EGYETLEN forrása. A megnevezések és a
- * színcsaládok szándékosan a Szavak oldal `STATUS_CONFIG`-jával egyeznek: a
- * felhasználó ugyanazt a szót ugyanabban a színben látja mindkét felületen.
- */
 export const TOKEN_STATUS_META: Record<TokenStatus, TokenStatusMeta> = {
     known: {
         highlight: 'bg-green-100 text-green-900 dark:bg-green-900/40 dark:text-green-300',
@@ -165,11 +147,6 @@ export const TOKEN_STATUS_META: Record<TokenStatus, TokenStatusMeta> = {
     },
 };
 
-/**
- * Mindig látható jelmagyarázat-elemek. A többi státusz (Később, Kiejtés,
- * Gyakorlásra) csak akkor jelenik meg, ha az adott szövegben elő is fordul —
- * így a jelmagyarázat nem hét csempével indul.
- */
 export const ALWAYS_SHOWN_STATUSES: TokenStatus[] = ['known', 'learning', 'in_list', 'not_in_list'];
 
 export const STATUS_STYLES: Record<TokenStatus, string> = Object.fromEntries(
@@ -190,10 +167,6 @@ export const EXAMPLE_TEXT = `The quick brown fox jumps over the lazy dog. Learni
 
 const MAX_HISTORY = 10;
 
-// A tárolt előzmények, session-pillanatkép és könyvjelzők személyes tanulási
-// adatok, ezért a tároló-kulcsokat a bejelentkezett user id-jével szkópoljuk:
-// közös gépen a következő fiók nem látja az előző user szövegeit/pozícióit.
-// A userId nélküli hívás (defenzív fallback) a régi közös kulcsra esik vissza.
 function historyKey(userId?: number): string {
     return userId ? `text_analysis_history_u${userId}` : 'text_analysis_history';
 }
@@ -221,13 +194,6 @@ export function addHistoryEntry(entry: Omit<HistoryEntry, 'id' | 'date'>, userId
     saveHistory([newEntry, ...filtered].slice(0, MAX_HISTORY), userId);
 }
 
-/**
- * A lap-újratöltés / oldalváltás után helyreállított állapot.
- *
- * A könyv-olvasó mezői is ide tartoznak: nélkülük frissítés után az elemzett
- * lap ott maradt a képernyőn, de a kiválasztott könyv nélkül sem az olvasó, sem
- * a lapozó nem rendert — a lap aljáról eltűnt az „Előző/Következő oldal".
- */
 export interface StoredSession {
     mode: InputMode;
     text: string;

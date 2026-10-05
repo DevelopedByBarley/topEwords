@@ -21,34 +21,17 @@ class ExtensionController extends Controller
 {
     use TogglesWordStatus;
 
-    /**
-     * Collapse any whitespace run to a single space and trim. Captions separate
-     * phrase words with NBSP, newlines or double spaces, so the raw token sent on
-     * click ("get\u{00A0}rid\u{00A0}of") must be normalised to match how phrases
-     * are stored and how the highlight map keys them ("get rid of").
-     */
     private function normalizePhraseWhitespace(string $word): string
     {
         return trim((string) preg_replace('/\s+/u', ' ', str_replace("\u{00A0}", ' ', $word)));
     }
 
-    /**
-     * CSRF-token a válaszban a session-alapú kliensnek (Chrome extension).
-     * A desktop lejátszó Bearer-tokennel, session nélkül hívja ugyanezeket a
-     * végpontokat — ott nincs (és nem is kell) CSRF, a csrf_token() pedig
-     * session híján kivételt dobna.
-     */
     private function csrfTokenIfSession(Request $request): ?string
     {
         return $request->hasSession() ? csrf_token() : null;
     }
 
     /**
-     * A részletező panelhez kiadott szóalak-oszlopok. Mindkettő szó-táblán
-     * (words, user_custom_words) megvannak, így a kliensnek nem kell elágaznia
-     * a globális és a saját szó között. Ezek az oszlopok amúgy is részt vesznek
-     * a keresés WHERE-ágában, a SELECT-be emelésük nem jár új lekérdezéssel.
-     *
      * @var list<string>
      */
     private const DETAIL_FORM_COLUMNS = [
@@ -65,10 +48,6 @@ class ExtensionController extends Controller
     ];
 
     /**
-     * A szóalak-mezők a válaszhoz. Az `is_irregular` a `words` táblán nullable
-     * tinyInteger, a `user_custom_words`-ön boolean, és egyik modell sem castolja
-     * — a kliens szigorúan boolt vár, ezért itt egységesítjük.
-     *
      * @return array<string, string|bool|null>
      */
     private function formDetails(Word|UserCustomWord $word): array
@@ -98,10 +77,6 @@ class ExtensionController extends Controller
             return response()->json(['found' => false, 'word' => $word]);
         }
 
-        // A weblapokon tipográfiai aposztróf áll a szavakban („couldn’t"), a
-        // tárolt alakok viszont ASCII-t használnak — normalizálás nélkül a keresés
-        // nem talál rá. A válaszba a megtalált (vagy a beküldött) alak megy vissza,
-        // ezért a kliens gyorsítótár-kulcsai változatlanok.
         $lower = WordText::normalizeApostrophes(strtolower($word));
 
         $match = Word::where(function ($q) use ($lower) {
@@ -138,11 +113,6 @@ class ExtensionController extends Controller
             ]);
         }
 
-        // Try custom words. Exact word match always counts (covers phrases like
-        // "cut through"); conjugation-form matching is limited to single-word
-        // entries so a phrase's single-word base form cannot hijack a plain word.
-        // A pontos egyezést minden aposztróf-változatra próbáljuk: a saját szó
-        // azzal az alakkal mentődött el, amilyennel a felhasználó rákattintott.
         $custom = UserCustomWord::where('user_id', $request->user()->id)
             ->where(function ($q) use ($lower) {
                 $q->where(function ($q2) use ($lower) {
@@ -191,8 +161,6 @@ class ExtensionController extends Controller
             return response()->json(['error' => 'unauthenticated'], 401);
         }
 
-        // A bővítményből indított írások közös napi keretbe számítanak (a Free
-        // kap napi keretet, a Pro korlátlan); az olvasás mindenkinek ingyenes.
         if (! $request->user()->canWriteFromExtension()) {
             return response()->json(['error' => 'plan'], 403);
         }
@@ -219,12 +187,8 @@ class ExtensionController extends Controller
             'importance' => ['nullable', 'integer', 'min:1', 'max:5'],
         ]);
 
-        // Kanonikus szóköz, hogy a feliratból kattintott (NBSP-s) változat is
-        // egyezzen a tárolt kifejezéssel a lookupnál.
         $data['word'] = $this->normalizePhraseWhitespace($data['word']);
 
-        // A felvitelkor választott státusz az alapértelmezés; ha nincs megadva,
-        // marad a korábbi viselkedés (a szó „Tudom" státusszal kerül be).
         $data['status'] = $data['status'] ?? 'known';
 
         $exists = $request->user()->customWords()->where('word', $data['word'])->exists();
@@ -232,16 +196,10 @@ class ExtensionController extends Controller
             return response()->json(['error' => 'duplicate']);
         }
 
-        // Atomi foglalás közvetlenül az insert előtt — a fenti canWriteFromExtension()
-        // csak gyors előszűrés, párhuzamos kérések ellen ez a tényleges kapu (#R6).
         if (! $request->user()->reserveExtensionWrite()) {
             return response()->json(['error' => 'plan'], 403);
         }
 
-        // A fenti $exists előszűrés és az insert között két párhuzamos, azonos szóra
-        // futó kérés is átjuthat; a (user_id, word) unique index elkapja a másodikat.
-        // Ilyenkor ne 500-azzunk, és adjuk vissza a lefoglalt keretet — duplikátumot
-        // jelzünk, épp úgy, mint az előszűrésnél (#L1).
         try {
             $custom = $request->user()->customWords()->create($data);
         } catch (UniqueConstraintViolationException) {
@@ -255,18 +213,11 @@ class ExtensionController extends Controller
             'id' => $custom->id,
             'word' => $custom->word,
             'meaning_hu' => $custom->meaning_hu,
-            // A felvett szó ÖSSZES felszíni alakja (ragozott alakok + extra_forms),
-            // hogy a token-alapú kliens a felvitel után azonnal, teljes térkép-
-            // újratöltés nélkül kiemelhesse a képernyőn látszó — akár ragozott vagy
-            // képzett — alakot is (a webes/extension kliens a teljes térképet frissíti).
             'forms' => $this->statusFormsFor($custom),
             'csrf' => $this->csrfTokenIfSession($request),
         ]);
     }
 
-    /**
-     * A felhasználó flashcard-paklijai a popup legördülőjéhez, plusz az AI-hozzáférés.
-     */
     public function decks(Request $request): JsonResponse
     {
         if (! $request->user()) {
@@ -285,19 +236,12 @@ class ExtensionController extends Controller
         ]);
     }
 
-    /**
-     * Flashcard létrehozása a popupból a választott pakliba. Ugyanazokat a mezőket
-     * és validációt használja, mint a webes szerkesztő (StoreFlashcardRequest), így
-     * a kártya azonos módon kerül az adatbázisba.
-     */
     public function createFlashcard(Request $request): JsonResponse
     {
         if (! $request->user()) {
             return response()->json(['error' => 'unauthenticated'], 401);
         }
 
-        // A bővítményből indított írások közös napi keretbe számítanak (Free napi
-        // keret, Pro korlátlan).
         if (! $request->user()->canWriteFromExtension()) {
             return response()->json(['error' => 'plan'], 403);
         }
@@ -315,23 +259,16 @@ class ExtensionController extends Controller
             'color' => ['nullable', 'string', 'regex:/^#[0-9a-fA-F]{6}$/'],
         ]);
 
-        // A pakli csak a saját paklik közül kereshető — így a tulajdon garantált.
         $deck = $request->user()->flashcardDecks()->find($data['deck_id']);
 
         if (! $deck) {
             return response()->json(['error' => 'deck_not_found'], 404);
         }
 
-        // Atomi napi-keret foglalás közvetlenül az insert előtt — a fenti
-        // canWriteFromExtension() csak gyors előszűrés, párhuzamos kérések ellen ez
-        // a tényleges kapu (#R6).
         if (! $request->user()->reserveExtensionWrite()) {
             return response()->json(['error' => 'plan'], 403);
         }
 
-        // A kártyakeret-kaput és az insertet egy user-szintű zár alá vonjuk, hogy
-        // párhuzamos kérések ne csússzanak át ugyanazon az elavult kártyaszámon (#R1).
-        // Ha bármelyik ág elbukik, a fent lefoglalt napi keretet visszaadjuk (#R2).
         $flashcard = null;
 
         try {
@@ -368,14 +305,6 @@ class ExtensionController extends Controller
         ]);
     }
 
-    /**
-     * Szó-státusz állítása a token-alapú kliensből (desktop lejátszó). A webes
-     * WordController/UserCustomWordController toggle-szemantikáját követi:
-     * null vagy az aktív státusz újraküldése = levétel. A státusz-FELVÉTEL a
-     * közös napi extension-írás keretbe számít (a levétel nem, hogy a betelt
-     * keret ne akadályozza a visszavonást) — ugyanaz az üzleti szabály, mint a
-     * bővítmény-origines webes írásoknál.
-     */
     public function updateStatus(Request $request): JsonResponse
     {
         if (! $request->user()) {
@@ -390,7 +319,6 @@ class ExtensionController extends Controller
         $status = $this->validatedToggleStatus($request);
 
         if ($data['is_custom']) {
-            // Csak a saját szavai közt keresünk — a tulajdon így garantált.
             $customWord = $request->user()->customWords()->find($data['id']);
 
             if (! $customWord) {
@@ -407,9 +335,6 @@ class ExtensionController extends Controller
                 return response()->json(['error' => 'plan'], 403);
             }
 
-            // Ha az update elbukik, a fent lefoglalt napi keretet visszaadjuk,
-            // hogy egy DB-hiba miatt ne vesszen el egy slot (az addWord/
-            // createFlashcard-dal azonos refund-szemantika, S1).
             try {
                 $customWord->update(['status' => $status]);
             } catch (\Throwable $e) {
@@ -441,7 +366,6 @@ class ExtensionController extends Controller
             return response()->json(['error' => 'plan'], 403);
         }
 
-        // Refund a lefoglalt keret, ha a pivot-írás elbukik (S1).
         try {
             $request->user()->knownWords()->syncWithoutDetaching([$word->id => ['status' => $status]]);
         } catch (\Throwable $e) {
@@ -455,14 +379,6 @@ class ExtensionController extends Controller
         return response()->json(['ok' => true, 'status' => $status, 'forms' => $this->statusFormsFor($word)]);
     }
 
-    /**
-     * Szó-fontosság állítása a token-alapú kliensből. A webes megfelelővel
-     * azonos szabályok (1–5 vagy null; pivot nélküli szónál a beállítás
-     * 'known' státusszal veszi fel a szót, a levétel nem csinál semmit).
-     * Meglévő jelölés módosítása nem számít az írás-keretbe, de az ÚJ szó
-     * felvétele igen — különben a csillagozás keret nélküli felvételi út
-     * lenne a státusz-állítás mellett (PL-M1).
-     */
     public function updateImportance(Request $request): JsonResponse
     {
         if (! $request->user()) {
@@ -504,7 +420,6 @@ class ExtensionController extends Controller
                 return response()->json(['error' => 'plan'], 403);
             }
 
-            // Refund a lefoglalt keret, ha a pivot-írás elbukik (S1).
             try {
                 $request->user()->knownWords()->syncWithoutDetaching([$word->id => ['status' => 'known', 'importance' => $importance]]);
             } catch (\Throwable $e) {
@@ -513,21 +428,12 @@ class ExtensionController extends Controller
                 throw $e;
             }
 
-            // Ez az ág ténylegesen új 'known' szót vesz fel — tartalmilag azonos az
-            // updateStatus felvételével, ezért ugyanúgy könyveli a streaket/achievementet
-            // (PL-L6). A fenti $existing-ág csak meglévő jelölést módosít, ott nincs új
-            // aktivitás, ezért oda nem való könyvelés.
             $this->recordStatusActivity($request);
         }
 
         return response()->json(['ok' => true, 'importance' => $importance]);
     }
 
-    /**
-     * Státusz-felvétel utáni streak- és achievement-könyvelés. A webes
-     * megfelelők session-flash-sel jeleznek a UI-nak; a token-alapú kliensnek
-     * nincs session-je, ezért itt csak az adat-oldali hatások futnak le.
-     */
     private function recordStatusActivity(Request $request): void
     {
         $request->user()->updateStreak();
@@ -556,16 +462,11 @@ class ExtensionController extends Controller
             ->where('status', '!=', '')
             ->get(['status', 'word', ...$formColumns]);
 
-        // Map every marked word AND all of its inflected forms to the same status,
-        // so captions/pages match conjugations like "changed" → "change" or "has" → "have".
         return response()->json([
             'statuses' => $formExpander->mapFrom($markedWords->concat($customWords)),
         ]);
     }
 
-    /**
-     * Timestamped caption segments for the in-page YouTube transcript sidebar.
-     */
     public function youtubeTranscript(Request $request, YouTubeCaptionService $captions): JsonResponse
     {
         if (! $request->user()) {
@@ -578,8 +479,6 @@ class ExtensionController extends Controller
             return response()->json(['error' => 'invalid_video_id'], 422);
         }
 
-        // Videónkénti cache-ből jön (userek közt megosztva), így ugyanaz a videó
-        // naponta legfeljebb egyszer scrape-eli a YouTube-ot (#M7).
         try {
             $transcript = $captions->fetchTranscript($videoId);
         } catch (\Throwable) {
@@ -609,10 +508,6 @@ class ExtensionController extends Controller
         $lower = strtolower($q);
         $like = addcslashes($q, '%_\\');
 
-        // A jelentésen túl a szinonimák, a példamondatok és a fontosság is a
-        // találattal együtt megy ki: a bővítmény popupja a találatot lenyitva
-        // ezekből építi a részletező panelt (státuszozás + csillagozás egy
-        // kattintással), így nem kell szavanként egy második kérés.
         $words = Word::where('word', 'LIKE', $like.'%')
             ->orWhere(function ($query) use ($lower) {
                 foreach (WordStatusFormExpander::FORM_COLUMNS as $column) {
@@ -646,8 +541,6 @@ class ExtensionController extends Controller
                 'example_en' => $w->example_en,
                 'example_hu' => $w->example_hu,
                 'status' => $mark?->status,
-                // A pivot nyers query builderből jön, ahol a PDO a számot
-                // stringként is adhatja — a kliens szigorúan int-et vár.
                 'importance' => $mark?->importance === null ? null : (int) $mark->importance,
                 ...$this->formDetails($w),
             ];

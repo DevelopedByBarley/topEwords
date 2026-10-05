@@ -4,16 +4,11 @@ use App\Models\User;
 use Illuminate\Support\Facades\Http;
 use Laravel\Sanctum\Sanctum;
 
-// A player AI-végpontjai ugyanazokat a controller-metódusokat használják, mint a
-// webes szövegelemző (AiCacheTest, AiUsageTest fedi a mélyebb viselkedést); itt
-// azt bizonyítjuk, hogy a lejátszó tokenes útvonalán is elérhetők és kapuzottak.
-
 beforeEach(function () {
     config(['services.gemini.api_key' => 'test-key']);
     config(['app.admin_email' => 'admin@example.com']);
 });
 
-/** Sikeres Gemini-választ hamisít a player AI-tesztekhez. */
 function fakePlayerGemini(array $json): void
 {
     Http::fake([
@@ -23,8 +18,6 @@ function fakePlayerGemini(array $json): void
         ]),
     ]);
 }
-
-// ── Auth ─────────────────────────────────────────────────────────────────────
 
 test('player gemini-lookup requires authentication', function () {
     $this->getJson(route('player.gemini-lookup', ['word' => 'dog']))
@@ -43,10 +36,6 @@ test('player gemini-lookup rejects tokens without the player ability', function 
         ->assertForbidden();
 });
 
-// ── Megerősített e-mail (F5-L3) ──────────────────────────────────────────────
-
-// A webes AI-végpontok verified mögött vannak; a player-úton sem költhet AI-keretet
-// az a token, amelynek fiókja megerősítetlenné vált (pl. e-mail-csere után).
 test('player AI endpoints reject an unverified token user without calling Gemini', function (string $routeName) {
     Http::fake();
     Sanctum::actingAs(User::factory()->unverified()->create(), ['player']);
@@ -56,8 +45,6 @@ test('player AI endpoints reject an unverified token user without calling Gemini
 
     Http::assertNothingSent();
 })->with(['player.gemini-lookup', 'player.gemini-flashcard']);
-
-// ── AI-kitöltés (gemini-lookup) ──────────────────────────────────────────────
 
 test('player gemini-lookup returns dictionary data with a player token', function () {
     fakePlayerGemini(['is_real_word' => true, 'meaning_hu' => 'kutya', 'part_of_speech' => 'noun']);
@@ -77,8 +64,6 @@ test('player gemini-lookup flags a non-existent word', function () {
         ->assertJson(['is_real_word' => false]);
 });
 
-// ── AI-flashcard (gemini-flashcard) ──────────────────────────────────────────
-
 test('player gemini-flashcard returns generated front and back with a player token', function () {
     fakePlayerGemini([
         'is_real_word' => true,
@@ -95,8 +80,6 @@ test('player gemini-flashcard returns generated front and back with a player tok
     expect($response['front'])->toContain('I _______ every day.')
         ->and($response['back'])->toContain('run');
 });
-
-// ── Havi AI-keret ────────────────────────────────────────────────────────────
 
 test('player gemini-lookup is blocked when the monthly AI budget is exhausted', function () {
     Http::fake();

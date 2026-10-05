@@ -2,12 +2,6 @@
 
 use App\Providers\AppServiceProvider;
 
-/**
- * ENV-1 / HDR-1 / ENV-2 (Fázis 8): a boot-guardok a némán kikapcsoló
- * prod-hardening ellen védenek. A guard-metódusokat közvetlenül hívjuk,
- * hogy ne kelljen a teljes bootot újraindítani; a produkció-detektálást
- * az app()->detectEnvironment() felülírásával kényszerítjük.
- */
 function envBootGuard(): AppServiceProvider
 {
     return new AppServiceProvider(app());
@@ -47,7 +41,6 @@ test('ENV-1: the four recognized environments boot cleanly', function () {
         });
     }
 
-    // Ha egyik sem dobott, a guard átengedte a helyes értékeket.
     expect(true)->toBeTrue();
 });
 

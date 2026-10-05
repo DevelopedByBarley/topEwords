@@ -29,24 +29,13 @@ class ReportController extends Controller
 
         $this->notifyAdmin($report);
 
-        // A szövegelemző szó-részletezője JSON-kérésként küldi a bejelentést: egy
-        // redirect ott újrarántaná az oldalt, és a betöltött szöveg, az elemzés és
-        // a könyv-lap (mind lokális kliens-state) elveszne. Ugyanaz az elágazás,
-        // mint a TogglesWordStatus nyugtáinál — az Inertia-felület redirectet vár.
         if (! $request->hasHeader('X-Inertia') && $request->expectsJson()) {
             return response()->json(['ok' => true]);
         }
 
-        // Nincs flash-üzenet: a sikert az oldal saját visszaigazoló panelje mutatja
-        // (pages/report/index.tsx). A globális toast ugyanazt a mondatot ismételné meg.
         return back();
     }
 
-    /**
-     * Értesíti az admint az új bejelentésről. A levélküldés hibája nem bukhat ki a
-     * felhasználóig: a bejelentés ekkor már el van mentve, a visszajelzése nem
-     * függhet az SMTP-től.
-     */
     private function notifyAdmin(Report $report): void
     {
         $adminEmail = config('app.admin_email');

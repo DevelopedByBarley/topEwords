@@ -1,14 +1,7 @@
 <?php
 
-/**
- * Az árazó oldal kézzel írt számokat ígér a csomag-keretekről. A Pro
- * könyv-kvótája 7-ről 3-ra ment, az oldal viszont továbbra is 7-et hirdetett
- * (F9B-L1) — vagyis többet ígértünk, mint amennyit a rendszer ad. Ez a teszt
- * az oldal és a config/plans.php összhangját őrzi.
- */
 function pricingSource(): string
 {
-    // A sortöréseket összevonjuk: a Prettier bármikor átformázhatja a sorokat.
     return preg_replace('/\s+/', ' ', file_get_contents(resource_path('js/pages/pricing.tsx')));
 }
 

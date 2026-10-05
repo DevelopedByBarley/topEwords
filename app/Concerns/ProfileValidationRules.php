@@ -8,8 +8,6 @@ use Illuminate\Validation\Rule;
 trait ProfileValidationRules
 {
     /**
-     * Get the validation rules used to validate user profiles.
-     *
      * @return array<string, array<int, \Illuminate\Contracts\Validation\Rule|array<mixed>|string>>
      */
     protected function profileRules(?int $userId = null): array
@@ -21,8 +19,6 @@ trait ProfileValidationRules
     }
 
     /**
-     * Get the validation rules used to validate user names.
-     *
      * @return array<int, \Illuminate\Contracts\Validation\Rule|array<mixed>|string>
      */
     protected function nameRules(): array
@@ -31,8 +27,6 @@ trait ProfileValidationRules
     }
 
     /**
-     * Get the validation rules used to validate user emails.
-     *
      * @return array<int, \Illuminate\Contracts\Validation\Rule|array<mixed>|string>
      */
     protected function emailRules(?int $userId = null): array

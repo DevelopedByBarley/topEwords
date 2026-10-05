@@ -6,11 +6,6 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Shuffle is now on by default. This only changes the default for newly
-     * created settings rows (e.g. the calibration firstOrCreate); existing rows
-     * keep whatever value they already have.
-     */
     public function up(): void
     {
         Schema::table('flashcard_settings', function (Blueprint $table) {

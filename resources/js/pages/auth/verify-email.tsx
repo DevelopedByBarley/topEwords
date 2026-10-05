@@ -1,4 +1,3 @@
-// Components
 import { Form, Head } from '@inertiajs/react';
 import { LoaderCircle } from 'lucide-react';
 import TextLink from '@/components/text-link';

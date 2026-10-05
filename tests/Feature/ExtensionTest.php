@@ -10,9 +10,6 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
 
 beforeEach(function () {
-    // Alap: Pro (korlátlan) felhasználó, hogy a bővítmény írás-végpontjai
-    // (add-word, create-flashcard) ne ütközzenek a napi keretbe. Az olvasás
-    // mindenkinek megy; a Free napi írás-kvótáját külön tesztek fedik le.
     $this->user = User::factory()->premium()->create();
 
     Word::insert([
@@ -85,9 +82,6 @@ test('lookup finds custom words with example fields', function () {
 });
 
 test('lookup normalizes the typographic apostrophe of the page text', function () {
-    // A weblapok szövegében nem ASCII aposztróf áll („couldn’t"), a tárolt alak
-    // viszont ASCII — normalizálás nélkül a bővítmény hamis „nincs találat"-ot
-    // mutatott a saját szóra is.
     $this->user->customWords()->create([
         'word' => "couldn't",
         'meaning_hu' => 'nem tudott',
@@ -119,7 +113,6 @@ test('lookup finds a custom phrase clicked from captions with NBSP separators', 
         'status' => 'saved',
     ]);
 
-    // A felirat-tokenek NBSP-vel jönnek; a lookupnak normalizálnia kell.
     $this->actingAs($this->user)
         ->getJson(route('extension.lookup', ['word' => "get\u{00A0}rid\u{00A0}of"]))
         ->assertSuccessful()
@@ -158,9 +151,6 @@ test('search treats like wildcards literally', function () {
     expect($response['results'])->toBeEmpty();
 });
 
-// A popup részletező panelje ezekből az alakokból építi az „Igealakok",
-// „Többes szám" és „Fokozás" blokkot. A globális és a saját szó külön
-// lekérdezésből jön, ezért mindkét ágat külön őrizzük.
 test('lookup exposes the inflected forms of a global word', function () {
     Word::create([
         'word' => 'test',
@@ -264,10 +254,6 @@ test('add-word creates a custom word', function () {
 });
 
 test('add-word returns every surface form so the client can highlight inflections at once', function () {
-    // A token-alapú kliens (player) a felvitel után a válasz `forms` mezőjéből
-    // színezi a képernyőn látszó alakot — a ragozott és a lemmatizáláskor mentett
-    // eredeti alaknak (extra_forms) is köztük kell lennie, különben csak a puszta
-    // alapszó válna zöldre, a beírt „successfully" nem.
     $forms = $this->actingAs($this->user)
         ->postJson(route('extension.add-word'), [
             'word' => 'successful',
@@ -331,18 +317,11 @@ test('add-word rejects duplicates', function () {
 });
 
 test('add-word survives a concurrent duplicate insert without 500 and refunds the reserved quota', function () {
-    // A $exists előszűrés és az insert között egy párhuzamos kérés ugyanazt a szót
-    // beszúrja; a (user_id, word) unique index elkapja a mienket. A kontrollernek
-    // duplikátumot kell jeleznie 500 helyett, és vissza kell adnia a lefoglalt
-    // napi keretet (#L1). A versenyt egy creating-eseménnyel modellezzük: épp az
-    // insert előtt visszük be a konfliktáló sort.
     $free = User::factory()->create();
     $start = 2;
     Cache::put("extension_writes_daily_{$free->id}_".today()->format('Y-m-d'), $start, now()->endOfDay());
 
     UserCustomWord::creating(function (UserCustomWord $word) use ($free) {
-        // Csak egyszer, és csak a mi felhasználónk soránál — a beszúrást közvetlen DB-vel
-        // végezzük, hogy ne triggereljük újra ezt az eseményt.
         static $done = false;
         if (! $done && $word->user_id === $free->id) {
             $done = true;
@@ -362,7 +341,6 @@ test('add-word survives a concurrent duplicate insert without 500 and refunds th
         ->assertSuccessful()
         ->assertJson(['error' => 'duplicate']);
 
-    // A lefoglalt keret visszakerült: nem maradt elveszett napi slot.
     expect($free->extensionWritesToday())->toBe($start)
         ->and($free->customWords()->count())->toBe(1);
 
@@ -405,7 +383,6 @@ test('create-flashcard returns a 403 limit error and refunds the daily quota whe
     $free = User::factory()->create();
     $deck = $free->flashcardDecks()->create(['name' => 'Angol szavak']);
 
-    // Kártyakeret betöltve, de napi írás-keret bőven van.
     $cardLimit = $free->planLimit('flashcards');
     $deck->flashcards()->createMany(collect(range(1, $cardLimit))->map(fn ($i) => [
         'front' => "F{$i}", 'back' => "B{$i}", 'direction' => 'front_to_back',
@@ -421,7 +398,6 @@ test('create-flashcard returns a 403 limit error and refunds the daily quota whe
         ->assertForbidden()
         ->assertJson(['error' => 'limit']);
 
-    // Nem jött létre új kártya, és a napi keret sem fogyott el (a foglalás visszakerült).
     expect($deck->flashcards()->count())->toBe($cardLimit)
         ->and($free->extensionWritesToday())->toBe(0);
 });
@@ -429,7 +405,6 @@ test('create-flashcard returns a 403 limit error and refunds the daily quota whe
 test('a free user can write from the extension until the daily quota runs out', function () {
     $free = User::factory()->create();
     $limit = $free->planLimit('extension_writes_per_day');
-    // Egy hellyel a keret alatt: az utolsó írás még átmegy és betölti a keretet.
     Cache::put("extension_writes_daily_{$free->id}_".today()->format('Y-m-d'), $limit - 1, now()->endOfDay());
 
     $this->actingAs($free)
@@ -449,9 +424,6 @@ test('reads stay free for everyone: a free user can still look up words', functi
 });
 
 test('lookup reports can_write:true for a free user with quota remaining', function () {
-    // A Free user az UI-ban is kap írás-lehetőséget, amíg van a napi keretből —
-    // a szerver can_write jele (canWriteFromExtension) tükrözi a valós kvótát,
-    // nem a csomag prémium voltát.
     $this->actingAs(User::factory()->create())
         ->getJson(route('extension.lookup', ['word' => 'apple']))
         ->assertSuccessful()
@@ -568,8 +540,6 @@ test('statuses returns the user word status map', function () {
 });
 
 test('statuses includes multi-word phrases without hijacking single words', function () {
-    // A kifejezés bekerül a térképbe, de a ragozott-alak oszlopai (form_base "use")
-    // nem mappelhetik a sima "use" szót a kifejezés státuszára.
     $this->user->customWords()->create([
         'word' => 'used to',
         'status' => 'practice',
@@ -605,8 +575,6 @@ test('statuses maps each slash-separated alternative form separately', function 
 });
 
 test('statuses excludes periphrastic comparatives so they are not treated as phrases', function () {
-    // A "desperate" középfoka körülírásos ("more desperate") — ez szóközös, ezért
-    // nem kerülhet a térképbe, különben a kliens kifejezésként emelné ki.
     $desperate = Word::create([
         'word' => 'desperate',
         'meaning_hu' => 'kétségbeesett',
@@ -626,9 +594,6 @@ test('statuses excludes periphrastic comparatives so they are not treated as phr
 });
 
 test('the retired badge endpoint is gone', function () {
-    // A számláló-badge-et a 43b7621 kivezette az ikonról; a szerveroldali
-    // /extension/badge végpont sem maradt, mert a kliens egyetlen kódútja
-    // sem hívja. Őrszem: ne kerüljön vissza észrevétlenül.
     expect(Route::has('extension.badge'))->toBeFalse();
 
     $this->actingAs($this->user)
@@ -637,8 +602,6 @@ test('the retired badge endpoint is gone', function () {
 });
 
 test('the extension payload no longer ships the unused has_active_access flag', function () {
-    // A jogosultság-jelet a can_write / has_ai_access adja; a has_active_access
-    // mezőt senki nem olvasta (bővítmény, player, web), ezért kivezettük.
     $this->actingAs($this->user)
         ->getJson(route('extension.lookup', ['word' => 'apple']))
         ->assertSuccessful()
@@ -651,8 +614,6 @@ test('the extension payload no longer ships the unused has_active_access flag', 
 });
 
 test('frequent extension reads do not exhaust the add-word limit', function () {
-    // A read végpontok (ext-read vödör) nem oszthatják az add-word (ext-write)
-    // limitjét — különben a gyakori lookup/statuses hívások blokkolnák a felvitelt.
     for ($i = 0; $i < 25; $i++) {
         $this->actingAs($this->user)
             ->getJson(route('extension.statuses'))
@@ -672,7 +633,7 @@ test('youtube transcript is available to authenticated free users', function () 
         '*' => Http::response(''),
     ]);
 
-    $this->actingAs($this->user) // free plan
+    $this->actingAs($this->user)
         ->getJson(route('extension.youtube-transcript', ['v' => 'abcdefghijk']))
         ->assertSuccessful()
         ->assertJsonPath('segments.0.x', 'hello world');
@@ -711,11 +672,8 @@ test('youtube transcript is cached per video and shared across users', function 
 
     $scrapeRequestCount = count(Http::recorded());
 
-    // A cím a caption-letöltés watch-oldalából jön, nem külön kérésből (#M7):
-    // pontosan egy watch-oldal letöltés történt.
     expect(Http::recorded(fn ($request) => str_contains($request->url(), 'youtube.com/watch')))->toHaveCount(1);
 
-    // Másik user ugyanazzal a videóval a cache-ből kap választ, scrape nélkül.
     $this->actingAs(User::factory()->premium()->create())
         ->getJson(route('extension.youtube-transcript', ['v' => 'abcdefghijk']))
         ->assertSuccessful()
@@ -762,18 +720,6 @@ test('youtube transcript returns timestamped segments for premium users', functi
         ]);
 });
 
-// ── SSRF guard (felirat-lánc, SSRF-1) ────────────────────────────────────────
-//
-// A feliratfájl cél-URL-je a YouTube válaszából jön (`captionTracks[].baseUrl`),
-// tehát egy megbízhatónak FELTÉTELEZETT partner adatából. A lánc viszont nem
-// blind: a letöltött tartalom parseolt szegmensekként visszamegy a kliensnek,
-// ezért egy nem-YouTube `baseUrl` exfiltrációs csatorna lenne. Ezek az őrszem-
-// tesztek a `fetchCaptionBody` allowlistjét és redirect-tilalmát védik.
-
-/**
- * Watch-oldal HTML a page-scraping ághoz, a megadott `baseUrl`-lel.
- * A timedtext- és az innertube-ág üresen felel, hogy a lánc eddig eljusson.
- */
 function watchPageWithCaptionUrl(string $baseUrl): string
 {
     return '<html><head><title>Test Video - YouTube</title></head><body><script>'
@@ -796,7 +742,6 @@ test('SSRF-1: the caption chain refuses a baseUrl pointing off YouTube', functio
         ->assertStatus(422)
         ->assertJson(['error' => 'no_captions']);
 
-    // A lényeg: a metadata-host felé EGYETLEN kérés sem indult.
     Http::assertNotSent(fn ($request) => str_contains($request->url(), '169.254.169.254'));
 });
 
@@ -818,13 +763,6 @@ test('SSRF-1: the caption chain refuses a plain-http YouTube baseUrl', function 
 });
 
 test('SSRF-1: the caption download disables redirect following', function () {
-    // Enélkül a Guzzle default 5 hopot követne — `http`-re és belső címre is —,
-    // vagyis az allowlist egyetlen `Location:` fejléccel megkerülhető lenne.
-    //
-    // A `Http::fake()` nem játszik le valódi redirect-láncot, ezért a fake-elt
-    // válasz nem bizonyítana semmit: közvetlenül a kimenő kérés beállítását
-    // mérjük a `PendingRequest`-en (ugyanaz a módszer, amivel az audit a
-    // hiányzó `allow_redirects`-et kimutatta).
     $method = new ReflectionMethod(YouTubeCaptionService::class, 'fetchCaptionBody');
     $source = file($method->getFileName());
     $body = implode('', array_slice(
@@ -835,8 +773,6 @@ test('SSRF-1: the caption download disables redirect following', function () {
 
     expect($body)->toContain('withoutRedirecting()');
 
-    // És hogy ez a futó kliensen is érvényes: a Guzzle `allow_redirects`
-    // opciója false-ra van állítva.
     $pending = Http::timeout(15)->withoutRedirecting();
     $options = (new ReflectionProperty($pending, 'options'))->getValue($pending);
 
@@ -844,7 +780,6 @@ test('SSRF-1: the caption download disables redirect following', function () {
 });
 
 test('SSRF-1: a legitimate YouTube caption baseUrl still works', function () {
-    // A guard nem lehet olyan szigorú, hogy a valós utat is elvágja.
     Http::fake([
         '*api/timedtext*' => Http::response('{"events":[{"tStartMs":0,"segs":[{"utf8":"allowed host"}]}]}'),
         '*youtubei/v1/player*' => Http::response(''),
@@ -861,10 +796,6 @@ test('SSRF-1: a legitimate YouTube caption baseUrl still works', function () {
 });
 
 test('L1: an unverified user cannot write via the extension write endpoints', function () {
-    // A weboldal és a player-ikrek `verified` middleware-t követelnek az írásra;
-    // ugyanez kell a bővítmény add-word/create-flashcard végpontjain is, hogy a
-    // megerősítetlen fiók se hozhasson létre tartalmat. JSON-kérésnél a middleware
-    // 403-at ad (nem HTML-redirectet), amit a kliens 'unverified'-ként kezel.
     $unverified = User::factory()->premium()->unverified()->create();
     $deck = $unverified->flashcardDecks()->create(['name' => 'Angol szavak']);
 
@@ -886,18 +817,11 @@ test('L1: an unverified user cannot write via the extension write endpoints', fu
 });
 
 test('L1: a verified user can still write via the extension endpoints', function () {
-    // Regresszió-őr: a verified-kapu ne zárja ki a megerősített fiókot. A
-    // beforeEach `$this->user`-je premium + verified (a factory alap).
     $this->actingAs($this->user)
         ->postJson(route('extension.add-word'), ['word' => 'serendipity', 'meaning_hu' => 'véletlen szerencse'])
         ->assertSuccessful()
         ->assertJson(['ok' => true]);
 });
-
-// --- extra_forms: a lemmatizáláskor eldobott beírt alak felismerése ---
-// A felhasználó „successfully"-t vitt fel; az AI a „successful" lemmára váltott,
-// és a beírt eredeti alakot az extra_forms-ba mentettük. A szó-felismerésnek
-// (lookup / statuses / search) a beírt „successfully"-re is találnia kell.
 
 test('add-word stores the original inflected form in extra_forms', function () {
     $this->actingAs($this->user)
@@ -918,7 +842,6 @@ test('add-word normalizes extra_forms: lowercased, deduped, lemma dropped', func
         ->postJson(route('extension.add-word'), [
             'word' => 'successful',
             'meaning_hu' => 'sikeres',
-            // A lemma önmaga és a duplikátum kiesik, a maradék kisbetűs lesz.
             'extra_forms' => 'SUCCESSFUL/Successfully/successfully',
         ])
         ->assertSuccessful();
@@ -973,9 +896,6 @@ test('search finds a custom word by its extra_forms', function () {
     expect(collect($results)->pluck('word'))->toContain('successful');
 });
 
-// A popup lenyitható találata ezekből a mezőkből építi a részletező panelt
-// (jelentés, példamondat, státusz-gombok, fontosság-csillagok) — ezért a
-// keresésnek egy körben, második kérés nélkül vissza kell adnia mindet.
 test('search returns the details the popup expands, including importance', function () {
     $apple = Word::where('word', 'apple')->first();
     $this->user->knownWords()->attach($apple->id, ['status' => 'learning', 'importance' => 3]);

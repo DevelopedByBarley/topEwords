@@ -106,10 +106,6 @@ test('flashcard review updates the streak', function () {
     expect($this->user->last_activity_date->isToday())->toBeTrue();
 });
 
-// ÁTMENETILEG KIVEZETVE: a kvíz nincs bekötve az induló feature-körben
-// (routes/words.php), ezért ez az eset route-hiányra bukna. A teszt megmarad,
-// hogy a kvíz visszakapcsolásakor azonnal újra őrizze a streak-léptetést.
-// Visszakapcsoláskor: a ->group() hívást kell törölni.
 test('quiz completion updates the streak', function () {
     $this->user->update(['streak' => 4, 'last_activity_date' => Carbon::yesterday()]);
 
@@ -159,7 +155,6 @@ test('dashboard shows zero for a broken streak before next activity', function (
             ->where('streak', 0)
         );
 
-    // A nyers oszlopot nem írja felül olvasáskor (nincs mellékhatás GET-en).
     $this->user->refresh();
     expect($this->user->streak)->toBe(7);
 });

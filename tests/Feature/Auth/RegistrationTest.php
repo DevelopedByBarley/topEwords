@@ -7,8 +7,6 @@ use Laravel\Fortify\Features;
 
 beforeEach(function () {
     $this->skipUnlessFortifyFeature(Features::registration());
-    // A regisztráció-tesztek a nyílt regisztrációt vizsgálják; a fejlesztői
-    // .env-ben bekapcsolt meghívó-only mód ne szivárogjon be és ne kérjen kódot.
     config(['registration.invite_only' => false]);
 });
 
@@ -29,8 +27,6 @@ test('new users can register but are not logged in until they verify their email
         'terms' => 'on',
     ]);
 
-    // E-mail-megerősítés-előbb flow: a regisztráció NEM lépteti be a usert,
-    // a login oldalra irányít, és kimegy a megerősítő levél.
     $this->assertGuest();
     $response->assertRedirect(route('login', absolute: false));
 
@@ -42,8 +38,6 @@ test('new users can register but are not logged in until they verify their email
 });
 
 test('registration rejects an individual who submits a tax number', function () {
-    // A regisztrációs úton is tilos az ellentmondó individual+adószám állapot,
-    // hogy ne ragadhasson a fiókon rossz adat a settings-út megkerülésével (L1).
     $response = $this->post(route('register.store'), [
         'name' => 'Test User',
         'email' => 'indiv@example.com',
@@ -87,10 +81,6 @@ test('registration accepts a company with a valid tax number', function () {
     expect($user)->not->toBeNull()
         ->and($user->billing_tax_number)->toBe('12345678-1-01')
         ->and($user->billing_type)->toBe('company')
-        // S-L2: a regisztrációkor megadott (és validált) billing_country tényleg elmentődik —
-        // korábban a CreateNewUser mentendő mezőiből kimaradt, és némán elveszett, majd a NAV-
-        // számla partner-payloadja csendben 'HU'-ra esett volna vissza. Ugyanez a hibaosztály
-        // ismétlődött meg a billing_phone / billing_company_registration_number mezőknél is.
         ->and($user->billing_country)->toBe('HU')
         ->and($user->billing_company_registration_number)->toBe('01-09-999999')
         ->and($user->billing_phone)->toBe('+36301234567');

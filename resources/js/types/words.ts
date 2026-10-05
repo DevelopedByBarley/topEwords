@@ -27,7 +27,6 @@ export interface Word {
     adj_comparative: string | null;
     adj_superlative: string | null;
     extra_forms: string | null;
-    /** Megnézte-e már ezt a szót az admin alak-kitöltő (üres találat esetén is igaz). */
     forms_checked: boolean;
     example_en: string | null;
     example_hu: string | null;
@@ -90,7 +89,6 @@ export interface StatusConfigEntry {
     rowText: string;
     filterActive: string;
     filterHover: string;
-    /** A haladás-kártya statisztika-csempéjének gyűrűje, ha rá van szűrve. */
     tileRing: string;
 }
 
@@ -112,23 +110,18 @@ export interface WordFilterValues {
     status: string;
     importance: number | null;
     folder: number | null;
-    /** 'custom' = csak a saját szavak; üres = a teljes lista. */
     source: string;
-    /** Admin alak-kitöltő haladása: 'unchecked' | 'checked' | üres (mind). */
     forms: string;
     per_page: number;
 }
 
-/** Csak azokat a kulcsokat lehet módosítani, amelyeket a szülő navigate-je ismer. */
 export type WordFilterPatch = Partial<WordFilterValues> & { page?: number };
 
-/** A szólista-oldal lapozója — a Laravel-paginátor itt használt részhalmaza. */
 export type PaginatedWords = Pick<
     PaginationData<Word>,
     'data' | 'current_page' | 'last_page' | 'per_page' | 'total' | 'links'
 >;
 
-/** A szólista-oldal státusz-számlálói (a teljes listára és a saját szavakra is). */
 export interface WordStatusCounts {
     total: number;
     known: number;

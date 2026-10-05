@@ -10,23 +10,14 @@ use App\Models\FlashcardReview;
 use App\Models\UserCustomWord;
 use App\Models\Word;
 use Illuminate\Contracts\Cache\LockTimeoutException;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
 class FlashcardCardController extends Controller
 {
-    /**
-     * Upper bound for the ids of one bulk action, matching the CSV import's
-     * row cap. Larger selections can be processed in several batches.
-     */
     private const MAX_BULK_IDS = 5_000;
 
-    /**
-     * Counts the ids BEFORE validation: the `ids.*` rule is expanded per
-     * element with quadratic cost, so an oversized array must be rejected
-     * without it (F6-L2). The deck page only shows flash messages, hence
-     * a flash error instead of a validation error.
-     */
     private function exceedsBulkLimit(Request $request): bool
     {
         $ids = $request->input('ids');
@@ -39,9 +30,6 @@ class FlashcardCardController extends Controller
         return 'Egyszerre legfeljebb '.number_format(self::MAX_BULK_IDS, 0, ',', ' ').' kártyán végezhető tömeges művelet.';
     }
 
-    /**
-     * The plan-aware "card limit reached" message, naming the user's actual cap.
-     */
     private function limitMessage(Request $request): string
     {
         $limit = $request->user()->planLimit('flashcards');
@@ -49,18 +37,6 @@ class FlashcardCardController extends Controller
         return "Elérted a csomagod kártyakeretét (összesen {$limit} kártya). Válts magasabb csomagra a folytatáshoz.";
     }
 
-    /**
-     * A "kártyáid épp zárolva" üzenet zár-timeoutra (LIMIT-L1). A
-     * reserveFlashcardSlots() torlódásnál (pl. párhuzamos nagy CSV-import)
-     * LockTimeoutException-t dob; ezt minden webes hívóhelyen barátságos
-     * "próbáld újra" hibává fordítjuk a StripeWebhookController
-     * LockTimeoutException-catch mintájára. Ilyenkor az insert el sem indult,
-     * így az elkapás nem hagyhat részleges állapotot. Szándékosan NEM a
-     * User-helperben nyeljük el (false-ként összekeveredne a "betelt a keret"
-     * válasszal, az extension-út refund-logikája pedig a felfutó kivételre
-     * épül), és nem globális exception-renderrel, hogy a viselkedés hívónként
-     * explicit maradjon.
-     */
     private function busyMessage(): string
     {
         return 'A kártyáidon épp egy másik művelet fut (pl. import). Próbáld újra pár másodperc múlva.';
@@ -85,7 +61,7 @@ class FlashcardCardController extends Controller
         return to_route('flashcards.show', $deck);
     }
 
-    public function importFromWord(Request $request, FlashcardDeck $deck): RedirectResponse
+    public function importFromWord(Request $request, FlashcardDeck $deck): RedirectResponse|JsonResponse
     {
         abort_unless($deck->user_id === $request->user()->id, 403);
 
@@ -123,11 +99,19 @@ class FlashcardCardController extends Controller
                 $flashcard = $deck->flashcards()->create($attributes);
             });
         } catch (LockTimeoutException) {
-            return back()->with('error', $this->busyMessage());
+            return $request->wantsJson()
+                ? response()->json(['message' => $this->busyMessage()], 409)
+                : back()->with('error', $this->busyMessage());
         }
 
         if (! $reserved || $flashcard === null) {
-            return back()->with('error', $this->limitMessage($request));
+            return $request->wantsJson()
+                ? response()->json(['message' => $this->limitMessage($request)], 403)
+                : back()->with('error', $this->limitMessage($request));
+        }
+
+        if ($request->wantsJson()) {
+            return response()->json(['card_id' => $flashcard->id], 201);
         }
 
         session()->flash('imported_card_id', $flashcard->id);
@@ -150,11 +134,6 @@ class FlashcardCardController extends Controller
         abort_unless($deck->user_id === $request->user()->id, 403);
         abort_unless($flashcard->deck_id === $deck->id, 403);
 
-        // A review-k törlése önmagában visszaviszi a kártyát a megfelelő sorba: egy
-        // importált kártya (is_imported=true) review nélkül újra a kalibrációs sorba
-        // esik, egy kézzel létrehozott (is_imported=false) a normál új-kártya sorba.
-        // Az is_imported-ot NEM piszkáljuk — különben egy sosem-importált kártya
-        // reset után váratlanul kalibrációt követelne (#F1, korrigálja az #R8-at).
         $flashcard->reviews()->delete();
 
         return to_route('flashcards.show', $deck);
@@ -254,8 +233,6 @@ class FlashcardCardController extends Controller
         ])['ids'];
 
         $ownedIds = $deck->flashcards()->whereIn('id', $ids)->pluck('id');
-        // Csak a review-kat töröljük; az is_imported-ot nem írjuk felül, hogy a
-        // sosem-importált kártyák reset után ne kerüljenek kalibrációs sorba (#F1).
         FlashcardReview::whereIn('flashcard_id', $ownedIds)->delete();
 
         return to_route('flashcards.show', $deck)->with('success', $ownedIds->count().' kártya haladása visszaállítva.');
@@ -290,8 +267,6 @@ class FlashcardCardController extends Controller
                     'back_speak' => $card->front_speak,
                     'direction' => $card->direction,
                     'color' => $card->color,
-                    // A fordított másolat is importált kártyaként indul, hogy a többi
-                    // tömeges import-úthoz hasonlóan előbb a kalibrációs sorba menjen (#R5).
                     'is_imported' => true,
                     'created_at' => $now,
                     'updated_at' => $now,
@@ -325,9 +300,6 @@ class FlashcardCardController extends Controller
         $ownedIds = $deck->flashcards()->whereIn('id', $validated['ids'])->pluck('id');
         $updated = $deck->flashcards()->whereIn('id', $ownedIds)->update(['direction' => $validated['direction']]);
 
-        // Egyirányúra váltásnál a másik irány review-sora árván maradna (a study-sorból
-        // kiesik, de a statisztikát és a due-számlálót torzítaná). A 'both' minden irányt
-        // megtart, így ott nincs mit takarítani (#R6).
         if ($validated['direction'] !== 'both' && $ownedIds->isNotEmpty()) {
             FlashcardReview::whereIn('flashcard_id', $ownedIds)
                 ->where('direction', '!=', $validated['direction'])

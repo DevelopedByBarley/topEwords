@@ -9,17 +9,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Fillable(['code', 'label', 'max_uses', 'pro_days', 'expires_at'])]
 class Invite extends Model
 {
-    /**
-     * The users who registered using this invite.
-     */
     public function users(): HasMany
     {
         return $this->hasMany(User::class);
     }
 
-    /**
-     * Whether the invite can still be used (uses left and not expired).
-     */
     public function isUsable(): bool
     {
         if ($this->uses >= $this->max_uses) {

@@ -155,11 +155,6 @@ export function CsvImport({
     );
 }
 
-/**
- * Szó felvétele kártyaként. A kereső saját dialógusban lakik: a művelet-sávban
- * egy mindig nyitott beviteli mező vitte a helyet, és a „kiválaszt, majd
- * importál" két lépéséből itt egy kattintás lett.
- */
 export function WordSearchImport({
     onImport,
     className,

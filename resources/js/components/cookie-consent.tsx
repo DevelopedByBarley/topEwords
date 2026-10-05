@@ -3,15 +3,7 @@ import { useEffect, useState } from 'react';
 
 const STORAGE_KEY = 'tw-cookie-consent';
 
-/**
- * Cookie-tájékoztató. A TopWords jelenleg csak a működéshez szükséges
- * (funkcionális) sütiket használ — ezekhez nem kell opt-in, csak tájékoztatás —
- * ezért egy "Rendben" gombos informatív sáv, nem granuláris consent-kezelő.
- * Ha később analitika/hirdetés kerül be, ezt valódi (elfogad/elutasít) bannerré
- * kell bővíteni.
- */
 export default function CookieConsent() {
-    // useEffect-ben állítjuk be a láthatóságot, hogy ne legyen SSR/hidratációs eltérés.
     const [visible, setVisible] = useState(false);
 
     useEffect(() => {

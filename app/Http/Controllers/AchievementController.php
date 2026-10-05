@@ -17,8 +17,6 @@ class AchievementController extends Controller
             ->orderBy('unlocked_at')
             ->pluck('unlocked_at', 'achievement_key');
 
-        // A kivezetett funkciók csoportjai (pl. 'quiz') itt szándékosan
-        // hiányoznak — lásd AchievementService::HIDDEN_GROUPS.
         $groups = [
             'streak' => 'Sorozat',
             'vocab' => 'Szókincs',
@@ -32,6 +30,7 @@ class AchievementController extends Controller
         $visible = AchievementService::visibleAchievements();
 
         $grouped = [];
+
         foreach ($groups as $groupKey => $groupLabel) {
             $items = [];
             foreach ($visible as $key => $achievement) {
@@ -50,8 +49,6 @@ class AchievementController extends Controller
             $grouped[] = ['label' => $groupLabel, 'key' => $groupKey, 'items' => $items];
         }
 
-        // A haladás csak a látható jelvényekből számol: egy korábban megszerzett
-        // kvíz-jelvény különben 100%-nál nagyobb arányt adna.
         $totalUnlocked = $unlocked->keys()->intersect(array_keys($visible))->count();
         $totalAchievements = count($visible);
 

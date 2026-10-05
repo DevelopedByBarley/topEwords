@@ -107,7 +107,6 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
         },
     }), [editor]);
 
-    // Sync if defaultValue changes (e.g. editing a different card)
     useEffect(() => {
         if (editor && defaultValue !== undefined) {
             const current = editor.getHTML();
@@ -166,7 +165,6 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
 
                     <Divider />
 
-                    {/* Color picker */}
                     <div className="relative" ref={colorPickerRef}>
                         <button
                             type="button"

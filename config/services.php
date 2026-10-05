@@ -2,18 +2,6 @@
 
 return [
 
-    /*
-    |--------------------------------------------------------------------------
-    | Third Party Services
-    |--------------------------------------------------------------------------
-    |
-    | This file is for storing the credentials for third party services such
-    | as Mailgun, Postmark, AWS and more. This file provides the de facto
-    | location for this type of information, allowing packages to have
-    | a conventional file to locate the various service credentials.
-    |
-    */
-
     'postmark' => [
         'key' => env('POSTMARK_API_KEY'),
     ],
@@ -36,15 +24,6 @@ return [
     ],
 
     'gemini' => (function () {
-        // Feladatonkénti modellpár: a primary-vel indulunk, és kapacitás-hibára
-        // (503/429/5xx) átesünk a fallback-re — másik kapacitás-pool, jó eséllyel
-        // nem ugyanakkor terhelt. Mindkettő .env-ből felülírható: a per-feladat
-        // változó (pl. GEMINI_MODEL_LOOKUP) elsőbbséget élvez, üresen a globális
-        // GEMINI_MODEL_PRIMARY / GEMINI_MODEL_FALLBACK örökli, az meg a beégetett
-        // alapot. Üres fallback = nincs eszkaláció, csak a primary fut.
-        // A `?:` lánc azért kell, mert egy .env-ben üresként hagyott kulcsra az
-        // env() üres stringet ad (nem a defaultot) — így az üres érték is helyesen
-        // a következő szintre esik: per-feladat → globális → beégetett alap.
         $model = fn (string $task, string $defaultPrimary, string $defaultFallback): array => [
             'primary' => env('GEMINI_MODEL_'.$task) ?: env('GEMINI_MODEL_PRIMARY') ?: $defaultPrimary,
             'fallback' => env('GEMINI_FALLBACK_'.$task) ?: env('GEMINI_MODEL_FALLBACK') ?: $defaultFallback,
@@ -52,15 +31,7 @@ return [
 
         return [
             'api_key' => env('GEMINI_API_KEY'),
-            // A teljes callGemini lánc (modellek + újrapróbák együtt) felső időkorlátja
-            // másodpercben. Egy szinkron AI-kérés ennél tovább SOSEM tarthat fogva egy
-            // PHP-workert — kiesés/elakadás alatt ez akadályozza meg a worker-kimerülést.
-            // .env-ből hangolható terhelés alatt, deploy nélkül (GEMINI_REQUEST_DEADLINE).
             'request_deadline_seconds' => (float) env('GEMINI_REQUEST_DEADLINE', 30.0),
-            // Circuit breaker: ennyi egymást követő, átmeneti hibájú teljes lánc-kudarc
-            // után nyílik ki, és a cooldown alatt minden AI-kérés azonnali hibát kap
-            // Gemini-hívás nélkül. Tartós kiesésnél (lógó kapcsolat) e nélkül minden
-            // kérés a teljes deadline-ig fogna egy PHP-workert (worker-kimerülés).
             'breaker' => [
                 'failure_threshold' => (int) env('GEMINI_BREAKER_THRESHOLD', 5),
                 'cooldown_seconds' => (int) env('GEMINI_BREAKER_COOLDOWN', 120),
@@ -76,27 +47,15 @@ return [
     })(),
 
     'stripe' => [
-        // Fizetés be/ki kapcsolása — élesítéskor STRIPE_ENABLED=true a .env-ben
         'enabled' => env('STRIPE_ENABLED', false),
-        // Egyetlen fizetős csomag (Pro). A kulcsnév a belső 'premium' csomaggal
-        // konzisztens; a STRIPE_PRO_PRICE_ID a Pro havi ár azonosítója.
         'premium_price_id' => env('STRIPE_PRO_PRICE_ID'),
     ],
 
     'billingo' => [
-        // NAV-kompatibilis magyar számlázás (Billingo v3 REST API). A sikeres Stripe
-        // fizetés (invoice.payment_succeeded webhook) után aszinkron állít ki számlát.
-        // Külön kapcsoló a Stripe-tól: a fizetés mehet anélkül is, hogy számlázunk.
         'enabled' => env('BILLINGO_ENABLED', false),
         'api_key' => env('BILLINGO_API_KEY'),
-        // Számlatömb azonosító. Üresen hagyva a kliens automatikusan az első `invoice`
-        // típusú tömböt használja — teszt profilnál így nem kell kézzel kikeresni az id-t.
-        // Élesben és stagingen a boot-guard (AppServiceProvider) explicit id-t követel.
         'block_id' => (int) env('BILLINGO_BLOCK_ID', 0),
-        // A számlatétel ÁFA-kulcsa. Egyéni vállalkozónál tipikusan "AAM" (alanyi
-        // adómentes); ÁFA-körösnél pl. "27%". Konfigból jön, hogy kód nélkül váltható.
         'vat' => env('BILLINGO_VAT', 'AAM'),
-        // A számlatétel megnevezése, ha a Stripe sor nem ad használhatót.
         'item_name' => env('BILLINGO_ITEM_NAME', 'topEwords előfizetés'),
     ],
 

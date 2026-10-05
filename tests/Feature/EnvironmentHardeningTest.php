@@ -6,17 +6,8 @@ use Illuminate\Database\Console\Migrations\FreshCommand;
 use Illuminate\Database\Console\WipeCommand;
 use Illuminate\Validation\Rules\Password;
 
-/**
- * T-4 / F1-L2: a staging ugyanazt a hardeninget kapja, mint a production.
- * T-33 / F9B-L2: Billingo boot-guard. T-16 / F4-L2: log-megőrzési boot-guard.
- * Plusz: a queue retry_after nagyobb a számlázó job timeoutjánál (dupla számla ellen).
- *
- * A StripeWebhookSecurityTest `bootStripeSecretGuard` mintáját követjük: az
- * app()['env'] átállításával környezetenként hívjuk a guard-metódusokat.
- */
 function hardeningProvider(string $env): AppServiceProvider
 {
-    // app()->environment() a konténer 'env' értékét olvassa, nem a config-ot.
     app()['env'] = $env;
 
     return new AppServiceProvider(app());
@@ -33,16 +24,9 @@ function isProhibited(string $command): bool
 }
 
 afterEach(function () {
-    // A statikus tiltás túlélné a tesztet — visszaállítjuk a tesztkörnyezet állapotára.
     app()['env'] = 'testing';
     runConfigureDefaults(new AppServiceProvider(app()));
 });
-
-/*
-|--------------------------------------------------------------------------
-| T-4: staging = production hardening
-|--------------------------------------------------------------------------
-*/
 
 test('T-4: a strong password policy applies in hardened environments', function (string $env) {
     runConfigureDefaults(hardeningProvider($env));
@@ -108,18 +92,10 @@ test('T-4: APP_DEBUG=true refuses to boot in staging', function () {
 });
 
 test('T-4: a test-mode stripe secret stays allowed in staging', function () {
-    // Tudatos döntés: a staging tipikusan teszt-módú Stripe-kulccsal fut, ezért a
-    // live-kulcs assert csak productionben él.
     config(['services.stripe.enabled' => true, 'cashier.secret' => 'sk_test_abc123']);
 
     hardeningProvider('staging')->assertStripeSecretMatchesEnvironment();
 })->throwsNoExceptions();
-
-/*
-|--------------------------------------------------------------------------
-| T-33: Billingo boot-guard
-|--------------------------------------------------------------------------
-*/
 
 test('T-33: an enabled but misconfigured Billingo refuses to boot', function (string $env, ?string $apiKey, int $blockId) {
     config([
@@ -158,12 +134,6 @@ test('T-33: block_id=0 with a test profile is allowed locally', function () {
 
     hardeningProvider('local')->assertBillingoConfigured();
 })->throwsNoExceptions();
-
-/*
-|--------------------------------------------------------------------------
-| T-16: log-megőrzés
-|--------------------------------------------------------------------------
-*/
 
 test('T-16: an unbounded log channel refuses to boot in hardened environments', function (string $env, string $default, array $stack, int $days) {
     config([
@@ -222,12 +192,6 @@ test('T-16: the log stack defaults to the rotated daily channel', function () {
         }
     }
 });
-
-/*
-|--------------------------------------------------------------------------
-| Queue retry_after > számlázó job timeout
-|--------------------------------------------------------------------------
-*/
 
 test('a queue retry_after not exceeding the invoice job timeout refuses to boot', function (string $env, string $connection, int $retryAfter) {
     config([

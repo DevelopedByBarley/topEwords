@@ -12,8 +12,6 @@ import { edit } from '@/routes/profile';
 
 export default function Profile() {
     const { auth } = usePage().props;
-    // E-mail-cseréhez a backend jelszó-megerősítést kér (ProfileUpdateRequest);
-    // a jelszómezőt csak akkor mutatjuk, ha az e-mail tényleg változik.
     const [email, setEmail] = useState(auth.user.email);
     const emailChanged = email !== auth.user.email;
 

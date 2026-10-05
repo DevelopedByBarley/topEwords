@@ -6,35 +6,26 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('flashcard_deck_settings', function (Blueprint $table) {
             $table->id();
             $table->foreignId('flashcard_deck_id')->constrained()->cascadeOnDelete()->unique();
 
-            // Daily limits
             $table->unsignedSmallInteger('new_cards_per_day')->default(20);
             $table->unsignedSmallInteger('max_reviews_per_day')->default(200);
 
-            // Learning steps (JSON array of minutes, e.g. [1, 10])
-            // No DB-level default: MySQL forbids defaults on JSON columns. Default lives on the model.
             $table->json('learning_steps');
             $table->unsignedSmallInteger('graduating_interval')->default(1);
             $table->unsignedSmallInteger('easy_interval')->default(4);
 
-            // Ease factors (stored as integer percentages, e.g. 250 = 2.5x)
             $table->unsignedSmallInteger('starting_ease')->default(250);
             $table->unsignedSmallInteger('easy_bonus')->default(130);
             $table->unsignedSmallInteger('hard_interval_modifier')->default(120);
             $table->unsignedSmallInteger('interval_modifier')->default(100);
 
-            // Interval cap
             $table->unsignedSmallInteger('max_interval')->default(365);
 
-            // Lapse (forgotten card) settings
             $table->unsignedTinyInteger('lapse_new_interval')->default(0);
             $table->unsignedTinyInteger('leech_threshold')->default(8);
 
@@ -42,9 +33,6 @@ return new class extends Migration
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('flashcard_deck_settings');

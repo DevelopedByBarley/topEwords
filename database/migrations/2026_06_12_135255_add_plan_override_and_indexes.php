@@ -9,7 +9,6 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('users', function (Blueprint $table) {
-            // Admin által kiosztott csomag-felülírás: null (Stripe dönt) | basic | premium
             $table->string('plan_override', 20)->nullable()->after('ai_access');
         });
 

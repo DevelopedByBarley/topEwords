@@ -5,13 +5,6 @@ import { PUBLIC_NAV_LINKS } from '@/components/public/public-nav-links';
 import type { PublicNavLink } from '@/components/public/public-nav-links';
 import { dashboard, home, login, register } from '@/routes';
 
-/**
- * A publikus oldalak közös fejléce.
- *
- * - `solid`: ragadós, háttérrel és alsó kerettel — ezt kapja minden aloldal.
- * - `transparent`: háttér nélküli, fehér szövegű változat, ami a főoldal
- *   gradiens-heroján ül. Ugyanaz a linkkészlet, csak más felületen.
- */
 export function PublicHeader({
     variant = 'solid',
 }: {
@@ -142,10 +135,6 @@ export function PublicHeader({
             </div>
 
             {mobileOpen && (
-                /*
-                 * A főoldalon a fejléc a hero fölött lebeg, ezért a lenyíló
-                 * menünek saját háttér kell — nélküle a hero szövegére úszna rá.
-                 */
                 <nav
                     id="public-mobile-nav"
                     aria-label="Fő navigáció (mobil)"

@@ -6,12 +6,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Laravel\Cashier\Subscription;
 
-/**
- * W-M1: a Stripe nem garantál esemény-sorrendet — a customer.subscription.deleted
- * feldolgozása után befutó korábbi (késleltetett/újraküldött) subscription.updated
- * `status=active` pillanatképe nem támaszthatja fel a helyben már canceled
- * előfizetést, különben tartós ingyen prémium keletkezne.
- */
 function dispatchSubscriptionUpdated(User $user, Subscription $subscription, string $status): void
 {
     $request = Request::create('/stripe/webhook', 'POST', content: json_encode([
@@ -88,7 +82,6 @@ test('an update on a live subscription still applies normally', function () {
 });
 
 test('a canceled snapshot on a canceled subscription passes through untouched', function () {
-    // Konzisztens (nem feltámasztó) update — a guard nem szólhat közbe.
     $user = User::factory()->create(['stripe_id' => 'cus_'.uniqid()]);
     $subscription = makeCanceledSubscription($user);
 
@@ -102,8 +95,6 @@ test('a canceled snapshot on a canceled subscription passes through untouched', 
 });
 
 test('an active update on an unknown subscription still creates the local row', function () {
-    // A guard csak a helyben canceled sorokat védi — új előfizetés webhookból
-    // (pl. dashboardról indítva) továbbra is létrejöhet a Cashier alap-útján.
     $user = User::factory()->create(['stripe_id' => 'cus_'.uniqid()]);
 
     $stripeId = 'sub_'.uniqid();

@@ -2,12 +2,6 @@
 
 use App\Models\User;
 
-/**
- * A bővítmény Chrome Web Store-linkje egyetlen env-kulcsból jön
- * (`CHROME_WEB_STORE_URL`), és minden felületre az Inertia shared propon
- * keresztül jut el: dashboard-banner, sidebar-menüpont, landing, kézikönyv.
- * Amíg üres, ezek „hamarosan" állapotot mutatnak link helyett.
- */
 test('a store-link megosztott propként megy ki, ha be van állítva', function () {
     config(['extension.store_url' => 'https://chromewebstore.google.com/detail/abc123']);
 

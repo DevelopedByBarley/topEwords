@@ -26,10 +26,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'abilities' => CheckAbilities::class,
-            // Az AI-keretet fogyasztó végpontok válaszába teszi a friss
-            // keret-állapotot, hogy a fejléc-sáv azonnal frissüljön.
             'ai.budget' => AttachAiBudgetWarning::class,
-            // Az admin-felület csak megerősített 2FA-val érhető el (F9C-L2).
             'admin.2fa' => EnsureAdminHasTwoFactor::class,
         ]);
 
@@ -44,16 +41,6 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        /*
-         * Percenkénti sapkába futó Inertia-kérés ne cserélje le a teljes oldalt a
-         * nyers „429 Too Many Requests" hibalapra. A 429 nem érvényes Inertia-válasz,
-         * ezért a kliens elnavigál rá, és a felhasználó elveszti a helyét a listában
-         * — pedig itt csak annyi történt, hogy egy pillanatra túl gyors volt. Vissza-
-         * irányítunk az előző oldalra egy flash-üzenettel, amit a FlashToast mutat meg.
-         *
-         * Csak az Inertia-kéréseket alakítjuk át: az API-t és a bővítményt hívó kliens
-         * a szabványos 429-et várja, és maga kezeli.
-         */
         $exceptions->respond(function (Response $response, Throwable $exception, Request $request) {
             if ($response->getStatusCode() !== 429 || ! $request->header('X-Inertia')) {
                 return $response;

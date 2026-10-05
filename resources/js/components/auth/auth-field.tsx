@@ -8,22 +8,12 @@ import { cn } from '@/lib/utils';
 type Props = Omit<ComponentProps<'input'>, 'id'> & {
     id: string;
     label: ReactNode;
-    /** Jobbra igazított kiegészítő a címke sorában (pl. „Elfelejtett jelszó?”). */
     labelAction?: ReactNode;
-    /** A mező alatti súgó. A `aria-describedby` révén a képernyőolvasó is felolvassa. */
     hint?: ReactNode;
     error?: string;
-    /** Jelszó-mezőként rendereli (mutat/elrejt gombbal, Caps Lock jelzéssel). */
     password?: boolean;
 };
 
-/**
- * Az auth-űrlapok egységes mezője: címke, mező, súgó és hibaüzenet egyben.
- *
- * A hiba/súgó `id`-jait maga köti a mezőhöz (`aria-describedby`, `aria-invalid`),
- * így a képernyőolvasó minden mezőnél felolvassa őket — ezt korábban kézzel
- * kellett volna minden mezőre megismételni, és sehol nem volt meg.
- */
 export default function AuthField({
     id,
     label,
@@ -44,7 +34,6 @@ export default function AuthField({
         id,
         'aria-invalid': error ? true : undefined,
         'aria-describedby': describedBy,
-        // A 44 px magas mező mobilon is kényelmes érintési célpont.
         className: cn(
             'h-11 rounded-xl focus-visible:border-indigo-400 focus-visible:ring-indigo-400/50',
             className,

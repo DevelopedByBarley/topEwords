@@ -1,17 +1,7 @@
 <?php
 
 /**
- * Őrszem-tesztek a szövegelemzés mobilos olvasójához.
- *
- * A lelet: telefonon a felirat/könyv lapja egy 320 px-es, belső görgetésű
- * dobozban ült, a lapozó- és elemző-gombok pedig több sorba törve a doboz
- * alatt — hosszú lapnál a gombokhoz a szöveg végéig kellett görgetni. A
- * tesztek a javítás lényegét védik: mobilon nincs belső görgetés, a gombsor a
- * közös, alulra rögzített sávban van, és az oldal helyet ad neki.
- */
-
-/**
- * @return array<string, string> komponens-név => forrás
+ * @return array<string, string>
  */
 function textAnalysisReaders(): array
 {

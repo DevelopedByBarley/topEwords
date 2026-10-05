@@ -59,8 +59,6 @@ class WordController extends Controller
                 'adj_comparative' => $word->adj_comparative,
                 'adj_superlative' => $word->adj_superlative,
                 'extra_forms' => $word->extra_forms,
-                // Boolean, nem időbélyeg: a felületnek csak az kell, hogy az admin
-                // alak-kitöltő megnézte-e már — így az UTC/lokál-idő kérdés fel sem jön.
                 'forms_checked' => $word->forms_checked_at !== null,
                 'example_en' => $word->example_en,
                 'example_hu' => $word->example_hu,
@@ -221,15 +219,6 @@ class WordController extends Controller
         return back();
     }
 
-    /**
-     * Fő listás szó törlése (admin).
-     *
-     * Biztonsági szelep az alak-kitöltőhöz: az AI által beszúrt képzett alakok
-     * (derived_from_word_id) a mindenki által használt listába kerülnek, ezért
-     * kell egy út a rossz sor eltávolítására. A hivatkozó táblák ezt biztonságosan
-     * lekövetik: a user_word és a folder_word CASCADE, a flashcards és a reports
-     * SET NULL — nem marad árva sor, és nem bukik el idegen kulcson.
-     */
     public function destroy(Request $request, Word $word, AdminActionLogger $actionLog): RedirectResponse
     {
         Gate::authorize('admin');
@@ -252,7 +241,6 @@ class WordController extends Controller
 
         $existing = $request->user()->knownWords()->wherePivot('word_id', $word->id)->first();
 
-        // Üres státusz, vagy az aktív gomb újrakattintása → levétel.
         if ($status === null || ($existing && $existing->pivot->status === $status)) {
             $request->user()->knownWords()->detach($word->id);
 
@@ -263,8 +251,6 @@ class WordController extends Controller
             return $limitResponse;
         }
 
-        // Refund a lefoglalt extension-keret, ha a pivot-írás elbukik, hogy a
-        // slot ne ragadjon benn (M3) — ugyanaz a minta, mint az ExtensionControllerben.
         try {
             $request->user()->knownWords()->syncWithoutDetaching([$word->id => ['status' => $status]]);
         } catch (\Throwable $e) {
@@ -297,16 +283,10 @@ class WordController extends Controller
             return $this->importanceToggleResponse($request, $importance);
         }
 
-        // Még nincs mentve a szó: importance levételekor nincs mit tenni (ne hozzunk létre üres pivotot).
         if ($importance === null) {
             return $this->importanceToggleResponse($request, null);
         }
 
-        // Ez az ág ÚJ 'known' szót vesz fel, ezért ugyanúgy a napi extension-írás
-        // keretbe számít, mint a status felvétele — különben a csillagozás keret
-        // nélküli felvételi út lenne (EXT-M1). Meglévő jelölés módosítása (a fenti
-        // ág) nem fogyaszt keretet. A player ikertestvére ugyanez: PL-M1,
-        // ExtensionController::updateImportance.
         if ($limitResponse = $this->reserveExtensionStatusWrite($request)) {
             return $limitResponse;
         }
@@ -319,8 +299,6 @@ class WordController extends Controller
             throw $e;
         }
 
-        // Új 'known' felvétel — ugyanaz az aktivitás-könyvelés, mint a status()
-        // felvételénél és a player-ikertestvérnél (ExtensionController::updateImportance).
         if ($request->user()->updateStreak()) {
             session()->flash('streak_triggered', $request->user()->streak);
         }

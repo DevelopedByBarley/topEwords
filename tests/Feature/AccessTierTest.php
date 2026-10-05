@@ -6,7 +6,6 @@ use Illuminate\Support\Facades\URL;
 test('new user is on the free plan with limitations but an ai taste', function () {
     $user = User::factory()->create();
 
-    // AI minden csomagon elérhető; a Free kis havi keretet (kóstolót) kap.
     expect($user->currentPlan())->toBe('free')
         ->and($user->hasActiveAccess())->toBeFalse()
         ->and($user->isOnFreePlan())->toBeTrue()
@@ -57,11 +56,11 @@ test('free user is capped at fifty flashcards across all decks', function () {
         collect(range(1, $n))->map(fn ($i) => ['front' => "{$deck->id}-{$i}", 'back' => 'b'])->all()
     );
     $fill($deckA, 25);
-    $fill($deckB, 24); // összesen 49, két pakliban szétosztva
+    $fill($deckB, 24);
 
     expect($user->canAddFlashcards())->toBeTrue();
 
-    $fill($deckB, 1); // most 50
+    $fill($deckB, 1);
 
     expect($user->canAddFlashcards())->toBeFalse()
         ->and($user->flashcards()->count())->toBe(50);
@@ -92,8 +91,6 @@ test('free user can add more than ten custom words', function () {
     expect($user->customWords()->count())->toBe(12);
 });
 
-// ── Stripe előfizetés → csomag (ár-alapú) ─────────────────────────────────────
-
 function makeAccessTierSubscription(User $user, string $type, string $price): void
 {
     $user->subscriptions()->create([
@@ -107,8 +104,6 @@ function makeAccessTierSubscription(User $user, string $type, string $price): vo
 
 test('any active subscription maps to the single paid (Pro) plan, regardless of type name', function () {
     $user = User::factory()->create();
-    // swap után a 'default' típusú előfizetésen is lehet a Pro ár — minden aktív
-    // előfizetés = premium (egyetlen fizetős csomag van).
     makeAccessTierSubscription($user, 'default', 'price_pro');
 
     expect($user->currentPlan())->toBe('premium')
@@ -142,19 +137,14 @@ test('checkout redirects with info when buying the already active plan', functio
         'services.stripe.premium_price_id' => 'price_pro',
         'cashier.key' => 'pk_test_real',
     ]);
-    // withBilling(): a checkout számlázási kapuőrén át kell jutnia, hogy elérje a
-    // "már ez az aktív csomagod" ágat (különben a billing.edit-re irányítana).
     $user = User::factory()->withBilling()->create();
-    // Ugyanazon a Pro áron van már előfizetve — a swap-ág "már aktív"-ot ad.
     makeAccessTierSubscription($user, 'premium', 'price_pro');
 
-    // accept_terms: a checkout kötelező consent-ellenőrzésén is át kell jutni.
     $this->actingAs($user)
         ->post(route('pricing.checkout', 'premium'), ['accept_terms' => true])
         ->assertRedirect(route('pricing'))
         ->assertSessionHas('info');
 
-    // A hozzájárulás naplózódott.
     expect($user->fresh()->terms_accepted_at)->not->toBeNull();
 });
 
@@ -171,8 +161,6 @@ test('canceled subscription past its end date no longer grants access', function
 
     expect($user->currentPlan())->toBe('free');
 });
-
-// ── Admin hozzáférés-kiosztás ─────────────────────────────────────────────────
 
 test('admin can grant any plan by email', function () {
     config(['app.admin_email' => 'admin@example.com']);
@@ -209,7 +197,6 @@ test('admin can grant a free month by email', function () {
 test('granting a free month stacks on an active trial', function () {
     config(['app.admin_email' => 'admin@example.com']);
     $admin = User::factory()->withTwoFactor()->create(['email' => 'admin@example.com']);
-    // Már fut egy próbaidő — az új hónap annak a végéhez adódik hozzá.
     $target = User::factory()->create(['trial_ends_at' => now()->addDays(10)]);
 
     $this->actingAs($admin)
@@ -222,7 +209,6 @@ test('granting a free month stacks on an active trial', function () {
 test('granting a free month after an expired trial starts from now', function () {
     config(['app.admin_email' => 'admin@example.com']);
     $admin = User::factory()->withTwoFactor()->create(['email' => 'admin@example.com']);
-    // Lejárt próbaidő — az új hónap mostantól számít, nem a régi dátumtól.
     $target = User::factory()->create(['trial_ends_at' => now()->subMonths(3)]);
 
     $this->actingAs($admin)
@@ -246,8 +232,6 @@ test('non-admin cannot grant a free month', function () {
 
 test('unverified user with the admin email is not an admin', function () {
     config(['app.admin_email' => 'admin@example.com']);
-    // Az admin-email önmagában nem elég: megerősítetlen fiókkal (pl. az
-    // admin-emailre való regisztrációval/e-mail-átírással) nem jár admin-jog.
     $impostor = User::factory()->unverified()->create(['email' => 'admin@example.com']);
 
     expect($impostor->isAdmin())->toBeFalse();
@@ -322,8 +306,6 @@ test('cancelled checkout redirects with an info message', function () {
 
 test('success route flashes a confirmation message', function () {
     $user = User::factory()->create();
-    // Aktív előfizetés kell a "sikeres" üzenethez — webhook nélkül a success oldal
-    // "feldolgozás alatt" (info) üzenetet ad (lásd PricingController::success, Kö1).
     $user->subscriptions()->create([
         'type' => 'default',
         'stripe_id' => 'sub_'.uniqid(),

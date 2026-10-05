@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::create('invites', function (Blueprint $table) {
             $table->id();
             $table->string('code')->unique();
-            $table->string('label')->nullable(); // megjegyzés (pl. kinek szól)
+            $table->string('label')->nullable();
             $table->unsignedInteger('max_uses')->default(1);
             $table->unsignedInteger('uses')->default(0);
             $table->timestamp('expires_at')->nullable();

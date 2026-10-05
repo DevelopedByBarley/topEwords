@@ -94,7 +94,6 @@ export default function Subscription({
                     description="Kezeld az előfizetésed és számlázási adataidat"
                 />
 
-                {/* Trial */}
                 {isOnTrial && (
                     <div className="rounded-xl border border-blue-200 bg-blue-50 p-5 dark:border-blue-800 dark:bg-blue-950/30">
                         <div className="mb-1 flex items-center gap-2">
@@ -113,10 +112,6 @@ export default function Subscription({
                     </div>
                 )}
 
-                {/* Sikertelen terhelés (past_due) — a Cashier deactivatePastDue defaultja miatt
-                    ilyenkor isPremium=false ÉS subscription=null, ezért ez a sáv szándékosan az
-                    isPremium blokkon KÍVÜL, önálló propra épül, hogy a fizető user a lefokozás
-                    ellenére is lássa a helyreállítás lehetőségét (kártya-frissítés → billing portal). */}
                 {hasPastDueSubscription && (
                     <div className="rounded-xl border border-amber-300 bg-amber-50 p-5 dark:border-amber-700 dark:bg-amber-950/40">
                         <div className="mb-1 flex items-center gap-2">
@@ -146,7 +141,6 @@ export default function Subscription({
                     </div>
                 )}
 
-                {/* Premium subscription */}
                 {isPremium && (
                     <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-5 dark:border-indigo-800 dark:bg-indigo-950/30">
                         <div className="mb-1 flex items-center gap-2">
@@ -209,8 +203,6 @@ export default function Subscription({
                     </div>
                 )}
 
-                {/* Előfizetés nélküli prémium hozzáférés (lifetime / admin-adta) —
-                    fizetnie nem kell és nem is tud, ezért CTA sincs */}
                 {!isSubscribed && !isOnTrial && hasActiveAccess && (
                     <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-5 dark:border-indigo-800 dark:bg-indigo-950/30">
                         <div className="mb-1 flex items-center gap-2">
@@ -226,9 +218,6 @@ export default function Subscription({
                     </div>
                 )}
 
-                {/* No subscription — past_due-nál nem renderel: ott a recovery-sáv az
-                    egyetlen helyes út (kártya-frissítés), az upsell egy második,
-                    párhuzamos checkout-ösvényt nyitna a szünetelő előfizetés mellé. */}
                 {!isSubscribed &&
                     !isOnTrial &&
                     !hasActiveAccess &&
@@ -290,7 +279,6 @@ export default function Subscription({
                         </div>
                     )}
 
-                {/* AI usage */}
                 {aiUsage && (
                     <div className="rounded-xl border p-5">
                         <div className="mb-1 flex items-center gap-2">
@@ -331,7 +319,6 @@ export default function Subscription({
                     </div>
                 )}
 
-                {/* Fizetési mód */}
                 {paymentMethod && (
                     <div className="rounded-xl border p-5">
                         <div className="mb-1 flex items-center gap-2">
@@ -356,7 +343,6 @@ export default function Subscription({
                     </div>
                 )}
 
-                {/* Számláim */}
                 {invoices.length > 0 && (
                     <div className="rounded-xl border p-5">
                         <div className="mb-3 flex items-center gap-2">

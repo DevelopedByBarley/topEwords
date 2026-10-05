@@ -17,10 +17,6 @@ export type User = {
     [key: string]: unknown;
 };
 
-/**
- * A csomag-állapot, ahogy a `HandleInertiaRequests` minden oldalra kiküldi.
- * `null` vendégként.
- */
 export type Subscription = {
     plan: 'free' | 'premium';
     hasActiveAccess: boolean;

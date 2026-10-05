@@ -1,20 +1,5 @@
 <?php
 
-/**
- * Őrszem-tesztek a szó-részletező egységességéhez.
- *
- * A lelet: ugyanarra a szóra a szólista modálja kiírta a további jelentéseket,
- * a szinonimákat, mind a 8 alakot és a magyar példamondatot, a szövegelemző
- * dialógusa viszont csak a jelentést és egy angol példamondatot — mert három,
- * egymástól elcsúszott másolat renderelte ugyanazt. Ugyanez volt az AI-kitöltés
- * körül: a szövegelemzőben saját, szűkebb másolat futott (nem volt `word`,
- * `form_base` és `extra_forms` mező, és a más szófajhoz tartozó AI-alakok
- * láthatatlanul mentek el).
- *
- * Ezek a tesztek nem a megjelenést védik, hanem azt, hogy MINDHÁROM felület a
- * KÖZÖS forrásból rendereljen — másolat ne szülessen újra. A fájl a szövegelemző
- * felület többi kliens-oldali őrszemét is tartalmazza (könyv-fül, szó-kulcs).
- */
 function detailParitySource(string $relative): string
 {
     return file_get_contents(resource_path($relative));
@@ -23,7 +8,6 @@ function detailParitySource(string $relative): string
 test('PARITY-1: a részletező kártyákat mindhárom felület a közös komponensből rendereli', function () {
     $shared = detailParitySource('js/components/words/word-detail-sections.tsx');
 
-    // A közös komponens tartalmazza az összes szekciót…
     expect($shared)
         ->toContain('Magyar jelentés')
         ->toContain('Igealakok')
@@ -32,7 +16,6 @@ test('PARITY-1: a részletező kártyákat mindhárom felület a közös kompone
         ->toContain('Szinonimák')
         ->toContain('Példamondat');
 
-    // …és a hívók csak ezt használják, saját másolat nélkül.
     foreach ([
         'js/pages/words/index.tsx',
         'js/components/text-analysis/word-lookup-dialog.tsx',
@@ -49,14 +32,11 @@ test('PARITY-2: a szövegelemző a szólista közös űrlapját és AI-kitölté
     $dialog = detailParitySource('js/components/text-analysis/word-lookup-dialog.tsx');
 
     expect($dialog)
-        // Közös űrlap: minden alak-mező, a szófajtól függetlenül.
         ->toContain('<WordFormFields')
-        // Közös AI-lekérés + beolvasztás (nem saját fetch/merge).
         ->toContain("from '@/lib/gemini-word'")
         ->toContain('fetchGeminiWord')
         ->toContain('mergeGeminiData')
         ->not->toContain('gemini-lookup')
-        // Közös státusz- és fontosság-vezérlő.
         ->toContain('<StatusButtons')
         ->toContain('<ImportanceStars');
 });
@@ -65,7 +45,6 @@ test('PARITY-3: a szólista is a közös AI-kitöltést hívja', function () {
     expect(detailParitySource('js/pages/words/index.tsx'))
         ->toContain("from '@/lib/gemini-word'")
         ->toContain('fetchGeminiWord')
-        // A korábbi kézzel összeállított URL és a lokális merge megszűnt.
         ->not->toContain('gemini-lookup')
         ->not->toContain('function mergeGeminiData');
 });
@@ -73,31 +52,20 @@ test('PARITY-3: a szólista is a közös AI-kitöltést hívja', function () {
 test('BOOK-1: az „Új elemzés" könyv-módban nem hagyja üresen a fület', function () {
     $page = detailParitySource('js/pages/text-analysis/index.tsx');
 
-    // Az eredmény zárása könyv-módban megtartja az olvasót (a reset() az
-    // `fetchedSource`-ot törölte, az `activeBook`-ot nem — a fül üresen maradt).
     expect($page)->toContain("(mode === 'book' && activeBook)");
 
-    // Tartalék: ha mégis nincs mit olvasni, a lista jön vissza, nem üres felület.
     expect($page)->toContain('(!activeBook || (fetchedSource === null && !isLoadingPage))');
 });
 
 test('BOOK-2: a könyv-lista mountoláskor is betöltődik', function () {
-    // A lista korábban csak a fül-váltásból (switchMode) töltött. Ha a lap eleve
-    // könyv-módban jött vissza (a mód a sessionStorage-ból áll helyre), a
-    // `booksLoaded` örökre false maradt: a felület a betöltés-jelzőnél ragadt.
     $page = detailParitySource('js/pages/text-analysis/index.tsx');
 
     expect($page)->toContain("if (mode === 'book' && !booksLoaded) {");
 
-    // …és a fül-váltás már nem indít második kérést ugyanarra.
     expect(substr_count($page, 'fetchBooks();'))->toBe(1);
 });
 
 test('WORD-1: a kattintott szó normalizált kulccsal megy a részletezőbe', function () {
-    // A szövegben tipográfiai aposztróf áll („couldn’t"), a státusz-térkép kulcsai
-    // viszont ASCII aposztrófosak (`tokenKey`). Nyers alakkal a modalból mentett
-    // státusz olyan kulcsra került, amit a renderelés nem keres — a kiemelés csak
-    // újraelemzés után frissült.
     $page = detailParitySource('js/pages/text-analysis/index.tsx');
 
     expect($page)
@@ -106,50 +74,32 @@ test('WORD-1: a kattintott szó normalizált kulccsal megy a részletezőbe', fu
 });
 
 test('BOOK-3: a lap-újratöltés megtartja a kiválasztott könyvet és a lapszámot', function () {
-    // A sessionStorage csak a `mode`/`text`/`fetchedSource`/`result` négyest
-    // tartotta meg, az `activeBook` viszont sima React-state volt: frissítés
-    // után az elemzett lap ott maradt a képernyőn, de kiválasztott könyv nélkül
-    // sem az olvasó, sem a lapozó nem rendert — a lap aljáról eltűnt az
-    // „Előző/Következő oldal".
     $page = detailParitySource('js/pages/text-analysis/index.tsx');
     $types = detailParitySource('js/components/text-analysis/types.ts');
 
-    // A mentett állapot alakja egy helyen van definiálva, és tartalmazza az olvasót.
     expect($types)
         ->toContain('export interface StoredSession')
         ->toContain('activeBook: UserBook | null;')
         ->toContain('bookPage: number;');
 
-    // A lap ezt az alakot menti, és ebből indul a state.
     expect($page)
         ->toContain('const session: StoredSession = { mode, text, urlInput, fetchedSource, result, activeBook, bookPage, bookOverview };')
         ->toContain('useState<UserBook | null>(sessionData.activeBook ?? null)')
         ->toContain('useState(sessionData.bookPage ?? 1)')
-        // Helyreállításkor nem indul új összesítő-kérés (az a napi elemzés-keretbe számítana).
         ->toContain("useState<VideoOverview | 'failed' | null>(sessionData.bookOverview ?? 'failed')");
 });
 
 test('WORD-2: az újonnan felvitt szó/kifejezés azonnal a választott státuszt kapja', function () {
-    // A lelet: a felvitel után a szöveg nem változott. A dialógus a felvitelnél
-    // választott státuszt nem adta tovább, a szülő pedig fix `not_in_list`-et írt
-    // a token-térképbe — a többszavas kifejezés így ki is maradt a
-    // `phraseStatuses`-ból, ezért csak a MÁSODIK, dialógusból indított
-    // státuszváltás után lett kiemelt és egyben kattintható.
     $dialog = detailParitySource('js/components/text-analysis/word-lookup-dialog.tsx');
     $page = detailParitySource('js/pages/text-analysis/index.tsx');
 
-    // A dialógus a tényleg elmentett státuszt adja tovább.
     expect($dialog)
         ->toContain('onCustomAdded: (word: string, status: WordStatus) => void;')
         ->toContain('onCustomAdded(word, form.status);');
 
-    // A szülő ugyanazon az EGY úton alkalmazza, mint a státuszgombokat…
     expect($page)
         ->toContain('const handleCustomAdded = (word: string, status: WordStatus) => {')
         ->toContain("handleLookupStatusChange(word, null, status, 'not_in_list');")
-        // …és ez az út az, ami a kifejezést a `phraseStatuses`-ba teszi (ettől
-        // lesz a kifejezés egyetlen kattintható egység a szövegben).
         ->toContain('phraseStatuses[phraseKey(word)] = nextStatus;')
-        // A korábbi, státuszt eldobó írás nem térhet vissza.
         ->not->toContain("tokenStatuses: { ...prev.tokenStatuses, [word]: 'not_in_list' }");
 });

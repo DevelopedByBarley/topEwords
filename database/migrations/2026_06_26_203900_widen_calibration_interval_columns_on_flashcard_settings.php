@@ -7,11 +7,6 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * The calibration interval columns are validated up to 365 (days) in
-     * FlashcardSettingRequest and the settings UI, but were stored as
-     * unsignedTinyInteger (max 255). With MySQL strict mode any value in
-     * 256-365 throws an out-of-range error. Widen them to unsignedSmallInteger.
-     *
      * @var array<string, int>
      */
     private array $columns = [

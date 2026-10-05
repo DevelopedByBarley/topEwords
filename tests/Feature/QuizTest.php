@@ -4,22 +4,6 @@ use App\Models\User;
 use App\Models\UserCustomWord;
 use App\Models\Word;
 
-/*
-|--------------------------------------------------------------------------
-| ÁTMENETILEG KIVEZETVE — a kvíz nem része az induló feature-körnek
-|--------------------------------------------------------------------------
-|
-| A kvíz route-jai induláskor ki lettek vezetve (routes/words.php, kikommentezett
-| QuizController-import), ezért az itteni tesztek RouteNotFoundException-nel buknának.
-| A tesztek SZÁNDÉKOSAN megmaradnak: a kvíz visszakapcsolásakor azonnal újra
-| őrizetbe veszik a viselkedést — ezért nem töröljük őket.
-|
-| A csoport az alapfutásból ki van zárva (phpunit.xml → defaultTestSuite), hogy a
-| suite zöld maradjon, és egy VALÓDI regresszió ne vesszen el a piros sorok között.
-|
-| Visszakapcsoláskor: a route-ok bekötése után ezt a group() hívást kell törölni.
-| Külön futtatás: php artisan test --group=kivezetett
-*/
 pest()->group('kivezetett');
 
 beforeEach(function () {
@@ -149,9 +133,6 @@ test('quiz options never duplicate an answer even when meanings collide', functi
 });
 
 test('layout exposes the csrf token meta tag used by fetch posts', function () {
-    // Several pages (quiz complete, review, flashcard import, text-analysis) read
-    // the X-CSRF-TOKEN header value from this meta tag — without it every such
-    // POST is silently rejected with 419.
     $this->get(route('words.quiz'))
         ->assertOk()
         ->assertSee('<meta name="csrf-token" content="', false);

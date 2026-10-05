@@ -33,26 +33,8 @@ import { PublicHeader } from '@/components/public/public-header';
 import { ScrollReveal } from '@/components/public/scroll-reveal';
 import { TextAnalysisScrollSection } from '@/components/public/text-analysis-scroll';
 import { WordlistScrollSection } from '@/components/public/wordlist-scroll';
-// A letöltő blokkal együtt kivezetve (2026-07-29):
-// import ChromeExtensionsLink from '@/components/chrome-extensions-link';
 import { dashboard, login, pricing as pricingRoute, register } from '@/routes';
-// import { show as showDownload } from '@/routes/downloads';
 import { index as wordsIndex } from '@/routes/words';
-
-/*
- * KIVEZETVE (2026-07-28) — a "Gyakorlási módok" szekcióval együtt.
- * Mind a négy mód (kvíz, cloze, szabad írás, rendhagyó igék) route-ja ki van
- * kommentelve a routes/words.php-ban, tehát a landing nem hirdetheti őket.
- * A funkciók visszahozásakor ez a tömb és a hozzá tartozó szekció együtt
- * kapcsolható vissza.
- *
- * const PRACTICE_MODES = [
- *     { icon: HelpCircle, title: 'Kvíz', desc: '4 válaszos teszt, szűrhető státusz, nehézség és mappa szerint.' },
- *     { icon: Edit, title: 'Mondatkiegészítés', desc: 'írd be a hiányzó szót a példamondatba (cloze).' },
- *     { icon: PenTool, title: 'Szabad írás', desc: 'írj a célszavakkal, az AI ellenőrzi a szóhasználatot és a grammatikát.' },
- *     { icon: Route, title: 'Rendhagyó igék', desc: 'gyakorold a Past Simple és Past Participle alakokat.' },
- * ];
- */
 
 const AI_CARDS = [
     {
@@ -71,14 +53,6 @@ const AI_CARDS = [
         desc: 'A szövegelemzőben talált ismeretlen szóból az AI azonnal kész, kétoldalas kártyát gyárt.',
     },
 ];
-
-/*
- * A tananyag-videók listája NEM itt él, hanem a `/guide` oldalon
- * (`pages/guide.tsx`). Korábban a főoldal egy `page === 'videos'` state-tel
- * saját, párhuzamos Tananyag-oldalt rajzolt egy MÁSIK videólistából — annak
- * nem volt URL-je, a Vissza gomb kilépett az oldalról, és a két lista már el
- * is csúszott egymástól. A főoldal fejléce most a `/guide`-ra mutat.
- */
 
 const EXT_USAGE = [
     {
@@ -103,23 +77,6 @@ const EXT_USAGE = [
     },
 ];
 
-// A fejlesztői módú telepítés lépései kivezetve (2026-07-29) — a bővítmény a
-// Chrome Web Store-ból fog települni, lásd a bővítmény-szekció kommentjét.
-// const INSTALL_STEPS = [
-//     { n: 1, text: 'Töltsd le a .zip-et, és csomagold ki egy mappába' },
-//     { n: 2, text: 'Nyisd meg: chrome://extensions' },
-//     { n: 3, text: 'Kapcsold be a Fejlesztői módot (jobb felső sarok)' },
-//     { n: 4, text: 'Kattints: Kicsomagolt bővítmény betöltése' },
-//     { n: 5, text: 'Válaszd ki a kicsomagolt mappát' },
-// ];
-
-/*
- * Szándékosan nincsenek benne a konkrét darabszámok: azok a config/plans.php
- * `limits.free` kulcsában és a /pricing oldali FREE_FEATURES-ben élnek. A
- * landingen egy mondat mondja ki, hogy vannak korlátok, a pontos értékekért
- * pedig a részletes összehasonlításra viszünk — így nem csúszhat szét
- * háromfelé ugyanaz az adat.
- */
 const FREE_PLAN = [
     '10 000 szavas szólista',
     'Flashcard SRS, saját deck-ek',
@@ -140,8 +97,6 @@ const SIDE_NAV_DEFS = [
     { id: 'szolista', label: 'Szólista', icon: List },
     { id: 'szovegelemzes', label: 'Szövegelemzés', icon: FileSearch },
     { id: 'flashcard', label: 'Flashcard', icon: Layers },
-    // Kivezetve a "Gyakorlási módok" szekcióval együtt (2026-07-28):
-    // { id: 'gyakorlas', label: 'Gyakorlás', icon: HelpCircle },
     { id: 'ai', label: 'AI', icon: Sparkles },
     { id: 'bovitmeny', label: 'Bővítmény', icon: Puzzle },
     { id: 'arazas', label: 'Árazás', icon: SlidersHorizontal },
@@ -199,7 +154,6 @@ function useCountUp(target: number, suffix = '') {
     return ref;
 }
 
-/** A landing statikus blokkjainak görgetésre felúszó burkolója. */
 const Reveal = ScrollReveal;
 
 export default function Welcome({
@@ -210,8 +164,6 @@ export default function Welcome({
     const { auth, billingEnabled, extensionStoreUrl } = usePage().props;
 
     const [flipped, setFlipped] = useState(false);
-    // Kivezetve a "Gyakorlási módok" szekcióval (2026-07-28):
-    // const [quizPick, setQuizPick] = useState<string | null>(null);
     const [activeSection, setActiveSection] = useState('funkciok');
     const [showSideNav, setShowSideNav] = useState(false);
     const [hoveredFeature, setHoveredFeature] = useState(0);
@@ -233,7 +185,6 @@ export default function Welcome({
             'szolista',
             'szovegelemzes',
             'flashcard',
-            // 'gyakorlas' — kivezetve (2026-07-28), a szekció nincs a DOM-ban
             'ai',
             'bovitmeny',
             'arazas',
@@ -285,18 +236,6 @@ export default function Welcome({
         return () => window.removeEventListener('scroll', onScroll);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
-
-    /*
-     * Kivezetve a "Gyakorlási módok" szekcióval (2026-07-28):
-     * const answered = quizPick != null;
-     * const quizOptions = [
-     *     { l: 'között', correct: true },
-     *     { l: 'felett', correct: false },
-     *     { l: 'mellett', correct: false },
-     *     { l: 'mögött', correct: false },
-     * ];
-     * const correct = quizPick === 'között';
-     */
 
     const progressRef = useCountUp(41, '%');
     const wordCountRef = useCountUp(4187);
@@ -359,12 +298,6 @@ export default function Welcome({
                     Ugrás a tartalomra
                 </a>
 
-                {/*
-                 * Szekció-navigáció. Korábban `<div onClick>` volt: egérrel
-                 * működött, billentyűzettel elérhetetlen volt. Most gomb, és
-                 * a rejtett állapotban `inert`, hogy a tabolás se akadjon el
-                 * a láthatatlan ikonokon.
-                 */}
                 <nav
                     aria-label="Szekciók"
                     inert={!showSideNav}
@@ -405,11 +338,6 @@ export default function Welcome({
                 </nav>
 
                 <div className="relative">
-                    {/*
-                     * A fejléc a gradiens-hero fölött lebeg, de a DOM-ban a
-                     * `main` előtt áll — így a landmark-sorrend helyes marad,
-                     * és az ugrólink a tartalomra visz, nem a navigációra.
-                     */}
                     <div className="absolute inset-x-0 top-0 z-20">
                         <PublicHeader variant="transparent" />
                     </div>
@@ -437,7 +365,6 @@ export default function Welcome({
                                 }}
                             />
 
-                            {/* hero copy */}
                             <div className="relative z-4 mx-auto mt-14 max-w-[840px] text-center">
                                 <h1 className="text-[clamp(42px,6.6vw,80px)] leading-[1.02] font-extrabold tracking-[-1.5px] text-white">
                                     Angol szavak tanulása
@@ -500,7 +427,6 @@ export default function Welcome({
                                             <ArrowRight size={20} />
                                         </Link>
                                     )}
-                                    {/* Másodlagos CTA: egy szekcióval lejjebb, a funkciókhoz. */}
                                     <a
                                         href="#funkciok"
                                         onClick={(e) => {
@@ -515,7 +441,6 @@ export default function Welcome({
                                 </div>
                             </div>
 
-                            {/* floating mockup cluster */}
                             <div className="relative z-3 mx-auto mt-16 flex max-w-[1060px] flex-wrap items-center justify-center gap-6">
                                 <div
                                     className="pointer-events-none absolute top-[46%] bottom-[-320px] left-1/2 -z-10 w-screen -translate-x-1/2"
@@ -524,12 +449,6 @@ export default function Welcome({
                                             'linear-gradient(to bottom,rgba(255,255,255,0) 0,#ffffff 90px)',
                                     }}
                                 />
-                                {/*
-                                 * A három fényfolt marad, mert funkciója van: kiemeli a mockup-kártyákat
-                                 * a sötét háttérből. Az opacitásuk viszont .5/.46/.4-ről lejjebb ment —
-                                 * azon a szinten már önálló "lebegő gradiens-labdának" látszottak,
-                                 * ami a generált heroök tipikus dísze. Így halo marad, nem dekoráció.
-                                 */}
                                 <div
                                     className="pointer-events-none absolute top-6 -left-[4%] -z-10 size-[420px] animate-hero-float-slow-a rounded-full blur-[80px]"
                                     style={{
@@ -552,7 +471,6 @@ export default function Welcome({
                                     }}
                                 />
 
-                                {/* progress card */}
                                 <div className="animate-hero-float-a">
                                     <div className="w-[280px] rounded-[22px] bg-white p-5.5 shadow-[0_26px_60px_rgba(0,0,0,.28)]">
                                         <div className="flex items-center justify-between">
@@ -590,7 +508,6 @@ export default function Welcome({
                                     </div>
                                 </div>
 
-                                {/* flashcard */}
                                 <div className="animate-hero-float-b">
                                     <div className="w-[320px] rounded-[26px] bg-white p-5 shadow-[0_40px_70px_-20px_rgba(49,46,129,.35)]">
                                         <div className="flex items-center justify-center">
@@ -685,7 +602,6 @@ export default function Welcome({
                                     </div>
                                 </div>
 
-                                {/* analyzer preview */}
                                 <div className="animate-hero-float-c">
                                     <div className="w-[250px] rounded-[22px] border border-white/[0.28] bg-indigo-800/90 p-5.5 shadow-[0_26px_60px_rgba(49,46,129,.35)] md:bg-indigo-800/55 md:backdrop-blur-[14px]">
                                         <span className="inline-flex items-center gap-1.5 rounded-full bg-green-300/20 px-3 py-1.25 text-xs font-semibold text-green-200">
@@ -746,16 +662,10 @@ export default function Welcome({
                             </div>
                         </section>
 
-                        {/* FEATURES */}
                         <section
                             id="funkciok"
                             className="relative -mt-35 bg-white px-5 pt-24 pb-25"
                         >
-                            {/*
-                             * A szekció-cím korábban "Minden, ami kell a hatékony tanuláshoz" volt:
-                             * olyan mondat, ami bármelyik konkurens oldalán is állna. Helyette a
-                             * tényleges munkamenetet írja le, mert az különbözteti meg a terméket.
-                             */}
                             <Reveal className="mx-auto mb-15 max-w-[780px] text-center">
                                 <span className="inline-block rounded-full bg-indigo-100 px-3.75 py-1.5 text-xs font-bold tracking-[1.2px] text-indigo-700">
                                     FUNKCIÓK
@@ -771,15 +681,6 @@ export default function Welcome({
                                     keresztül.
                                 </p>
                             </Reveal>
-                            {/*
-                             * Nyolc kártya volt itt `auto-fit` ráccsal, ami a sor végén árva
-                             * kártyákat hagyott. Most hat, fix 3x2 rácsban: nincs csonka sor,
-                             * és nem kell mesterséges kiemelés sem a hierarchiához.
-                             *
-                             * A "Gyakorlási módok" kártya KIKERÜLT: kvízt, mondatkiegészítést és
-                             * szabad írást hirdetett, amik kivezetett funkciók (routes/words.php
-                             * ki van kommentelve) — nem hirdethetünk el nem érhető funkciót.
-                             */}
                             <div className="mx-auto grid max-w-[1100px] grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
                                 {[
                                     {
@@ -892,166 +793,6 @@ export default function Welcome({
 
                         <FlashcardScrollSection />
 
-                        {/*
-                         * GYAKORLÁSI MÓDOK — KIVEZETVE (2026-07-28)
-                         *
-                         * A szekció kvízt, mondatkiegészítést (cloze), AI-alapú szabad írást és
-                         * rendhagyó igéket hirdetett — mind a négy funkció ki van vezetve, a
-                         * route-jaik a routes/words.php-ban ki vannak kommentelve. A landing
-                         * tehát olyat kínált, ami a regisztráció után nem érhető el.
-                         *
-                         * Kikommentelve és nem törölve, mert a funkciók visszahozása tervben van;
-                         * a szekció akkor a route-okkal együtt visszakapcsolható. A hozzá tartozó
-                         * PRACTICE_MODES tömb és a 'gyakorlas' nav-bejegyzés ugyanígy kikommentelve.
-                         */}
-                        {/*
-                        <section
-                            id="gyakorlas"
-                            className="px-5 py-24"
-                            style={{
-                                background:
-                                    'linear-gradient(180deg,#eef2ff 0%,#e9e5ff 50%,#f5f3ff 100%)',
-                            }}
-                        >
-                            <div className="mx-auto grid max-w-[1160px] grid-cols-[repeat(auto-fit,minmax(340px,1fr))] items-center gap-12">
-                                <Reveal>
-                                    <span className="inline-block rounded-full bg-indigo-100 px-3.75 py-1.5 text-xs font-bold tracking-[1.2px] text-indigo-700">
-                                        GYAKORLÁSI MÓDOK
-                                    </span>
-                                    <h2 className="mt-4.5 text-[clamp(28px,3.6vw,42px)] leading-[1.1] font-bold tracking-[-1px] text-[#171717]">
-                                        Több módszer ugyanahhoz
-                                        <br />a szókincshez
-                                    </h2>
-                                    <p className="mt-4 mb-5.5 text-base leading-[1.65] text-[#737373]">
-                                        Ugyanazokat a szavakat többféleképp
-                                        gyakorolhatod — a rendszer a
-                                        szólistádból automatikusan generálja a
-                                        feladatokat. Próbáld ki a kvízt jobbra.
-                                    </p>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        {PRACTICE_MODES.map((m) => (
-                                            <Reveal
-                                                key={m.title}
-                                                className="rounded-[14px] border border-neutral-200 bg-white p-4.5 shadow-[0_6px_18px_rgba(0,0,0,.04)] transition-all duration-250 hover:-translate-y-1.5 hover:shadow-[0_24px_50px_rgba(0,0,0,.12)]"
-                                            >
-                                                <span className="grid size-10.5 place-items-center rounded-xl bg-gradient-to-br from-indigo-600 to-indigo-800 text-white">
-                                                    <m.icon size={23} />
-                                                </span>
-                                                <div className="mt-3 text-[15px] font-semibold text-[#171717]">
-                                                    {m.title}
-                                                </div>
-                                                <div className="mt-1.25 text-xs leading-[1.5] text-[#737373]">
-                                                    {m.desc}
-                                                </div>
-                                            </Reveal>
-                                        ))}
-                                    </div>
-                                </Reveal>
-                                <Reveal className="flex flex-col gap-4.5">
-                                    <div className="rounded-[20px] border border-neutral-200 bg-white p-6.5 shadow-[0_20px_50px_rgba(0,0,0,.06)]">
-                                        <div className="flex items-center justify-between">
-                                            <span className="rounded-full bg-indigo-100 px-2.75 py-1.25 text-xs font-semibold text-indigo-700">
-                                                Kvíz · #178 · Top 1 000
-                                            </span>
-                                            <span className="text-[13px] text-[#a1a1a1]">
-                                                Próbáld ki
-                                            </span>
-                                        </div>
-                                        <h3 className="mt-4.5 mb-1 text-base font-medium text-[#737373]">
-                                            Mi a magyar jelentése ennek:{' '}
-                                            <b className="text-[#171717]">
-                                                between
-                                            </b>
-                                            ?
-                                        </h3>
-                                        <div className="mt-4 grid grid-cols-2 gap-2.5">
-                                            {quizOptions.map((o) => {
-                                                const picked = quizPick === o.l;
-                                                let bg = '#fff';
-                                                let bd = '#e5e5e5';
-                                                let col = '#404040';
-                                                let Mark: React.ComponentType<{
-                                                    size?: number;
-                                                }> | null = null;
-
-                                                if (answered) {
-                                                    if (o.correct) {
-                                                        bg = '#f0fdf4';
-                                                        bd = '#86efac';
-                                                        col = '#15803d';
-                                                        Mark = Check;
-                                                    } else if (picked) {
-                                                        bg = '#fef2f2';
-                                                        bd = '#fca5a5';
-                                                        col = '#b91c1c';
-                                                        Mark = X;
-                                                    }
-                                                }
-
-                                                return (
-                                                    <button
-                                                        key={o.l}
-                                                        onClick={() =>
-                                                            setQuizPick(o.l)
-                                                        }
-                                                        className="flex items-center justify-between rounded-xl px-4 py-3.25 font-sans text-[15px] font-semibold transition-all"
-                                                        style={{
-                                                            background: bg,
-                                                            border: `1px solid ${bd}`,
-                                                            color: col,
-                                                        }}
-                                                    >
-                                                        <span>{o.l}</span>
-                                                        {Mark && (
-                                                            <Mark size={18} />
-                                                        )}
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-                                        <div
-                                            className="mt-3.5 min-h-5 text-sm font-semibold"
-                                            style={{
-                                                color: !answered
-                                                    ? 'transparent'
-                                                    : correct
-                                                      ? '#15803d'
-                                                      : '#b91c1c',
-                                            }}
-                                        >
-                                            {answered
-                                                ? correct
-                                                    ? 'Helyes! A „between” jelentése: között.'
-                                                    : 'Nem talált — a helyes válasz: között.'
-                                                : ''}
-                                        </div>
-                                    </div>
-                                    <div className="rounded-[20px] border border-neutral-200 bg-white p-6.5 shadow-[0_20px_50px_rgba(0,0,0,.06)]">
-                                        <span className="inline-block rounded-full bg-indigo-100 px-2.75 py-1.25 text-xs font-semibold text-indigo-700">
-                                            Mondatkiegészítés
-                                        </span>
-                                        <p className="mt-4 text-base leading-[1.8] text-[#404040]">
-                                            The space{' '}
-                                            <span className="inline-block min-w-24 border-b-2 border-dashed border-indigo-600 text-center font-semibold text-indigo-600">
-                                                between
-                                            </span>{' '}
-                                            two cities lies a valley known for
-                                            its remarkable landscape.
-                                        </p>
-                                        <div className="mt-3.5 inline-flex items-center gap-1.5 text-[13px] text-[#a1a1a1]">
-                                            <CheckCircle2
-                                                size={17}
-                                                className="text-green-500"
-                                            />
-                                            Írd be a hiányzó szót (cloze).
-                                        </div>
-                                    </div>
-                                </Reveal>
-                            </div>
-                        </section>
-                        */}
-
-                        {/* AI */}
                         <section
                             id="ai"
                             className="px-5 py-24"
@@ -1098,7 +839,6 @@ export default function Welcome({
                             </Reveal>
                         </section>
 
-                        {/* CHROME EXTENSION */}
                         <section
                             id="bovitmeny"
                             className="relative overflow-hidden px-5 py-24"
@@ -1208,16 +948,6 @@ export default function Welcome({
                                             </div>
                                         </div>
                                     </div>
-                                    {/*
-                                     * A LETÖLTŐ BLOKK KIVEZETVE (2026-07-29). Korábban a
-                                     * fejlesztői módú telepítés 5 lépését és a .zip letöltő
-                                     * gombját mutatta (bejelentkezve), illetve egy „Jelentkezz
-                                     * be a letöltéshez" linket vendégként. A letöltés azóta
-                                     * `can:admin` mögött van (routes/web.php), mert a bővítmény
-                                     * a Chrome Web Store-ból fog települni — a helyére a lenti
-                                     * „hamarosan" doboz került. Visszakapcsoláskor az
-                                     * INSTALL_STEPS konstans és a Download / login import is kell.
-                                     */}
                                     <div className="mt-5.5 rounded-2xl border border-white/10 bg-white/[0.06] p-5.5">
                                         <div className="mb-2 text-sm font-semibold text-white">
                                             Hogyan telepítsd?
@@ -1257,7 +987,6 @@ export default function Welcome({
                             </div>
                         </section>
 
-                        {/* ÁRAZÁS */}
                         <section
                             id="arazas"
                             className="px-5 py-24"
@@ -1376,7 +1105,6 @@ export default function Welcome({
                             </p>
                         </section>
 
-                        {/* CTA */}
                         <section className="bg-white px-5 pt-10 pb-25">
                             <Reveal
                                 className="relative mx-auto max-w-[1100px] overflow-hidden rounded-[32px] px-10 py-18 text-center"

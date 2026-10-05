@@ -2,17 +2,8 @@
 
 use App\Models\User;
 
-/**
- * A kézikönyv kézzel írt számokat közöl a csomag-keretekről és a jelvényekről.
- * Ezek a valódi forrásból (config/plans.php, AchievementService) élnek, és
- * csendben szét tudnak csúszni: a Pro könyv-kvótája 7-ről 3-ra ment, a
- * kézikönyv viszont hónapokig a régi számot írta. Ezek a tesztek a kettő
- * összhangját őrzik — ha egy limit változik, itt bukik el, nem a felhasználónál.
- */
 function handbookSource(): string
 {
-    // A sortöréseket összevonjuk: a Prettier bármikor átformázhatja a
-    // táblázat-sorokat, de a tartalomnak akkor is stimmelnie kell.
     return preg_replace('/\s+/', ' ', file_get_contents(resource_path('js/pages/handbook.tsx')));
 }
 
@@ -39,8 +30,6 @@ test('a dokumentált csomag-keretek megegyeznek a config/plans.php értékeivel'
         expect($handbook)->toContain($row);
     }
 
-    // Az előfizetés-szekció összefoglaló táblája ugyanezeket a számokat írja
-    // más tördelésben — a két hely nem csúszhat szét egymástól sem.
     expect($handbook)
         ->toContain("'{$free['flashcards']} kártya, {$free['decks']} pakli'")
         ->toContain("'{$free['books']} könyv, {$free['youtube_transcripts']} felirat'")
@@ -61,13 +50,10 @@ test('a kézikönyv a ténylegesen látható teljesítmény-csoportokat sorolja 
         expect($handbook)->toContain("'{$label}'");
     }
 
-    // A kivezetett csoportokat (kvíz) nem hirdetjük megszerezhető jelvényként.
     expect($handbook)->not->toContain("'Kvíz', 'Mire kapsz");
 });
 
 test('az AI-funkciókat nem hirdetjük Pro-exkluzívnak', function () {
-    // A User::hasAiAccess() minden csomagon igaz — az AI-t a havi keret
-    // korlátozza, nem az előfizetés. Ha ez megfordul, ez a teszt szól.
     expect(User::factory()->create()->hasAiAccess())->toBeTrue();
 
     expect(handbookSource())

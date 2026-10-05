@@ -2,11 +2,6 @@ import { Link, usePage } from '@inertiajs/react';
 import { PUBLIC_FOOTER_LINKS } from '@/components/public/public-nav-links';
 import { privacy, terms } from '@/routes';
 
-/**
- * A publikus oldalak közös lábléce. Két sávra bomlik: felül a termék-linkek
- * (innen érhető el a kézikönyv és a tananyag, ami korábban zsákutca volt),
- * alul a jogi és üzemeltetői információ.
- */
 export function PublicFooter() {
     const { billingEnabled } = usePage<{ billingEnabled: boolean }>().props;
     const links = PUBLIC_FOOTER_LINKS.filter(

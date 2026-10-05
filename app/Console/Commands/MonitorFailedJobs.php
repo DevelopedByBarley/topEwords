@@ -15,11 +15,6 @@ use Illuminate\Support\Facades\Notification;
 #[Description('E-mail riasztást küld az adminnak, ha új elbukott job került a failed_jobs táblába — elbukott job tipikusan kimaradt Billingo (NAV) számlát jelent, ami nem maradhat észrevétlen.')]
 class MonitorFailedJobs extends Command
 {
-    /**
-     * A legutóbb már lejelentett failed_jobs rekord id-ját őrzi, így minden bukásról
-     * pontosan egyszer riasztunk. Ha a cache-t kiürítik (pl. optimize:clear), a táblában
-     * még bent lévő bukásokról újra megy a riasztás — inkább duplán, mint sehogy.
-     */
     private const LAST_ALERTED_ID_CACHE_KEY = 'queue-monitoring:last-alerted-failed-job-id';
 
     public function handle(): int
@@ -43,8 +38,6 @@ class MonitorFailedJobs extends Command
             return self::FAILURE;
         }
 
-        // Szándékosan szinkron küldés (notifyNow): a riasztás épp a queue bajáról szól,
-        // ezért nem bízhatjuk a kézbesítését ugyanarra a queue-ra.
         Notification::route('mail', $adminEmail)
             ->notifyNow(new FailedJobsDetected($this->summarize($newFailures)));
 
@@ -56,8 +49,6 @@ class MonitorFailedJobs extends Command
     }
 
     /**
-     * A failed_jobs sorokból e-mailbe szánt, emberi összefoglalót készít.
-     *
      * @param  Collection<int, object>  $failures
      * @return array<int, array{id: int, job: string, queue: string, failed_at: string, error: string}>
      */

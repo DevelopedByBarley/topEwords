@@ -7,11 +7,6 @@ import { set as setAccess } from '@/routes/admin/access';
 import { grant as grantFreeMonth } from '@/routes/admin/free-month';
 import type { AccessTabProps } from '@/types/admin';
 
-/**
- * A userlista szerveroldalon keresett és lapozott (F9C-L4): a keresés és a
- * lapváltás partial reload, ami csak a userlistát kéri újra — a teljes
- * userbázis sosem kerül a böngészőbe.
- */
 export default function AccessTab({
     accessUsers,
     accessSearch,
@@ -19,7 +14,6 @@ export default function AccessTab({
     const [search, setSearch] = useState(accessSearch);
     const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    // Unmountkor (tabváltás) a függő debounce ne navigáljon utólag.
     useEffect(() => {
         return () => {
             if (searchTimeout.current) {

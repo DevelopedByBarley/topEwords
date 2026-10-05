@@ -11,19 +11,6 @@ use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
-/**
- * INDULÁSKOR KIVEZETVE (2026-07-26): a kvíz nem része az induló
- * feature-körnek, és a biztonsági auditokból is ki van zárva.
- *
- * A kód nem törölt, csak elérhetetlen: a `words.quiz` és a
- * `words.quiz.complete` route a routes/words.php-ban ki van kommentelve, a
- * frontend pedig a resources/js/_pages-disabled/words/quiz.tsx alatt vár. A
- * kvíz-jelvények az AchievementService::HIDDEN_GROUPS mögött rejtve vannak.
- *
- * Visszahozáskor: a két route visszakommentelése, a quiz.tsx visszamozgatása a
- * resources/js/pages/words/ alá, a Wayfinder-akciók újragenerálása, és a
- * HIDDEN_GROUPS-ból a 'quiz' csoport kivétele.
- */
 class QuizController extends Controller
 {
     public function quiz(Request $request): Response
@@ -32,16 +19,10 @@ class QuizController extends Controller
         $level = $request->integer('level') ?: null;
         $folderId = $request->integer('folder') ?: null;
         $user = $request->user();
-        // Per-round quiz cap from the plan (null = unlimited on premium); 500 is
-        // the technical ceiling since the word queries below fetch at most 500.
         $roundLimit = $user->planLimit('quiz_per_round');
         $maxCount = $roundLimit ?? 500;
         $count = min(max((int) $request->input('count', 0), 0), $maxCount);
 
-        // Parse comma-separated ids param for manual word selection.
-        // A kézi kiválasztás is plafonos: Free-n a plan-limit, prémiumon az
-        // 500-as technikai plafon — kraftolt ?ids= URL-lel sem kérhető
-        // korlátlan whereIn + óriás payload.
         $idsParam = $request->string('ids')->trim()->value();
         $selectedIds = $idsParam !== '' ? array_filter(array_map('trim', explode(',', $idsParam))) : [];
         if (count($selectedIds) > $maxCount) {
@@ -86,7 +67,6 @@ class QuizController extends Controller
             $query->whereIn('id', $folderWordIds);
         }
 
-        // Custom words are included when no level/folder filter is active
         $includeCustom = $level === null && $folderWordIds === null;
         $customWordQuery = $includeCustom
             ? UserCustomWord::where('user_id', $user->id)->whereNotNull('meaning_hu')
@@ -99,7 +79,6 @@ class QuizController extends Controller
         $customAvailable = $customWordQuery?->count() ?? 0;
         $available = $query->count() + $customAvailable;
 
-        // In setup mode (count=0, no ids): return selectable word list for manual picking
         $selectableWords = [];
         if ($count === 0 && count($selectedIds) === 0) {
             $regularSelectable = (clone $query)
@@ -132,13 +111,11 @@ class QuizController extends Controller
 
         $words = [];
 
-        // Determine the effective count: either from ids or from count param
         $useSelectedIds = count($selectedIds) > 0;
         $effectiveCount = $useSelectedIds ? count($selectedIds) : $count;
 
         if ($effectiveCount > 0 && ($available > 0 || $useSelectedIds)) {
             if ($useSelectedIds) {
-                // Use exactly the selected word IDs
                 $quizWords = count($selectedRegularIds) > 0
                     ? Word::whereIn('id', $selectedRegularIds)->whereNotNull('meaning_hu')->get(['id', 'word', 'meaning_hu', 'part_of_speech', 'form_base', 'verb_past', 'verb_past_participle', 'verb_present_participle', 'verb_third_person', 'is_irregular', 'noun_plural', 'adj_comparative', 'adj_superlative', 'example_en', 'example_hu', 'synonyms', 'rank'])
                     : collect();
@@ -147,7 +124,6 @@ class QuizController extends Controller
                     ? UserCustomWord::where('user_id', $user->id)->whereIn('id', $selectedCustomIds)->whereNotNull('meaning_hu')->get(['id', 'word', 'meaning_hu', 'part_of_speech', 'example_en', 'status'])
                     : collect();
             } else {
-                // Proportionally split count between regular and custom words
                 $customShare = $available > 0 ? (int) round($count * ($customAvailable / $available)) : 0;
                 $regularShare = $count - $customShare;
 
@@ -169,11 +145,6 @@ class QuizController extends Controller
                 ->values()
                 ->all();
 
-            /**
-             * Walk the pool with a cursor so every word gets fresh decoys; skip
-             * candidates matching the correct meaning, because different words
-             * can share the same Hungarian translation.
-             */
             $decoyCursor = 0;
             $buildOptions = function (string $meaning) use (&$decoyCursor, $decoyPool): array {
                 $decoys = [];

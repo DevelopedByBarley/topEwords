@@ -4,14 +4,6 @@ use App\Models\User;
 use App\Models\Word;
 use Illuminate\Support\Facades\Http;
 
-/**
- * Az admin gyors alak-kitöltő (`words.ai-fill`).
- *
- * A szólista sorában lévő gomb hívja, hogy a hiányzó alakokat végig lehessen
- * kattintani. A legfontosabb tulajdonsága, hogy MEGLÉVŐ értéket soha nem ír
- * felül — enélkül a végigkattintás lecserélné a felhalmozott jelentéseket és
- * példamondatokat arra, amit az AI épp mond.
- */
 beforeEach(function () {
     config(['services.gemini.api_key' => 'test-key']);
     config(['app.admin_email' => 'admin@example.com']);
@@ -19,11 +11,6 @@ beforeEach(function () {
     $this->admin = User::factory()->withTwoFactor()->create(['email' => 'admin@example.com']);
 });
 
-/**
- * Már átnézettként megjelölt szó. A `forms_checked_at` szándékosan nem
- * mass-assignable (rendszer-kezelt időbélyeg, nem felhasználói adat), ezért a
- * `Word::create()` eldobná — közvetlenül állítjuk be.
- */
 function checkedWord(string $word, int $rank): Word
 {
     $row = Word::create(['word' => $word, 'rank' => $rank]);
@@ -33,7 +20,6 @@ function checkedWord(string $word, int $rank): Word
     return $row;
 }
 
-/** Egy Gemini lookup-válasz burkolása a HTTP-válasz alakjába. */
 function lookupPayload(array $fields): array
 {
     return [
@@ -42,11 +28,6 @@ function lookupPayload(array $fields): array
     ];
 }
 
-/**
- * Szavankénti lookup-válasz. A kitöltő a tő után a képzett alakokra is külön
- * lekérdezést futtat, ezért a fake-nek a promptból kell kitalálnia, melyik szóról
- * van szó — különben minden alak ugyanazt a jelentést kapná.
- */
 function fakeLookupsByWord(array $byWord): void
 {
     Http::fake(function ($request) use ($byWord) {
@@ -57,7 +38,6 @@ function fakeLookupsByWord(array $byWord): void
     });
 }
 
-/** A „happy" lookup-válasza, tetszőleges mező-felülírásokkal. */
 function fakeHappyLookup(array $overrides = []): void
 {
     Http::fake(['generativelanguage.googleapis.com/*' => Http::response([
@@ -94,9 +74,6 @@ test('az admin kitölti egy szó hiányzó ragozott alakjait', function () {
 });
 
 test('a képzett alak ÖNÁLLÓ szó lesz a fő listában, saját jelentéssel', function () {
-    // Ez a lényeg: a „basically" jelentése („alapvetően") a „basic"-ből nem
-    // derül ki, és ha a tő alá kerülne, a tő státusza folyna át rá. A fő listába
-    // kerül (nem saját szóként), hogy MINDEN felhasználó felismerje.
     fakeLookupsByWord([
         'basic' => [
             'is_real_word' => true,
@@ -124,26 +101,19 @@ test('a képzett alak ÖNÁLLÓ szó lesz a fő listában, saját jelentéssel',
         ->assertSuccessful()
         ->assertJsonPath('created', ['basically']);
 
-    // A tő extra_forms-a ÜRES marad: a képzett alak nem oda tartozik.
     expect($word->refresh()->extra_forms)->toBeNull();
 
     $derived = Word::firstWhere('word', 'basically');
     expect($derived)->not->toBeNull();
     expect($derived->meaning_hu)->toBe('alapvetően');
     expect($derived->part_of_speech)->toBe('adv');
-    // A tő nyilvántartva, hogy a beszúrás auditálható és visszavonható legyen.
     expect($derived->derived_from_word_id)->toBe($word->id);
-    // A 10 000-es frekvencia-lista UTÁN kap rangot, tehát a 7. szintre esik —
-    // így nem hazudjuk azt, hogy a „8 001 – 10 000" sávba tartozna.
     expect($derived->rank)->toBeGreaterThan($word->rank);
     expect($derived->level)->toBe(7);
-    // Nincs saját státusz-oszlop: a jelölés a user_word pivotban él, tehát az új
-    // szó automatikusan MINDENKINÉL jelöletlen — pont ez a cél.
     expect($this->admin->knownWords()->where('words.id', $derived->id)->exists())->toBeFalse();
 });
 
 test('a törölt tő nem viszi magával a képzett alakot', function () {
-    // A derived_from_word_id null-ra vált: a „basically" önmagában is érvényes szó.
     fakeLookupsByWord([
         'basic' => [
             'is_real_word' => true, 'base_form' => 'basic', 'meaning_hu' => 'alapvető',
@@ -178,8 +148,6 @@ test('a nem admin nem törölhet fő listás szót', function () {
 });
 
 test('a már létező képzett alakot nem duplikáljuk', function () {
-    // A „really" saját sorral és saját státusszal él a fő listában — hozzá sem
-    // nyúlunk, különben a „real" státusza fedné el a sajátját.
     fakeLookupsByWord([
         'real' => [
             'is_real_word' => true,
@@ -201,8 +169,6 @@ test('a már létező képzett alakot nem duplikáljuk', function () {
         ->assertJsonPath('created', [])
         ->assertJsonPath('skipped', ['really']);
 
-    // Egyetlen „really" sor van, és nincs derived_from_word_id-je: a meglévő
-    // szót nem duplikáltuk és nem is írtuk át.
     expect(Word::where('word', 'really')->count())->toBe(1);
     expect(Word::firstWhere('word', 'really')->derived_from_word_id)->toBeNull();
     expect($word->refresh()->extra_forms)->toBeNull();
@@ -262,8 +228,6 @@ test('a második kattintásnak már nincs mit tennie (idempotens)', function () 
 });
 
 test('a képzett alakok a fail-closed szűrőn átesve lesznek önálló szóvá', function () {
-    // A HTML, a számsor és a duplikátum kiesik; csak a „happily" marad, és abból
-    // lesz egyetlen saját szó.
     fakeHappyLookup(['derived_forms' => '<script>alert(1)</script>, 12345, HAPPILY, happily']);
     $word = Word::create(['word' => 'happy', 'rank' => 500, 'part_of_speech' => 'adj']);
 
@@ -306,11 +270,6 @@ test('a vendéget nem engedi be', function () {
 
     Http::assertNothingSent();
 });
-
-// --- Haladás-követés: forms_checked_at + a szólista „Alakok" szűrője ---
-// A 10 000 szó végigkattintásához tudni kell, mi van már megnézve. Az időbélyeg
-// akkor is íródik, ha nem volt mit tölteni — különben a függvényszavak (the, of)
-// örökre a „nincs ellenőrizve" listában ragadnának.
 
 test('a kitöltés akkor is megjelöli a szót, ha nem volt mit tölteni', function () {
     fakeHappyLookup(['adj_comparative' => '', 'adj_superlative' => '', 'derived_forms' => '']);
@@ -377,8 +336,6 @@ test('érvénytelen forms értéket figyelmen kívül hagyunk', function () {
 });
 
 test('a kitöltött szó kiesik a „nincs ellenőrizve" listából', function () {
-    // Az újonnan beszúrt képzett alakok viszont BEKERÜLNEK: ők maguk még nincsenek
-    // átnézve, tehát a lista nem csak fogy, hanem közben nőhet is.
     fakeHappyLookup();
     $word = Word::create(['word' => 'happy', 'rank' => 500, 'part_of_speech' => 'adj']);
 

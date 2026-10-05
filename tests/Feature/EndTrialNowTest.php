@@ -20,7 +20,6 @@ test('aktív előfizetés nélkül hibával lép ki', function () {
 test('próbaidőn kívüli előfizetésnél nincs mit lejáratni', function () {
     $user = User::factory()->create(['stripe_id' => 'cus_test']);
 
-    // Aktív, de már nem próbaidős előfizetés (trial_ends_at = null).
     $user->subscriptions()->create([
         'type' => 'default',
         'stripe_id' => 'sub_active',
@@ -35,11 +34,6 @@ test('próbaidőn kívüli előfizetésnél nincs mit lejáratni', function () {
         ->assertExitCode(1);
 });
 
-/**
- * P7-L3: a manuális destruktív parancsok éles környezetben megerősítést kérnek.
- * A `confirmToProceed` az `environment() === 'production'` ágon aktiválódik, ezért
- * a teszt átmenetileg production-re állítja a környezetet.
- */
 test('éles környezetben a cache-törlés megerősítés nélkül nem fut le', function () {
     AiWordCache::create([
         'cache_key' => 'lookup:dog:en:v1',
@@ -56,7 +50,6 @@ test('éles környezetben a cache-törlés megerősítés nélkül nem fut le', 
         ->expectsConfirmation('Are you sure you want to run this command?', 'no')
         ->assertExitCode(1);
 
-    // A megszakított parancs egyetlen sort sem törölt.
     expect(AiWordCache::count())->toBe(1);
 });
 

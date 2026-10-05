@@ -4,10 +4,6 @@ use App\Models\User;
 use App\Models\UserBook;
 use Illuminate\Http\UploadedFile;
 
-/**
- * Build a minimal EPUB (zip) on disk with one chapter whose body is $chapterHtml,
- * and return its path. The caller is responsible for the file's lifetime.
- */
 function makeEpub(string $chapterHtml): string
 {
     $path = tempnam(sys_get_temp_dir(), 'epub').'.epub';
@@ -56,9 +52,6 @@ test('a valid EPUB is uploaded and its text extracted', function () {
 test('an EPUB whose HTML files lack a .xhtml extension is extracted via manifest media-type', function () {
     $user = User::factory()->create();
 
-    // Calibre splits name chapter files like ".html_split_000" with no standard
-    // extension, declaring them as application/xhtml+xml in the manifest. The
-    // extractor must trust the media-type, not the filename extension.
     $prose = str_repeat('<p>This is a sufficiently long sentence of readable prose.</p>', 5);
 
     $path = tempnam(sys_get_temp_dir(), 'epub').'.epub';
@@ -94,8 +87,6 @@ test('an EPUB whose HTML files lack a .xhtml extension is extracted via manifest
 test('repeated spine idrefs are extracted only once (repeated-decompression guard)', function () {
     $user = User::factory()->create();
 
-    // Egy preparált OPF ugyanarra a fejezetre mutató ismételt idref-ekkel nem
-    // dolgoztathatja fel többször ugyanazt a bejegyzést (SEC_AUDIT #R11).
     $prose = str_repeat('<p>This is a sufficiently long sentence of readable prose.</p>', 4)
         .'<p>The zebraunicorn paradox appears exactly once in this chapter.</p>';
 
@@ -132,7 +123,7 @@ test('repeated spine idrefs are extracted only once (repeated-decompression guar
 });
 
 test('the per-plan book count limit blocks further uploads', function () {
-    $user = User::factory()->create(); // free csomag: 1 könyv
+    $user = User::factory()->create();
 
     $prose = str_repeat('<p>This is a sufficiently long sentence of readable prose.</p>', 5);
     $path = makeEpub($prose);
@@ -152,11 +143,6 @@ test('the per-plan book count limit blocks further uploads', function () {
     @unlink($path);
 });
 
-/**
- * Egy makeEpub()-EPUB-ot inkompresszibilis véletlen bájtokkal a kért méret fölé
- * fúj. Véletlen bájtok kellenek: egy ismétlődő prózát a deflate összezsugorítana,
- * és akkor a fájlméret helyett a kinyerési korlátokat tesztelnénk.
- */
 function makeEpubPaddedTo(int $padBytes): string
 {
     $prose = str_repeat('<p>This is a sufficiently long sentence of readable prose.</p>', 5);
@@ -178,8 +164,6 @@ test('a 3 MB-nál nagyobb EPUB-ot a validáció utasítja el, kinyerés előtt',
 
     $upload = new UploadedFile($path, 'huge.epub', 'application/epub+zip', null, true);
 
-    // A `file` kulcsú validációs hiba bizonyítja, hogy a `max:` bukott el, nem
-    // valamelyik későbbi kinyerési korlát (azok `error` kulccsal válaszolnak).
     $this->actingAs($user)
         ->postJson(route('text-analysis.books.store'), ['file' => $upload])
         ->assertStatus(422)
@@ -210,10 +194,6 @@ test('a 3 MB-os keret alatti EPUB átmegy', function () {
 test('a book whose extracted text exceeds the size cap is rejected with 422', function () {
     $user = User::factory()->create();
 
-    // 3 fejezet, egyenként ~4,2 MB próza: a per-entry (5 MB) és az össz-HTML
-    // (40 MB) sapkák alatt marad, de a kinyert szöveg (~12,6 MB) átlépi a
-    // MAX_BOOK_TEXT_BYTES (10 MB) sapkát — a MEDIUMBLOB-túlcsordulás (500-as)
-    // helyett érthető 422-t kell kapnia.
     $chapter = '<p>'.str_repeat('This is a sufficiently long sentence of readable prose. ', 75_000).'</p>';
 
     $path = tempnam(sys_get_temp_dir(), 'epub').'.epub';
@@ -256,9 +236,6 @@ test('a book whose extracted text exceeds the size cap is rejected with 422', fu
 test('an EPUB entry larger than the per-entry cap is skipped (zip-bomb guard)', function () {
     $user = User::factory()->create();
 
-    // ~6 MB uncompressed chapter — over MAX_EPUB_ENTRY_BYTES (5 MB). Highly
-    // compressible, mimicking a zip bomb. The guard must refuse to read it, so
-    // no text is extracted and the upload is rejected rather than exhausting memory.
     $huge = '<p>'.str_repeat('word ', 1_200_000).'</p>';
     $path = makeEpub($huge);
 
@@ -276,11 +253,6 @@ test('an EPUB entry larger than the per-entry cap is skipped (zip-bomb guard)', 
 test('a PDF feltöltése el van utasítva (a PDF-támogatás ki lett vezetve)', function () {
     $user = User::factory()->create();
 
-    // Egy szintaktikailag érvényes, apró PDF. A validációnak a fájl tartalmától
-    // függetlenül vissza kell utasítania, MIELŐTT bármilyen feldolgozás indulna:
-    // a PdfParser getText()-je szuperlineáris (mérve: 3,8 KB-os fájl = 163 s),
-    // és méret-alapon nem szűrhető, mert egy valódi könyv nyers tartalma
-    // ugyanakkora, mint a támadóé. Lásd uploadBook() kommentjét.
     $path = tempnam(sys_get_temp_dir(), 'pdf').'.pdf';
     file_put_contents($path, "%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF\n");
 
@@ -299,9 +271,6 @@ test('a PDF feltöltése el van utasítva (a PDF-támogatás ki lett vezetve)', 
 test('a .epub-ra átnevezett PDF sem csúszik át (kiterjesztés-hamisítás)', function () {
     $user = User::factory()->create();
 
-    // Él-eset: a validáció nem csak a kiterjesztést nézi. Egy PDF-tartalmú,
-    // .epub-ra keresztelt fájlt a mimetypes szabálynak kell megfognia — különben
-    // a match() default ága kapná el, ami már csak második védvonal.
     $path = tempnam(sys_get_temp_dir(), 'fake').'.epub';
     file_put_contents($path, "%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF\n");
 
@@ -332,12 +301,6 @@ test('getPage returns empty string for a corrupt compressed blob instead of erro
 });
 
 test('a tárolt szöveg megtartja a bekezdés-határokat', function () {
-    // A feltöltés korábban `/\s+/`-fel normalizált, ami a SORTÖRÉSEKET is
-    // szóközzé olvasztotta — így a könyv egyetlen bekezdésként került a DB-be
-    // (mérve, Ender's Game: 635 312 karakter, 0 sortörés), és a kinyerés
-    // bekezdés-határai soha nem jutottak el a felületig. A felület a
-    // `text.split(/\n+/)`-en rendereli a bekezdéseket, tehát a sortörésnek
-    // végig kell érnie a tárolásig.
     $user = User::factory()->create();
 
     $path = makeEpub(
@@ -362,20 +325,14 @@ test('a tárolt szöveg megtartja a bekezdés-határokat', function () {
         'Blurb line two is here'
     );
 
-    // A lap-válasz ugyanezt a szöveget adja vissza, tehát a felület is bekezdéseket kap.
     expect($response->json('text'))->toContain("survive.\nThis is the second");
 
     @unlink($path);
 });
 
 test('a feltöltés válaszának első lapja is szóhatáron végződik', function () {
-    // A feltöltés válasza a lap-végpont MÁSODIK vágási helye volt: nyers
-    // `mb_substr()`-rel az első lap a határon álló szót kettévágta, és a
-    // felhasználó a feltöltés utáni első képernyőn látta a fél szót.
     $user = User::factory()->create();
 
-    // A mondathossz szándékos: a nominális 5000. karakter a „handling" szó
-    // közepére esik, tehát a nyers vágás itt tényleg kettévágná a szót.
     $prose = str_repeat('<p>This is a sufficiently long sentence of readable prose about page boundary handling.</p>', 200);
     $path = makeEpub($prose);
     $upload = new UploadedFile($path, 'book.epub', 'application/epub+zip', null, true);
@@ -387,7 +344,6 @@ test('a feltöltés válaszának első lapja is szóhatáron végződik', functi
     $book = UserBook::where('user_id', $user->id)->sole();
 
     $firstPage = $response->json('text');
-    // A határt közrefogó két karakter — szóhatáron az egyikük szóköz vagy sortörés.
     $seam = mb_substr($firstPage, -1).mb_substr($book->getPage(2), 0, 1);
 
     expect($book->total_pages)->toBeGreaterThan(1)

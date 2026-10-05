@@ -37,25 +37,6 @@ export function NavUser() {
                             data-test="sidebar-menu-button"
                         >
                             <UserInfo user={auth.user} />
-                            {/* Payment temporarily disabled — subscription badges hidden
-                            {sub?.isPremium && (
-                                <span className="ml-auto flex items-center gap-1 rounded-full bg-indigo-100 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-400 group-data-[collapsible=icon]:hidden">
-                                    <Crown className="size-3" />
-                                    Prémium
-                                </span>
-                            )}
-                            {!sub?.isPremium && sub?.isOnTrial && (
-                                <span className="ml-auto flex items-center gap-1 rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700 dark:bg-blue-900/40 dark:text-blue-400 group-data-[collapsible=icon]:hidden">
-                                    <Zap className="size-3" />
-                                    Trial
-                                </span>
-                            )}
-                            {!sub?.isPremium && !sub?.isOnTrial && sub?.hasActiveAccess && (
-                                <span className="ml-auto flex items-center gap-1 rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] font-semibold text-green-700 dark:bg-green-900/40 dark:text-green-400 group-data-[collapsible=icon]:hidden">
-                                    Alap
-                                </span>
-                            )}
-                            */}
                             <ChevronsUpDown className="size-4 shrink-0" />
                         </SidebarMenuButton>
                     </DropdownMenuTrigger>

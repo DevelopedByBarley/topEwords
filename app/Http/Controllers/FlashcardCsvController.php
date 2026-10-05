@@ -13,11 +13,6 @@ class FlashcardCsvController extends Controller
 {
     private const MAX_IMPORT_ROWS = 5000;
 
-    /**
-     * Per-field character cap, matching the max:10000 enforced on front/back by
-     * the web editor and the extension API. Without it a CSV cell could exceed
-     * the TEXT column (64 KB) and abort the whole import transaction.
-     */
     private const MAX_FIELD_LENGTH = 10000;
 
     public function import(Request $request, FlashcardDeck $deck): RedirectResponse
@@ -34,7 +29,6 @@ class FlashcardCsvController extends Controller
         $path = $request->file('csv_file')->getRealPath();
         $handle = fopen($path, 'r');
 
-        // Skip BOM if present
         $bom = fread($handle, 3);
         if ($bom !== "\xEF\xBB\xBF") {
             rewind($handle);
@@ -85,9 +79,6 @@ class FlashcardCsvController extends Controller
 
         fclose($handle);
 
-        // A kártyakeret-kapu és az insert egy user-szintű zár alatt fut, hogy
-        // párhuzamos importok ne mehessenek át ugyanazon az elavult kártyaszámon
-        // (SEC_AUDIT #R10 / #R1).
         try {
             $withinLimit = $request->user()->reserveFlashcardSlots(count($rows), function () use ($rows, $deck) {
                 DB::transaction(function () use ($rows, $deck) {
@@ -97,9 +88,6 @@ class FlashcardCsvController extends Controller
                 });
             });
         } catch (LockTimeoutException) {
-            // Zár-torlódás (pl. párhuzamos másik import): átmeneti állapot, az insert
-            // el sem indult — barátságos hiba 500 helyett, ugyanaz a minta, mint a
-            // FlashcardCardController::busyMessage() útjain (LIMIT-L1).
             return back()->with('error', 'A kártyáidon épp egy másik művelet fut (pl. import). Próbáld újra pár másodperc múlva.');
         }
 
@@ -131,7 +119,7 @@ class FlashcardCsvController extends Controller
 
         $filename = preg_replace('/[^a-zA-Z0-9_-]/', '_', $deck->name).'.csv';
 
-        $csv = "\xEF\xBB\xBF"; // UTF-8 BOM for Excel
+        $csv = "\xEF\xBB\xBF";
         $csv .= "front,back,front_notes,back_notes\n";
 
         foreach ($flashcards as $card) {
@@ -149,11 +137,6 @@ class FlashcardCsvController extends Controller
         ]);
     }
 
-    /**
-     * Excel Windows-en gyakran Windows-1252 (cp1252) kódolással exportál CSV-t
-     * UTF-8 BOM nélkül; enélkül az ékezetes karakterek (á, ő, ü…) torzulnának
-     * (CSV-2 audit-lelet).
-     */
     private function normalizeEncoding(string $field): string
     {
         if (mb_check_encoding($field, 'UTF-8')) {
@@ -165,7 +148,6 @@ class FlashcardCsvController extends Controller
 
     private function textToHtml(string $text): string
     {
-        // Strip Anki cloze deletion syntax: {{c1::text}} → text
         $text = preg_replace('/\{\{c\d+::(.+?)\}\}/s', '$1', $text) ?? $text;
 
         $lines = preg_split('/\r\n|\r|\n/', $text) ?: [$text];
@@ -185,9 +167,6 @@ class FlashcardCsvController extends Controller
             return '';
         }
 
-        // A textToHtml() soronként <p>…</p>-t (és <br>-t) generál; ezeket a
-        // blokk-határokat sortöréssé alakítjuk, hogy az export→import round-trip
-        // megőrizze a többsoros tördelést (#R10).
         $withBreaks = preg_replace('#</p>\s*<p>|<br\s*/?>#i', "\n", $html) ?? $html;
 
         return trim(html_entity_decode(strip_tags($withBreaks), ENT_QUOTES, 'UTF-8'));
@@ -196,7 +175,6 @@ class FlashcardCsvController extends Controller
     private function csvRow(array $fields): string
     {
         $escaped = array_map(function (string $field): string {
-            // Formula injection elleni védelem: Excel a =,+,-,@ kezdetű cellákat képletként futtatná
             if ($field !== '' && in_array($field[0], ['=', '+', '-', '@'], true)) {
                 $field = "'".$field;
             }

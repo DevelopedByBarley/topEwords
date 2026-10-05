@@ -13,6 +13,5 @@ export type NavItem = {
     isActive?: boolean;
     tourId?: string;
     isAi?: boolean;
-    /** Külső cél: sima `<a target="_blank">`, nem Inertia-látogatás. */
     isExternal?: boolean;
 };

@@ -13,19 +13,13 @@ export interface WordStats {
 interface WordProgressCardProps {
     stats: WordStats;
     customStats: WordStats;
-    /** Az épp aktív státusz-szűrő ('' = nincs). */
     activeStatus: string;
     onStatusFilter: (status: string) => void;
-    /** Igaz, ha a lista épp csak a saját szavakra van szűrve. */
     customOnly: boolean;
     onCustomOnlyToggle: () => void;
     onAddCustomWord: () => void;
 }
 
-/**
- * Kerekítés helyett „<1%”, amíg van már ismert szó: 10 000-es nevezőnél az
- * első több tucat megjelölés különben 0%-nak látszana.
- */
 function formatPercent(percent: number, known: number): string {
     if (percent === 0 && known > 0) {
         return '<1%';
@@ -34,11 +28,6 @@ function formatPercent(percent: number, known: number): string {
     return `${percent}%`;
 }
 
-/**
- * A szólista haladás-kártyája: összesített sáv + státuszonkénti csempék. A
- * csempék egyben a státusz-szűrő gombjai is (az aktívra kattintva kikapcsol),
- * így a szám és a rá szűrés ugyanaz a felület — nincs külön szűrő-chipsor.
- */
 export default function WordProgressCard({
     stats,
     customStats,
@@ -159,8 +148,6 @@ export default function WordProgressCard({
                         )}
                     </div>
                 </div>
-                {/* Ha már van saját szó, a szűrő a hasznos akció — a felvitel
-                    CTA-ja ilyenkor a fejléc gombja marad, nem duplázzuk. */}
                 {customStats.total > 0 ? (
                     <button
                         type="button"

@@ -53,12 +53,6 @@ class AdminDashboardService
             ->get(['name', 'email', 'created_at', 'email_verified_at', 'streak', 'last_activity_date']);
     }
 
-    /**
-     * A select() a withCount() ELŐTT kell: a withCount() üres oszloplistánál
-     * `users.*`-ot tesz a lekérdezésbe, és a get([...]) ezt már nem szűkíti —
-     * így a teljes users-sor (stripe_id, számlázási cím, adószám) a böngészőbe
-     * került (F9C-L1).
-     */
     public function mostActive(): Collection
     {
         return User::select(['id', 'name', 'email', 'streak'])
@@ -81,11 +75,6 @@ class AdminDashboardService
     }
 
     /**
-     * A hozzáférés-kezelő userlistája — szerveroldali kereséssel és lapozással,
-     * az effektív csomaggal. Korábban a teljes userbázist (név + e-mail) küldte
-     * ki minden /admin-betöltéskor (F9C-L4); most egyszerre legfeljebb
-     * ACCESS_USERS_PER_PAGE sort, csak a megjelenítéshez kellő mezőkkel.
-     *
      * @return LengthAwarePaginator<int, array{id: int, name: string, email: string, plan: string, plan_override: ?string, subscribed: bool, subscription_plan: ?string, trial_ends_at: ?string}>
      */
     public function accessUsers(string $search = ''): LengthAwarePaginator

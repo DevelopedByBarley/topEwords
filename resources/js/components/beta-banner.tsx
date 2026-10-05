@@ -3,10 +3,6 @@ import { useState } from 'react';
 
 const STORAGE_KEY = 'tw-beta-dismissed';
 
-/**
- * „Béta / teszt üzemmód" jelzés. Elbocsátható, az állapot localStorage-ban marad,
- * így nem zaklatja a felhasználót minden oldalbetöltésnél.
- */
 export default function BetaBanner() {
     const [hidden, setHidden] = useState<boolean>(() => {
         try {

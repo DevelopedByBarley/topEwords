@@ -6,12 +6,6 @@ use Illuminate\Validation\Validator;
 
 trait ValidatesFlashcardSettings
 {
-    /**
-     * Learning steps must be strictly increasing so each "Jó" (next step) is
-     * genuinely longer than the current step's "Nehéz". A non-increasing config
-     * (e.g. [10, 10] or [10, 5]) leaves no whole-minute room for Hard between
-     * Again and Good, forcing the SRS scheduler to collapse Hard onto Good.
-     */
     protected function validateLearningStepsIncrease(Validator $validator): void
     {
         $validator->after(function (Validator $validator): void {

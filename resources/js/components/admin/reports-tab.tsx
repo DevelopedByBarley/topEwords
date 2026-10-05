@@ -136,7 +136,6 @@ export default function ReportsTab({ reports }: ReportsTabProps) {
                 )}
             </div>
 
-            {/* Bejelentés részletei */}
             <Dialog
                 open={selectedReport !== null}
                 onOpenChange={(open) => {

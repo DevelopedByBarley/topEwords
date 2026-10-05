@@ -95,10 +95,7 @@ test('F1-L3: mutating settings endpoints carry a throttle limiter', function () 
         'profile.update' => 'throttle:6,1,profile-update',
         'profile.destroy' => 'throttle:6,1,profile-delete',
         'billing.update' => 'throttle:10,1,billing-update',
-        // MW-L1: a kártya-beállítás mentése a testvér settings-mutációkkal
-        // egyezően kap write-spam plafont.
         'flashcard-settings.update' => 'throttle:10,1,flashcard-settings-update',
-        // SESS-L2: a player-lecsatlakozás is a player-write bucketbe kerül.
         'player.disconnect' => 'throttle:20,1,player-write',
     ];
 
@@ -111,7 +108,6 @@ test('F1-L3: mutating settings endpoints carry a throttle limiter', function () 
 });
 
 test('F1-L3: the profile update endpoint is rate limited', function () {
-    // Limit 6/perc — a 7. kérésnek 429-et kell kapnia (email-bombing plafon).
     $user = User::factory()->create();
     $payload = ['name' => 'Test User', 'email' => $user->email];
 
@@ -175,8 +171,6 @@ test('user can delete their account', function () {
 });
 
 test('SESS-L1: fióktörlés eltakarítja a player-eszközök árva Sanctum-tokenjeit', function () {
-    // A player-token nem a users FK-ja mögött áll, ezért a user törlésekor nem
-    // kaszkádol — árva (beválthatatlan, de ott lógó) sorként maradna a táblában.
     $user = User::factory()->create();
     $user->createToken('Régi gép', ['player']);
 
@@ -190,10 +184,6 @@ test('SESS-L1: fióktörlés eltakarítja a player-eszközök árva Sanctum-toke
 });
 
 test('S-L4/W-L6: fióktörlés megőrzi a NAV-számla-nyilvántartást, csak a user-hivatkozást nullázza', function () {
-    // A billingo_invoices FK nullOnDelete: a kiállított számlák könyvelési/megfelelőségi
-    // nyilvántartása a törölt felhasználó után is megmarad (a Billingo a külső igazságforrás,
-    // de a stripe↔billingo linkelést helyben is meg kell őriznünk). Korábban cascadeOnDelete
-    // némán törölte.
     $user = User::factory()->create();
     $invoice = $user->billingoInvoices()->create([
         'stripe_invoice_id' => 'in_'.uniqid(),
@@ -217,16 +207,12 @@ test('S-L4/W-L6: fióktörlés megőrzi a NAV-számla-nyilvántartást, csak a u
 test('deleting an account cancels every still-live stripe subscription', function () {
     $user = User::factory()->create();
 
-    // Két élő előfizetést szimulálunk (pl. egy active + egy past_due) — a destroy()-nak
-    // MINDET le kell mondania a törlés előtt, nem csak az elsőt/aktívat. A lekérdezést
-    // és az előfizetéseket kimockoljuk, hogy ne induljon valódi Stripe-hívás.
     $activeSub = Mockery::mock(Subscription::class);
     $activeSub->shouldReceive('cancelNow')->once();
 
     $pastDueSub = Mockery::mock(Subscription::class);
     $pastDueSub->shouldReceive('cancelNow')->once();
 
-    // A subscriptions() visszatérési típusa HasMany, ezért a relációt is annak mockoljuk.
     $query = Mockery::mock(HasMany::class);
     $query->shouldReceive('whereNotIn')
         ->with('stripe_status', ['canceled', 'incomplete_expired'])

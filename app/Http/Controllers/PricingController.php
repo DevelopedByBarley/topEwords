@@ -17,17 +17,10 @@ class PricingController extends Controller
     {
         $user = $request->user();
 
-        // A Stripe Checkout megszakításakor ide tér vissza (?checkout=cancelled).
-        // Átirányítunk, hogy a flash üzenet kijusson (a share() a controller
-        // előtt fut, így az azonos kérésen belüli flash nem látszana) és a
-        // query paraméter is eltűnjön az URL-ből.
         if ($request->query('checkout') === 'cancelled') {
             return redirect()->route('pricing')->with('info', 'A fizetést megszakítottad – nem történt levonás. Bármikor visszatérhetsz.');
         }
 
-        // A trial csak az első előfizetéshez jár — a visszatérő (korábban már
-        // előfizetett) felhasználónak 0-t adunk, hogy a UI ne hirdessen olyan
-        // próbaidőt, amit a checkout már nem adna meg.
         $trialDays = ($user?->isEligibleForSubscriptionTrial() ?? true)
             ? (int) config('registration.subscription_trial_days')
             : 0;
@@ -45,7 +38,6 @@ class PricingController extends Controller
     public function checkout(Request $request, string $plan): RedirectResponse|\Illuminate\Http\Response
     {
         abort_unless(Billing::enabled(), 404);
-        // Egyetlen fizetős csomag van (Pro = 'premium'); minden más 404.
         abort_unless($plan === 'premium', 404);
 
         $user = $request->user();
@@ -56,55 +48,28 @@ class PricingController extends Controller
 
         $subscription = $user->activeSubscription();
 
-        // A NEM-fizetős ágakat a billing-kapu ELÉ vesszük: ezekben nincs Stripe-fizetés,
-        // ezért fölösleges (és félrevezető) előbb a számlázási adatokat kérni. Enélkül a
-        // lifetime/plan_override user a billing.edit-re kerülne ahelyett, hogy megtudná: már
-        // van hozzáférése; a past_due user pedig a billing.edit-re a subscription.edit helyett.
-
-        // Grace period alatt (lemondva, de a periódus végéig aktív) az újra-előfizetés valódi
-        // szándéka a lemondás visszavonása, nem új terhelés/swap. A subscription.edit oldalra
-        // tereljük, ahol a "Lemondás visszavonása" gomb egyetlen kattintással visszaállít —
-        // enélkül a lenti swap-ág az azonos árra "Már ez az aktív csomagod"-ot adna, ami a
-        // lemondott felhasználónak félrevezető.
         if ($subscription !== null && $subscription->onGracePeriod()) {
             return redirect()->route('subscription.edit')->with('info', 'Az előfizetésed le van mondva, de a periódus végéig még aktív. A folytatáshoz vond vissza a lemondást — nem indul új terhelés.');
         }
 
-        // Akinek admin-adta (plan_override) vagy élethosszig tartó (lifetime_access) hozzáférése
-        // van, annak nincs Stripe-előfizetése — a swap-ág ezért nem fogná meg, és fölöslegesen
-        // indítana fizetős előfizetést azért, amit már ingyen megkap. Szerveroldalon elzárjuk.
-        // A generikus próbaidő (admin-adta ingyen hónap) viszont NEM zár el: alatta is lehet
-        // előfizetni, a megmaradt idő a checkout próbaidejeként megy tovább (lásd lejjebb).
         if ($subscription === null && ($user->plan_override === 'premium' || $user->lifetime_access)) {
             return redirect()->route('pricing')->with('info', 'Már aktív hozzáférésed van, nincs szükség fizetésre.');
         }
 
-        // Past_due előfizetésnél az activeSubscription() null (deactivatePastDue default),
-        // így a lenti swap-ág nem fogná meg, és egy MÁSODIK előfizetés jönne létre a meglévő
-        // mellé (a duplikátum-takarító lekezelné, de fölösleges terhelés+zaj). A helyes út
-        // nem az új checkout, hanem a kártya frissítése — a Stripe utána magától újrapróbálja
-        // a meglévő előfizetés terhelését.
         if ($subscription === null && $user->hasPastDueSubscription()) {
             return redirect()->route('subscription.edit')->with('info', 'A meglévő előfizetésed sikertelen terhelés miatt szünetel. Új előfizetés helyett frissítsd a kártyaadataidat — sikeres terhelés után a hozzáférésed magától visszaáll.');
         }
 
-        // Innentől valódi fizetős út: itt már kötelező a számlázási adat (a NAV-számlához is).
         if (! $user->hasBillingDetails()) {
             return redirect()->route('billing.edit')->with('info', 'Kérlek add meg a számlázási adataidat a fizetés előtt.');
         }
 
-        // A 14 napos elállási jogról való lemondás kifejezett hozzájárulása kötelező, és
-        // szerveroldalon is kikényszerítjük — a kliensoldali pipa közvetlen POST-tal megkerülhető.
         $request->validate(['accept_terms' => ['accepted']]);
 
-        // Naplózható nyomot hagyunk a hozzájárulásról (terms_accepted_at nem fillable).
         $user->forceFill(['terms_accepted_at' => now()])->save();
 
         $priceId = config('services.stripe.premium_price_id');
 
-        // Meglévő előfizetésnél nem új előfizetést indítunk (dupla számlázás!),
-        // hanem a meglévőt átváltjuk a Pro árra (pl. régi Standard-árú előfizetés).
-        // ($subscription a fenti kapuknál már lekérve; grace period alatt idáig nem jut.)
         if ($subscription !== null) {
             if ($subscription->stripe_price === $priceId) {
                 return redirect()->route('pricing')->with('info', 'Már ez az aktív csomagod.');
@@ -113,11 +78,8 @@ class PricingController extends Controller
             try {
                 $subscription->swap($priceId);
             } catch (IncompletePayment) {
-                // SCA/3DS megerősítés szükséges — a számlázási portálon zárható le
                 return redirect()->route('pricing')->with('error', 'A csomagváltáshoz banki megerősítés szükséges. Kérlek fejezd be a fizetést a számlázási portálon.');
             } catch (ApiErrorException $e) {
-                // A Stripe oldali hiba (pl. törölt ár, hálózati hiba) ne dőljön 500-ba a
-                // felhasználónak — naplózzuk, és érthető üzenettel térünk vissza.
                 report($e);
 
                 return redirect()->route('pricing')->with('error', 'A csomagváltás most nem sikerült. Kérlek próbáld újra kicsit később.');
@@ -126,42 +88,24 @@ class PricingController extends Controller
             return redirect()->route('pricing')->with('success', 'Sikeres váltás Pro csomagra! Az összes funkció elérhető.');
         }
 
-        // 25 óra: a Stripe Checkout session 24 óráig él, a lassan fizető user is
-        // érvényes aláírással érkezzen vissza — rövidebb lejáratnál a sikeres
-        // fizetés UTÁN kapna hibát a visszairányításkor.
         $successUrl = URL::temporarySignedRoute('pricing.success', now()->addHours(25));
 
         $subscriptionBuilder = $user->newSubscription('premium', $priceId);
 
-        // Első előfizetéskor próbaidő: a kártyát elkérik, de csak a trial végén
-        // számláznak. A trial alatt a felhasználó a választott fizetett csomagot kapja.
-        // Csak az első előfizetéshez jár (isEligibleForSubscriptionTrial) — különben
-        // lemondás + újra-előfizetés ismételgetésével korlátlan ingyen Pro szerezhető.
         $trialDays = (int) config('registration.subscription_trial_days');
 
         $trialEndsAt = $trialDays > 0 && $user->isEligibleForSubscriptionTrial()
             ? now()->addDays($trialDays)
             : null;
 
-        // A generikus próbaidő (admin-adta ingyen hónap) maradéka az előfizetés
-        // próbaidejévé válik, ha az hosszabb: az előfizetés létrejöttekor a Cashier
-        // webhookja nullázza a users.trial_ends_at-ot, e transzfer nélkül a megmaradt
-        // ajándék-idő szó nélkül elveszne.
         if ($user->onGenericTrial() && $user->trial_ends_at->gt($trialEndsAt ?? now())) {
             $trialEndsAt = $user->trial_ends_at;
         }
 
         if ($trialEndsAt !== null) {
-            // A Stripe Checkout minimum 48 óra próbaidőt követel meg — az ennél
-            // rövidebbet a Cashier checkout()-ja magától felkerekíti.
             $subscriptionBuilder->trialUntil($trialEndsAt);
         }
 
-        // A Cashier előbb létrehozza (és elmenti) a Stripe-ügyfelet, majd nyitja a Checkout
-        // sessiont. Ha utóbbi Stripe-hiba miatt elhasal (pl. törölt ár), a kezeletlen kivétel
-        // 500-at adna és árva ügyfelet hagyna. Elkapjuk, naplózzuk, és érthető üzenettel
-        // küldjük vissza a felhasználót — a következő próbálkozás az elmentett stripe_id-t
-        // használja újra, így nem szaporodnak az árva ügyfelek.
         try {
             $checkout = $subscriptionBuilder->checkout([
                 'success_url' => $successUrl,
@@ -178,17 +122,10 @@ class PricingController extends Controller
 
     public function success(Request $request): RedirectResponse
     {
-        // Az aláírást itt ellenőrizzük a `signed` middleware helyett: lejárt/hibás
-        // aláírásnál a nyers 403-as hibaoldal helyett — ami közvetlenül egy SIKERES
-        // fizetés után fogadná a felhasználót — kecsesen a pricing oldalra irányítunk,
-        // ahol az (időközben webhookon létrejött) előfizetés állapota amúgy is látszik.
         if (! $request->hasValidSignature()) {
             return redirect()->route('pricing')->with('info', 'Ez a link már lejárt. Ha a fizetésed sikeres volt, az előfizetésed aktív – az állapotát ezen az oldalon látod.');
         }
 
-        // Az előfizetést a Stripe webhook (checkout.session.completed) hozza létre, ami a
-        // visszairányításhoz képest pár másodperc késéssel futhat le. Ha még nincs aktív
-        // előfizetés, "feldolgozás alatt" üzenetet adunk a megtévesztő "azonnal elérhető" helyett.
         if ($request->user()?->activeSubscription() === null) {
             return redirect()->route('pricing')->with('info', 'Köszönjük a fizetést! Az előfizetésed feldolgozás alatt – pár pillanat múlva aktívvá válik. Frissítsd az oldalt, ha még nem látod.');
         }
@@ -198,13 +135,10 @@ class PricingController extends Controller
 
     public function portal(Request $request): RedirectResponse|\Illuminate\Http\Response
     {
-        // Stripe ügyfél nélkül a portál hívása kivételt dobna
         if (! $request->user()->hasStripeId()) {
             return redirect()->route('pricing');
         }
 
-        // A portál-URL kérése Stripe API-hívás — hibája (pl. a Customer Portal nincs
-        // live módban konfigurálva) ne 500-azzon, hanem érthető üzenettel térjen vissza.
         try {
             $portalUrl = $request->user()->billingPortalUrl(route('pricing'));
         } catch (ApiErrorException $e) {
@@ -213,8 +147,6 @@ class PricingController extends Controller
             return redirect()->route('pricing')->with('error', 'A számlázási portál most nem érhető el. Kérlek próbáld újra kicsit később.');
         }
 
-        // A Stripe portál külső URL — Inertia POST-nál Inertia::location kell,
-        // különben a kliens nem navigál (sima redirectnél "nem történik semmi").
         return Inertia::location($portalUrl);
     }
 }

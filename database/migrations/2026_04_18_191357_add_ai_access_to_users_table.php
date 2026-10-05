@@ -7,9 +7,6 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         if (! Schema::hasColumn('users', 'ai_access')) {
@@ -18,7 +15,6 @@ return new class extends Migration
             });
         }
 
-        // Migrate existing lifetime_access users
         DB::table('users')->where('lifetime_access', true)->update(['ai_access' => true]);
     }
 

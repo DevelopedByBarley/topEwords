@@ -7,17 +7,7 @@ use App\Models\Word;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 
-/*
- * Őrszem a túlméretes tömbök elleni védelemre (F9D-L1, F6-L2, F6-L3).
- * A Laravel a `foo.*` szabályokat a validáció ELŐTT elemenként kibontja,
- * négyzetes költséggel, ezért a szabálylistában lévő `max:` nem véd: a
- * méretet külön, előzetes lépésben kell ellenőrizni. A tesztek ezért nem
- * csak a státuszt, hanem az IDŐT is rögzítik.
- */
-
 const OVERSIZED_COUNT = 20_000;
-// A javítás előtt 20 000 elem 17 s fölött futott, utána ~0,1–0,5 s. A 3 s-os
-// küszöb egyértelműen elválasztja a kettőt, és tűri a hideg indulást is.
 const MAX_ALLOWED_MS = 3_000;
 
 function elapsedMs(Closure $callback): float
@@ -89,7 +79,6 @@ test('the bulk card actions share a per-minute rate limit with a friendly flash 
     $user = User::factory()->create();
     $deck = FlashcardDeck::create(['user_id' => $user->id, 'name' => 'Deck']);
 
-    // A keret az öt végponton közös, ezért váltakozva hívjuk őket.
     $routes = ['flashcards.cards.bulk-delete', 'flashcards.cards.bulk-reset', 'flashcards.cards.bulk-reverse'];
 
     for ($i = 0; $i < 30; $i++) {
@@ -164,7 +153,6 @@ test('onboarding checks word ids with a single query and still rejects unknown i
     $queries = collect(DB::getQueryLog())->pluck('query');
     $perIdExistsQueries = $queries->filter(fn (string $query) => str_contains($query, 'from "words" where "id" = ?'));
 
-    // A régi `exists:words,id` szabály id-nként egy lekérdezést futtatott (itt 200-at).
     expect($perIdExistsQueries)->toBeEmpty()
         ->and($queries->count())->toBeLessThan(50)
         ->and(DB::table('user_word')->where('user_id', $user->id)->count())->toBe(100);

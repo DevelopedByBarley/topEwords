@@ -25,11 +25,8 @@ import { show, study } from '@/routes/flashcards';
 
 interface DeckCardProps {
     deck: DeckSummary;
-    /** `undefined`, amíg a deferred `dueCounts` meg nem érkezik. */
     dueCount: number | undefined;
-    /** A legközelebbi jövőbeni esedékesség ISO-ban, ha van ilyen kártya. */
     nextDueAt: string | undefined;
-    /** A szülő egyszer vett időbélyege a relatív esedékesség kiírásához. */
     now: number;
     folders: DeckFolder[];
     folderIds: number[];
@@ -98,10 +95,6 @@ export default function DeckCard({
             </Link>
 
             <div className="flex items-center gap-1.5 border-t bg-muted/30 px-3 py-2.5">
-                {/* Ha nincs esedékes kártya, a gomb helyén az az egyetlen
-                    hasznos információ áll, hogy mikor érdemes visszajönni —
-                    nem egy „nincs esedékes" felirat, amit a hiányzó gomb
-                    magától is elmond. */}
                 {isLoading ? (
                     <span className="h-9 flex-1 animate-pulse rounded-lg bg-muted" />
                 ) : hasDue ? (

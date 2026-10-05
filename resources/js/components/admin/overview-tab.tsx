@@ -21,7 +21,6 @@ export default function OverviewTab({
 
     return (
         <div className="space-y-10">
-            {/* Stat cards */}
             <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
                 {[
                     {
@@ -70,7 +69,6 @@ export default function OverviewTab({
                 ))}
             </div>
 
-            {/* Word statuses */}
             <div>
                 <h2 className="mb-4 flex items-center gap-2 text-sm font-medium tracking-wider text-zinc-400 uppercase">
                     <span className="inline-block h-3.5 w-0.5 rounded-full bg-primary" />
@@ -123,7 +121,6 @@ export default function OverviewTab({
                 </div>
             </div>
 
-            {/* Registrations chart (last 30 days) */}
             {registrationsByDay.length > 0 && (
                 <div>
                     <h2 className="mb-4 flex items-center gap-2 text-sm font-medium tracking-wider text-zinc-400 uppercase">
@@ -165,7 +162,6 @@ export default function OverviewTab({
             )}
 
             <div className="grid gap-8 lg:grid-cols-2">
-                {/* Recent registrations */}
                 <div>
                     <h2 className="mb-4 flex items-center gap-2 text-sm font-medium tracking-wider text-zinc-400 uppercase">
                         <span className="inline-block h-3.5 w-0.5 rounded-full bg-primary" />
@@ -233,7 +229,6 @@ export default function OverviewTab({
                     </div>
                 </div>
 
-                {/* Most active users */}
                 <div>
                     <h2 className="mb-4 flex items-center gap-2 text-sm font-medium tracking-wider text-zinc-400 uppercase">
                         <span className="inline-block h-3.5 w-0.5 rounded-full bg-primary" />
@@ -299,7 +294,6 @@ export default function OverviewTab({
                 </div>
             </div>
 
-            {/* Top streaks */}
             {topStreaks.length > 0 && (
                 <div>
                     <h2 className="mb-4 flex items-center gap-2 text-sm font-medium tracking-wider text-zinc-400 uppercase">

@@ -18,19 +18,11 @@ use Laravel\Fortify\Fortify;
 
 class FortifyServiceProvider extends ServiceProvider
 {
-    /**
-     * Register any application services.
-     */
     public function register(): void
     {
-        // Email-verification-first flow: do not keep the user logged in after
-        // registration; send them to login with a "confirm your email" notice.
         $this->app->singleton(RegisterResponseContract::class, RegisterResponse::class);
     }
 
-    /**
-     * Bootstrap any application services.
-     */
     public function boot(): void
     {
         $this->configureActions();
@@ -39,18 +31,12 @@ class FortifyServiceProvider extends ServiceProvider
         $this->configureRouteThrottling();
     }
 
-    /**
-     * Configure Fortify actions.
-     */
     private function configureActions(): void
     {
         Fortify::resetUserPasswordsUsing(ResetUserPassword::class);
         Fortify::createUsersUsing(CreateNewUser::class);
     }
 
-    /**
-     * Configure Fortify views.
-     */
     private function configureViews(): void
     {
         Fortify::loginView(fn (Request $request) => Inertia::render('auth/login', [
@@ -82,22 +68,9 @@ class FortifyServiceProvider extends ServiceProvider
         Fortify::confirmPasswordView(fn () => Inertia::render('auth/confirm-password'));
     }
 
-    /**
-     * Configure rate limiting.
-     */
     private function configureRateLimiting(): void
     {
         RateLimiter::for('two-factor', function (Request $request) {
-            // A `login.id` a challenge-flow rendes menetében mindig ki van töltve,
-            // de egy rendellenes belépésnél (közvetlen POST session nélkül) null
-            // lenne — az IP-fallback nélkül minden ilyen kérés egy közös vödörbe
-            // esne. Az IP-re esünk vissza, ahogy a `login` limiter is teszi.
-            //
-            // Az órás plafon (F9C-L5): az 5/perc önmagában napi ~7200 próbát
-            // engedne, ami ismert jelszó mellett ~30 nap alatt 50% találati esély.
-            // 30/óra ezt ~720/napra vágja, a valódi felhasználót (aki pár kódot
-            // elüt) pedig nem zavarja. A sorozatos hibáról a felhasználó e-mailt
-            // kap (NotifyUserOfTwoFactorFailures).
             $challengeKey = $request->session()->get('login.id') ?? $request->ip();
 
             return [
@@ -109,50 +82,16 @@ class FortifyServiceProvider extends ServiceProvider
         RateLimiter::for('login', function (Request $request) {
             $email = Str::transliterate(Str::lower((string) $request->input(Fortify::username())));
 
-            // A második, CSAK e-mailre kulcsolt limit (F9C-L5): az e-mail+IP
-            // vödör IP-váltással (botnet) megkerülhető volt. A 20/óra egy fiókra
-            // elosztott próbálkozást is megfog, egy elgépelő valódi usert viszont
-            // nem — és a szándékos kizárás (DoS) ára is csak egy óra.
             return [
                 Limit::perMinute(5)->by($email.'|'.$request->ip()),
                 Limit::perHour(20)->by('email:'.$email),
             ];
         });
 
-        // Fortify does not throttle registration or the password-reset request;
-        // limit them by IP to curb mass account creation and email-bombing.
         RateLimiter::for('register', fn (Request $request) => Limit::perMinute(10)->by($request->ip()));
         RateLimiter::for('password-request', fn (Request $request) => Limit::perMinute(5)->by($request->ip()));
     }
 
-    /**
-     * Attach throttle middleware to Fortify's registration, password-reset and
-     * password-confirmation routes, which Fortify itself registers without any
-     * rate limiting. Done after booting so the routes are already registered.
-     *
-     * Why `password.confirm.store` uses an inline `throttle:6,1,...` instead of
-     * the named `password-request` limiter used by its neighbours: that limiter
-     * keys purely on the IP (see `configureRateLimiting`), which is correct for
-     * the guest-facing reset routes but wrong here. This route sits behind
-     * `auth`, so an IP-keyed bucket would let one user's six wrong guesses lock
-     * out every other user behind the same NAT/office IP — trading a password
-     * oracle for a denial-of-service on legitimate users. The inline form
-     * matches what `ThrottleRequests::resolveRequestSignature()` does for
-     * authenticated requests: it keys on the user id, so the limit is per
-     * account and NAT neighbours are unaffected.
-     *
-     * The 6/minute budget and the `password-update` naming mirror the existing
-     * `PUT settings/password` route (routes/settings.php:26) — the closest
-     * analogue in the codebase: also authenticated, also verifying a password
-     * (`current_password`). Reusing that bucket name is deliberate: both routes
-     * are password-verification oracles for the same account, so they SHOULD
-     * share one budget rather than each offering an independent 6 guesses.
-     *
-     * Rejected alternative: adding a new named limiter (e.g. `password-confirm`)
-     * to `configureRateLimiting()`. It would have been a third pattern for the
-     * same problem, and a separate bucket would hand an attacker 12 guesses per
-     * minute across the two endpoints instead of 6.
-     */
     private function configureRouteThrottling(): void
     {
         $this->app->booted(function () {

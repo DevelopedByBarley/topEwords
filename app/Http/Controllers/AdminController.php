@@ -24,16 +24,8 @@ class AdminController extends Controller
         private AdminActionLogger $actionLog,
     ) {}
 
-    /**
-     * A propok closure-ök: a hozzáférés-kezelő keresése / lapozása partial
-     * reloaddal (`only: ['accessUsers', 'accessSearch']`) csak a userlistát
-     * kéri le, a többi (drágább) lekérdezés ilyenkor le sem fut.
-     */
     public function index(Request $request): Response
     {
-        // Nem validate(): egy GET-oldalon a hibás paraméter back()-je önmagára
-        // irányíthatna vissza. A keresőszót csonkoljuk, a lapszámot a paginator
-        // maga kezeli (nem szám → 1. oldal).
         $accessSearch = mb_substr(trim($request->string('access_search')->toString()), 0, 100);
 
         return Inertia::render('admin/index', [
@@ -70,7 +62,6 @@ class AdminController extends Controller
 
         $invite = Invite::create([
             'code' => $code,
-            // Kiküldött meghívónál a címke alapból a címzett, hogy a listában látszódjon, kinek ment.
             'label' => $data['label'] ?? ($email !== null ? mb_substr($email, 0, 100) : null),
             'max_uses' => $data['max_uses'],
             'pro_days' => $data['pro_days'] ?? null,
@@ -94,7 +85,6 @@ class AdminController extends Controller
         try {
             Notification::route('mail', $email)->notify(new InvitationSent($invite, $extensionUrl));
         } catch (TransportExceptionInterface $exception) {
-            // A kód ettől még érvényes: az admin a „Link másolása" gombbal kézzel is továbbíthatja.
             report($exception);
 
             return back()->with('error', "A meghívókód ({$code}) létrejött, de az e-mailt nem sikerült elküldeni. Másold ki a linket, és küldd el kézzel.");

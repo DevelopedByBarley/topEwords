@@ -7,7 +7,6 @@ test('entitlement and billing columns are not mass assignable', function () {
         'name' => 'Teszt',
         'email' => 'teszt@example.com',
         'password' => 'secret',
-        // None of these may be granted via a request payload:
         'ai_access' => true,
         'lifetime_access' => true,
         'plan_override' => 'premium',
@@ -16,7 +15,7 @@ test('entitlement and billing columns are not mass assignable', function () {
         'ai_credit_limit' => 0,
     ]);
 
-    expect($user->name)->toBe('Teszt'); // safe fields still fillable
+    expect($user->name)->toBe('Teszt');
     expect($user->ai_access)->toBeNull();
     expect($user->lifetime_access)->toBeNull();
     expect($user->plan_override)->toBeNull();

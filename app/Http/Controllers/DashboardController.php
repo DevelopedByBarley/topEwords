@@ -87,19 +87,11 @@ class DashboardController extends Controller
             'studiedToday' => (bool) $user->last_activity_date?->isToday(),
             'lastActivityDate' => $user->last_activity_date?->toDateString(),
             'customStats' => $customStats,
-            // A számolás pakliként végigmegy az SRS-en, ezért deferred: a lap
-            // azonnal megjelenik, a „ma esedékes" doboz utólag töltődik be.
             'dueFlashcards' => Inertia::defer(fn () => $this->countDueFlashcards($user, $srs)),
         ]);
     }
 
     /**
-     * A felhasználó összes paklijában ma esedékes tanulnivaló.
-     *
-     * A `countDueCards` a tanulás-sor kanonikus számlálója (ugyanazok a napi
-     * limitek és kizárások), így a dashboard száma megegyezik azzal, amit a
-     * flashcard-oldal deck-badge-ei mutatnak.
-     *
      * @return array{cards: int, decks: int}
      */
     private function countDueFlashcards(User $user, FlashcardSrsService $srs): array

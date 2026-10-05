@@ -17,8 +17,6 @@ interface AnalysisResultViewProps {
 }
 
 export default function AnalysisResultView({ result, activeText, segments, onWordClick, onReset, lookupOpen, children }: AnalysisResultViewProps) {
-    // Koppintásos kifejezés-jelölés: érintőképernyőn nincs Shift, ezért a
-    // többszavas felvitel csak ezen az úton érhető el.
     const [phraseMode, setPhraseMode] = useState(false);
 
     const comprehensionColor =
@@ -35,8 +33,6 @@ export default function AnalysisResultView({ result, activeText, segments, onWor
 
     const inListUnknownCount = Object.values(result.tokenStatuses).filter((s) => s === 'in_list').length;
 
-    // A jelmagyarázat csak a szövegben tényleg előforduló státuszokat sorolja fel
-    // (a négy alap mindig látszik) — így nem indul hét csempével.
     const presentStatuses = new Set<TokenStatus>([
         ...Object.values(result.tokenStatuses),
         ...Object.values(result.phraseStatuses ?? {}),
@@ -49,7 +45,6 @@ export default function AnalysisResultView({ result, activeText, segments, onWor
 
     return (
         <div className="flex flex-col gap-5">
-            {/* Comprehension score */}
             <div className="rounded-3xl bg-card p-5 shadow-sm">
                 <div className="mb-4 flex items-start justify-between gap-4">
                     <div>
@@ -108,7 +103,6 @@ export default function AnalysisResultView({ result, activeText, segments, onWor
                 </div>
             </div>
 
-            {/* Legend */}
             <div className="flex flex-wrap gap-2 text-xs">
                 {legendStatuses.map((status) => {
                     const { label, highlight, icon: Icon, iconClass } = TOKEN_STATUS_META[status];
@@ -123,7 +117,6 @@ export default function AnalysisResultView({ result, activeText, segments, onWor
                 })}
             </div>
 
-            {/* Highlighted text / lyrics */}
             <div className="rounded-3xl bg-card p-4 shadow-sm md:p-5">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                     <p className="text-sm font-medium">
@@ -149,7 +142,6 @@ export default function AnalysisResultView({ result, activeText, segments, onWor
                         <>Koppints a kifejezés <strong>első</strong>, majd az <strong>utolsó</strong> szavára — a jelentés ekkor nyílik meg.</>
                     ) : (
                         <>
-                            {/* Érintőképernyőn a billentyűzetes tippek csak a helyet viszik. */}
                             <span className="pointer-fine:hidden">Koppints egy szóra a jelentéséhez.</span>
                             <span className="hidden pointer-fine:inline">
                                 Kattints egy szóra a jelentéséhez — billentyűzetről a nyilakkal lépkedhetsz, Enterrel nyithatsz.
@@ -183,7 +175,6 @@ export default function AnalysisResultView({ result, activeText, segments, onWor
                 )}
             </div>
 
-            {/* Top unknown words */}
             {result.topUnknown.length > 0 && (
                 <div className="rounded-3xl bg-card p-5 shadow-sm">
                     <p className="mb-3 text-sm font-medium">

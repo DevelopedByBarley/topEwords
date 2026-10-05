@@ -4,7 +4,6 @@ import type { WordStatus } from '@/types/words';
 interface StatusButtonsProps {
     current: WordStatus;
     onSelect: (status: Exclude<WordStatus, null>) => void;
-    /** 'row' = kompakt pill gombsor a listában, 'modal' = nagy gombok a részletező modalban */
     variant: 'row' | 'modal';
 }
 

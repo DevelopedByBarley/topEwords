@@ -120,9 +120,6 @@ test('nem admin nem küldhet meghívót', function () {
     Notification::assertNothingSent();
 });
 
-/**
- * A kirenderelt (HTML) levél, a benne lévő szöveges ellenőrzésekhez.
- */
 function invitationMailBody(Invite $invite): string
 {
     return (string) (new InvitationSent($invite))->toMail(new AnonymousNotifiable)->render();

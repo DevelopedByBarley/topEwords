@@ -8,14 +8,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { connect } from '@/routes/player';
 
-/**
- * A topwords Player (desktop lejátszó) fiók-összekötésének jóváhagyó oldala.
- * A lejátszó a rendszer-böngészőt nyitja ide; a felhasználó a lejátszóban
- * megjelenő kódot KÉZZEL írja be — szándékosan nincs előkitöltés, hogy egy
- * kapott linkkel ne lehessen egy kattintással idegen párosítást jóváhagyatni.
- * A jóváhagyás a saját bejelentkezett session-nel történik, az appba így soha
- * nem kerül jelszó.
- */
 export default function PlayerConnect() {
     return (
         <>

@@ -4,10 +4,6 @@ use App\Notifications\ApplicationErrorDetected;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 
-/**
- * Az error-riasztás csak prodban él — a tesztkörnyezetet ideiglenesen prodnak álcázzuk.
- * Az app példány tesztenként újraépül, így a beállítás nem szivárog át a többi tesztbe.
- */
 function simulateProduction(): void
 {
     app()['env'] = 'production';
@@ -53,9 +49,6 @@ test('ugyanaz a hiba óránként legfeljebb egyszer riaszt', function () {
 });
 
 test('két különböző hiba egy órán belül külön-külön riaszt', function () {
-    // A throttle korábban egyetlen közös kulcson osztozott: egy órán belül a MÁSODIK,
-    // más okú kritikus hiba (pl. dupla terhelés az ismeretlen-customer után) némán kimaradt.
-    // A szint+üzenet szerinti kulccsal mindkettő eljut az adminhoz.
     Notification::fake();
     config(['app.admin_email' => 'admin@example.com']);
     simulateProduction();
@@ -67,9 +60,6 @@ test('két különböző hiba egy órán belül külön-külön riaszt', functio
 });
 
 test('a kérésenként változó üzenetű hiba-áradat nem árasztja el a postafiókot', function () {
-    // Regresszió-védő: a per-üzenet dedup önmagában minden változó szövegű 500-at átengedne
-    // (Stripe/Billingo timeout URL-lel, SQL-érték a QueryExceptionben). A globális óránkénti
-    // burst-plafon fogja az áradatot — 30 különböző hibából legfeljebb a plafonnyi riaszt.
     Notification::fake();
     config(['app.admin_email' => 'admin@example.com']);
     simulateProduction();

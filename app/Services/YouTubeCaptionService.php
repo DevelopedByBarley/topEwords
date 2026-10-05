@@ -9,31 +9,12 @@ use Illuminate\Support\Facades\Http;
 
 class YouTubeCaptionService
 {
-    /** Sikeres átirat ennyi ideig él a videónkénti cache-ben. */
     private const CACHE_TTL_HOURS = 24;
 
-    /**
-     * Egy feliratfájlból legfeljebb ennyi byte-ot olvasunk be (CAP-2). A cél-URL
-     * a YouTube saját válaszából jön (a user csak a 11 karakteres videó-ID-t
-     * választja), ezért ez nem támadó-vezérelt vektor, hanem védelmi mélység:
-     * a partner hibás/óriási válasza se tölthesse memóriába a workert.
-     * 8 MB felirat több tíz órányi beszédnek felel meg — valós videó nem éri el.
-     */
     private const MAX_CAPTION_BYTES = 8 * 1024 * 1024;
 
-    /** „Nincs felirat" eredmény rövid negatív cache-e, hogy az ismételt próbálkozás se scrape-eljen. */
     private const MISS_CACHE_TTL_MINUTES = 15;
 
-    /**
-     * Ezekről a hostokról töltünk le feliratfájlt (SSRF-1).
-     *
-     * A cél-URL a YouTube válaszából jön (`captionTracks[].baseUrl`), tehát egy
-     * megbízhatónak FELTÉTELEZETT partner adatából — de a feltételezés nem
-     * védelem: a lánc nem blind, a letöltött tartalom parseolt szegmensekként
-     * visszamegy a kliensnek, így egy elrontott/mérgezett `baseUrl` exfiltrációs
-     * csatorna lenne (pl. cloud metadata endpoint). Az allowlist + a
-     * redirect-tilalom ezt a bizalmat cseréli ellenőrzésre.
-     */
     private const CAPTION_HOST_ALLOWLIST = [
         'www.youtube.com',
         'youtube.com',
@@ -41,22 +22,10 @@ class YouTubeCaptionService
         'www.youtube-nocookie.com',
     ];
 
-    /**
-     * A caption-letöltés közben már lekért watch-oldalból kinyert cím, hogy a
-     * fetchTranscript ne töltse le még egyszer ugyanazt az oldalt a címért.
-     */
     private ?string $watchPageTitle = null;
 
-    /**
-     * Volt-e a jelenlegi fetchCaptions-futásban átmeneti (nem OK válasz vagy
-     * megszakadt kapcsolat) hiba. Ha igen, az üres eredmény lehet, hogy csak a
-     * YouTube átmeneti akadása miatt üres — ilyenkor nem negatív-cache-elünk (C2).
-     */
     private bool $sawTransientError = false;
 
-    /**
-     * Extract the 11-character video id from any common YouTube URL form.
-     */
     public function extractVideoId(string $url): ?string
     {
         $patterns = [
@@ -76,14 +45,7 @@ class YouTubeCaptionService
     }
 
     /**
-     * Videónként cache-elt átirat (cím + szegmensek), userek közt megosztva —
-     * ugyanahhoz a videóhoz naponta legfeljebb egyszer scrape-elünk. A definitív
-     * „nincs felirat" eredmény rövid negatív cache-t kap; az átmeneti hálózati
-     * hibát (ConnectionException stb.) nem cache-eljük, az újrapróbálható.
-     *
      * @return array{title: ?string, segments: array<int, array{t: int, x: string}>}
-     *
-     * @throws \RuntimeException when no usable English captions are available
      */
     public function fetchTranscript(string $videoId): array
     {
@@ -103,8 +65,6 @@ class YouTubeCaptionService
         try {
             $segments = $this->fetchCaptions($videoId);
         } catch (TransientCaptionException $e) {
-            // Átmeneti YouTube-akadás: nem tudjuk, van-e felirat, ezért NEM
-            // cache-elünk negatívan — a következő próbálkozás újra scrape-elhet (C2).
             throw $e;
         } catch (\RuntimeException $e) {
             Cache::put("youtube:transcript-miss:{$videoId}", true, now()->addMinutes(self::MISS_CACHE_TTL_MINUTES));
@@ -123,37 +83,27 @@ class YouTubeCaptionService
     }
 
     /**
-     * Timestamped caption segments for a video, trying several strategies.
-     *
      * @return array<int, array{t: int, x: string}>
-     *
-     * @throws \RuntimeException when no usable English captions are available
      */
     public function fetchCaptions(string $videoId): array
     {
         $this->sawTransientError = false;
 
-        // Strategy 1: InnerTube API with multiple clients
         $segments = $this->fetchViaInnertube($videoId);
         if (! empty($segments)) {
             return $segments;
         }
 
-        // Strategy 2: YouTube timedtext API
         $segments = $this->fetchViaTimedtextApi($videoId);
         if (! empty($segments)) {
             return $segments;
         }
 
-        // Strategy 3: Scrape the watch page for a signed caption URL
         $segments = $this->fetchViaPageScraping($videoId);
         if (! empty($segments)) {
             return $segments;
         }
 
-        // Ha valamelyik stratégia átmeneti hibába futott (nem OK válasz vagy
-        // megszakadt kapcsolat), az üres eredmény lehet, hogy csak emiatt üres —
-        // ezt újrapróbálhatóként jelezzük, hogy ne kerüljön negatív cache-be (C2).
         if ($this->sawTransientError) {
             throw new TransientCaptionException('A YouTube átmenetileg nem elérhető. Próbáld újra később.');
         }
@@ -161,9 +111,6 @@ class YouTubeCaptionService
         throw new \RuntimeException('Ehhez a videóhoz nem érhetők el angol feliratok, vagy a felirat nem feldolgozható.');
     }
 
-    /**
-     * Best-effort video title; null when the watch page is unavailable.
-     */
     public function fetchTitle(string $videoId): ?string
     {
         try {
@@ -184,9 +131,6 @@ class YouTubeCaptionService
         }
     }
 
-    /**
-     * Video title from a watch page's HTML; null when it cannot be found.
-     */
     private function parseWatchPageTitle(string $html): ?string
     {
         if (preg_match('/<meta\s+name="title"\s+content="([^"]+)"/', $html, $m)) {
@@ -203,8 +147,6 @@ class YouTubeCaptionService
     }
 
     /**
-     * Flatten caption segments into plain text (for word analysis).
-     *
      * @param  array<int, array{t: int, x: string}>  $segments
      */
     public function segmentsToText(array $segments): string
@@ -220,7 +162,6 @@ class YouTubeCaptionService
         $androidUa = 'com.google.android.youtube/20.10.38 (Linux; U; Android 11) gzip';
 
         try {
-            // Must extract the API key from the watch page — hardcoded keys return UNPLAYABLE
             $pageResponse = Http::timeout(20)
                 ->withHeaders(['User-Agent' => $androidUa, 'Accept-Language' => 'en-US,en;q=0.9'])
                 ->get('https://www.youtube.com/watch?v='.$videoId);
@@ -271,7 +212,6 @@ class YouTubeCaptionService
                 return [];
             }
 
-            // Try XML (default, no fmt) first — ANDROID returns timedtext XML with <p> tags
             foreach ([$captionUrl, $captionUrl.'&fmt=json3'] as $url) {
                 $captionResponse = $this->fetchCaptionBody($url);
 
@@ -383,26 +323,6 @@ class YouTubeCaptionService
         return [];
     }
 
-    /**
-     * Feliratfájl letöltése MAX_CAPTION_BYTES sapkával (CAP-2).
-     *
-     * A sapkát a curl progress-callback érvényesíti, vagyis MENET KÖZBEN szakítja
-     * meg a letöltést — a `Http::get()` utáni méret-ellenőrzés már későn jönne,
-     * a teljes válasz addigra memóriában lenne (ugyanez a minta, mint a
-     * TextAnalysisController::safeFetch sizeGuardja).
-     *
-     * A megszakítást a curl ConnectionException-ként dobja; a hívók már ma is
-     * kezelik (a külső try/catch `sawTransientError`-t állít), ezért a túl nagy
-     * felirat ugyanúgy „nincs használható felirat" ágra fut, mint bármely más
-     * letöltési hiba — nem szivárog ki kezeletlen 500-asként.
-     *
-     * A cél-hostot allowlist szűri, és a kérés NEM követ átirányítást (SSRF-1):
-     * enélkül a Guzzle default 5 hopot követne — `http`-re és belső címre is —,
-     * vagyis az allowlist egyetlen `Location:` fejléccel megkerülhető lenne.
-     *
-     * @throws \RuntimeException ha a letöltött törzs átlépi a MAX_CAPTION_BYTES-t,
-     *                           vagy ha a cél-host nincs az allowlistán
-     */
     private function fetchCaptionBody(string $url): Response
     {
         $this->assertAllowedCaptionUrl($url);
@@ -419,10 +339,6 @@ class YouTubeCaptionService
             ]])
             ->get($url);
 
-        // Védőháló a curl-szintű sapka mellé (ugyanaz a minta, mint a
-        // TextAnalysisController::fetchWebpageText-ben): a progress-callback csak
-        // valódi kapcsolaton fut, fake-elt HTTP kliens alatt nem — enélkül a sapka
-        // se tesztelhető, se érvényes nem lenne minden úton.
         if (strlen($response->body()) > self::MAX_CAPTION_BYTES) {
             throw new \RuntimeException('A felirat túl nagy a feldolgozáshoz.');
         }
@@ -430,16 +346,6 @@ class YouTubeCaptionService
         return $response;
     }
 
-    /**
-     * A feliratfájl cél-URL-jének ellenőrzése letöltés előtt (SSRF-1).
-     *
-     * Csak `https` és csak allowlistás YouTube-host megy át. A séma-ellenőrzés
-     * nem formalitás: `http`-n a válasz — és vele a lekért tartalom — hálózati
-     * megfigyelőnek is kiadható, a `file://`/`gopher://` sémák pedig egészen más
-     * osztályú kérést jelentenének.
-     *
-     * @throws \RuntimeException ha a séma nem https, vagy a host nincs az allowlistán
-     */
     private function assertAllowedCaptionUrl(string $url): void
     {
         $parts = parse_url($url);
@@ -482,9 +388,6 @@ class YouTubeCaptionService
         return [];
     }
 
-    /**
-     * Caption timestamp (HH:MM:SS.mmm or MM:SS.mmm) → whole seconds.
-     */
     private function captionTimestampToSeconds(string $ts): int
     {
         if (preg_match('/(?:(\d+):)?(\d{1,2}):(\d{2})(?:[.,]\d+)?/', $ts, $m)) {
@@ -525,7 +428,6 @@ class YouTubeCaptionService
         foreach ($lines as $line) {
             $line = trim($line);
 
-            // The VTT header ends at the first blank line
             if (! $pastHeader) {
                 if ($line === '') {
                     $pastHeader = true;
@@ -534,7 +436,6 @@ class YouTubeCaptionService
                 continue;
             }
 
-            // A timestamp line starts a new cue
             if (str_contains($line, '-->')) {
                 $flush();
                 $curStart = $this->captionTimestampToSeconds(explode('-->', $line)[0]);
@@ -542,7 +443,6 @@ class YouTubeCaptionService
                 continue;
             }
 
-            // Blank line ends the current cue; cue IDs (digits only) are skipped
             if ($line === '') {
                 $flush();
 
@@ -553,7 +453,6 @@ class YouTubeCaptionService
                 continue;
             }
 
-            // Strip inline timing tags (<00:00:00.000>, <c>, <c.color_white>, etc.)
             $text = preg_replace('/<[^>]+>/', '', $line) ?? $line;
             $text = html_entity_decode(trim($text), ENT_QUOTES | ENT_HTML5, 'UTF-8');
             $text = preg_replace('/\[[^\]]*\]/', '', $text) ?? $text;
@@ -578,7 +477,6 @@ class YouTubeCaptionService
             return null;
         }
 
-        // Walk through the JSON array character-by-character to find its true end
         $depth = 0;
         $inString = false;
         $escape = false;
@@ -653,7 +551,6 @@ class YouTubeCaptionService
                 continue;
             }
             $text = implode('', array_column($event['segs'], 'utf8'));
-            // Remove sound annotations like [Music], [Applause], [Laughter], etc.
             $text = preg_replace('/\[[^\]]*\]/', '', $text) ?? $text;
             $text = trim(preg_replace('/\s+/', ' ', trim($text)) ?? '');
             if ($text === '' || $text === $prev) {
@@ -671,7 +568,6 @@ class YouTubeCaptionService
      */
     private function parseXmlCaptions(string $body): array
     {
-        // YouTube returns either <text start="12.3"> (older) or <p t="12300"> (ANDROID InnerTube) tags
         if (! preg_match_all('/<(?:text|p)([^>]*)>(.*?)<\/(?:text|p)>/s', $body, $matches, PREG_SET_ORDER)) {
             return [];
         }

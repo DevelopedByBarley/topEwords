@@ -126,10 +126,6 @@ export default function WordsPractice({
             : wordStatus(pw.id).url;
 
         try {
-            // A "gyakorlásból eltávolítás" (newStatus === null) explicit üres státuszt küld,
-            // NEM a 'practice' toggle-t: így a backend mindig levesz. Ha a 'practice'-t
-            // küldenénk toggle-ként, és a szó státusza időközben máshol (másik fül) megváltozott,
-            // ez a hívás visszaállítaná practice-re, miközben a UI eltávolítottnak mutatja.
             const res = await postJson(url, {
                 status: newStatus,
             });
@@ -195,9 +191,6 @@ export default function WordsPractice({
             return;
         }
 
-        // Válasz-sorrend guard: minden kérés kap egy monoton növekvő szekvencia-számot,
-        // és csak a LEGUTOLSÓ kérés eredményét fogadjuk el. Enélkül egy lassú korábbi
-        // válasz felülírhatná egy gyorsabb újabb keresés találatait (stale eredmény).
         const seq = ++searchSeq.current;
 
         searchTimeout.current = setTimeout(async () => {
@@ -298,7 +291,6 @@ export default function WordsPractice({
         <>
             <Head title="Szabad írás gyakorlás" />
             <div className="space-y-6 px-4 py-6 lg:px-8">
-                {/* Hero */}
                 <div
                     className="relative overflow-hidden rounded-3xl p-6 md:p-10"
                     style={{ background: 'linear-gradient(135deg,#4338CA,#4F8EEC)' }}
@@ -339,10 +331,8 @@ export default function WordsPractice({
                 </div>
 
                 <div className="grid gap-6 lg:grid-cols-[380px_1fr] xl:grid-cols-[420px_1fr]">
-                    {/* Left: target words */}
                     <div className="flex flex-col gap-4 lg:sticky lg:top-4 lg:max-h-[calc(100vh-7rem)] lg:self-start">
                         <div className="flex flex-col gap-4 overflow-y-auto rounded-3xl bg-card p-6 shadow-sm">
-                            {/* Section header */}
                             <div className="flex items-center justify-between">
                                 <p className="font-semibold">Célszavak</p>
                                 <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
@@ -350,7 +340,6 @@ export default function WordsPractice({
                                 </span>
                             </div>
 
-                            {/* Practice-status words */}
                             {practiceWords.length > 0 && (
                                 <div className="space-y-2.5">
                                     <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
@@ -432,7 +421,6 @@ export default function WordsPractice({
                                 </div>
                             )}
 
-                            {/* Search/add input */}
                             <div className="relative" ref={dropdownRef}>
                                 <div className="flex gap-2">
                                     <div className="relative flex-1">
@@ -476,7 +464,6 @@ export default function WordsPractice({
                                     </button>
                                 </div>
 
-                                {/* Dropdown */}
                                 {showDropdown && searchResults.length > 0 && (
                                     <div className="absolute top-full right-0 left-0 z-50 mt-1 overflow-hidden rounded-xl border bg-popover shadow-lg">
                                         {searchResults.map((r) => (
@@ -504,7 +491,6 @@ export default function WordsPractice({
                                 )}
                             </div>
 
-                            {/* Word list */}
                             {targetWords.length === 0 ? (
                                 <div className="rounded-2xl border border-dashed border-border py-8 text-center">
                                     <p className="text-sm text-muted-foreground">
@@ -579,7 +565,6 @@ export default function WordsPractice({
                             )}
                         </div>
 
-                        {/* Word list link */}
                         <p className="text-center text-xs text-muted-foreground">
                             <Link
                                 href={wordsIndex()}
@@ -590,7 +575,6 @@ export default function WordsPractice({
                         </p>
                     </div>
 
-                    {/* Right: writing area */}
                     <div className="space-y-4">
                         <div className="space-y-4 rounded-3xl bg-card p-6 shadow-sm">
                             <div className="flex items-center justify-between">
@@ -646,7 +630,6 @@ export default function WordsPractice({
                             </div>
                         </div>
 
-                        {/* Error */}
                         {error && (
                             <div className="flex items-center gap-2 rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
                                 <AlertCircle className="size-4 shrink-0" />
@@ -654,10 +637,8 @@ export default function WordsPractice({
                             </div>
                         )}
 
-                        {/* Result */}
                         {result && (
                             <div className="animate-in space-y-3 duration-300 fade-in slide-in-from-bottom-2">
-                                {/* Overall */}
                                 <div className="rounded-2xl bg-orange-50 px-5 py-4 dark:bg-orange-950/30">
                                     <div className="flex items-start gap-3">
                                         <Sparkles className="mt-0.5 size-4 shrink-0 text-orange-500" />
@@ -667,7 +648,6 @@ export default function WordsPractice({
                                     </div>
                                 </div>
 
-                                {/* Grammar issues */}
                                 {result.grammar_issues.length > 0 && (
                                     <div className="rounded-2xl bg-amber-50 px-5 py-4 dark:bg-amber-950/30">
                                         <p className="mb-2.5 text-xs font-semibold tracking-wide text-amber-700 uppercase dark:text-amber-400">
@@ -689,7 +669,6 @@ export default function WordsPractice({
                                     </div>
                                 )}
 
-                                {/* Corrected text */}
                                 {result.corrected_text && (
                                     <div className="rounded-2xl bg-blue-50 px-5 py-4 dark:bg-blue-950/30">
                                         <p className="mb-2.5 text-xs font-semibold tracking-wide text-blue-700 uppercase dark:text-blue-400">
@@ -714,7 +693,6 @@ export default function WordsPractice({
                 </div>
             </div>
 
-            {/* Status modal */}
             <Dialog
                 open={statusModalWord !== null}
                 onOpenChange={(open) => {

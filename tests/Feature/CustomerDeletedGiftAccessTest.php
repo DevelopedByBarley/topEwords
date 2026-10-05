@@ -4,11 +4,6 @@ use App\Http\Controllers\StripeWebhookController;
 use App\Models\User;
 use Illuminate\Http\Request;
 
-/**
- * A Stripe customer.deleted webhook nem veheti el az admin által kézzel adott
- * „ajándék-hónapot" (users.trial_ends_at) — az nem Stripe-eredetű. A Cashier
- * alapból nullázná; a felülírt handler visszaállítja, ha a jövőben jár le.
- */
 function dispatchCustomerDeleted(User $user): void
 {
     $request = Request::create('/stripe/webhook', 'POST', content: json_encode([

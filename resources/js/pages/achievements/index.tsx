@@ -121,10 +121,6 @@ export default function Achievements({
             : 0;
     const remaining = totalAchievements - totalUnlocked;
 
-    /**
-     * A szűrő csak a megjelenítést szűkíti. Az üresre fogyó csoportokat
-     * elrejtjük, hogy ne maradjanak tartalom nélküli fejlécek a listában.
-     */
     const visibleGroups = useMemo(
         () =>
             grouped
@@ -153,7 +149,6 @@ export default function Achievements({
             <Head title="Teljesítmények" />
 
             <div className="mx-auto flex h-full w-full max-w-[2000px] flex-1 flex-col gap-6 p-4 md:p-6 xl:px-10 2xl:px-16">
-                {/* Hero */}
                 <div
                     className="relative overflow-hidden rounded-3xl p-6 md:p-8"
                     style={{
@@ -200,7 +195,6 @@ export default function Achievements({
                     </div>
                 </div>
 
-                {/* Szűrő */}
                 <div
                     className="flex flex-wrap items-center gap-2"
                     role="group"
@@ -234,7 +228,6 @@ export default function Achievements({
                     ))}
                 </div>
 
-                {/* Csoportok */}
                 {visibleGroups.map((group) => {
                     const groupPercent =
                         group.items.length > 0

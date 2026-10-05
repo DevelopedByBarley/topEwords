@@ -11,7 +11,6 @@ beforeEach(function () {
     $this->user = User::factory()->create();
     $this->actingAs($this->user);
 
-    // All rows must have identical keys for Word::insert()
     $base = [
         'meaning_hu' => null, 'extra_meanings' => null, 'synonyms' => null,
         'part_of_speech' => null, 'form_base' => null, 'verb_past' => null,
@@ -28,9 +27,21 @@ beforeEach(function () {
         array_merge($base, ['word' => 'dog', 'rank' => 300, 'meaning_hu' => 'kutya', 'noun_plural' => 'dogs']),
         array_merge($base, ['word' => 'the', 'rank' => 1, 'meaning_hu' => 'a/az']),
         array_merge($base, ['word' => 'cut', 'rank' => 400, 'meaning_hu' => 'vág', 'verb_past' => 'cut', 'verb_present_participle' => 'cutting', 'verb_third_person' => 'cuts']),
-        // Dual-class word: primarily a noun, but also carries its verb forms.
         array_merge($base, ['word' => 'interest', 'rank' => 500, 'meaning_hu' => 'érdeklődés', 'part_of_speech' => 'noun', 'noun_plural' => 'interests', 'verb_past' => 'interested', 'verb_past_participle' => 'interested', 'verb_present_participle' => 'interesting', 'verb_third_person' => 'interests']),
     ]);
+});
+
+test('text analysis page passes the user decks for the word dialog', function () {
+    $this->user->flashcardDecks()->create(['name' => 'Zebra']);
+    $this->user->flashcardDecks()->create(['name' => 'Alma']);
+    User::factory()->create()->flashcardDecks()->create(['name' => 'Foreign']);
+
+    $this->get(route('text-analysis.show'))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('flashcardDecks', 2)
+            ->where('flashcardDecks.0.name', 'Alma')
+            ->where('flashcardDecks.1.name', 'Zebra'));
 });
 
 test('text analysis page is accessible', function () {
@@ -69,9 +80,6 @@ test('word forms are recognized via variant columns', function () {
 });
 
 test('verb forms of a noun word are recognized in analysis', function () {
-    // "interest" is stored as a noun but carries verb inflections on the same
-    // row. Matching reads all form columns regardless of part_of_speech, so the
-    // verb forms must resolve to the same status as the base word.
     $word = Word::where('word', 'interest')->first();
     $this->user->knownWords()->attach($word->id, ['status' => 'known']);
 
@@ -94,8 +102,6 @@ test('apostrophe custom words get their status in the token map', function () {
 });
 
 test('custom word extra_forms are recognized in the token map', function () {
-    // A „successfully"-t „successful" lemma alatt vettük fel, a beírt alakot az
-    // extra_forms őrzi — a szövegelemzésnek mindkét alakra színeznie kell.
     $this->user->customWords()->create([
         'word' => 'successful',
         'status' => 'known',
@@ -153,9 +159,6 @@ function fakeYoutubeCaptions(int $lines = 120): void
         $events[] = ['tStartMs' => $i * 3000, 'segs' => [['utf8' => "the quick dog line {$i}"]]];
     }
 
-    // A `baseUrl` allowlistás YouTube-hostra mutat, mert az éles válasz is olyat
-    // ad, és a `fetchCaptionBody` SSRF-guardja csak ilyet tölt le (SSRF-1).
-    // Fiktív host (pl. `caption.test`) itt nem valósághű: a guard elvetné.
     Http::fake([
         'https://www.youtube.com/youtubei/v1/player*' => Http::response([
             'captions' => ['playerCaptionsTracklistRenderer' => ['captionTracks' => [
@@ -189,7 +192,6 @@ test('youtube captions are saved as a timestamped, paginated transcript', functi
     $transcript = YoutubeTranscript::where('user_id', $this->user->id)->first();
     expect($transcript)->not->toBeNull();
 
-    // Második oldal a felirat-lapozó végponton keresztül
     $this->getJson(route('text-analysis.youtube.page', ['transcript' => $transcript->id, 'page' => 2]))
         ->assertOk()
         ->assertJsonPath('page', 2)
@@ -209,7 +211,7 @@ test('youtube overview returns whole-video comprehension', function () {
     $this->getJson(route('text-analysis.youtube.overview', ['transcript' => $transcript->id]))
         ->assertOk()
         ->assertJsonStructure(['comprehension', 'totalWords', 'uniqueWords', 'knownCount', 'learningCount'])
-        ->assertJsonPath('knownCount', 10); // "dog" 10 sorban, mind ismert
+        ->assertJsonPath('knownCount', 10);
 });
 
 test('youtube endpoint rejects non-youtube urls', function () {
@@ -219,12 +221,6 @@ test('youtube endpoint rejects non-youtube urls', function () {
 });
 
 test('an oversized caption download is refused, not parsed (CAP-2)', function () {
-    // A feliratletöltésnek nem volt byte-sapkája: a YouTube (vagy egy hibás
-    // válasz) tetszőleges méretű törzset tölthetett a memóriába.
-    //
-    // A sapkának KÉT rétege van: a curl progress-callback (valódi kapcsolaton
-    // menet közben szakít) és a letöltés utáni méret-ellenőrzés. Ez a teszt a
-    // másodikat hajtja — ugyanaz a minta, mint a fetch-source méret-sapkájánál.
     Http::fake([
         'https://www.youtube.com/youtubei/v1/player*' => Http::response([
             'captions' => ['playerCaptionsTracklistRenderer' => ['captionTracks' => [
@@ -243,16 +239,10 @@ test('an oversized caption download is refused, not parsed (CAP-2)', function ()
         ->assertStatus(422)
         ->assertJsonPath('error', 'A felirat túl nagy a feldolgozáshoz.');
 
-    // A túl nagy felirat nem kerül feldolgozásra és nem is mentődik el.
     expect(YoutubeTranscript::where('user_id', $this->user->id)->count())->toBe(0);
 });
 
 test('a caption exactly at the cap is still accepted (CAP-2 határeset)', function () {
-    // Határeset: a sapka a SZIGORÚAN nagyobb méretet tiltja, a pontosan akkorát
-    // nem. Enélkül egy off-by-one hiba némán levágna legitim feliratokat.
-    // A törzs itt szemétnek számít (nem parse-olható felirat), ezért a kérés
-    // „nincs használható felirat" 422-vel zárul — a lényeg, hogy NEM a
-    // méret-sapka utasítja el.
     Http::fake([
         'https://www.youtube.com/youtubei/v1/player*' => Http::response([
             'captions' => ['playerCaptionsTracklistRenderer' => ['captionTracks' => [
@@ -273,8 +263,6 @@ test('a caption exactly at the cap is still accepted (CAP-2 határeset)', functi
 });
 
 test('a normal-length youtube transcript is still saved (CAP-1/CAP-2 ellenpróba)', function () {
-    // A sapkák nem törhetik el a valós működést: a normál hosszúságú felirat
-    // ugyanúgy letöltődik, lapozódik és mentődik.
     fakeYoutubeCaptions(120);
 
     $this->postJson(route('text-analysis.youtube.store'), [
@@ -289,7 +277,7 @@ test('a normal-length youtube transcript is still saved (CAP-1/CAP-2 ellenpróba
 test('book overview returns whole-book comprehension', function () {
     $this->user->knownWords()->attach(Word::where('word', 'dog')->first()->id, ['status' => 'known']);
 
-    $text = str_repeat('the quick dog ', 10); // a "dog" 10-szer szerepel, ismert
+    $text = str_repeat('the quick dog ', 10);
     $book = UserBook::create([
         'user_id' => $this->user->id,
         'title' => 'Teszt könyv',
@@ -303,7 +291,6 @@ test('book overview returns whole-book comprehension', function () {
         ->assertOk()
         ->assertJsonStructure(['comprehension', 'totalWords', 'uniqueWords', 'knownCount', 'learningCount'])
         ->assertJsonPath('knownCount', 10)
-        // Az összesítőbe csak a számok kellenek, a token-térképek nem.
         ->assertJsonMissingPath('tokenStatuses')
         ->assertJsonMissingPath('phraseStatuses');
 });
@@ -325,7 +312,6 @@ test('book overview is cached so repeated calls skip the full re-analysis', func
         ->assertOk()
         ->assertJsonPath('knownCount', 10);
 
-    // Új ismert szó a TTL-en belül: a cache-elt összesítő még a korábbi számokat adja.
     $this->user->knownWords()->attach(Word::where('word', 'quick')->first()->id, ['status' => 'known']);
 
     $this->getJson(route('text-analysis.books.overview', ['book' => $book->id]))
@@ -336,7 +322,6 @@ test('book overview is cached so repeated calls skip the full re-analysis', func
 test('book overview caps the analysed text length as a memory guard', function () {
     $this->user->knownWords()->attach(Word::where('word', 'dog')->first()->id, ['status' => 'known']);
 
-    // 600 000 × "dog " = 2,4 M karakter; a 2 M-es sapka pontosan 500 000 teljes szót enged be.
     $text = str_repeat('dog ', 600_000);
     $book = UserBook::create([
         'user_id' => $this->user->id,
@@ -375,24 +360,19 @@ test('free plan is capped at the configured number of saved youtube transcripts'
     fakeYoutubeCaptions(10);
     $limit = (int) config('plans.limits.free.youtube_transcripts');
 
-    // 11 karakteres, érvényes videó-ID-k (keret + 1 a túllépéshez).
     $ids = ['abcdefghijk', 'lmnopqrstuv', 'wxyz01234ab', 'cdefghij567', 'klmno890pqr'];
 
-    // A keretig menthető.
     for ($i = 0; $i < $limit; $i++) {
         $this->postJson(route('text-analysis.youtube.store'), ['url' => 'https://www.youtube.com/watch?v='.$ids[$i]])
             ->assertOk();
     }
 
-    // A kereten túl 403.
     $this->postJson(route('text-analysis.youtube.store'), ['url' => 'https://www.youtube.com/watch?v='.$ids[$limit]])
         ->assertStatus(403);
 });
 
-// ── SSRF guard (fetch-source) ────────────────────────────────────────────────
-
 test('fetch-source rejects a private/reserved IP host', function () {
-    Http::fake(); // nothing should ever be fetched
+    Http::fake();
 
     $this->postJson(route('text-analysis.fetch-source'), ['url' => 'http://127.0.0.1/secret'])
         ->assertStatus(422);
@@ -401,8 +381,7 @@ test('fetch-source rejects a private/reserved IP host', function () {
 });
 
 test('fetch-source rejects non-public ranges the filter_var flags let through (F6-L1)', function (string $ip) {
-    // IP-literál: a guard nem végez DNS-feloldást, így a teszt hálózat nélkül fut.
-    Http::fake(); // semmit nem szabad lekérni
+    Http::fake();
 
     $this->postJson(route('text-analysis.fetch-source'), ['url' => "http://{$ip}/"])
         ->assertStatus(422);
@@ -419,7 +398,6 @@ test('fetch-source rejects non-public ranges the filter_var flags let through (F
 test('fetch-source rejects a redirect to a CGNAT address (F6-L1)', function () {
     Http::fake([
         'http://93.184.216.34/*' => Http::response('', 302, ['Location' => 'http://100.64.0.1/internal']),
-        // Ha a guard mégis átengedné, ez fogná el (különben valós kapcsolat lenne).
         'http://100.64.0.1/*' => Http::response('leaked', 200, ['Content-Type' => 'text/html']),
     ]);
 
@@ -430,7 +408,6 @@ test('fetch-source rejects a redirect to a CGNAT address (F6-L1)', function () {
 });
 
 test('fetch-source rejects a redirect to an internal address', function () {
-    // First (public) hop redirects to a link-local/internal address.
     Http::fake([
         'http://93.184.216.34/*' => Http::response('', 302, ['Location' => 'http://169.254.169.254/latest/meta-data/']),
     ]);
@@ -463,8 +440,6 @@ test('fetch-source rejects non-text content', function () {
 });
 
 test('fetch-source a cikk törzsét adja vissza, a lap kerete nélkül', function () {
-    // A kinyerést az ArticleTextExtractor végzi; itt az a kérdés, hogy a
-    // végponton át is a cikk jön-e, és nem a menü/lábléc.
     Http::fake([
         'http://93.184.216.34/*' => Http::response(
             '<html><body><nav><a>Kezdőlap</a><a>Sport</a></nav><main><p>The council approved the budget after a long debate.</p></main><footer>Copyright 2026</footer></body></html>',
@@ -479,8 +454,6 @@ test('fetch-source a cikk törzsét adja vissza, a lap kerete nélkül', functio
 });
 
 test('fetch-source kimondja, ha a lap JS-ből rendereli a tartalmát', function () {
-    // Üres kinyerés korábban néma, üres előnézet lett — a felhasználó nem
-    // tudta, miért nincs semmi.
     Http::fake([
         'http://93.184.216.34/*' => Http::response(
             '<html><body><div id="root"></div><script>renderApp()</script></body></html>',
@@ -505,9 +478,7 @@ test('fetch-source rejects a response body over the size cap', function () {
 });
 
 test('fetch-source rejects a non-web port (SSRF-LOW-2)', function () {
-    // Port-allowlist nélkül a szerver forrás-IP-jéről időzítés-alapú
-    // port-felderítés volt végezhető publikus hostokon.
-    Http::fake(); // semmit nem szabad lekérni
+    Http::fake();
 
     $this->postJson(route('text-analysis.fetch-source'), ['url' => 'http://93.184.216.34:3306/'])
         ->assertStatus(422);
@@ -516,26 +487,18 @@ test('fetch-source rejects a non-web port (SSRF-LOW-2)', function () {
 });
 
 test('fetch-source rejects a redirect to a non-web port (SSRF-LOW-2)', function () {
-    // Él-eset: a belépő URL szabályos, de az átirányítás visz tiltott portra.
-    // A port-ellenőrzés az assertPublicHost-ban van, amit a safeFetch HOPONKÉNT
-    // hív — így a redirect sem kerülheti meg.
     Http::fake([
         'http://93.184.216.34/article' => Http::response('', 302, ['Location' => 'http://93.184.216.34:6379/']),
-        // A tiltott portra menő hívást a guardnak MEG KELL előznie; ha mégis
-        // kimenne, ez a fake fogná el (különben valós kapcsolatra futna ki).
         'http://93.184.216.34:6379/*' => Http::response('leaked', 200, ['Content-Type' => 'text/html']),
     ]);
 
     $this->postJson(route('text-analysis.fetch-source'), ['url' => 'http://93.184.216.34/article'])
         ->assertStatus(422);
 
-    // A lelet lényege: a tiltott portot a szerver soha ne is érintse meg.
     Http::assertNotSent(fn ($request) => str_contains($request->url(), ':6379'));
 });
 
 test('fetch-source allows the standard web ports', function () {
-    // Ellenpróba: az allowlist nem törheti el a normál működést — a 8080 is
-    // engedélyezett, és az explicit :80 sem esik ki.
     Http::fake([
         'http://93.184.216.34:8080/*' => Http::response(
             '<html><body><article><p>This is a sufficiently long article paragraph that survives the short-line filter.</p></article></body></html>',
@@ -547,13 +510,10 @@ test('fetch-source allows the standard web ports', function () {
         ->assertOk();
 });
 
-// ── Multi-word custom phrases must not hijack a plain word ────────────────────
-
 test('a multi-word custom phrase does not hijack a plain word in analysis', function () {
     $cut = Word::where('word', 'cut')->firstOrFail();
     $this->user->knownWords()->attach($cut->id, ['status' => 'known']);
 
-    // Phrasal verb stored with single-word conjugations (real data shape).
     $this->user->customWords()->create([
         'word' => 'cut through',
         'status' => 'learning',
@@ -571,20 +531,16 @@ test('analysis returns phrase statuses for multi-word custom phrases present in 
     $this->user->customWords()->create([
         'word' => 'cut through',
         'status' => 'learning',
-        'verb_past' => 'cut', // single-word form must not leak into token coloring
+        'verb_past' => 'cut',
     ]);
 
     $this->postJson(route('text-analysis.analyze'), ['text' => 'They will cut through the noise'])
         ->assertOk()
         ->assertJsonPath('phraseStatuses.cut through', 'learning')
-        // The bare token "cut" keeps its own (word-list) status, not the phrase's.
         ->assertJsonPath('tokenStatuses.cut', 'in_list');
 });
 
 test('analysis returns phrase statuses for a five-word custom phrase present in the text', function () {
-    // A kliens kiemelés-plafonja (MAX_PHRASE_WORDS) 5 szó — a backend nem
-    // korlátoz hosszra, így egy 5 szavas kifejezésnek is el kell jutnia a
-    // phraseStatuses térképbe, hogy a szövegben kifestődhessen.
     $this->user->customWords()->create([
         'word' => 'closing in on you now',
         'status' => 'learning',
@@ -615,9 +571,6 @@ test('looking up a plain word does not return a multi-word custom phrase', funct
 });
 
 test('every word lookup outcome carries a type field', function () {
-    // A szóelemző dialógus (word-lookup-dialog.tsx) a `type` meglétén
-    // különbözteti meg az érvényes találatot a hiba-JSON-tól: minden
-    // sikeres válasznak (word / custom / not_found) tartalmaznia kell.
     $this->user->customWords()->create(['word' => 'ephemeral', 'status' => 'learning']);
 
     $this->getJson(route('text-analysis.word-lookup', ['word' => 'dog']))
@@ -634,9 +587,6 @@ test('every word lookup outcome carries a type field', function () {
 });
 
 test('a word lookup returns the same field set the word list detail modal renders', function () {
-    // A szövegelemző dialógusa ugyanazt a részletező nézetet rendereli, mint a
-    // szólista modálja (WordDetailSections). Ha ezek a mezők nem jönnek le, ott
-    // némán eltűnnek az alakok, a szinonimák és a magyar példamondat.
     $interest = Word::where('word', 'interest')->firstOrFail();
     $interest->update([
         'extra_meanings' => 'kamat, érdek',
@@ -678,7 +628,6 @@ test('a word lookup marks an irregular verb and reports a missing pivot as empty
     $this->getJson(route('text-analysis.word-lookup', ['word' => 'ran']))
         ->assertOk()
         ->assertJsonPath('is_irregular', true)
-        // Nincs pivot: se státusz, se csillag — a dialógus üres gombsort mutat.
         ->assertJsonPath('status', null)
         ->assertJsonPath('importance', null);
 });
@@ -717,10 +666,6 @@ test('a custom word lookup returns its forms and importance', function () {
 });
 
 test('a word with a typographic apostrophe finds the stored ascii custom word', function () {
-    // A könyvekben és a weboldalakon nem ASCII aposztróf áll a szavakban, hanem
-    // a tipográfiai ’ (U+2019). Normalizálás nélkül a keresés nem talált rá a
-    // „couldn't" alakban tárolt saját szóra: hamis „nincs találat", majd
-    // duplikált saját szó.
     $custom = $this->user->customWords()->create([
         'word' => "couldn't",
         'meaning_hu' => 'nem tudott',
@@ -735,8 +680,6 @@ test('a word with a typographic apostrophe finds the stored ascii custom word', 
 });
 
 test('a word with a typographic apostrophe finds a custom word stored the same way', function () {
-    // A régi felvitel a szövegbeli (tipográfiai) alakot mentette el, ezért az
-    // egyezést mindkét irányban próbálni kell.
     $custom = $this->user->customWords()->create([
         'word' => "couldn\u{2019}t",
         'meaning_hu' => 'nem tudott',
@@ -749,8 +692,6 @@ test('a word with a typographic apostrophe finds a custom word stored the same w
 });
 
 test('a not found word comes back with an ascii apostrophe', function () {
-    // Az így visszaadott alak megy tovább a felvitel-űrlapba és az AI-kitöltésbe,
-    // ezért NEM tipográfiai aposztróffal kell visszajönnie.
     $this->getJson(route('text-analysis.word-lookup', ['word' => "shouldn\u{2019}t"]))
         ->assertOk()
         ->assertJsonPath('type', 'not_found')
@@ -758,8 +699,6 @@ test('a not found word comes back with an ascii apostrophe', function () {
 });
 
 test('gemini lookup accepts a typographic apostrophe instead of rejecting it', function () {
-    // A prompt-szűrő (sanitizeWordForPrompt) csak ASCII aposztrófot engedett, így
-    // a „couldn’t" 422 „Érvénytelen szó."-val hasalt el az AI-kitöltésben.
     $this->user->forceFill(['ai_access' => true])->save();
 
     Http::fake([
@@ -772,7 +711,6 @@ test('gemini lookup accepts a typographic apostrophe instead of rejecting it', f
     $this->getJson(route('text-analysis.gemini-lookup', ['word' => "couldn\u{2019}t"]))
         ->assertOk()
         ->assertJsonPath('meaning_hu', 'nem tudott')
-        // A lemma az ASCII alak: a válaszból ez kerül a mentett szóba.
         ->assertJsonPath('base_form', "couldn't")
         ->assertJsonPath('normalized_from_input', null);
 });
@@ -810,9 +748,6 @@ test('gemini lookup retries a transient 503 then succeeds', function () {
 test('gemini lookup passes through cross-class form fields for a noun', function () {
     $this->user->forceFill(['ai_access' => true])->save();
 
-    // The model returns a noun whose verb forms also exist (e.g. "interest").
-    // The controller must NOT strip the verb forms just because the primary
-    // part_of_speech is "noun".
     Http::fake([
         'generativelanguage.googleapis.com/*' => Http::response(geminiSuccess([
             'is_real_word' => true,
@@ -844,7 +779,6 @@ test('gemini lookup returns 502 after both primary and fallback exhaust 503s', f
     $this->getJson(route('text-analysis.gemini-lookup', ['word' => 'dog']))
         ->assertStatus(502);
 
-    // A primary 2 próbája + a fallback 2 próbája = 4 hívás, mind 503 → 502.
     Http::assertSentCount(4);
 });
 
@@ -930,9 +864,6 @@ test('book of another user cannot be deleted', function () {
 });
 
 test('book overview consumes the daily analysis quota and blocks over the free limit', function () {
-    // M1: a teljes-könyv megértés ugyanúgy elemzési esemény, ezért a napi
-    // text_analyses_per_day keretbe számít — különben a beillesztett-szöveg
-    // "napi 2" korlát megkerülhető lenne könyv-úton.
     $makeBook = fn (string $title) => UserBook::create([
         'user_id' => $this->user->id,
         'title' => $title,
@@ -942,7 +873,7 @@ test('book overview consumes the daily analysis quota and blocks over the free l
         'text_size' => 13,
     ]);
 
-    $limit = $this->user->planLimit('text_analyses_per_day'); // free = 2
+    $limit = $this->user->planLimit('text_analyses_per_day');
     expect($limit)->toBe(2);
 
     for ($i = 1; $i <= $limit; $i++) {
@@ -953,14 +884,12 @@ test('book overview consumes the daily analysis quota and blocks over the free l
     $key = "text_analysis_daily_{$this->user->id}_".today()->format('Y-m-d');
     expect((int) Cache::get($key))->toBe($limit);
 
-    // A keret fölött egy friss (nem cache-elt) könyv-overview 403-at ad.
     $this->getJson(route('text-analysis.books.overview', ['book' => $makeBook('Túllépő')->id]))
         ->assertForbidden()
         ->assertJsonPath('error', 'limit_reached');
 });
 
 test('cached book overview does not re-consume the daily analysis quota', function () {
-    // Cache-találatnál nincs új elemzés, így a keret sem fogy tovább.
     $book = UserBook::create([
         'user_id' => $this->user->id,
         'title' => 'Teszt könyv',

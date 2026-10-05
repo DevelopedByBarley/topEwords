@@ -8,18 +8,8 @@ use Illuminate\Support\Facades\DB;
 
 class AiUsageService
 {
-    /**
-     * A keret-figyelmeztetés küszöbe százalékban: ez alatt nem szólítjuk meg a
-     * felhasználót. Állandó keret-kijelző szándékosan nincs — a keret akkor
-     * érdekes, amikor tényleg fogy.
-     */
     public const WARNING_THRESHOLD_PERCENT = 80;
 
-    /**
-     * Whether the user may make another AI call this period. This is a fast,
-     * non-atomic pre-check for UX (so the UI can show a 429 immediately); the
-     * authoritative, race-safe enforcement happens in reserve().
-     */
     public function allows(User $user): bool
     {
         $this->resetIfDue($user);
@@ -29,31 +19,16 @@ class AiUsageService
         return $limit === null || $user->ai_credits_used < $limit;
     }
 
-    /**
-     * Atomically reserve estimated budget for one upcoming AI call. Returns
-     * false if the user is already at/over their limit (the call must then be
-     * refused). Unlimited users (admins) always pass without being charged.
-     *
-     * The reservation is what makes budget enforcement race-safe: each
-     * concurrent call consumes its estimate via a single conditional UPDATE
-     * before its API request runs, so they cannot all pass a stale "under
-     * limit" check and overspend (TOCTOU). The reservation is reconciled to the
-     * real cost by settle(), or released by refund() if the call fails.
-     */
     public function reserve(User $user, int $estimatedMicros): bool
     {
         $this->resetIfDue($user);
 
         if ($user->aiMonthlyLimit() === null) {
-            return true; // unlimited (admin)
+            return true;
         }
 
         $estimate = max(1, $estimatedMicros);
 
-        // A foglalás akkor mehet át, ha a becslés MÉG BELEFÉR a keretbe: a feltétel
-        // ezért a nyers limit helyett a limit-becslést nézi. Enélkül a keret határán
-        // több párhuzamos kérés is átcsúszhatna (mind „<limit"-et lát, majd mind
-        // hozzáadja a becslését), és a settle() csak utólag korrigálná a túlfoglalást.
         $consumed = User::whereKey($user->getKey())
             ->where('ai_credits_used', '<=', $user->aiMonthlyLimit() - $estimate)
             ->increment('ai_credits_used', $estimate);
@@ -62,14 +37,11 @@ class AiUsageService
             return false;
         }
 
-        $user->ai_credits_used += $estimate; // keep the in-memory model in sync
+        $user->ai_credits_used += $estimate;
 
         return true;
     }
 
-    /**
-     * Reconcile a reservation to the actual cost after a successful AI call.
-     */
     public function settle(User $user, int $estimatedMicros, int $actualMicros): void
     {
         if ($user->aiMonthlyLimit() === null) {
@@ -79,9 +51,6 @@ class AiUsageService
         $this->adjust($user, max(0, $actualMicros) - max(1, $estimatedMicros));
     }
 
-    /**
-     * Release a reservation when the AI call ultimately failed.
-     */
     public function refund(User $user, int $estimatedMicros): void
     {
         if ($user->aiMonthlyLimit() === null) {
@@ -91,19 +60,11 @@ class AiUsageService
         $this->adjust($user, -max(1, $estimatedMicros));
     }
 
-    /**
-     * Apply a signed delta to the usage counter atomically.
-     */
     private function adjust(User $user, int $deltaMicros): void
     {
         if ($deltaMicros > 0) {
             User::whereKey($user->getKey())->increment('ai_credits_used', $deltaMicros);
         } elseif ($deltaMicros < 0) {
-            // The column is UNSIGNED, so decrementing below zero would throw an
-            // out-of-range error in MySQL strict mode. This happens when a
-            // concurrent reset() zeroes the counter between a call's reserve()
-            // and its refund()/settle(). Only subtract what is actually present
-            // so the counter can never go negative — atomically, in one UPDATE.
             User::whereKey($user->getKey())->update([
                 'ai_credits_used' => DB::raw(
                     'CASE WHEN ai_credits_used > '.(-$deltaMicros).
@@ -116,9 +77,6 @@ class AiUsageService
     }
 
     /**
-     * Usage snapshot for display to the user. Amounts are micro-dollars;
-     * `percent` is the share of the monthly budget consumed.
-     *
      * @return array{used: int, limit: int|null, remaining: int|null, reset_at: string, unlimited: bool, percent: int}
      */
     public function snapshot(User $user): array
@@ -139,13 +97,6 @@ class AiUsageService
     }
 
     /**
-     * A keret-figyelmeztetés adatai minden belső oldal fejlécébe, vagy `null`,
-     * ha nincs mit jelezni (korlátlan keret, vagy a küszöb alatti használat).
-     *
-     * A megjelenített szám a MARADÉK százalék, és felfelé kerekít: amíg akár
-     * egyetlen mikro-dollár van a keretben, „1%" jelenik meg, nem „0%" —
-     * különben a felhasználó kimerültnek hinné a még használható keretet.
-     *
      * @return array{level: 'low'|'exhausted', remaining_percent: int, reset_at: string}|null
      */
     public function warning(User $user): ?array
@@ -166,9 +117,6 @@ class AiUsageService
         ];
     }
 
-    /**
-     * Reset the counter when the current period has elapsed (calendar month).
-     */
     private function resetIfDue(User $user): void
     {
         if ($user->ai_credits_reset_at !== null && $user->ai_credits_reset_at->isFuture()) {
@@ -177,21 +125,15 @@ class AiUsageService
 
         $nextReset = $this->nextReset();
 
-        // Célzott UPDATE a forceFill()->save() helyett: a save() a teljes dirty
-        // modelt írná vissza, így egy párhuzamos kérés alatt memóriában módosult,
-        // ide nem tartozó mezők elavult értékei is a DB-be kerülhetnének.
         User::whereKey($user->getKey())->update([
             'ai_credits_used' => 0,
             'ai_credits_reset_at' => $nextReset,
         ]);
 
-        $user->ai_credits_used = 0; // keep the in-memory model in sync
+        $user->ai_credits_used = 0;
         $user->ai_credits_reset_at = $nextReset;
     }
 
-    /**
-     * The next reset moment — the first day of next month at 00:00.
-     */
     private function nextReset(): Carbon
     {
         return Carbon::now()->startOfMonth()->addMonth();

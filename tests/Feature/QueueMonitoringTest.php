@@ -119,12 +119,6 @@ test('ADMIN_EMAIL nélkül a torlódás-riasztás némán kimarad', function () 
     Notification::assertNothingSent();
 });
 
-/*
-| F4-L1: a queue:monitor csak méretet mér, a queue:alert-failed csak a bukottakat — egy
-| worker nélkül várakozó, egyetlen számlázó job egyiknek sem tűnik fel. A queue:alert-stale
-| a legrégebben esedékes job korát figyeli.
-*/
-
 function dispatchInvoiceJobToDatabaseQueue(): void
 {
     config(['queue.default' => 'database']);
@@ -166,7 +160,6 @@ test('a backoffra váró újrapróbálkozás nem számít beragadtnak', function
     Notification::fake();
     config(['app.admin_email' => 'admin@example.com', 'queue.default' => 'database']);
 
-    // Release a 900 mp-es backoff-fal: 40 perc múlva már csak 25 perce esedékes.
     Queue::connection('database')->later(now()->addSeconds(900), 'App\Jobs\Dummy');
     $this->travel(40)->minutes();
 

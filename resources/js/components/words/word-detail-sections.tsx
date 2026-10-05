@@ -1,11 +1,6 @@
 import { Volume2 } from 'lucide-react';
 import { speak } from '@/components/words/word-config';
 
-/**
- * A részletező kártyák által megjelenített szóadat. Szándékosan strukturális
- * (nem `Word | CustomWord`): ugyanezt a nézetet kapja a szólista fő szava, a
- * saját szó és a szövegelemző lookup-találata is, és ezek külön típusok.
- */
 export interface WordDetailData {
     word: string;
     meaning_hu: string | null;
@@ -26,25 +21,9 @@ export interface WordDetailData {
 
 interface WordDetailSectionsProps {
     data: WordDetailData;
-    /**
-     * Fordított kártya (szólista „flip" mód): a fejlécben a magyar jelentés áll,
-     * ezért a jelentés-kártya az angol szót mutatja felolvasás-gombbal.
-     */
     flipMode?: boolean;
 }
 
-/**
- * Egy szó részletei: jelentés, alakok, szinonimák, példamondat.
- *
- * A szólista két részletező modálja és a szövegelemző lookup-dialógusa
- * ugyanezt a nézetet rendereli — a felhasználó ugyanazt a szót ugyanolyan
- * bontásban látja, akárhonnan nyitja meg. Korábban három, egymástól elcsúszott
- * másolat élt (a szövegelemzőben csak a jelentés + egy példamondat), ezért az
- * alakok és a további jelentések ott láthatatlanok voltak.
- *
- * Csak megjelenítés: a státusz, a fontosság és az AI-panelek a hívó dolga,
- * mert mindhárom felület más végponton írja őket.
- */
 export default function WordDetailSections({
     data,
     flipMode = false,
@@ -76,7 +55,6 @@ export default function WordDetailSections({
 
     return (
         <>
-            {/* Jelentés */}
             <div className="rounded-xl border bg-card px-4 py-3.5">
                 <p className="mb-1.5 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
                     {flipMode ? 'Angol' : 'Magyar jelentés'}
@@ -110,8 +88,6 @@ export default function WordDetailSections({
                 )}
             </div>
 
-            {/* Igealakok — a szófajtól függetlenül látszik, ha a szó hordoz
-                igealakot (pl. "interest" főnév + ige) */}
             {data.verb_past && (
                 <div className="rounded-xl border bg-card px-4 py-3.5">
                     <p className="mb-3 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
@@ -133,8 +109,6 @@ export default function WordDetailSections({
                 </div>
             )}
 
-            {/* Képzett alakok (extra_forms): azonos tövű, más szófajú alakok —
-                ezekre a szövegelemzés és a bővítmény is ehhez a szóhoz köti a státuszt. */}
             {data.extra_forms && (
                 <div className="rounded-xl border bg-card px-4 py-3.5">
                     <p className="mb-3 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
@@ -153,7 +127,6 @@ export default function WordDetailSections({
                 </div>
             )}
 
-            {/* Többes szám — szófajtól függetlenül, ha van adat */}
             {data.noun_plural && (
                 <div className="rounded-xl border bg-card px-4 py-3.5">
                     <p className="mb-3 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
@@ -177,7 +150,6 @@ export default function WordDetailSections({
                 </div>
             )}
 
-            {/* Fokozás — szófajtól függetlenül, ha van adat */}
             {(data.adj_comparative || data.adj_superlative) && (
                 <div className="rounded-xl border bg-card px-4 py-3.5">
                     <p className="mb-3 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
@@ -206,7 +178,6 @@ export default function WordDetailSections({
                 </div>
             )}
 
-            {/* Szinonimák */}
             {synonyms.length > 0 && (
                 <div>
                     <p className="mb-2 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
@@ -225,7 +196,6 @@ export default function WordDetailSections({
                 </div>
             )}
 
-            {/* Példamondat */}
             {(data.example_en || data.example_hu) && (
                 <div className="rounded-xl border-l-4 border-primary/40 bg-muted/30 px-4 py-3.5">
                     <p className="mb-2 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">

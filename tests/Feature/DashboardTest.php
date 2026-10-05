@@ -8,13 +8,10 @@ use Inertia\Inertia;
 use Tests\TestCase;
 
 /**
- * Load the deferred `dueFlashcards` prop via an Inertia partial reload.
- *
  * @return array{cards: int, decks: int}
  */
 function loadDueFlashcards(TestCase $test): array
 {
-    // Warm-up request so the Inertia asset version (Vite manifest hash) resolves.
     $test->get(route('dashboard'))->assertOk();
 
     return $test->get(route('dashboard'), [
@@ -78,8 +75,6 @@ test('dashboard flags the streak as pending when today has no activity yet', fun
     $this->actingAs($user)
         ->get(route('dashboard'))
         ->assertInertia(fn ($page) => $page
-            // A sorozat még él (tegnapi aktivitás), de ma még nincs meg —
-            // erre épül a „ma még nem tanultál” figyelmeztetés.
             ->where('streak', 5)
             ->where('studiedToday', false)
             ->where('lastActivityDate', now()->subDay()->toDateString())
@@ -121,7 +116,6 @@ test('dashboard counts due flashcards across decks', function () {
     $second = FlashcardDeck::create(['user_id' => $user->id, 'name' => 'Második']);
     Flashcard::create(['deck_id' => $second->id, 'front' => 'e', 'back' => 'f', 'direction' => 'front_to_back']);
 
-    // Üres pakli: nincs esedékes kártyája, ezért a deck-számba sem számít bele.
     FlashcardDeck::create(['user_id' => $user->id, 'name' => 'Üres']);
 
     expect(loadDueFlashcards($this->actingAs($user)))->toBe(['cards' => 3, 'decks' => 2]);
@@ -142,6 +136,5 @@ test('dashboard is not slowed down by the deferred due count on first render', f
 
     $this->actingAs($user)
         ->get(route('dashboard'))
-        // A deferred prop az első válaszban szándékosan nincs benne.
         ->assertInertia(fn ($page) => $page->missing('dueFlashcards'));
 });

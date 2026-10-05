@@ -3,16 +3,6 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 
-/**
- * Rendhagyó igék hiányzó alternatív alakjai (irr-verbs riport M2).
- *
- * A rendhagyó igék kvíze a helyes "gotten"/"proved"/"leaped" stb. válaszokat is
- * pirosra értékelte, mert a words táblában csak egyetlen alak volt rögzítve.
- * A Merriam-Webster "or"-szintű változatai kerülnek fel '/'-szeparálva; az első
- * változat az elsődleges (ezt mutatja a megjelenítés). Csak a meglévő sorok két
- * igealak-oszlopát írja, más adathoz nem nyúl. Az updated_at bump kötelező: a
- * WordFormMapService cache-ujjlenyomata a MAX(updated_at)-ból képződik.
- */
 return new class extends Migration
 {
     /** @var array<string, array{verb_past?: string, verb_past_participle?: string}> */
@@ -48,10 +38,6 @@ return new class extends Migration
         }
     }
 
-    /**
-     * Visszaállítás: minden érintett oszlopban csak az elsődleges (első) változat
-     * marad — ez azonos a migráció előtti értékkel.
-     */
     public function down(): void
     {
         foreach (self::ALTERNATIVE_FORMS as $word => $columns) {

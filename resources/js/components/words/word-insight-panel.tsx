@@ -15,10 +15,6 @@ interface InsightData {
     tip_hu: string;
 }
 
-/**
- * AI-alapú "Szó a valóságban" panel. Saját állapotot kezel;
- * a hívó oldalon `key={word}` használatával resetelődik szóváltáskor.
- */
 export default function WordInsightPanel({ word }: { word: string }) {
     const [loading, setLoading] = useState(false);
     const [data, setData] = useState<InsightData | null>(null);

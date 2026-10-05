@@ -7,54 +7,15 @@ use Monolog\Processor\PsrLogMessageProcessor;
 
 return [
 
-    /*
-    |--------------------------------------------------------------------------
-    | Default Log Channel
-    |--------------------------------------------------------------------------
-    |
-    | This option defines the default log channel that is utilized to write
-    | messages to your logs. The value provided here should match one of
-    | the channels present in the list of "channels" configured below.
-    |
-    */
-
     'default' => env('LOG_CHANNEL', 'stack'),
-
-    /*
-    |--------------------------------------------------------------------------
-    | Deprecations Log Channel
-    |--------------------------------------------------------------------------
-    |
-    | This option controls the log channel that should be used to log warnings
-    | regarding deprecated PHP and library features. This allows you to get
-    | your application ready for upcoming major versions of dependencies.
-    |
-    */
 
     'deprecations' => [
         'channel' => env('LOG_DEPRECATIONS_CHANNEL', 'null'),
         'trace' => env('LOG_DEPRECATIONS_TRACE', false),
     ],
 
-    /*
-    |--------------------------------------------------------------------------
-    | Log Channels
-    |--------------------------------------------------------------------------
-    |
-    | Here you may configure the log channels for your application. Laravel
-    | utilizes the Monolog PHP logging library, which includes a variety
-    | of powerful log handlers and formatters that you're free to use.
-    |
-    | Available drivers: "single", "daily", "slack", "syslog",
-    |                    "errorlog", "monolog", "custom", "stack"
-    |
-    */
-
     'channels' => [
 
-        // T-16: az alapértelmezés a forgatott `daily` — a `single` korlátlanul nő, ami
-        // sértené az adatvédelmi tájékoztató 12 hónapos megőrzési ígéretét. Élesben és
-        // stagingen az AppServiceProvider boot-guardja meg is tagadja a `single`-t.
         'stack' => [
             'driver' => 'stack',
             'channels' => explode(',', (string) env('LOG_STACK', 'daily')),
@@ -76,14 +37,6 @@ return [
             'replace_placeholders' => true,
         ],
 
-        /*
-         * Kimenő levelek naplója (App\Listeners\LogSentMail).
-         *
-         * Külön fájlban él, hogy egy „nem jött meg az e-mail" bejelentés egyetlen
-         * grep-pel eldönthető legyen: elküldte-e az app, mikor, kinek és milyen
-         * Message-ID-vel — utóbbival a szolgáltató kimenő naplójában kereshető
-         * tovább. Címzett e-mail-címeket tartalmaz, ezért rövid a megőrzés.
-         */
         'mail' => [
             'driver' => 'daily',
             'path' => storage_path('logs/mail.log'),
@@ -92,15 +45,6 @@ return [
             'replace_placeholders' => true,
         ],
 
-        /*
-         * Admin-műveletnapló (App\Services\AdminActionLogger, F9C-L2).
-         *
-         * Minden admin-írás (Pro-felülírás, ingyen hónap, meghívó, bejelentés,
-         * szó-módosítás) egy sort kap: ki, mikor, kin, régi → új érték. Az
-         * alkalmazáson kívül él, így egy eltérített admin-session sem törölheti.
-         * Egy év megőrzés: egy „ki adott ennek a usernek Prót?" kérdés hónapokkal
-         * később is felmerülhet.
-         */
         'admin' => [
             'driver' => 'daily',
             'path' => storage_path('logs/admin.log'),

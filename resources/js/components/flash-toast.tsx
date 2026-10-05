@@ -14,12 +14,6 @@ interface Toast {
 
 const DISPLAY_MS = 8000;
 
-/**
- * Globális flash üzenet megjelenítő — a backend `error` és `info` flash-eit
- * mutatja (pl. free csomag limit-üzenetek), valamint a kliens-oldali kódból
- * a `showToast()` helperrel (lib/toast.ts) küldött üzeneteket. Ha az üzenet
- * csomagváltást javasol, linket is kap az árak oldalra.
- */
 export default function FlashToast() {
     const { flash, billingEnabled } = usePage().props;
     const [toast, setToast] = useState<Toast | null>(null);
@@ -36,7 +30,6 @@ export default function FlashToast() {
             ? { kind: 'success', message: success }
             : null;
 
-    // Render közbeni state-igazítás (React-ajánlott minta effect helyett)
     if (incoming && incoming.message !== seen) {
         setSeen(incoming.message);
         setToast(incoming);

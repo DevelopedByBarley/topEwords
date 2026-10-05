@@ -75,7 +75,6 @@
     --color-sidebar-ring: var(--sidebar-ring);
 }
 
-/* Violet/lila primary téma */
 :root {
     --background: oklch(0.985 0 0);
     --foreground: oklch(0.35 0.01 250);
@@ -98,11 +97,6 @@
     --border: oklch(0.91 0 0);
     --input: oklch(0.91 0 0);
     --ring: oklch(0.65 0.22 293);
-    /*
-     * Szöveges linkek. A márka-gradiens kékjeiből (#3a3688 → #5566c4 → #4F8EEC)
-     * mindkét témában a kontrasztos végét használjuk: világoson a mély, sötéten
-     * a világos kék. Így a link WCAG AA felett marad a háttéren.
-     */
     --link: #4a59b5;
     --link-hover: #3a3688;
     --chart-1: oklch(0.55 0.27 293);
@@ -202,7 +196,6 @@
     }
 }
 
-/* Landing hero: finom belépő fade + felúszás */
 @keyframes hero-rise {
     0% {
         opacity: 0;
@@ -214,7 +207,6 @@
     }
 }
 
-/* Landing hero: lebegő mockup-kártyák + csillag-csillogás */
 @keyframes hero-float-a {
     0%,
     100% {
@@ -255,7 +247,6 @@
     }
 }
 
-/* Landing: lassú lebegés a hero-glow foltoknak + pulzáló jelvény */
 @keyframes hero-float-slow-a {
     0%,
     100% {
@@ -288,7 +279,6 @@
     }
 }
 
-/* Landing: haladás-sávok kitöltő animációja belépéskor */
 @keyframes bar-grow {
     from {
         transform: scaleX(0);
@@ -298,7 +288,6 @@
     }
 }
 
-/* Landing: szólista auto-váltás visszaszámláló gyűrűje */
 @keyframes ring-countdown {
     from {
         stroke-dashoffset: 44;
@@ -308,7 +297,6 @@
     }
 }
 
-/* Landing: szövegelemzés-demó panel tartalomváltásának bejövő animációja */
 @keyframes panel-fade-in {
     from {
         opacity: 0;
@@ -320,9 +308,6 @@
     }
 }
 
-/* Flashcard tanulás: az értékelés után a következő kártya felső éléről
-   felúszó „ezt nyomtam" visszajelzés. A pálya rövid, mert a kártya fölötti
-   sávban kell maradnia — a nyugalmi helyzetét a szülő horgony adja. */
 @keyframes rate-flash {
     0% {
         opacity: 0;
@@ -375,7 +360,6 @@
     .animate-hero-float-slow-b,
     .animate-hero-pulse,
     .animate-panel-fade-in,
-    /* Marad statikusan látható a visszajelzés, csak nem úszik fel. */
     .animate-rate-flash {
         animation: none !important;
     }
@@ -390,7 +374,6 @@
         @apply bg-background text-foreground;
     }
 
-    /* Prevent iOS auto-zoom on input focus (requires >= 16px font-size) */
     @media (max-width: 767px) {
         input:not([type='hidden']),
         textarea,
@@ -401,10 +384,6 @@
     }
 }
 
-/* The rich-text editor (TipTap) carries the `prose-sm` class (14px), which
-   lives in the utilities layer and overrides the base-layer rule above — so
-   iOS still zooms on focus. This rule is intentionally UNLAYERED: unlayered
-   CSS beats any @layer, so 16px wins regardless of specificity. */
 @media (max-width: 767px) {
     .ProseMirror,
     .ProseMirror :where(p, li, h1, h2, h3, blockquote) {
@@ -412,13 +391,6 @@
     }
 }
 
-/*
- * Mobilos alsó navigációs sáv (MobileBottomNav) által elfoglalt magasság. A
- * komponens mountoláskor teszi ki a <html data-bottom-nav> attribútumot; a
- * tartalom alsó paddingja és az alulra rögzített elemek (toast, sütisáv,
- * lebegő gombok) ezzel az eltolással kerülnek a sáv fölé. md-től a sáv
- * rejtett, ott az eltolás 0.
- */
 :root {
     --bottom-nav-offset: 0px;
 }

@@ -7,13 +7,6 @@ use App\Support\Billing;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
-/**
- * Meghívó-levél egy még nem regisztrált címre (on-demand route). A regisztrációs
- * link a meghívókódot is hordozza, így a címzettnek semmit sem kell begépelnie;
- * a bővítmény linkje opcionális — az admin generáláskor adja meg. Szándékosan NEM
- * ShouldQueue, ahogy a projekt többi értesítése sem: az admin így azonnal látja,
- * ha a küldés elbukott. A tartalom a mail.invitation markdown-nézetben van.
- */
 class InvitationSent extends Notification
 {
     public function __construct(
@@ -47,10 +40,6 @@ class InvitationSent extends Notification
             ]);
     }
 
-    /**
-     * Teszt-módú Stripe-kulccsal (sk_test_) a fizetés nem terhel valódi kártyát, így a
-     * tesztkártya-tipp csak ilyenkor kerül a levélbe — éles kulccsal soha.
-     */
     private function usesStripeTestMode(): bool
     {
         return Billing::enabled() && str_starts_with((string) config('cashier.secret'), 'sk_test_');

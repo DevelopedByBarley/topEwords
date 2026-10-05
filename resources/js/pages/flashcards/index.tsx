@@ -17,7 +17,6 @@ import {
 } from '@/routes/flashcards/folders';
 import { update as updateFolderDeck } from '@/routes/flashcards/folders/decks';
 
-/** Ennyi pakli fölött a keresőmező többet segít, mint amennyi helyet elvesz. */
 const SEARCH_THRESHOLD = 8;
 
 export default function FlashcardsIndex({
@@ -49,8 +48,6 @@ export default function FlashcardsIndex({
         return folders.find((f) => f.id === id) ? id : null;
     });
 
-    // Egyszer vett időbélyeg: a relatív esedékesség-szövegek ("3 óra múlva")
-    // ebből számolnak, hogy a render tiszta maradjon.
     const [now] = useState(() => Date.now());
     const [search, setSearch] = useState('');
     const [deckDialogOpen, setDeckDialogOpen] = useState(false);
@@ -89,15 +86,12 @@ export default function FlashcardsIndex({
         });
     }, [decks, deckFolderIds, activeFolderId, search]);
 
-    /** Az összesített „mennyi vár rám ma” — a hero fő üzenete. */
     const dueSummary = useMemo(() => {
         if (!dueCounts) {
             return null;
         }
 
         const entries = Object.values(dueCounts).filter((n) => n > 0);
-        // Ha ma nincs mit tanulni, a legközelebbi esedékesség az egyetlen
-        // használható üzenet — abból tudja a felhasználó, mikor jöjjön vissza.
         const upcoming = Object.values(nextDueAt ?? {}).sort();
 
         return {
@@ -178,7 +172,6 @@ export default function FlashcardsIndex({
             <Head title="Flashcard paklik" />
 
             <div className="mx-auto flex h-full w-full max-w-[2000px] flex-1 flex-col gap-6 p-4 md:p-6 xl:px-10 2xl:px-16">
-                {/* Hero */}
                 <div
                     className="relative overflow-hidden rounded-3xl p-6 md:p-8"
                     style={{
@@ -241,8 +234,6 @@ export default function FlashcardsIndex({
                     </div>
                 </div>
 
-                {/* Mappa-szűrő + kereső — csak ha van mit szűrni; a mappák
-                    létrehozása a hero „Mappák" gombján érhető el. */}
                 {(folders.length > 0 || decks.length > SEARCH_THRESHOLD) && (
                     <div className="flex flex-wrap items-center gap-2">
                         {folders.length > 0 && (
@@ -313,7 +304,6 @@ export default function FlashcardsIndex({
                     </div>
                 )}
 
-                {/* Pakli-rács */}
                 {decks.length === 0 ? (
                     <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed py-16 text-center">
                         <BookOpen className="mb-4 size-12 text-muted-foreground opacity-30" />

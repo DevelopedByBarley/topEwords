@@ -51,9 +51,6 @@ class FlashcardDeckController extends Controller
             'decks' => $decks,
             'folders' => $folders,
             'deckFolderIds' => $deckFolderIds,
-            // countDueCards mirrors the canonical study queue (getDueCards) so the
-            // badge matches exactly what a study session will present: uncalibrated
-            // imports are excluded and the per-deck daily limits are applied.
             'dueCounts' => Inertia::defer(function () use ($decks, $user, $srs) {
                 $userSettings = $user->flashcardSettings;
                 $defaultSettings = $srs->defaultSettings();
@@ -66,9 +63,6 @@ class FlashcardDeckController extends Controller
 
                 return $dueCounts;
             }),
-            // Paklinként a legközelebbi jövőbeni esedékesség, hogy a kártya a
-            // „nincs most esedékes" helyett azt írja ki, mikor érdemes
-            // visszajönni. Ugyanabban a deferred körben megy, mint a dueCounts.
             'nextDueAt' => Inertia::defer(fn () => DB::table('flashcard_reviews')
                 ->join('flashcards', 'flashcards.id', '=', 'flashcard_reviews.flashcard_id')
                 ->whereIn('flashcards.deck_id', $deckIds)
@@ -76,9 +70,6 @@ class FlashcardDeckController extends Controller
                 ->groupBy('flashcards.deck_id')
                 ->selectRaw('flashcards.deck_id, MIN(flashcard_reviews.due_at) as next_due_at')
                 ->pluck('next_due_at', 'deck_id')
-                // ISO8601 offszettel: a nyers DB-stringet ("2026-07-30 06:15:00")
-                // a böngésző helyi időként értelmezné, ami UTC alkalmazás-időzóna
-                // mellett a nyári offszettel a múltba tolná az esedékességet.
                 ->map(fn ($dueAt) => Carbon::parse($dueAt)->toIso8601String())
                 ->all()
             ),
@@ -90,9 +81,6 @@ class FlashcardDeckController extends Controller
         $validated = $request->validated();
         $folderId = $validated['folder_id'] ?? null;
 
-        // A keret-ellenőrzés és az insert közös per-user zár alatt fut, hogy
-        // párhuzamos POST-ok ne csússzanak át ugyanazon az elavult pakli-számon
-        // (TOCTOU) — ugyanaz a minta, mint a kártya-úton (reserveFlashcardSlots).
         try {
             $deck = $request->user()->reserveFlashcardDeckSlot(
                 fn () => $request->user()->flashcardDecks()->create(
@@ -100,8 +88,6 @@ class FlashcardDeckController extends Controller
                 )
             );
         } catch (LockTimeoutException) {
-            // Zár-torlódásnál barátságos hiba 500 helyett — a create el sem indult;
-            // ugyanaz a minta, mint a kártya-utakon (LIMIT-L1).
             return back()->with('error', 'A paklijaidon épp egy másik művelet fut. Próbáld újra pár másodperc múlva.');
         }
 
@@ -130,7 +116,6 @@ class FlashcardDeckController extends Controller
     {
         abort_unless($deck->user_id === $request->user()->id, 403);
 
-        // A session lock korai feloldása, hogy a deferred props párhuzamos kérése ne blokkolódjon
         session()->save();
 
         $effectiveSettings = $deck->deckSettings ?? $request->user()->flashcardSettings ?? $srs->defaultSettings();
@@ -159,7 +144,6 @@ class FlashcardDeckController extends Controller
                         'direction' => $card->direction,
                         'color' => $card->color,
                         'word_id' => $card->word_id,
-                        // For 'both' cards show the worst (earliest due) of the two reviews
                         'review' => $worstReview ? [
                             'state' => $worstReview->state,
                             'interval' => $worstReview->interval,
@@ -191,8 +175,6 @@ class FlashcardDeckController extends Controller
             }),
             'newDueCount' => $dueCounts['new'],
             'reviewDueCount' => $dueCounts['review'],
-            // ISO8601 offszettel — nyers DB-stringként a kliens helyi időként
-            // olvasná, és a visszaszámláló az offszettel elcsúszna.
             'nextDueAt' => $nextDueAt === null ? null : Carbon::parse($nextDueAt)->toIso8601String(),
             'uncalibratedCount' => $deck->flashcards()
                 ->uncalibrated()
@@ -203,8 +185,6 @@ class FlashcardDeckController extends Controller
                 ->get()
                 ->sum(fn ($c) => $c->direction === 'both' ? 2 - $c->rated_count : 1),
             'deckSettings' => $deck->deckSettings,
-            // Baseline the deck inherits when it has no override — so the settings
-            // dialog shows the effective values, not hardcoded defaults.
             'globalSettings' => $request->user()->flashcardSettings ?? $srs->defaultSettings(),
             'otherDecks' => $request->user()->flashcardDecks()
                 ->where('id', '!=', $deck->id)
@@ -219,8 +199,6 @@ class FlashcardDeckController extends Controller
 
         $deck->update($request->validated());
 
-        // `back()`, hogy az átnevezés a pakli-listáról is helyben végezzen —
-        // a pakli oldaláról indítva ez ugyanúgy a pakli oldalára tér vissza.
         return back();
     }
 

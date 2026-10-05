@@ -9,7 +9,6 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        // "Nyomós" 3D hatás: alsó él a shade színből, lenyomásra besüllyed
         default:
           "bg-primary text-primary-foreground shadow-[0_4px_0_0_var(--color-primary-shade)] hover:brightness-105 active:translate-y-0.75 active:shadow-[0_1px_0_0_var(--color-primary-shade)]",
         destructive:

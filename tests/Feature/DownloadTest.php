@@ -3,11 +3,6 @@
 use App\Models\User;
 use Illuminate\Support\Facades\Storage;
 
-/**
- * A letöltő felület 2026-07-29 óta admin-only: a bővítmény a Chrome Web
- * Store-ból települ majd, a desktop lejátszót pedig nem hirdetjük. A friss
- * buildekhez ez az egyetlen hely, a felhasználók elől el van rejtve.
- */
 beforeEach(function () {
     Storage::fake('local');
     Storage::disk('local')->put('downloads/topwords-extension.zip', 'zip-contents');

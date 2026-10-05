@@ -9,38 +9,16 @@ use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
-/**
- * A desktop lejátszó fiók-bekötése eszköz-párosítással (device-flow minta).
- *
- * A folyamat úgy van felépítve, hogy a lejátszó SOHA ne lásson jelszót, és a
- * token SOHA ne utazzon URL-ben:
- *   1. Az app (vendégként) párosítást kér → kap egy rövid user_code-ot (ezt a
- *      felhasználó a böngészőben összeveti az appban látottal) és egy nagy
- *      entrópiájú poll_secret-et (ebből csak SHA-256 hash kerül az adatbázisba).
- *   2. A felhasználó a RENDSZER-böngészőben, a normál topwords session-nel
- *      (2FA-val együtt) jóváhagyja a kódot.
- *   3. Az app a poll_secret-tel beváltja a párosítást egy `player` ability-re
- *      szűkített Sanctum tokenre; a párosítási sor törlődik, így a beváltás
- *      egyszer használatos.
- */
 class PlayerPairingController extends Controller
 {
-    /**
-     * Karakterkészlet a user_code-hoz: könnyen összeolvasható karakterek nélkül
-     * (nincs I/L/O/0/1), mert a felhasználónak vizuálisan kell egyeztetnie.
-     */
     private const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 
-    /**
-     * Párosítási kérelem indítása a lejátszóból (vendég végpont, IP-throttle).
-     */
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
             'device_name' => ['required', 'string', 'max:100'],
         ]);
 
-        // A lejárt kérelmek takarítása — a tábla így magától kicsi marad.
         PlayerPairing::where('expires_at', '<', now())->delete();
 
         $userCode = $this->generateUniqueUserCode();
@@ -62,22 +40,11 @@ class PlayerPairingController extends Controller
         ]);
     }
 
-    /**
-     * A jóváhagyó oldal a böngészőben (auth + verified). A kódot a felhasználó
-     * KÉZZEL írja be a lejátszóból — szándékosan nincs URL-paraméter és
-     * előkitöltés, hogy egy phishing-link ne tehesse egy-kattintásossá egy
-     * idegen párosítás jóváhagyását. Az oldal a jóváhagyás előtt semmit nem
-     * árul el a párosításról.
-     */
     public function connect(): Response
     {
         return Inertia::render('player/connect');
     }
 
-    /**
-     * Párosítás jóváhagyása a bejelentkezett felhasználó session-jével (CSRF-fel
-     * védett web POST). Innentől a lejátszó beválthatja a poll_secret-jét.
-     */
     public function approve(Request $request): RedirectResponse
     {
         $data = $request->validate([
@@ -108,11 +75,6 @@ class PlayerPairingController extends Controller
         return back()->with('success', "A(z) „{$pairing->device_name}” eszköz összekötve. Visszatérhetsz a lejátszóba.");
     }
 
-    /**
-     * A lejátszó pollozó végpontja: a poll_secret beváltása tokenre (vendég
-     * végpont, IP-throttle). A titkot csak hash-ben hasonlítjuk; siker esetén a
-     * párosítási sor törlődik, így a beváltás egyszer használatos.
-     */
     public function exchange(Request $request): JsonResponse
     {
         $data = $request->validate([
@@ -140,9 +102,6 @@ class PlayerPairingController extends Controller
 
         $user = $pairing->user;
 
-        // Az „egyszer használatos" beváltást a sor törlése claimeli atomian: két
-        // konkurens poll közül csak az kap tokent, amelyiknek a DELETE ténylegesen
-        // talált sort — a vesztes ugyanazt a 404-et kapja, mint egy már beváltott kód.
         if (PlayerPairing::whereKey($pairing->getKey())->delete() !== 1) {
             return response()->json(['error' => 'not_found'], 404);
         }
@@ -164,10 +123,6 @@ class PlayerPairingController extends Controller
         ]);
     }
 
-    /**
-     * Minimális fiók-info a lejátszónak (token-auth). Szándékosan nem a teljes
-     * User modellt adjuk vissza, csak amit a lejátszó UI ténylegesen megjelenít.
-     */
     public function me(Request $request): JsonResponse
     {
         return response()->json([
@@ -178,10 +133,6 @@ class PlayerPairingController extends Controller
         ]);
     }
 
-    /**
-     * A lejátszó kijelentkeztetése: az aktuális token visszavonása. A kliens
-     * ettől függetlenül törli a helyben tárolt tokent — ez a szerver-oldali fele.
-     */
     public function disconnect(Request $request): JsonResponse
     {
         $request->user()->currentAccessToken()->delete();
@@ -189,10 +140,6 @@ class PlayerPairingController extends Controller
         return response()->json(['ok' => true]);
     }
 
-    /**
-     * Ütközésbiztos user_code (XXXX-XXXX). Az ütközés ~10 perces ablakban és
-     * 31^8-as kódtérben gyakorlatilag kizárt, de az unique index miatt ellenőrzünk.
-     */
     private function generateUniqueUserCode(): string
     {
         do {
@@ -208,10 +155,6 @@ class PlayerPairingController extends Controller
         return $code;
     }
 
-    /**
-     * A felhasználó által gépelt/beillesztett kód kanonikus alakra hozása
-     * (kisbetű, szóköz, hiányzó vagy dupla kötőjel mind elfogadott).
-     */
     private function normalizeUserCode(string $code): string
     {
         $clean = strtoupper((string) preg_replace('/[^A-Za-z0-9]/', '', $code));
@@ -223,10 +166,6 @@ class PlayerPairingController extends Controller
         return substr($clean, 0, 4).'-'.substr($clean, 4);
     }
 
-    /**
-     * Az eszköznév a jóváhagyó oldalon és a token-listában jelenik meg, ezért a
-     * vezérlőkaraktereket eldobjuk, a hosszt pedig korlátozzuk.
-     */
     private function sanitizeDeviceName(string $deviceName): string
     {
         $clean = trim((string) preg_replace('/\p{C}+/u', '', $deviceName));

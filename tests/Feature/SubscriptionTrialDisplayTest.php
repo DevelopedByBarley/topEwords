@@ -16,9 +16,6 @@ function makeTrialingPremiumSubscription(User $user): void
 }
 
 test('a Stripe-előfizetés trialja megjelenik a pricing oldal propjaiban', function () {
-    // A Cashier onTrial()-ja argumentum nélkül csak a generikus trialt és a
-    // 'default' típusú előfizetést nézi — az app 'premium' típusú előfizetésének
-    // trialja emiatt korábban sosem látszott a UI-ban.
     $user = User::factory()->create();
     makeTrialingPremiumSubscription($user);
 
@@ -76,7 +73,6 @@ test('trial nélkül a trial-propok üresek', function () {
 });
 
 test('isOnAnyTrial és currentTrialEndsAt a megfelelő forrásból olvas', function () {
-    // Előfizetéses trial: a subscription trial_ends_at-je az irányadó.
     $subscriber = User::factory()->create();
     makeTrialingPremiumSubscription($subscriber);
 
@@ -84,7 +80,6 @@ test('isOnAnyTrial és currentTrialEndsAt a megfelelő forrásból olvas', funct
         ->and($subscriber->currentTrialEndsAt()?->toIso8601String())
         ->toBe($subscriber->activeSubscription()->trial_ends_at->toIso8601String());
 
-    // Generikus trial: a users.trial_ends_at az irányadó.
     $trialUser = User::factory()->create();
     $trialUser->forceFill(['trial_ends_at' => now()->addDays(3)])->save();
     $trialUser = $trialUser->fresh();
@@ -93,7 +88,6 @@ test('isOnAnyTrial és currentTrialEndsAt a megfelelő forrásból olvas', funct
         ->and($trialUser->currentTrialEndsAt()?->toIso8601String())
         ->toBe($trialUser->trial_ends_at->toIso8601String());
 
-    // Egyik sem: nincs trial.
     $plainUser = User::factory()->create();
 
     expect($plainUser->isOnAnyTrial())->toBeFalse()

@@ -37,10 +37,8 @@ export default function AdminIndex({
             <Head title="Admin" />
 
             <div className="min-h-screen bg-zinc-950 text-zinc-100">
-                {/* Teal accent strip */}
                 <div className="h-1 bg-linear-to-r from-primary via-primary/80 to-primary/40" />
 
-                {/* Header */}
                 <header className="border-b border-zinc-800/60 px-6 py-4">
                     <div className="mx-auto flex max-w-7xl items-center gap-3">
                         <AppLogoIcon className="size-11 rounded-lg shadow-lg shadow-primary/30" />
@@ -55,7 +53,6 @@ export default function AdminIndex({
                     </div>
                 </header>
 
-                {/* Tab nav */}
                 <nav className="border-b border-zinc-800/60 px-6">
                     <div className="mx-auto flex max-w-7xl gap-1">
                         {TABS.map((tab) => (

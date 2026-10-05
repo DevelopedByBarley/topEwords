@@ -89,9 +89,6 @@ class WordIndexFilters
             ->when($this->status !== '', fn (Builder $q) => $q->whereIn('id', $this->pivot()->where('status', $this->status)->select('word_id')))
             ->when($this->importance !== null, fn (Builder $q) => $q->whereIn('id', $this->pivot()->where('importance', $this->importance)->select('word_id')))
             ->when($folderWordIds !== null, fn (Builder $q) => $q->whereIn('id', $folderWordIds))
-            // Admin alak-kitöltő haladás-szűrője: 'unchecked' = amit még nem
-            // néztünk meg. Nem érzékeny adat (szótári metaadat), ezért nincs
-            // szerver-oldali kapu; a szűrő-chip a felületen admin-only.
             ->when($this->formsChecked === 'unchecked', fn (Builder $q) => $q->whereNull('forms_checked_at'))
             ->when($this->formsChecked === 'checked', fn (Builder $q) => $q->whereNotNull('forms_checked_at'));
     }

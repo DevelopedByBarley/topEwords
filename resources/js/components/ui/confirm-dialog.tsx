@@ -13,20 +13,13 @@ interface ConfirmDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     title: string;
-    /** Mit veszít a felhasználó — legyen konkrét (név, darabszám). */
     description: React.ReactNode;
     confirmLabel?: string;
     cancelLabel?: string;
-    /** Igaz visszafordíthatatlan műveletnél: piros megerősítő gomb. */
     destructive?: boolean;
     onConfirm: () => void;
 }
 
-/**
- * Megerősítő párbeszéd a natív `confirm()` helyett: a böngésző-dialógus nem
- * stílusozható, mobilon a domainnel kezdődik, és a szövege nem tud kiemelést
- * használni — így a felhasználó pont a lényeget (mit töröl) olvassa át.
- */
 export default function ConfirmDialog({
     open,
     onOpenChange,

@@ -21,10 +21,6 @@ class FlashcardSettingRequest extends FormRequest
         $this->validateLearningStepsIncrease($validator);
     }
 
-    /**
-     * An unchecked checkbox is omitted from the request, so coerce it to a real
-     * boolean — otherwise shuffle_cards can never be turned back off.
-     */
     protected function prepareForValidation(): void
     {
         $this->ensureArraySizeWithinLimits($this->all(), ['learning_steps' => 20], $this->attributes());

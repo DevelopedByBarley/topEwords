@@ -53,16 +53,6 @@ export default function OnboardingTour() {
                         align: 'start',
                     },
                 },
-                /*
-                 * INDULÁSKOR KIVEZETVE (2026-07-29): a Kvíz (#tour-quiz),
-                 * Mondatkiegészítés (#tour-cloze), Rendhagyó igék
-                 * (#tour-irregular-verbs) és Szabad írás (#tour-practice)
-                 * lépései. A route-jaik ki vannak kommentelve, a sidebar-
-                 * horgonyaik nem léteznek — a lenti szűrő eddig is kidobta
-                 * őket, de a szöveg itt már félrevezető lett volna.
-                 * A topwords Player lépése szintén kikerült: a letöltés
-                 * `can:admin` mögé került (routes/web.php).
-                 */
                 {
                     element: '#tour-achievements',
                     popover: {

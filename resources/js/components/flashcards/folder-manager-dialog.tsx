@@ -20,11 +20,6 @@ interface FolderManagerDialogProps {
     onDelete: (folderId: number) => void;
 }
 
-/**
- * Mappák létrehozása, átnevezése és törlése. A törlés két lépéses megerősítést
- * kér a soron belül — a natív `confirm()` a modál fölött külön rétegként ugrik
- * fel, és a szövege sem stílusozható.
- */
 export default function FolderManagerDialog({
     open,
     onOpenChange,
@@ -39,8 +34,6 @@ export default function FolderManagerDialog({
     const [editName, setEditName] = useState('');
     const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
-    /** Záráskor takarítunk, hogy újranyitáskor ne egy félbehagyott átnevezés
-     *  vagy törlés-megerősítés fogadja a felhasználót. */
     function handleOpenChange(next: boolean) {
         if (!next) {
             setNewName('');

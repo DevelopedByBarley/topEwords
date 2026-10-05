@@ -5,11 +5,6 @@ use App\Models\FlashcardDeck;
 use App\Models\User;
 use App\Support\HtmlSanitizer;
 
-/**
- * A kártyák rich-text mezői tároláskor szerveroldalon is szűrődnek (F7-L3): a
- * fegyverezett HTML be sem kerül az adatbázisba, az ártalmatlan tartalom pedig
- * bájtra változatlan marad.
- */
 beforeEach(function () {
     if (! HtmlSanitizer::isSupported()) {
         $this->markTestSkipped('A HTML5-parser (Dom\HTMLDocument) PHP 8.4-től érhető el.');

@@ -99,8 +99,6 @@ test('password can be updated', function () {
 test('a session with a stale password hash is logged out', function () {
     $user = User::factory()->create();
 
-    // Más eszköz sessionjét szimuláljuk: a benne tárolt jelszóhash már nem
-    // egyezik a user aktuális jelszavával (pl. időközben jelszót cserélt).
     $this->actingAs($user)
         ->withSession(['password_hash_web' => 'stale-password-hash'])
         ->get(route('profile.edit'))
@@ -176,7 +174,6 @@ test('the security page does not list expired player devices', function () {
     $user = User::factory()->create();
 
     $user->createToken('topwords Player – Élő', ['player'], now()->addDays(30));
-    // Lejárt token: a guard már elutasítja, de a sora a napi prune-ig a táblában marad.
     $user->createToken('topwords Player – Lejárt', ['player'], now()->subDay());
 
     $this->actingAs($user)
@@ -212,7 +209,6 @@ test('a user cannot revoke another users player device', function () {
         ->withSession(['auth.password_confirmed_at' => time()])
         ->delete(route('security.player-devices.destroy', ['tokenId' => $token->id]));
 
-    // Idegen tokent nem érhet el (user-scoped lekérdezés) — megmarad.
     expect($other->tokens()->count())->toBe(1);
 });
 
@@ -227,8 +223,6 @@ test('F1-L5: revoking a player device requires password confirmation', function 
     $user = User::factory()->create();
     $token = $user->createToken('topwords Player – Laptop', ['player'])->accessToken;
 
-    // Friss jelszó-megerősítés nélkül a DELETE nem futhat le — eltérített
-    // sessionből ne lehessen jelszó nélkül leválasztani az eszközöket.
     $this->actingAs($user)
         ->delete(route('security.player-devices.destroy', ['tokenId' => $token->id]))
         ->assertRedirect(route('password.confirm'));
@@ -266,7 +260,6 @@ test('revoking all player devices leaves non-player tokens intact', function () 
         ->delete(route('security.player-devices.destroy-all'))
         ->assertRedirect(route('security.edit'));
 
-    // Csak a két player-token törlődött; a szélesebb jogkörű token megmaradt.
     $remaining = $user->tokens()->get();
     expect($remaining)->toHaveCount(1)
         ->and($remaining->first()->name)->toBe('Egyéb integráció');
@@ -280,7 +273,6 @@ test('the revoke endpoint refuses to delete a non-player token', function () {
         ->withSession(['auth.password_confirmed_at' => time()])
         ->delete(route('security.player-devices.destroy', ['tokenId' => $token->id]));
 
-    // A `*`-token nem player-eszköz → nem törölhető ezen a végponton.
     expect($user->tokens()->count())->toBe(1);
 });
 
@@ -297,8 +289,6 @@ test('F1-L7: changing the password revokes player device tokens', function () {
         ])
         ->assertSessionHasNoErrors();
 
-    // A player Bearer-token nem élheti túl a jelszóváltást; a szélesebb
-    // jogkörű token nem ennek a purge-nek a dolga.
     $remaining = $user->tokens()->get();
     expect($remaining)->toHaveCount(1)
         ->and($remaining->first()->name)->toBe('Egyéb integráció');

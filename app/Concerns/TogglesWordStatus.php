@@ -9,13 +9,9 @@ use Illuminate\Http\Request;
 
 trait TogglesWordStatus
 {
-    /** @var array<int, string> A szó/saját szó felvehető státuszai. */
+    /** @var array<int, string> */
     private const TOGGLE_STATUSES = ['known', 'learning', 'saved', 'pronunciation', 'practice'];
 
-    /**
-     * A státusz validálása úgy, hogy az üres string (a böngésző-bővítmény ezt
-     * küldi „státusz levétele" jelentéssel) null-ként, érvényesen menjen át.
-     */
     private function validatedToggleStatus(Request $request): ?string
     {
         if ($request->input('status') === '') {
@@ -27,17 +23,6 @@ trait TogglesWordStatus
         ])['status'] ?? null;
     }
 
-    /**
-     * A bővítményből indított ÍRÁS (státusz-felvétel vagy szó-létrehozás) a közös
-     * napi extension-írás keretbe számít (config: extension_writes_per_day),
-     * ugyanúgy, mint az ExtensionController::addWord/createFlashcard. A státusz-
-     * levétel (detach) nem fogyaszt keretet, hogy a betelt keret ne akadályozza
-     * a visszavonást.
-     * A bővítményt az Origin azonosítja: a háttér-script fetch-e extension-
-     * origint küld, amit weboldal nem tud hamisítani; az Origint elhagyó
-     * kézi (curl/szkript) hívásokat a végpont throttle-ja fogja meg.
-     * Betelt keretnél az ExtensionControllerrel azonos hibaforma megy vissza.
-     */
     private function reserveExtensionStatusWrite(Request $request): ?JsonResponse
     {
         if ($this->isFromExtension($request) && ! $request->user()->reserveExtensionWrite()) {
@@ -47,12 +32,6 @@ trait TogglesWordStatus
         return null;
     }
 
-    /**
-     * A reserveExtensionStatusWrite által lefoglalt keret visszaadása, ha a
-     * pivot-írás a foglalás UTÁN dobott — így a slot nem ragad benn, és a Free
-     * user nem kap hamis „elfogyott a napi kereted" hibát. Csak akkor refundol,
-     * ha a hívás extension-originből jött (szimmetrikus a foglalással).
-     */
     private function refundExtensionStatusWrite(Request $request): void
     {
         if ($this->isFromExtension($request)) {
@@ -60,10 +39,6 @@ trait TogglesWordStatus
         }
     }
 
-    /**
-     * A háttér-script fetch-e extension-origint küld, amit weboldal nem tud
-     * hamisítani; az Origint elhagyó kézi hívásokat a végpont throttle-ja fogja meg.
-     */
     private function isFromExtension(Request $request): bool
     {
         $origin = (string) $request->header('Origin');
@@ -74,19 +49,6 @@ trait TogglesWordStatus
     }
 
     /**
-     * A bővítmény rövid JSON-nyugtát vár (nincs felesleges redirect-követés,
-     * ami minden mentésnél letöltené a teljes oldalt); az Inertia webfelület
-     * viszont redirectet igényel a látogatás feloldásához. Inertia-kérésre
-     * (ami szintén expectsJson()) ezért nem adhatunk JSON-t.
-     *
-     * A bővítménynek a megváltozott szó összes felszíni alakját ($forms) is
-     * visszaküldjük, így a háttér-cache-t helyben tudja foltozni a teljes
-     * státusz-térkép újraletöltése nélkül — ez fogja vissza a szerverterhelést.
-     *
-     * Az újonnan feloldott teljesítmények JSON-nál a válaszba kerülnek, nem a
-     * sessionbe: a flash különben a következő (akár háttér-fetch) kérésen
-     * nyomtalanul elfogyna, vagy késve, egy másik oldalon ugrana fel.
-     *
      * @param  array<int, string>  $forms
      * @param  array<int, array{key: string, title: string, description: string, icon: string}>  $achievements
      */
@@ -102,12 +64,6 @@ trait TogglesWordStatus
     }
 
     /**
-     * A fontosság (csillagozás) mentésének nyugtája. A bővítmény rövid JSON-t vár
-     * (különben a fetch a 302-t egy HTML-oldalra követi, `r.json()` elhasal, és a
-     * kliens hibát látva visszaállítja a csillagokat — noha a mentés sikerült);
-     * az Inertia-webfelület viszont redirectet igényel. Ugyanaz az elágazás, mint
-     * a statusToggleResponse-ban.
-     *
      * @param  array<int, array{key: string, title: string, description: string, icon: string}>  $achievements
      */
     private function importanceToggleResponse(Request $request, ?int $importance, array $achievements = []): RedirectResponse|JsonResponse
@@ -132,10 +88,6 @@ trait TogglesWordStatus
     }
 
     /**
-     * A megváltozott szó/saját szó normalizált felszíni alakjai a kliens-oldali
-     * cache foltozásához (ugyanaz a logika, mint az ExtensionController teljes
-     * térképénél), egyetlen forrásból.
-     *
      * @return array<int, string>
      */
     private function statusFormsFor(object $row): array

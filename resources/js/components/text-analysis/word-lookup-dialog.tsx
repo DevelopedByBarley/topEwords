@@ -1,6 +1,8 @@
+import { Link } from '@inertiajs/react';
 import {
     CheckCheck,
     Flag,
+    Layers,
     Loader2,
     Plus,
     Sparkles,
@@ -19,6 +21,13 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import ImportanceStars from '@/components/words/importance-stars';
 import StatusButtons from '@/components/words/status-buttons';
@@ -41,44 +50,40 @@ import {
     status as customWordStatus,
     store as customWordsStore,
 } from '@/routes/custom-words';
+import { index as flashcardsIndex } from '@/routes/flashcards';
+import { importMethod as importFromWord } from '@/routes/flashcards/cards';
 import { store as storeReport } from '@/routes/report';
 import { wordLookup } from '@/routes/text-analysis';
 import {
     importance as wordImportance,
     status as wordStatus,
 } from '@/routes/words';
-import type { WordFormData, WordStatus } from '@/types/words';
+import type {
+    FlashcardDeck,
+    WordFormData,
+    WordStatus,
+} from '@/types/words';
 
 interface WordLookupDialogProps {
     word: string | null;
     context: string | null;
     hasAiAccess: boolean;
+    flashcardDecks: FlashcardDeck[];
     onClose: () => void;
-    /** Optimista frissítéshez: a szülő igazítja az eredmény-statisztikákat. */
     onStatusChange: (
         word: string,
         prevStatus: string | null,
         nextStatus: TokenStatus | null,
         fallback: TokenStatus,
     ) => void;
-    /** A felvitt szó a választott státuszával — a szöveg azonnal ezt mutassa. */
     onCustomAdded: (word: string, status: WordStatus) => void;
 }
 
-/**
- * Egy szóra kattintva megnyíló részletező.
- *
- * A megtalált szó ugyanazt a nézetet kapja, mint a szólista modálja: a
- * részletek a közös `WordDetailSections`-ből, a státusz a közös
- * `StatusButtons`-ból, a fontosság a közös `ImportanceStars`-ból jönnek. A
- * hiányzó szó felvitele a szólista közös űrlapját (`WordFormFields`) és a közös
- * AI-kitöltést (`@/lib/gemini-word`) használja — így a felhasználó ugyanazt az
- * adatkört látja és ugyanazt tudja megadni, akárhonnan nyitja meg a szót.
- */
 export default function WordLookupDialog({
     word,
     context,
     hasAiAccess,
+    flashcardDecks,
     onClose,
     onStatusChange,
     onCustomAdded,
@@ -102,9 +107,13 @@ export default function WordLookupDialog({
     const [geminiLoading, setGeminiLoading] = useState(false);
     const [geminiNotice, setGeminiNotice] = useState<string | null>(null);
     const [reportOpen, setReportOpen] = useState(false);
+    const [selectedDeckId, setSelectedDeckId] = useState<string>(() =>
+        flashcardDecks.length === 1 ? String(flashcardDecks[0].id) : '',
+    );
+    const [importingCard, setImportingCard] = useState(false);
+    const [importedCard, setImportedCard] = useState(false);
+    const [importError, setImportError] = useState<string | null>(null);
 
-    // A státusz/fontosság-POST rollbackje csak akkor nyúlhat a dialógus lokális
-    // state-jéhez, ha közben nem váltott másik szóra a felhasználó.
     const activeWordRef = useRef(word);
 
     useEffect(() => {
@@ -116,9 +125,6 @@ export default function WordLookupDialog({
             return;
         }
 
-        // A megszakító egyben a still-mounted jelzés is: a cleanup abortálja a
-        // folyamatban lévő kérést (gyors szóváltogatásnál így nem terheljük feleslegesen
-        // a szervert), és az abort utáni válaszokra/hibákra már nem frissítünk state-et.
         const controller = new AbortController();
 
         setLookupResult(null);
@@ -133,6 +139,8 @@ export default function WordLookupDialog({
         setFormErrors({});
         setAddedCustom(false);
         setReportOpen(false);
+        setImportedCard(false);
+        setImportError(null);
 
         fetch(wordLookup.url({ query: { word } }), {
             headers: {
@@ -150,8 +158,6 @@ export default function WordLookupDialog({
                     return;
                 }
 
-                // Hiba-JSON-t (401/419/5xx) nem renderelünk találatként:
-                // az érvényes lookup-válasznak mindig van `type` mezője.
                 if (!res.ok || !data?.type) {
                     setLookupError(true);
 
@@ -185,14 +191,12 @@ export default function WordLookupDialog({
         };
     }, [word]);
 
-    /** A megtalált szó státusz/fontosság-végpontjai (fő szó vs. saját szó). */
     const savePaths =
         lookupResult && lookupResult.type !== 'not_found'
             ? lookupResult.type === 'word'
                 ? {
                       status: wordStatus.url(lookupResult.id),
                       importance: wordImportance.url(lookupResult.id),
-                      /** Amit a szó a státusz levétele után kap a szövegben. */
                       fallback: 'in_list' as TokenStatus,
                   }
                 : {
@@ -215,9 +219,6 @@ export default function WordLookupDialog({
         setLookupStatus(nextStatus as WordStatus);
         onStatusChange(word, prevStatus, nextStatus, savePaths.fallback);
 
-        // Sikertelen mentésnél visszagörgetjük az optimista frissítést: a szülő
-        // statisztikáit fordított irányú deltával, a dialógus gombjait pedig csak
-        // akkor, ha még mindig ez a szó van megnyitva.
         const rollback = (status?: number) => {
             onStatusChange(
                 word,
@@ -257,9 +258,6 @@ export default function WordLookupDialog({
         const prevImportance = lookupImportance;
         const prevStatus = lookupStatus;
 
-        // A fő szólista végpontja (WordController::importance) a még nem jelölt
-        // szót „known"-ként veszi fel, ha csillagot kap — a dialógus és a szöveg
-        // kiemelése különben ezt a szerver-oldali státuszt nem tükrözné.
         const alsoMarksKnown =
             lookupResult.type === 'word' &&
             prevStatus === null &&
@@ -302,6 +300,56 @@ export default function WordLookupDialog({
         }
     };
 
+    const handleImportToDeck = async () => {
+        if (
+            !word ||
+            !selectedDeckId ||
+            !lookupResult ||
+            lookupResult.type === 'not_found'
+        ) {
+            return;
+        }
+
+        setImportingCard(true);
+        setImportedCard(false);
+        setImportError(null);
+
+        try {
+            const { ok, status, data } = await postJson(
+                importFromWord.url(Number(selectedDeckId)),
+                lookupResult.type === 'word'
+                    ? { word_id: lookupResult.id }
+                    : { custom_word_id: lookupResult.id },
+            );
+
+            if (activeWordRef.current !== word) {
+                return;
+            }
+
+            if (ok) {
+                setImportedCard(true);
+
+                return;
+            }
+
+            setImportError(
+                (status === 403 || status === 409) &&
+                    typeof data.message === 'string'
+                    ? data.message
+                    : httpErrorMessage(
+                          status,
+                          'A kártya felvétele nem sikerült — próbáld újra.',
+                      ),
+            );
+        } catch {
+            if (activeWordRef.current === word) {
+                setImportError(httpErrorMessage());
+            }
+        } finally {
+            setImportingCard(false);
+        }
+    };
+
     const handleAddAsCustom = async () => {
         if (!word || !lookupResult || lookupResult.type !== 'not_found') {
             return;
@@ -326,10 +374,6 @@ export default function WordLookupDialog({
         setAddingCustom(true);
         setFormErrors({});
 
-        // Ugyanaz a mezőkör, mint a szólista „Saját szó hozzáadása" űrlapjánál:
-        // minden alak-mezőt elküldünk a szófajtól függetlenül, mert egy szó több
-        // szófaj alakjait is hordozhatja, és a párosítás/kiemelés mind a 9
-        // alak-oszlopot olvassa.
         const payload = {
             word: form.word.trim(),
             meaning_hu: form.meaning_hu.trim(),
@@ -366,8 +410,6 @@ export default function WordLookupDialog({
                 return;
             }
 
-            // 422-nél a Laravel `message` az első validációs hiba (magyarul);
-            // más státuszoknál (419/429/5xx) a közös magyar üzenetet mutatjuk.
             setFormErrors({
                 word:
                     status === 422 && typeof data.message === 'string'
@@ -394,8 +436,6 @@ export default function WordLookupDialog({
         setFormErrors({});
 
         try {
-            // A kontextust (a mondatot, amiben a szó áll) is átadjuk: ettől jön a
-            // `context_explanation`. A szólistán nincs mondat, ott nem megy.
             const result = await fetchGeminiWord(customWordForm.word, context);
 
             if (!result.ok) {
@@ -452,7 +492,6 @@ export default function WordLookupDialog({
                 )}
                 {!lookupLoading && lookupResult && (
                     <>
-                        {/* Hero */}
                         <div className="border-b bg-linear-to-br from-primary/8 to-primary/3 px-5 pt-5 pr-14 pb-4">
                             <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0 flex-1">
@@ -510,7 +549,6 @@ export default function WordLookupDialog({
                             </div>
                         </div>
 
-                        {/* Megtalált szó (fő lista vagy saját szó) */}
                         {lookupResult.type !== 'not_found' && (
                             <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
                                 <WordDetailSections data={lookupResult} />
@@ -532,7 +570,83 @@ export default function WordLookupDialog({
                                     </p>
                                 )}
 
-                                {/* AI szó-infó (AI-hozzáférésű felhasználóknak) */}
+                                {flashcardDecks.length > 0 ? (
+                                    <div>
+                                        <p className="mb-2 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
+                                            Flashcard deckhez adás
+                                        </p>
+                                        <div className="flex gap-2">
+                                            <Select
+                                                value={selectedDeckId}
+                                                onValueChange={(value) => {
+                                                    setSelectedDeckId(value);
+                                                    setImportedCard(false);
+                                                    setImportError(null);
+                                                }}
+                                            >
+                                                <SelectTrigger className="h-9 min-w-0 flex-1 text-sm">
+                                                    <SelectValue placeholder="Válassz decket..." />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {flashcardDecks.map(
+                                                        (deck) => (
+                                                            <SelectItem
+                                                                key={deck.id}
+                                                                value={String(
+                                                                    deck.id,
+                                                                )}
+                                                            >
+                                                                {deck.name}
+                                                            </SelectItem>
+                                                        ),
+                                                    )}
+                                                </SelectContent>
+                                            </Select>
+                                            <Button
+                                                size="sm"
+                                                variant={
+                                                    importedCard
+                                                        ? 'default'
+                                                        : 'outline'
+                                                }
+                                                disabled={
+                                                    !selectedDeckId ||
+                                                    importingCard ||
+                                                    importedCard
+                                                }
+                                                onClick={handleImportToDeck}
+                                            >
+                                                {importingCard ? (
+                                                    <Loader2 className="mr-1.5 size-4 animate-spin" />
+                                                ) : importedCard ? (
+                                                    <CheckCheck className="mr-1.5 size-4" />
+                                                ) : (
+                                                    <Layers className="mr-1.5 size-4" />
+                                                )}
+                                                {importedCard
+                                                    ? 'Hozzáadva!'
+                                                    : 'Hozzáadás'}
+                                            </Button>
+                                        </div>
+                                        {importError && (
+                                            <p className="mt-2 text-sm text-red-600 dark:text-red-400">
+                                                {importError}
+                                            </p>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <p className="text-xs text-muted-foreground">
+                                        Flashcardként mentéshez előbb{' '}
+                                        <Link
+                                            href={flashcardsIndex().url}
+                                            className="text-primary underline underline-offset-2"
+                                        >
+                                            hozz létre egy csomagot
+                                        </Link>
+                                        .
+                                    </p>
+                                )}
+
                                 {hasAiAccess && (
                                     <div className="flex flex-col gap-3 border-t pt-4">
                                         <WordInsightPanel
@@ -542,8 +656,6 @@ export default function WordLookupDialog({
                                     </div>
                                 )}
 
-                                {/* Hibás adat jelentése — csak a fő szólista
-                                    szavaira, a bejelentés oda hivatkozik. */}
                                 {lookupResult.type === 'word' && (
                                     <div className="flex flex-col gap-3 border-t pt-4">
                                         <Button
@@ -560,7 +672,6 @@ export default function WordLookupDialog({
                             </div>
                         )}
 
-                        {/* Nincs találat — felvétel saját szóként */}
                         {notFound &&
                             (addedCustom ? (
                                 <div className="flex items-center gap-2 px-5 py-6 text-sm font-medium text-green-700 dark:text-green-400">
@@ -657,7 +768,6 @@ export default function WordLookupDialog({
                                             />
                                         </div>
 
-                                        {/* Kontextus + AI magyarázat */}
                                         {(context || contextExplanation) && (
                                             <div className="space-y-2 rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-950/30">
                                                 {context && (
@@ -693,7 +803,6 @@ export default function WordLookupDialog({
                                         )}
                                     </div>
 
-                                    {/* Footer */}
                                     <div className="space-y-2 border-t px-5 py-4">
                                         <Button
                                             className="w-full"
@@ -716,9 +825,6 @@ export default function WordLookupDialog({
                     </>
                 )}
 
-                {/* Hibás szóadat jelentése — a szólista modáljával egyező űrlap.
-                    A részletezőn BELÜL nyílik, hogy bezárás után a felhasználó
-                    ugyanannál a szónál maradjon. */}
                 {lookupResult?.type === 'word' && (
                     <ReportWordDialog
                         open={reportOpen}
@@ -731,11 +837,6 @@ export default function WordLookupDialog({
     );
 }
 
-/**
- * A JSON-os mentésre visszakapott, frissen feloldott teljesítményeket az
- * AchievementToast eseményén jelzi — a fetch nem Inertia-látogatás, így a
- * flash-prop útja itt nem működik.
- */
 function announceAchievements(achievements: unknown): void {
     if (Array.isArray(achievements) && achievements.length > 0) {
         window.dispatchEvent(
@@ -744,7 +845,6 @@ function announceAchievements(achievements: unknown): void {
     }
 }
 
-/** A keresett szót 「idézőjelbe」 emeli a kontextus-mondatban. */
 function highlightWord(sentence: string, word: string): string {
     return sentence.replace(
         new RegExp(
@@ -778,13 +878,6 @@ function GoogleIcon() {
     );
 }
 
-/**
- * Hibás szóadat bejelentése a részletezőből.
- *
- * A szólista ugyanezt Inertia-visittel küldi; itt szándékosan JSON-kérés megy,
- * hogy a bejelentés ne rántsa újra a szövegelemző oldalt (a betöltött szöveg,
- * az elemzés és a könyv-lap mind lokális state).
- */
 function ReportWordDialog({
     open,
     wordId,

@@ -25,9 +25,6 @@ class UserCustomWordController extends Controller
 
     public function store(StoreUserCustomWordRequest $request): RedirectResponse|JsonResponse
     {
-        // Extension-originből érkező szó-felvétel a közös napi extension-írás
-        // keretbe számít (M4), mint az ExtensionController::addWord — különben az
-        // /extension/add-word megkerülhető lenne erre a webes route-ra váltva.
         if ($limitResponse = $this->reserveExtensionStatusWrite($request)) {
             return $limitResponse;
         }
@@ -68,7 +65,6 @@ class UserCustomWordController extends Controller
         $status = $this->validatedToggleStatus($request);
         $forms = $this->statusFormsFor($customWord);
 
-        // Üres státusz, vagy az aktív gomb újrakattintása → levétel.
         if ($status === null || $customWord->status === $status) {
             $customWord->update(['status' => null]);
 
@@ -79,8 +75,6 @@ class UserCustomWordController extends Controller
             return $limitResponse;
         }
 
-        // Refund a lefoglalt extension-keret, ha az írás elbukik, hogy a slot ne
-        // ragadjon benn (M3) — ugyanaz a minta, mint az ExtensionControllerben.
         try {
             $customWord->update(['status' => $status]);
         } catch (\Throwable $e) {

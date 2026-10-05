@@ -97,7 +97,6 @@ function normalize(value: string): string {
     return value.trim().toLowerCase();
 }
 
-// Highlight the blank in the sentence; after answering reveal the answer
 function renderSentence(
     sentence: string,
     answerState: AnswerState,
@@ -125,8 +124,6 @@ function renderSentence(
         </span>
     );
 }
-
-// ── Setup ─────────────────────────────────────────────────────────────────────
 
 function ClozeSetup({
     available,
@@ -229,7 +226,6 @@ function ClozeSetup({
             <Head title="Mondatkiegészítés – beállítás" />
 
             <div className="space-y-6 px-4 py-6">
-                {/* Hero */}
                 <div
                     className="relative overflow-hidden rounded-3xl p-6 md:p-8"
                     style={{ background: 'linear-gradient(135deg,#4338CA,#4F8EEC)' }}
@@ -248,7 +244,6 @@ function ClozeSetup({
                 </div>
 
                 <div className={`grid gap-6 ${folders.length > 0 ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
-                    {/* Folder filter */}
                     {folders.length > 0 && (
                         <div className="rounded-3xl bg-card p-5 shadow-sm">
                             <p className="mb-3 text-sm font-semibold">Mappa</p>
@@ -283,7 +278,6 @@ function ClozeSetup({
                         </div>
                     )}
 
-                    {/* Status filter */}
                     <div className="rounded-3xl bg-card p-5 shadow-sm">
                         <p className="mb-3 text-sm font-semibold">
                             Melyik szavakból?
@@ -307,7 +301,6 @@ function ClozeSetup({
                         </div>
                     </div>
 
-                    {/* Level filter */}
                     <div className="rounded-3xl bg-card p-5 shadow-sm">
                         <p className="mb-3 text-sm font-semibold">Szint</p>
                         <div className="grid grid-cols-2 gap-2">
@@ -325,7 +318,6 @@ function ClozeSetup({
                         </div>
                     </div>
 
-                    {/* Count + Start */}
                     <div className="rounded-3xl bg-card p-5 shadow-sm">
                         <p className="mb-3 text-sm font-semibold">
                             Hány mondat?{' '}
@@ -388,7 +380,6 @@ function ClozeSetup({
                     </div>
                 </div>
 
-                {/* Selectable word list */}
                 {selectableWords.length > 0 && (
                     <div className="rounded-3xl bg-card p-5 shadow-sm">
                         <div className="mb-4 flex items-center justify-between gap-4">
@@ -528,8 +519,6 @@ function ClozeSetup({
     );
 }
 
-// ── Main ──────────────────────────────────────────────────────────────────────
-
 export default function Cloze({
     items,
     available,
@@ -549,9 +538,6 @@ export default function Cloze({
 
     const inputRef = useRef<HTMLInputElement>(null);
 
-    // Új kvíz (új items prop) érkezésekor visszaállítjuk az állapotot — különben
-    // az Inertia újrahasználja a komponenst, és a régi current/answerState/finished
-    // beragadna (úgy tűnik, nem változik a mondat).
     useEffect(() => {
         setCurrent(0);
         setInput('');
@@ -692,7 +678,6 @@ export default function Cloze({
         }
     }
 
-    // ── Empty ─────────────────────────────────────────────────────────────────
     if (isEmpty) {
         return (
             <>
@@ -724,7 +709,6 @@ export default function Cloze({
         );
     }
 
-    // ── Setup ─────────────────────────────────────────────────────────────────
     if (isSetup) {
         return (
             <ClozeSetup
@@ -740,7 +724,6 @@ export default function Cloze({
         );
     }
 
-    // ── Finished ──────────────────────────────────────────────────────────────
     if (finished) {
         const percent = Math.round((score / items.length) * 100);
 
@@ -827,10 +810,6 @@ export default function Cloze({
         );
     }
 
-    // ── Play ──────────────────────────────────────────────────────────────────
-    // Ha játék közben rövidebb items-prop érkezik (pl. böngésző-vissza), a
-    // current túlnyúlhat, mielőtt a reset-useEffect lefutna. A null-guard
-    // megvédi a lenti card.* hozzáféréseket a fehér-képernyős TypeErrortól.
     if (!card) {
         return null;
     }
@@ -842,11 +821,9 @@ export default function Cloze({
             />
 
             <div className="flex min-h-dvh flex-col">
-                {/* Emerald header */}
                 <div className="relative overflow-hidden bg-emerald-500 px-4 pt-5 pb-10">
                     <div className="pointer-events-none absolute -top-12 -right-12 size-48 rounded-full bg-white/10" />
 
-                    {/* Header row */}
                     <div className="relative mx-auto flex max-w-xl items-center justify-between">
                         <Link
                             href={clozeRoute()}
@@ -863,7 +840,6 @@ export default function Cloze({
                         </span>
                     </div>
 
-                    {/* Progress bar */}
                     <div className="relative mx-auto mt-4 max-w-xl">
                         <div className="h-2 w-full overflow-hidden rounded-full bg-white/25">
                             <div
@@ -873,7 +849,6 @@ export default function Cloze({
                         </div>
                     </div>
 
-                    {/* Hint */}
                     <div className="relative mx-auto mt-6 max-w-xl text-center">
                         {card.rank !== null && (
                             <span className="mb-2 inline-block rounded-full bg-white/20 px-3 py-0.5 text-xs font-medium text-white/90">
@@ -886,7 +861,6 @@ export default function Cloze({
                     </div>
                 </div>
 
-                {/* Content area */}
                 <div className="mx-auto flex w-full max-w-xl flex-1 flex-col gap-4 px-4 py-6">
                     {missingCount > 0 && (
                         <p className="rounded-2xl bg-amber-50 px-4 py-2.5 text-center text-sm text-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
@@ -895,7 +869,6 @@ export default function Cloze({
                         </p>
                     )}
 
-                    {/* Sentence card */}
                     <div className="rounded-3xl bg-card px-6 py-8 shadow-sm md:px-8">
                         <p className="text-center text-xl leading-relaxed font-medium">
                             {renderSentence(
@@ -914,7 +887,6 @@ export default function Cloze({
                         )}
                     </div>
 
-                    {/* Input */}
                     <div className="flex flex-col gap-2">
                         <div className="relative">
                             <Input
@@ -943,7 +915,6 @@ export default function Cloze({
                             )}
                         </div>
 
-                        {/* Wrong: show correct answer */}
                         {answerState === 'wrong' && (
                             <div className="animate-in rounded-2xl bg-red-50 px-4 py-3 text-sm duration-200 fade-in slide-in-from-bottom-2 dark:bg-red-950/20">
                                 <span className="text-red-700/80 dark:text-red-400/80">
@@ -955,7 +926,6 @@ export default function Cloze({
                             </div>
                         )}
 
-                        {/* Correct but used base form */}
                         {usedBaseForm && (
                             <div className="animate-in rounded-2xl bg-green-50 px-4 py-3 text-sm duration-200 fade-in slide-in-from-bottom-2 dark:bg-green-950/20">
                                 <span className="text-green-700 dark:text-green-400">
@@ -967,7 +937,6 @@ export default function Cloze({
                             </div>
                         )}
 
-                        {/* Hungarian example after answer */}
                         {answerState !== 'unanswered' && card.example_hu && (
                             <div className="animate-in rounded-2xl bg-accent/60 px-4 py-3 text-sm text-muted-foreground italic duration-200 fade-in slide-in-from-bottom-2">
                                 🇭🇺 "{card.example_hu}"
@@ -975,7 +944,6 @@ export default function Cloze({
                         )}
                     </div>
 
-                    {/* Action */}
                     <div className="sticky bottom-4 mt-auto pt-2">
                         {answerState === 'unanswered' ? (
                             <Button

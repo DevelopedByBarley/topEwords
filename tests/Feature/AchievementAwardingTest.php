@@ -6,13 +6,7 @@ use App\Services\AchievementService;
 use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
 
-/**
- * A teljesítmények kiosztása a tényleges felhasználói utakon: a szint-jelvények
- * nem csak az onboardingon, hanem minden „known" felvételnél megszerezhetők, és
- * a JSON-os kliensek a válaszban kapják meg az új jelvényeket.
- */
 beforeEach(function () {
-    // Word::create (nem insert), hogy a saving-hook kitöltse a `level` oszlopot.
     $this->apple = Word::create(['word' => 'apple', 'rank' => 1, 'meaning_hu' => 'alma']);
     $this->run = Word::create(['word' => 'run', 'rank' => 2, 'meaning_hu' => 'fut']);
     Word::create(['word' => 'house', 'rank' => 1500, 'meaning_hu' => 'ház']);
@@ -92,7 +86,6 @@ test('a szint-ellenőrzés a hat szintre két lekérdezéssel fut', function () 
     $queries = collect(DB::getQueryLog())->pluck('query');
     DB::disableQueryLog();
 
-    // 1 a már megszerzett jelvények listája + 2 a szint-összesítés (korábban 12).
     expect($awarded)->toBe([])
         ->and($queries)->toHaveCount(3);
 });

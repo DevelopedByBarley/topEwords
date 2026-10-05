@@ -11,14 +11,12 @@ beforeEach(function () {
 
 test('csonkolt (MAX_TOKENS) válasz után magasabb token-kerettel újrapróbál', function () {
     Http::fakeSequence('generativelanguage.googleapis.com/*')
-        // Első válasz: csonka JSON + MAX_TOKENS → bump + újrapróba.
         ->push([
             'candidates' => [[
                 'content' => ['parts' => [['text' => '{"is_real_word":true,"meaning_hu":"kuty']]],
                 'finishReason' => 'MAX_TOKENS',
             ]],
         ])
-        // Második válasz: teljes, érvényes JSON a megemelt kerettel.
         ->push([
             'candidates' => [[
                 'content' => ['parts' => [['text' => json_encode(['is_real_word' => true, 'meaning_hu' => 'kutya', 'part_of_speech' => 'noun'])]]],
@@ -36,7 +34,6 @@ test('csonkolt (MAX_TOKENS) válasz után magasabb token-kerettel újrapróbál'
 
     Http::assertSentCount(2);
 
-    // A lookup alap kerete 700 → a csonkolás miatti újrapróba 1050-re emeli.
     Http::assertSent(fn ($request) => ($request['generationConfig']['maxOutputTokens'] ?? 0) === 1050);
 });
 
@@ -47,11 +44,9 @@ test('a primary modell 503-jára átesik a fallback modellre és sikerül', func
     ]]);
 
     Http::fake([
-        // A primary modell túlterhelt (503) minden próbán.
         '*models/gemini-2.5-flash-lite:generateContent*' => Http::response([
             'error' => ['message' => 'This model is currently experiencing high demand'],
         ], 503),
-        // A fallback (másik kapacitás-pool) válaszol.
         '*models/gemini-2.5-flash:generateContent*' => Http::response([
             'candidates' => [[
                 'content' => ['parts' => [['text' => json_encode(['is_real_word' => true, 'meaning_hu' => 'kutya', 'part_of_speech' => 'noun'])]]],
@@ -68,16 +63,12 @@ test('a primary modell 503-jára átesik a fallback modellre és sikerül', func
         ->assertSuccessful()
         ->assertJson(['meaning_hu' => 'kutya']);
 
-    // A primary 2 próbája 503, majd a fallback egy hívásból sikerül.
     Http::assertSent(fn ($request) => str_contains($request->url(), 'gemini-2.5-flash:generateContent'));
 
-    // A cache a ténylegesen választ adó fallback modellt rögzíti.
     expect(AiWordCache::firstWhere('word', 'dog')?->model)->toBe('gemini-2.5-flash');
 });
 
 test('a hívás-deadline átlépése leállítja az újrapróbát és a fallbacket', function () {
-    // Nulla keret: az első próba mindig lefut, de utána a deadline azonnal leállít,
-    // így a primary újrapróbája és a fallback modell már SOSEM hívódik meg.
     config(['services.gemini.request_deadline_seconds' => 0.0]);
     config(['services.gemini.models.lookup' => [
         'primary' => 'gemini-2.5-flash-lite',
@@ -99,7 +90,6 @@ test('a hívás-deadline átlépése leállítja az újrapróbát és a fallback
         ->getJson(route('text-analysis.gemini-lookup', ['word' => 'dog']))
         ->assertStatus(502);
 
-    // Pontosan egy HTTP-hívás: az első primary próba; a deadline minden továbbit levág.
     Http::assertSentCount(1);
     Http::assertNotSent(fn ($request) => str_contains($request->url(), 'gemini-2.5-flash:generateContent'));
     expect(AiWordCache::count())->toBe(0);
@@ -115,7 +105,6 @@ test('a "none" fallback kikapcsolja az eszkalációt — csak a primary fut', fu
         '*models/gemini-2.5-flash-lite:generateContent*' => Http::response([
             'error' => ['message' => 'high demand'],
         ], 503),
-        // Ha mégis ide esne, kiderülne — de nem szabad hívnia.
         '*models/gemini-2.5-flash:generateContent*' => Http::response(['ok' => true]),
     ]);
 
@@ -125,7 +114,6 @@ test('a "none" fallback kikapcsolja az eszkalációt — csak a primary fut', fu
         ->getJson(route('text-analysis.gemini-lookup', ['word' => 'dog']))
         ->assertStatus(502);
 
-    // Csak a primary (lite) modellt hívja, a fallback flash-t soha.
     Http::assertNotSent(fn ($request) => str_contains($request->url(), 'gemini-2.5-flash:generateContent'));
 });
 
@@ -148,7 +136,6 @@ test('többszavas kifejezés átmegy a lookup-on és valódinak fogadja el', fun
         ->assertSuccessful()
         ->assertJson(['is_real_word' => true, 'meaning_hu' => 'próbáld megállni a nevetést']);
 
-    // A lazított szabály a promptban: a természetes többszavas kifejezés is valódi.
     Http::assertSent(fn ($request) => str_contains($request['contents'][0]['parts'][0]['text'] ?? '', 'multi-word English phrase'));
 });
 
@@ -240,7 +227,6 @@ test('biztonsági blokk (blockReason) azonnal hibát ad, újrapróba nélkül', 
         ->getJson(route('text-analysis.gemini-lookup', ['word' => 'dog']))
         ->assertStatus(502);
 
-    // Egyetlen hívás: a blokkolt promptot nincs értelme újrapróbálni.
     Http::assertSentCount(1);
     expect(AiWordCache::count())->toBe(0);
 });
@@ -308,15 +294,13 @@ test('a practiceCheck strukturált sémát küld és üres grammar_issues-t szű
         ->assertSuccessful()
         ->assertJson([
             'overall_hu' => 'Ügyes vagy!',
-            'grammar_issues' => ['Hiányzik egy névelő.'], // az üres elemek kiszűrve
+            'grammar_issues' => ['Hiányzik egy névelő.'],
         ]);
 
     Http::assertSent(fn ($request) => ($request['generationConfig']['responseSchema']['properties']['grammar_issues']['type'] ?? null) === 'ARRAY');
 });
 
 test('a practiceCheck kimeneti kerete elég egy 3000 karakteres szöveg teljes javítására', function () {
-    // T-45: a valódi modell egy jóhiszemű 3000 karakteres szövegre ~1200 tokent ír;
-    // a korábbi 800-as keret minden hosszú szövegnél csonkolt és újrapróbát váltott ki.
     Http::fake(['generativelanguage.googleapis.com/*' => Http::response([
         'candidates' => [['content' => ['parts' => [['text' => json_encode([
             'words' => [['word' => 'run', 'used' => true, 'correct' => true, 'feedback_hu' => 'Jól használtad!']],
@@ -339,9 +323,6 @@ test('a practiceCheck kimeneti kerete elég egy 3000 karakteres szöveg teljes j
 });
 
 test('nem-admin felhasználó is elérheti a practiceCheck-et', function () {
-    // Őrszem: a végpontot két ÉLŐ felület hívja (szólista PracticeModal +
-    // flashcard szabad-írás doboz), ezért NEM admin-only. A korábbi
-    // admin-gate minden rendes felhasználónak 403-at adott.
     Http::fake(['generativelanguage.googleapis.com/*' => Http::response([
         'candidates' => [['content' => ['parts' => [['text' => json_encode([
             'words' => [['word' => 'run', 'used' => true, 'correct' => true, 'feedback_hu' => 'Jól használtad!']],
@@ -374,12 +355,7 @@ test('a nem hitelesített kérés a practiceCheck-en 401-et kap', function () {
     Http::assertNothingSent();
 });
 
-// --- derived_forms: azonos tövű, más szófajú képzett alakok ---
-// A modell a ragozási mezőkbe nem férő alakokat (pl. „happy" → „happily")
-// ebben a mezőben adja vissza; ezek az extra_forms oszlopba kerülnek, ezért a
-// külső szolgáltatótól jövő szabad szöveget fail-closed szűrjük.
-
-/** @return array<string, mixed> A „happy" lookup válasza, tetszőleges derived_forms-szal. */
+/** @return array<string, mixed> */
 function happyLookupResponse(string $derivedForms): array
 {
     return [
@@ -431,8 +407,6 @@ test('a nem szóalakú képzett alakokat eldobjuk (fail-closed)', function () {
 
     $user = User::factory()->create(['ai_access' => true]);
 
-    // Csak az egyszavas, betűkből álló alak marad: a HTML, a többszavas
-    // kifejezés és a számsor mind kiesik.
     $this->actingAs($user)
         ->getJson(route('text-analysis.gemini-lookup', ['word' => 'happy']))
         ->assertSuccessful()
@@ -446,7 +420,6 @@ test('a képzett alakok száma és hossza korlátozott (nem csonkolhat oszlopot)
 
     $user = User::factory()->create(['ai_access' => true]);
 
-    // A plafon 6: a hetedik és a nyolcadik alak már nem kerül be.
     $response = $this->actingAs($user)
         ->getJson(route('text-analysis.gemini-lookup', ['word' => 'happy']))
         ->assertSuccessful()
@@ -469,10 +442,6 @@ test('üres vagy hiányzó derived_forms esetén null a mező', function () {
 });
 
 test('a prompt minden képzés-típust kér, és pontatlanság esetén kihagyást ír elő', function () {
-    // Őrszem-teszt: a képzett alakok pontossága a prompton áll. Korábban három
-    // példa (-ly, -ness, un-) szűkítette a kört, és a modell emiatt a „bear"-hez
-    // az „unbearable"-t adta, a „bearable"-t nem. Ha a szándék bármelyik fele
-    // kikerül a promptból, ez a teszt elhasal.
     Http::fake(['generativelanguage.googleapis.com/*' => Http::response(
         happyLookupResponse('happily')
     )]);
@@ -486,19 +455,15 @@ test('a prompt minden képzés-típust kér, és pontatlanság esetén kihagyás
     Http::assertSent(function ($request) {
         $prompt = (string) data_get($request->data(), 'contents.0.parts.0.text');
 
-        // 1. Ne szűkítsen néhány képzés-típusra: a főbb típusok mind szerepelnek.
         foreach (['Adverb', 'Abstract noun', 'Agent noun', 'Adjective', 'Negated form'] as $kind) {
             expect($prompt)->toContain($kind);
         }
 
-        // 2. A több lépcsős képzés is beleértendő (bear → bearable → unbearable).
         expect($prompt)->toContain('two derivation steps away');
 
-        // 3. Bizonytalanság esetén kihagyás, nem találgatás.
         expect($prompt)->toContain('OMIT rather than guess');
         expect($prompt)->toContain('a missing form is far better than a wrong one');
 
-        // 4. A jelentés-eltolódás tiltása konkrét ellenpéldákkal.
         expect($prompt)->toContain('for "hard" do NOT list "hardly"');
 
         return true;

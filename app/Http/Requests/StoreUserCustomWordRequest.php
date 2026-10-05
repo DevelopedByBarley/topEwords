@@ -48,10 +48,6 @@ class StoreUserCustomWordRequest extends FormRequest
         ];
     }
 
-    /**
-     * A fő szólista bármely ragozott alakjával ütköző szót elutasító szabály
-     * (a store és az update request közösen használja).
-     */
     public static function notInMainWordList(): \Closure
     {
         return function (string $attribute, mixed $value, \Closure $fail) {

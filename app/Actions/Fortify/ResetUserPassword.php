@@ -12,8 +12,6 @@ class ResetUserPassword implements ResetsUserPasswords
     use PasswordValidationRules;
 
     /**
-     * Validate and reset the user's forgotten password.
-     *
      * @param  array<string, string>  $input
      */
     public function reset(User $user, array $input): void
@@ -26,7 +24,6 @@ class ResetUserPassword implements ResetsUserPasswords
             'password' => $input['password'],
         ])->save();
 
-        
         $user->revokePlayerTokens();
     }
 }

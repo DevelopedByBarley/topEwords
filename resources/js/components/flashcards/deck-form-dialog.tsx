@@ -26,18 +26,11 @@ import { store, update } from '@/routes/flashcards';
 interface DeckFormDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    /** `null` = új pakli; egyébként a szerkesztett pakli. */
     deck: Deck | null;
     folders: DeckFolder[];
-    /** Új paklinál az épp szűrt mappa az alapértelmezés. */
     defaultFolderId: number | null;
 }
 
-/**
- * Pakli létrehozása és átnevezése. Ugyanaz a két mező, ezért egy űrlap
- * szolgálja ki mindkettőt — a mappa-választó csak létrehozáskor van ott,
- * meglévő paklinál a kártya menüje kezeli a mappákat.
- */
 export default function DeckFormDialog({
     open,
     onOpenChange,
@@ -48,8 +41,6 @@ export default function DeckFormDialog({
     const isEdit = deck !== null;
     const form = useForm({ name: '', description: '', folder_id: '' });
 
-    // A dialógus nyitásakor töltjük fel: a paklit a szülő állítja be, és a
-    // komponens nyitva marad a lista újratöltésén át is.
     useEffect(() => {
         if (!open) {
             return;

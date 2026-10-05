@@ -28,13 +28,12 @@ test('CSV import skips rows whose field exceeds the length cap', function () {
         ->post(route('flashcards.csv.import', $deck), ['csv_file' => $csv])
         ->assertRedirect();
 
-    // The oversized row is skipped; the valid one is imported.
     expect($deck->flashcards()->count())->toBe(1);
     expect($deck->flashcards()->first()->front)->toContain('ok');
 });
 
 test('CSV import is rejected when it would exceed the plan card budget', function () {
-    $user = User::factory()->create(); // free csomag: összesen 50 kártya
+    $user = User::factory()->create();
     $deck = FlashcardDeck::create(['user_id' => $user->id, 'name' => 'Deck']);
 
     $deck->flashcards()->insert(collect(range(1, 49))->map(fn ($i) => [
@@ -53,7 +52,6 @@ test('CSV import is rejected when it would exceed the plan card budget', functio
         ->assertRedirect()
         ->assertSessionHas('error');
 
-    // A keretet átlépő import egyetlen sort sem szúr be.
     expect($deck->flashcards()->count())->toBe(49);
 });
 
@@ -61,8 +59,6 @@ test('CSV import normalizes Windows-1252 encoded fields to UTF-8', function () {
     $user = User::factory()->create();
     $deck = FlashcardDeck::create(['user_id' => $user->id, 'name' => 'Deck']);
 
-    // "kávé,köszönöm" Windows-1252 (cp1252) kódolással, UTF-8 BOM nélkül. Az
-    // ő/ű nem létezik cp1252-ben, ezért csak a lefedett ékezeteket használjuk.
     $csv = UploadedFile::fake()->createWithContent(
         'cards.csv',
         "k\xe1v\xe9,k\xf6sz\xf6n\xf6m\n"

@@ -47,22 +47,12 @@ class TextAnalysisController extends Controller
         private BookTextExtractor $bookText,
     ) {}
 
-    /**
-     * Cache-elhető AI-feladatok aktuális prompt-verziója. A prompt érdemi
-     * módosításakor növeld az értéket: a régi sorok új kulcsra váltanak, és az
-     * `ai:cache:clear` paranccsal kipucolhatók. (A mondat-/gyakorlat-ellenőrzés
-     * felhasználó-egyedi, ezért nincs itt és nem cache-elődik.)
-     */
     private const AI_CACHE_VERSION = [
         'lookup' => 6,
         'flashcard' => 3,
         'insight' => 2,
     ];
 
-    /**
-     * Returns a 429 response when the user has exhausted their monthly AI
-     * quota, or null when they may proceed. Admins (unlimited) never hit this.
-     */
     private function aiLimitGuard(Request $request): ?JsonResponse
     {
         $user = $request->user();
@@ -79,11 +69,6 @@ class TextAnalysisController extends Controller
     }
 
     /**
-     * Egységes hibaválasz egy sikertelen callGemini()-eredményből. A callGemini
-     * belső reserve()-jén elbukó kérés (az aiLimitGuard utáni keret-race) a
-     * guarddal azonos alakú 429-et kap 502 helyett; a nyitott circuit breaker
-     * 503-at (átmeneti szolgáltatás-hiba); minden más upstream-hiba 502.
-     *
      * @param  array{ok: bool, data: mixed, error: string, error_code?: string}  $result
      */
     private function aiFailureResponse(array $result, ?User $user): JsonResponse
@@ -99,9 +84,11 @@ class TextAnalysisController extends Controller
         };
     }
 
-    public function show(): Response
+    public function show(Request $request): Response
     {
-        return Inertia::render('text-analysis/index');
+        return Inertia::render('text-analysis/index', [
+            'flashcardDecks' => fn () => $request->user()->flashcardDecks()->orderBy('name')->get(['id', 'name']),
+        ]);
     }
 
     public function wordLookup(Request $request): JsonResponse
@@ -112,20 +99,11 @@ class TextAnalysisController extends Controller
             return response()->json(['type' => 'not_found']);
         }
 
-        // A szövegben tipográfiai aposztróf áll („couldn’t"), a szólista és az
-        // AI-promptok viszont ASCII-t használnak — normalizálás nélkül a keresés
-        // nem talált rá a tárolt „couldn't" alakra. A tárolt saját szó viszont
-        // bármelyik változattal létrejöhetett (a régi felvitel a szövegbeli alakot
-        // mentette), ezért az egyezést mindkét irányban próbáljuk.
         $raw = WordText::normalizeApostrophes($input);
         $storedVariants = WordText::apostropheVariants($input);
 
         $user = $request->user();
 
-        // Check user's custom words first. Exact match on the stored word always
-        // counts (covers phrases like "cut through"); form-based (conjugation)
-        // matching is restricted to single-word entries, so a phrase's single-word
-        // base form ("cut") cannot hijack a plain word lookup.
         $customWord = $user->customWords()
             ->where(function ($q) use ($raw, $storedVariants) {
                 $q->where(function ($q2) use ($storedVariants) {
@@ -143,6 +121,7 @@ class TextAnalysisController extends Controller
                     });
             })
             ->first();
+
         if ($customWord) {
             return response()->json([
                 'type' => 'custom',
@@ -153,7 +132,6 @@ class TextAnalysisController extends Controller
             ]);
         }
 
-        // Check main word list (all forms)
         $word = Word::where(function ($q) use ($raw) {
             $q->whereRaw('LOWER(word) = ?', [$raw]);
 
@@ -179,15 +157,6 @@ class TextAnalysisController extends Controller
     }
 
     /**
-     * Egy lookup-találat szótári mezői.
-     *
-     * A szövegelemző dialógusa ugyanazt a részletező nézetet rendereli, mint a
-     * szólista modálja (WordDetailSections), ezért ugyanazt az adatkört kell
-     * megkapnia: korábban csak a jelentés, a szófaj és egy angol példamondat
-     * jött, így a további jelentések, a szinonimák, a magyar példamondat és
-     * mind a 8 alak-mező láthatatlan maradt a szövegelemzőben — noha a szólista
-     * ugyanarra a szóra mind kiírta.
-     *
      * @return array<string, mixed>
      */
     private function lookupDetails(Word|UserCustomWord $row): array
@@ -238,29 +207,10 @@ class TextAnalysisController extends Controller
     }
 
     /**
-     * A safeFetch által engedélyezett célportok (SSRF-LOW-2). Port-szűrés nélkül
-     * a hitelesített felhasználó a szerver forrás-IP-jéről időzítés-alapú
-     * port-felderítést végezhetne tetszőleges PUBLIKUS hoston (a privát tartomány
-     * már tiltott). Webes szöveg-forrás kizárólag HTTP(S)-en él, ezért a szűk
-     * allowlist funkcionális veszteség nélkül zárja a maradék primitívet.
-     *
-     * Elvetett alternatíva: portonkénti denylist (3306, 6379, 22, …) — a nyitott
-     * halmaz miatt sosem teljes, és minden új szolgáltatásnál karban kellene tartani.
-     *
      * @var list<int>
      */
     private const ALLOWED_FETCH_PORTS = [80, 443, 8080, 8443];
 
-    /**
-     * Resolve the URL's host and ensure it points to a public IP (SSRF guard).
-     * Returns the validated IP so the caller can pin the connection to it
-     * (defeats DNS rebinding). Throws if the host is missing, unresolvable,
-     * resolves to a private/reserved range, or targets a non-web port.
-     *
-     * A port-ellenőrzés szándékosan ITT van, nem a safeFetch belépő pontján: így
-     * minden redirect-hopra lefut (a safeFetch hoponként újrahívja), és egy
-     * `Location: http://public-host:3306/` átirányítás sem kerülheti meg.
-     */
     private function assertPublicHost(string $url): string
     {
         $host = parse_url($url, PHP_URL_HOST);
@@ -282,9 +232,6 @@ class TextAnalysisController extends Controller
             throw new \RuntimeException('Ez a cím nem érhető el.');
         }
 
-        // A PublicIpAddress a filter_var privát/foglalt szűrőjén túl a teljes
-        // nem-publikus listát is zárja (CGNAT, benchmark, TEST-NET, multicast,
-        // IPv4-et beágyazó IPv6-tartományok — F6-L1).
         if (! PublicIpAddress::isPublic($ip)) {
             throw new \RuntimeException('Ez a cím nem érhető el.');
         }
@@ -292,21 +239,8 @@ class TextAnalysisController extends Controller
         return $ip;
     }
 
-    /**
-     * Max bytes downloaded by safeFetch. A 15 000 karakteres vágáshoz 2 MB HTML
-     * bőven elegendő; e nélkül egy nagy fájlra mutató URL-lel a worker OOM-ra
-     * futtatható lenne (a teljes válasz memóriába töltődne).
-     */
     private const MAX_FETCH_BYTES = 2 * 1024 * 1024;
 
-    /**
-     * SSRF-safe HTTP GET. Redirects are followed manually so every hop's host
-     * is re-validated as public, and each request is pinned to the validated
-     * IP (CURLOPT_RESOLVE) so a rebinding DNS answer cannot redirect the
-     * connection to an internal address between the check and the connect.
-     * A curl progress-callback menet közben megszakítja a letöltést, ha a
-     * bejelentett vagy a ténylegesen letöltött méret átlépi a MAX_FETCH_BYTES-t.
-     */
     private function safeFetch(string $url): \Illuminate\Http\Client\Response
     {
         $maxRedirects = 5;
@@ -332,11 +266,13 @@ class TextAnalysisController extends Controller
                 $response = Http::timeout(15)
                     ->withoutRedirecting()
                     ->withHeaders(['User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'])
-                    ->withOptions(['curl' => [
-                        CURLOPT_RESOLVE => ["{$host}:{$port}:{$ip}"],
-                        CURLOPT_NOPROGRESS => false,
-                        CURLOPT_PROGRESSFUNCTION => $sizeGuard,
-                    ]])
+                    ->withOptions([
+                        'curl' => [
+                            CURLOPT_RESOLVE => ["{$host}:{$port}:{$ip}"],
+                            CURLOPT_NOPROGRESS => false,
+                            CURLOPT_PROGRESSFUNCTION => $sizeGuard,
+                        ],
+                    ])
                     ->get($url);
             } catch (ConnectionException $e) {
                 if ($tooLarge) {
@@ -356,7 +292,6 @@ class TextAnalysisController extends Controller
                 return $response;
             }
 
-            // Resolve relative redirects against the current URL and require http(s).
             $next = (string) UriResolver::resolve(Utils::uriFor($url), Utils::uriFor($location));
 
             if (! in_array(parse_url($next, PHP_URL_SCHEME), ['http', 'https'], true)) {
@@ -382,9 +317,6 @@ class TextAnalysisController extends Controller
         try {
             $analysis = $this->buildAnalysis($text, $user);
 
-            // Szó nélküli bemenet (csak írásjel, szám, nem-latin írás) nem valódi
-            // elemzés: nem fogyaszthatja a napi keretet, és streaket/achievementet
-            // sem ad (F9D-L6).
             if ($analysis['totalWords'] === 0) {
                 $this->refundDailyAnalysis($user);
 
@@ -401,7 +333,6 @@ class TextAnalysisController extends Controller
                 ...$achievements->checkAndAward($user, ['streak']),
             ];
         } catch (\Throwable $e) {
-            // Sikertelen elemzés nem fogyaszthatja a napi keretet.
             $this->refundDailyAnalysis($user);
 
             throw $e;
@@ -410,20 +341,11 @@ class TextAnalysisController extends Controller
         return response()->json([...$analysis, 'achievements' => $newAchievements]);
     }
 
-    /**
-     * A napi szövegelemzés-keret cache-kulcsa (naptári napra jár, éjfélkor lejár).
-     */
     private function dailyAnalysisCacheKey(User $user): string
     {
         return "text_analysis_daily_{$user->id}_".today()->format('Y-m-d');
     }
 
-    /**
-     * Egy szövegelemzés atomi lefoglalása a napi keretből (csomag szerint 2 / 20 / 50;
-     * a null korlátlan). Betelt keretnél a hibaformát adó JsonResponse-t ad vissza,
-     * egyébként null. Minden elemzési útnak (beillesztett szöveg + teljes könyv/videó
-     * megértés) ezen kell átmennie, hogy a keret ne legyen forrásonként megkerülhető.
-     */
     private function reserveDailyAnalysis(User $user): ?JsonResponse
     {
         $dailyLimit = $user->planLimit('text_analyses_per_day');
@@ -434,15 +356,10 @@ class TextAnalysisController extends Controller
 
         $cacheKey = $this->dailyAnalysisCacheKey($user);
 
-        // Atomi add+increment, hogy párhuzamos kérések ne mehessenek át
-        // ugyanazon az elavult számláló-értéken (SEC_AUDIT #R6).
         Cache::add($cacheKey, 0, now()->endOfDay());
 
         $count = Cache::increment($cacheKey);
 
-        // Fail-closed: az increment false-t ad, ha a sor épp hiányzik (éjféli prune /
-        // cache:clear ablak). Ilyenkor nem számolható a keret, ezért elutasítjuk —
-        // a (false > $dailyLimit) === false miatt egyébként számlálatlanul átmenne (L2).
         if ($count === false || $count > $dailyLimit) {
             Cache::decrement($cacheKey);
 
@@ -460,10 +377,6 @@ class TextAnalysisController extends Controller
         return null;
     }
 
-    /**
-     * Egy korábban lefoglalt elemzés-keret visszaadása, ha az elemzés végül nem
-     * valósult meg (kivétel a buildAnalysis közben). Korlátlan csomagnál nincs számláló.
-     */
     private function refundDailyAnalysis(User $user): void
     {
         if ($user->planLimit('text_analyses_per_day') === null) {
@@ -478,16 +391,11 @@ class TextAnalysisController extends Controller
     }
 
     /**
-     * Egy szöveg szóelemzése: megértési %, token-státuszok és top ismeretlen szavak.
-     *
      * @return array{comprehension: int, totalWords: int, uniqueWords: int, knownCount: int, learningCount: int, tokenStatuses: array<string, string|null>, topUnknown: array<int, array{word: string, frequency: int, rank: int, meaning_hu: string|null}>}
      */
     /**
-     * A 9 szóalak-oszlopra futó whereIn-t kötegelve futtatja, hogy nagy szövegnél
-     * (teljes könyv / videó) se lépje át a MySQL 65 535 placeholder-limitjét.
-     *
      * @param  array<int, string>  $tokens
-     * @param  callable(): \Illuminate\Database\Eloquent\Builder<*>  $queryFactory  friss query builder kötegenként
+     * @param  callable(): \Illuminate\Database\Eloquent\Builder<*>  $queryFactory
      * @param  array<int, string>  $select
      * @return Collection<int, Model>
      */
@@ -495,7 +403,6 @@ class TextAnalysisController extends Controller
     {
         $forms = ['word', ...WordStatusFormExpander::FORM_COLUMNS];
 
-        // 1500 token × 9 oszlop = 13 500 kötés / lekérdezés — bőven a limit alatt.
         $results = collect();
         foreach (array_chunk($tokens, 1500) as $chunk) {
             $results = $results->concat(
@@ -532,16 +439,10 @@ class TextAnalysisController extends Controller
         $uniqueTokens = array_values(array_unique($tokens));
         $tokenFrequencies = array_count_values($tokens);
 
-        // A teljes szólista szóalak→szó térképe felhasználó-független, ezért
-        // egyszer felépül és cache-elődik (lásd WordFormMapService). Itt már csak
-        // a szövegben előforduló tokeneket keressük ki belőle — nincs többé
-        // szóalak-illesztő DB-lekérdezés a szólistára.
         $globalMap = $this->wordFormMap->map();
         $formToId = $globalMap['forms'];
         $wordsById = $globalMap['words'];
 
-        // Mely szólistás szavak fordulnak elő ténylegesen a szövegben? Csak ezekre
-        // az azonosítókra szűkítjük az (indexelt) felhasználói státusz-lekérdezést.
         $matchedWordIds = [];
         foreach ($uniqueTokens as $token) {
             if (isset($formToId[$token])) {
@@ -556,7 +457,6 @@ class TextAnalysisController extends Controller
                 ->pluck('user_word.status', 'words.id')
                 ->all();
 
-        // Include user's custom words in the analysis (check all forms)
         $customWords = $this->matchByForms(
             $uniqueTokens,
             fn () => UserCustomWord::where('user_id', $user->id),
@@ -568,19 +468,12 @@ class TextAnalysisController extends Controller
         $learningTokenCount = 0;
         $unknownInListWords = [];
 
-        // Build reverse map: lowercase form → custom word (all forms take priority)
         $formToCustomWord = [];
         foreach ($customWords as $customWord) {
-            // Multi-word custom phrases (e.g. "cut through") must not colour single
-            // tokens. Their conjugation columns often hold the single-word base form
-            // ("cut"), which would otherwise hijack the real word's status. A single
-            // token can never represent a phrase, so phrases are skipped here.
             if (str_contains((string) $customWord->word, ' ')) {
                 continue;
             }
 
-            // Az oszlopok '/'-szeparált alternatívákat tartalmazhatnak
-            // ("got/gotten") — a token-térképbe változatonként kell kulcsolni.
             $columnValues = array_map(
                 fn (string $column) => $customWord->{$column},
                 WordStatusFormExpander::FORM_COLUMNS,
@@ -596,7 +489,6 @@ class TextAnalysisController extends Controller
         foreach ($uniqueTokens as $token) {
             $frequency = $tokenFrequencies[$token] ?? 1;
 
-            // Custom words take priority over the main word list
             if (isset($formToCustomWord[$token])) {
                 $customWord = $formToCustomWord[$token];
                 $tokenStatuses[$token] = $customWord->status;
@@ -633,10 +525,6 @@ class TextAnalysisController extends Controller
             }
         }
 
-        // Aposztrófos saját szavak (pl. "I'm", "can't", "we'll") párosítása a
-        // megjelenítéshez: a tokenizáló az aposztrófos alakokat kibontja/levágja,
-        // ezért a szövegben szereplő aposztrófos alakokat külön ráillesztjük a
-        // saját szó státuszával — a frontend pontosan ezekre a kulcsokra keres.
         $normalizedText = mb_strtolower(WordText::normalizeApostrophes($text));
 
         if (preg_match_all("/\b[a-z]+(?:'[a-z]+)+\b/", $normalizedText, $apostropheMatches)) {
@@ -657,10 +545,6 @@ class TextAnalysisController extends Controller
             }
         }
 
-        // Többszavas saját kifejezések (pl. "cut through", "take place") a
-        // kifejezés-szintű kiemeléshez. Egyszavas token-illesztéssel ezek nem
-        // ábrázolhatók, ezért normalizált kifejezés → státusz térképet adunk, és a
-        // frontend mohó n-gram illesztéssel emeli ki őket a megjelenített szövegben.
         $phraseStatuses = [];
         $tokenSet = array_flip($uniqueTokens);
 
@@ -686,7 +570,6 @@ class TextAnalysisController extends Controller
                     str_replace(["\u{2018}", "\u{2019}", "\u{2032}"], "'", $form)
                 )));
 
-                // Csak a többszavas alakok, és csak ha minden szavuk szerepel a szövegben.
                 if (! str_contains($normalized, ' ')) {
                     continue;
                 }
@@ -729,8 +612,6 @@ class TextAnalysisController extends Controller
             throw new \RuntimeException('A weboldal nem érhető el (HTTP '.$response->status().').');
         }
 
-        // Csak szöveges tartalom elemezhető — PDF/kép/videó/bináris letöltésének
-        // nincs értelme, és fölöslegesen terhelné a strip_tags/regex láncot.
         $contentType = strtolower($response->header('Content-Type'));
 
         if ($contentType !== '' && ! str_contains($contentType, 'text/') && ! str_contains($contentType, 'xml')) {
@@ -739,22 +620,12 @@ class TextAnalysisController extends Controller
 
         $html = $response->body();
 
-        // Védőháló a curl-szintű sapka mellé (pl. fake-elt HTTP kliens alatt is érvényes).
         if (strlen($html) > self::MAX_FETCH_BYTES) {
             throw new \RuntimeException('A megadott oldal túl nagy a beolvasáshoz.');
         }
 
-        // A cikk-törzs kinyerése HTML5-parserrel (ArticleTextExtractor). A korábbi
-        // regex + strip_tags + 35-karakteres-sorszűrő lánc három ponton hibázott:
-        // az ELSŐ <article>-t vitte el (ami a hírportálokon ajánló-kártya), a
-        // blokkhatárokon összeragasztotta a szavakat (hamis tokenek a szóelemzőnek),
-        // a sorszűrő pedig minifikált HTML-en — vagyis a mai lapok többségén —
-        // egyáltalán nem szűrt.
         $text = $this->articleText->extract($html);
 
-        // Üres kimenet jellemzően JS-ből renderelt lap: a szerver nem futtat
-        // JavaScriptet, így ott a HTML-ben nincs is cikkszöveg. Korábban ez néma
-        // üres előnézet lett; mondjuk ki az okot.
         if ($text === '') {
             throw new \RuntimeException('Ezen az oldalon nem találtunk elemezhető szöveget. Ez akkor fordul elő, ha az oldal a tartalmát JavaScripttel jeleníti meg — próbáld a szöveget bemásolni.');
         }
@@ -762,44 +633,20 @@ class TextAnalysisController extends Controller
         return $text;
     }
 
-    /**
-     * Egy feltölthető EPUB maximális mérete kilobájtban (a `max:` validációs
-     * szabály egysége). Egy tipikus regény-EPUB 0,3–3 MB, ezért 3 MB elég a
-     * valódi könyvekhez, és ennyi az a méret, amit a PHP-cap is beengedhet
-     * (`public/.user.ini`) — a felület ugyanezt írja ki a feltöltés előtt.
-     */
     private const MAX_BOOK_UPLOAD_KB = 3 * 1024;
 
     private const BOOK_STORAGE_LIMIT = 30 * 1024 * 1024;
 
-    /** Max uncompressed bytes of a single EPUB zip entry (zip-bomb guard). */
     private const MAX_EPUB_ENTRY_BYTES = 5 * 1024 * 1024;
 
-    /** Max total uncompressed bytes read from an EPUB before stopping (zip-bomb guard). */
     private const MAX_EPUB_TOTAL_BYTES = 40 * 1024 * 1024;
 
-    /**
-     * Max spine items processed from an EPUB OPF (repeated-decompression CPU
-     * guard). Valódi könyveknél a spine jellemzően < 200 elem.
-     */
     private const MAX_EPUB_SPINE_ITEMS = 500;
 
-    /**
-     * A kinyert könyvszöveg felső sapkája. A compressed_text oszlop MEDIUMBLOB
-     * (16 MB), és egy erősen tömörített EPUB több száz MB szöveget is kibonthat
-     * — sapka nélkül ez OOM-ot vagy "Data too long" 500-ast okozna.
-     * Valódi könyvek jóval alatta maradnak (a Háború és béke is ~3 MB).
-     */
     private const MAX_BOOK_TEXT_BYTES = 10 * 1024 * 1024;
 
-    /**
-     * A TÖMÖRÍTETT YouTube-átirat felső sapkája (CAP-1). A compressed_segments
-     * oszlop MEDIUMBLOB (16 MB); a 12 MB-os sapka biztonsági ráhagyást tart a
-     * határ alatt. Valós felirat ezt nem éri el (több tíz órányi beszéd kellene).
-     */
     private const MAX_TRANSCRIPT_BYTES = 12 * 1024 * 1024;
 
-    /** @throws \RuntimeException ha a kinyert szöveg átlépi a MAX_BOOK_TEXT_BYTES sapkát */
     private function assertBookTextWithinCap(string $text): void
     {
         if (strlen($text) > self::MAX_BOOK_TEXT_BYTES) {
@@ -807,17 +654,11 @@ class TextAnalysisController extends Controller
         }
     }
 
-    /** Hány elmentett könyve lehet a felhasználónak (csomagtól függően, config/plans.php). */
     private function bookLimitFor(User $user): int
     {
-        // A null korlátlant jelentene, de a books limit minden csomagban numerikus.
         return $user->planLimit('books') ?? PHP_INT_MAX;
     }
 
-    /**
-     * A könyv-darabszám és tárhely-kapu. A feltöltés elején gyors előszűrésként
-     * fut, majd az insert előtt user-szintű zár alatt újra (#R10).
-     */
     private function bookLimitError(User $user): ?JsonResponse
     {
         $bookLimit = $this->bookLimitFor($user);
@@ -859,29 +700,16 @@ class TextAnalysisController extends Controller
         ]);
     }
 
-    /**
-     * Csak valódi szóalak kerülhet az AI promptokba (prompt injection ellen):
-     * betűk, aposztróf, kötőjel, szóköz, max 100 karakter.
-     */
     private function sanitizeWordForPrompt(string $word): ?string
     {
         return preg_match("/^[\pL][\pL'\\- ]{0,99}$/u", $word) === 1 ? $word : null;
     }
 
     /**
-     * Szabad felhasználói szöveg előkészítése egy fence-blokkba zárt promptrészhez
-     * (prompt injection ellen). A fence kérésenként újragenerált, kitalálhatatlan
-     * jelölő; a bemenetből a jelölő-előtag minden előfordulását semlegesítjük,
-     * így a szöveg akkor sem zárhatja le idő előtt a blokkot, ha valahogy
-     * eltalálná a jelölőt. A promptnak ki kell mondania, hogy a fence-ek közti
-     * tartalom kizárólag adat, sosem utasítás.
-     *
      * @return array{fence: string, text: string}
      */
     private function fenceUntrustedText(string $text, string $prefix = 'LEARNER_TEXT'): array
     {
-        // A '_' → '-' csere nem hozhat létre új előfordulást, mert az előtag
-        // önmagával nem fedhet át, így egyetlen menet elég.
         $neutralized = (string) preg_replace(
             '/'.preg_quote($prefix, '/').'/iu',
             str_replace('_', '-', $prefix),
@@ -894,23 +722,10 @@ class TextAnalysisController extends Controller
         ];
     }
 
-    /**
-     * Legfeljebb ennyi képzett alakot fogadunk el egy AI-válaszból.
-     *
-     * Egy szónak könnyen van négynél több jogos képzése (bear → bearable,
-     * unbearable, bearer, bearing), és a szűkebb plafon ezeket levágta.
-     */
     private const MAX_DERIVED_FORMS = 6;
 
     /**
-     * A modell `derived_forms` válaszának megtisztítása, mielőtt az `extra_forms`
-     * oszlopba kerülne. A mező szabad szöveg egy külső szolgáltatótól, ezért
-     * fail-closed szűrjük: csak egyszavas, betűkből (+ aposztróf/kötőjel) álló
-     * alak marad, kisbetűsítve, deduplikálva, és kihagyva azt, amit a lemma vagy
-     * egy másik alak-mező már lefed. A darabszám és a 255 karakteres oszlop-korlát
-     * is itt érvényesül, hogy hallucinált, hosszú válasz se okozhasson csonkolást.
-     *
-     * @param  array<string, mixed>  $data  A modell teljes válasza (a többi alak-mezőhöz)
+     * @param  array<string, mixed>  $data
      */
     private function sanitizeDerivedForms(mixed $raw, string $baseForm, array $data): ?string
     {
@@ -964,10 +779,6 @@ class TextAnalysisController extends Controller
     }
 
     /**
-     * A `geminiWordLookup` válasz-sémája (Gemini structured output). A modell
-     * pontosan ezeket a mezőket adja vissza, ebben a sorrendben; a nem releváns
-     * mezők üres stringek. A `part_of_speech` zárt listára kényszerített.
-     *
      * @return array<string, mixed>
      */
     private function lookupSchema(): array
@@ -1002,9 +813,6 @@ class TextAnalysisController extends Controller
     }
 
     /**
-     * A `geminiFlashcard` válasz-sémája. A nem létező szóalakok / hiányzó példák
-     * `null` értékek (nullable mezők); a kötelező mezők mindig kitöltöttek.
-     *
      * @return array<string, mixed>
      */
     private function flashcardSchema(): array
@@ -1065,8 +873,6 @@ class TextAnalysisController extends Controller
     }
 
     /**
-     * A `wordInsight` válasz-sémája: valós használati területek + regiszter + tipp.
-     *
      * @return array<string, mixed>
      */
     private function insightSchema(): array
@@ -1098,10 +904,6 @@ class TextAnalysisController extends Controller
     }
 
     /**
-     * A `sentenceCheck` válasz-sémája: egy tanulói mondat szó- és nyelvtani
-     * értékelése. A séma garantálja a JSON-alakot, így a csonka/markdownos
-     * válaszból eredő 502-k megszűnnek.
-     *
      * @return array<string, mixed>
      */
     private function sentenceCheckSchema(): array
@@ -1124,10 +926,6 @@ class TextAnalysisController extends Controller
     }
 
     /**
-     * A `practiceCheck` válasz-sémája: több célszó használatának értékelése egy
-     * tanulói szövegben. A `grammar_issues` string-tömbként kényszerített, így a
-     * modell nem adhat vissza objektumokat — megszűnik a kézi normalizálás igénye.
-     *
      * @return array<string, mixed>
      */
     private function practiceCheckSchema(): array
@@ -1166,10 +964,6 @@ class TextAnalysisController extends Controller
             return $limited;
         }
 
-        // A `->lower()` a cache-kulcs-paritás miatt kötelező: az AiCacheService a
-        // kulcsot mindig `Str::lower($word)`-ből építi, így kisbetűsítés nélkül a
-        // "March" (hónap) válasza a `flashcard:march:…` sorba kerülne, és egy
-        // későbbi "march" (menetel) kérés a hónap-tartalmat kapná vissza (CACHE-1).
         $word = $this->sanitizeWordForPrompt(
             WordText::normalizeApostrophes($request->string('word')->trim()->lower()->value())
         );
@@ -1193,9 +987,6 @@ Rules:
 - word_forms: base is the word itself; for adjective/adverb/noun/verb only include forms that actually exist as real, established English words (set null for non-existent or rarely used forms — do not invent forms).
 PROMPT;
 
-        // Csak valódi szóra adott választ cache-elünk: egy nem létező szóra
-        // (gibberish, elgépelés) hallucinált flashcard nem mérgezheti meg a
-        // mindenki által használt cache-t.
         $onlyRealWords = fn (array $data): bool => ($data['is_real_word'] ?? true) === true;
 
         [$primary, $fallback] = $this->modelsFor('flashcard');
@@ -1219,7 +1010,6 @@ PROMPT;
             return response()->json(['error' => 'Érvénytelen válasz.'], 502);
         }
 
-        // Nem valódi szó: nem generálunk kamu flashcardot, egyértelműen jelezzük.
         if (($data['is_real_word'] ?? true) === false) {
             return response()->json([
                 'is_real_word' => false,
@@ -1300,12 +1090,6 @@ PROMPT;
 
     public function practiceCheck(Request $request): JsonResponse
     {
-        // A gate eredetileg a KÜLÖNÁLLÓ, admin-only WIP `words/practice` oldalt
-        // védte, de az induláskor kivezetésre került. A végpont két ÉLŐ,
-        // mindenki számára elérhető felületet szolgál ki (a szólista
-        // PracticeModal-ját és a flashcard-oldal szabad-írás dobozát), ezért a
-        // többi AI-végponttal azonos gate a helyes — az admin-only változat
-        // minden nem-admin felhasználónak 403-at adott.
         abort_unless(Gate::check('admin') || $request->user()?->hasAiAccess(), 403);
 
         if ($limited = $this->aiLimitGuard($request)) {
@@ -1321,15 +1105,9 @@ PROMPT;
             'text' => ['required', 'string', 'min:5', 'max:3000'],
         ]);
 
-        // A tanulói szöveg szabad input, ami tartalmazhat idézőjelet is (amit
-        // nem cserélünk le, mert rontaná a javítás minőségét), ezért egy
-        // kitalálhatatlan fence-blokk közé zárjuk: a modell így a fence-ek közti
-        // tartalmat kizárólag elemzendő adatként kezeli, nem utasításként
-        // (prompt injection ellen).
         ['fence' => $fence, 'text' => $text] = $this->fenceUntrustedText(trim($validated['text']));
 
         $wordList = collect($validated['words'])->map(function ($w) {
-            // Idézőjelek és sortörések nélkül kerül a promptba (prompt injection ellen)
             $cleanMeaning = str_replace(["\n", "\r", '"'], [' ', ' ', "'"], $w['meaning_hu'] ?? '');
             $meaning = $cleanMeaning !== '' ? " (jelentése: \"{$cleanMeaning}\")" : '';
 
@@ -1365,9 +1143,6 @@ PROMPT;
         $apiKey = config('services.gemini.api_key');
         [$primary, $fallback] = $this->modelsFor('practice');
 
-        // A 3000 karakteres szöveg corrected_text-je + 10 szó visszajelzése jóhiszeműen
-        // is ~1200 kimeneti tokent kér (T-45 mérés): 800-as kerettel minden hosszú
-        // szöveg csonkolt, két hívásba került, és a lite modellen 502-vel is zárulhatott.
         $response = $this->callGemini($apiKey, $prompt, 1600, $primary, $fallback, temperature: 0.2, responseSchema: $this->practiceCheckSchema(), user: $request->user());
 
         if (! $response['ok']) {
@@ -1380,8 +1155,6 @@ PROMPT;
             return response()->json(['error' => 'Érvénytelen válasz.'], 502);
         }
 
-        // A séma string-tömbként kényszeríti a grammar_issues-t; itt már csak az
-        // üres elemeket szűrjük ki, hogy a frontend ne kapjon üres buborékot.
         $data['grammar_issues'] = array_values(array_filter(
             $data['grammar_issues'] ?? [],
             fn ($issue) => is_string($issue) && trim($issue) !== '',
@@ -1406,14 +1179,8 @@ PROMPT;
 
         $word = trim($validated['word']);
 
-        // A jelentés rövid szabad szöveg idézőjelek között: a practiceCheck
-        // mintájára idézőjel és sortörés nélkül kerül a promptba, hogy ne
-        // törhessen ki a string-határból.
         $meaning = trim(str_replace(["\n", "\r", '"'], [' ', ' ', "'"], $validated['meaning_hu'] ?? ''));
 
-        // A tanulói mondat szabad input (idézőjelet is tartalmazhat), ezért a
-        // practiceCheck-kel azonos módon kitalálhatatlan fence-blokkba zárjuk, és
-        // a prompt kimondja, hogy a blokk tartalma adat, nem utasítás (F5-L1).
         ['fence' => $fence, 'text' => $sentence] = $this->fenceUntrustedText(trim($validated['sentence']));
 
         $meaningBlock = $meaning ? "\nThe word's primary Hungarian meaning is: \"{$meaning}\"." : '';
@@ -1472,8 +1239,6 @@ PROMPT;
             return $limited;
         }
 
-        // Kisbetűsítés a cache-kulcs-paritásért, ugyanazon okból, mint a
-        // flashcard/lookup ágon (CACHE-1).
         $word = $this->sanitizeWordForPrompt(
             WordText::normalizeApostrophes($request->string('word')->trim()->lower()->value())
         );
@@ -1495,15 +1260,6 @@ Rules:
 - Example sentences must be natural and varied across registers/contexts.
 PROMPT;
 
-        // Csak valódi szóra adott választ cache-elünk: a séma miatt a Gemini
-        // gibberishre is jól formált insightot ad, így a well-formed kapu önmagában
-        // nem véd — egy kitalált szóra hallucinált válasz véglegesen beragadna a
-        // mindenki által használt cache-be. Ugyanaz a minta, mint a lookup/flashcard
-        // ágon; a `?? true` miatt egy hiányzó mező (régi/fallback válasz) a korábbi
-        // viselkedést tartja, nem borítja a cache-elést.
-        // Elvetett alternatíva: csak létező `Word`/lookup-cache találatra engedni az
-        // insight-cache-t — az DB-lekérdezést tenne minden hívásba, és a még fel nem
-        // vett, de valódi szavakat feleslegesen kizárná a cache-ből.
         $onlyRealWords = fn (array $data): bool => ($data['is_real_word'] ?? true) === true;
 
         [$primary, $fallback] = $this->modelsFor('insight');
@@ -1536,7 +1292,6 @@ PROMPT;
 
     public function geminiListModels(): JsonResponse
     {
-        // Dev tooling that proxies the raw upstream model list — admin-only.
         abort_unless(Gate::check('admin'), 403);
         $apiKey = config('services.gemini.api_key');
         $response = Http::connectTimeout(self::GEMINI_CONNECT_TIMEOUT_SECONDS)
@@ -1559,9 +1314,6 @@ PROMPT;
             WordText::normalizeApostrophes($request->string('word')->trim()->lower()->value())
         );
 
-        // A context szabad szöveg, ezért nem szűrhető betűkre, de a promptba kerül:
-        // idézőjeleket aposztrófra cserélünk és kötegelt szóközzé normalizáljuk
-        // (kitörés/utasítás-injektálás ellen), és 300 karakterre vágjuk (költség-korlát).
         $context = mb_substr(
             trim((string) preg_replace('/\s+/', ' ', str_replace('"', "'", $request->string('context')->value()))),
             0,
@@ -1584,7 +1336,6 @@ PROMPT;
             return response()->json(['error' => 'Érvénytelen válasz.'], 502);
         }
 
-        // Nem valódi szó: nem töltünk ki kamu szótári adatot, egyértelműen jelezzük.
         if (($data['is_real_word'] ?? true) === false) {
             return response()->json([
                 'is_real_word' => false,
@@ -1596,22 +1347,12 @@ PROMPT;
     }
 
     /**
-     * A szótári lekérdezés magja: prompt + séma + Gemini-hívás + cache.
-     *
-     * A HTTP-végpont és az admin alak-kitöltő is ezt hívja, hogy a prompt, a
-     * séma, a modell-lánc és a cache MINDENHOL ugyanaz legyen — külön másolat
-     * idővel elcsúszna, és a kitöltés mást adna, mint amit a felületen látsz.
-     *
-     * @param  string  $context  A mondat, amiben a szó áll; üres string esetén cache-elünk.
      * @return array{ok: bool, data: mixed, error?: string, error_code?: string, cost_micros?: int}
      */
     private function runWordLookup(string $word, string $context, ?User $user): array
     {
         $apiKey = config('services.gemini.api_key');
 
-        // A context a felhasználó által kijelölt mondat (szabad szöveg), ezért a
-        // practiceCheck mintájára kitalálhatatlan fence-blokkba zárjuk: a modell a
-        // blokk tartalmát csak adatként kezeli, nem utasításként (F5-L1).
         $contextBlock = "\n- context_explanation: empty string";
 
         if ($context !== '') {
@@ -1651,19 +1392,11 @@ Constraints:
 - Use an empty string for any field that does not apply, and never invent a word form that does not exist in standard English.
 PROMPT;
 
-        // 700 token-keret: a strukturált séma ~16 hosszú mezőneve maga is output-token,
-        // a 400-as keret ezekkel együtt igeszavaknál (összes alak + két példamondat)
-        // csonkolódhat → érvénytelen JSON → 502. A keret felső korlát, csak a ténylegesen
-        // generált tokenért fizetünk, így a tágítás a normál válaszok költségét nem növeli.
         [$primary, $fallback] = $this->modelsFor('lookup');
         $generator = fn () => $this->callGemini($apiKey, $prompt, 700, $primary, $fallback, temperature: 0.2, responseSchema: $this->lookupSchema(), user: $user);
 
-        // Csak valódi szót cache-elünk: egy nem létező szóra (gibberish, elgépelés)
-        // adott hallucinált válasz nem mérgezheti meg a mindenki által használt cache-t.
         $onlyRealWords = fn (array $data): bool => ($data['is_real_word'] ?? true) === true;
 
-        // A context-tal érkező kérés mondat-egyedi (context_explanation mező),
-        // ezért nem cache-elhető; csak a context nélküli szótári lekérdezést tároljuk.
         $result = $context === ''
             ? $this->aiCache->remember('lookup', $word, self::AI_CACHE_VERSION['lookup'], $primary, $generator, $onlyRealWords)
             : $generator();
@@ -1672,22 +1405,15 @@ PROMPT;
     }
 
     /**
-     * A modell nyers válaszából a kliens (és az admin kitöltő) felé menő,
-     * megtisztított mezők. A `derived_forms` itt esik át a fail-closed szűrésen.
-     *
-     * @param  array<string, mixed>  $data  A modell nyers válasza
+     * @param  array<string, mixed>  $data
      * @return array<string, mixed>
      */
     private function lookupFields(array $data, string $word): array
     {
-        // A modell a beírt ragozott alakot (pl. "helped") lemmatizálja ("help"),
-        // és minden mezőt a lemmára tölt ki. A base_form-ot ugyanúgy betűkre
-        // szűrjük, mint a bemenetet; ha üres/érvénytelen, a beírt szóra esünk vissza.
         $baseForm = $this->sanitizeWordForPrompt(
             mb_strtolower(trim((string) ($data['base_form'] ?? '')))
         ) ?? $word;
 
-        // Csak akkor jelezzük „kiinduló alak" cserét, ha a lemma ténylegesen eltér.
         $normalizedFromInput = $baseForm !== $word ? $baseForm : null;
 
         return [
@@ -1714,18 +1440,6 @@ PROMPT;
     }
 
     /**
-     * Az admin gyors-kitöltő által tölthető oszlopok, és hogy a lookup-válasz
-     * melyik mezőjéből. Szándékosan CSAK RAGOZOTT alakok szerepelnek: a jelentést,
-     * a további jelentéseket, a szinonimákat, a példamondatokat és a szófajt a
-     * kitöltő nem érinti.
-     *
-     * A képzett alakok (basic → basically) NINCSENEK itt, és nem is kerülnek az
-     * extra_forms-ba. Azoknak saját jelentésük van, tehát ha a tő alá kerülnének,
-     * a tő státusza folyna át rájuk: aki bejelöli, hogy tudja a „basic"-et, arra
-     * a „basically" is tudottnak látszana, pedig azt sosem tanulta meg. Ezért a
-     * képzett alak külön szótári egységként, saját jelentéssel és saját (üres)
-     * státusszal jön létre — lásd createMissingDerivedWords().
-     *
      * @var array<string, string>
      */
     private const ADMIN_FILLABLE_FORM_COLUMNS = [
@@ -1738,16 +1452,6 @@ PROMPT;
         'adj_superlative' => 'adj_superlative',
     ];
 
-    /**
-     * Egy fő szólistás szó HIÁNYZÓ alak-mezőinek kitöltése AI-jal (admin).
-     *
-     * A szólista sorában lévő gyors gomb hívja: egy kattintás = egy szó. A
-     * szerkesztő-dialógus AI-gombjával szemben ez SOHA nem ír felül meglévő
-     * értéket, csak az üres alak-oszlopokat tölti — így a felhalmozott
-     * jelentések és példamondatok akkor is érintetlenek maradnak, ha végig-
-     * kattintod a teljes listát. Emiatt idempotens is: a második kattintásnak
-     * már nincs mit tennie.
-     */
     public function adminFillWordForms(Request $request, Word $word, AdminActionLogger $actionLog): JsonResponse
     {
         Gate::authorize('admin');
@@ -1773,7 +1477,6 @@ PROMPT;
         $updates = [];
 
         foreach (self::ADMIN_FILLABLE_FORM_COLUMNS as $column => $source) {
-            // Meglévő értéket sosem írunk felül — csak a ténylegesen üres oszlopot.
             if (trim((string) $word->{$column}) !== '') {
                 continue;
             }
@@ -1785,14 +1488,8 @@ PROMPT;
             }
         }
 
-        // Az ellenőrzést AKKOR IS rögzítjük, ha nem volt mit tölteni: a
-        // függvényszavaknak (the, of, and) sosem lesz kitöltött alakja, mégis ki
-        // kell esniük a „még nincs ellenőrizve" szűrőből, különben örökre benne
-        // ragadnának és a lista végigkattintása követhetetlen lenne.
         $word->forms_checked_at = now();
 
-        // save() kell (nem query update), hogy a NormalizesExtraForms szűrés
-        // lefusson és az updated_at bumpjától a felismerő-térkép cache elavuljon.
         $word->fill($updates)->save();
 
         [$created, $skipped] = $this->createMissingDerivedWords(
@@ -1819,24 +1516,7 @@ PROMPT;
     }
 
     /**
-     * A képzett alakokból ÖNÁLLÓ SZÓ a fő listában, ha még nincs a rendszerben.
-     *
-     * Miért nem a tő extra_forms-ába: a képzett alaknak saját jelentése van
-     * („basically" = alapvetően), és aki nem tudja, azt a tőből nem is fogja
-     * megtudni. Ha a tő alá kerülne, a tő státusza folyna át rá, és tudottként
-     * jelenne meg egy szó, amit soha nem tanult meg.
-     *
-     * Miért a fő listába és nem saját szóként: a saját szó csak egyetlen fiókban
-     * létezik, tehát más felhasználó ugyanazt a szöveget olvasva továbbra sem
-     * ismerné fel. A fő lista mindenkinek szól, lapozott (nem hízik a
-     * oldal-payload), és a státusz eleve felhasználónkénti a user_word pivotban —
-     * vagyis az új szó automatikusan MINDENKINEK jelöletlen, ami pont a cél.
-     *
-     * Az új sorok a 10 000-es frekvencia-lista UTÁN kapnak rangot (→ 7. szint),
-     * és a derived_from_word_id megőrzi, melyik tőből jöttek: így szűrhetők,
-     * auditálhatók és tömegesen visszavonhatók.
-     *
-     * @return array{0: array<int, string>, 1: array<int, string>} [létrehozott, kihagyott]
+     * @return array{0: array<int, string>, 1: array<int, string>}
      */
     private function createMissingDerivedWords(?string $derivedForms, Word $base, ?User $user): array
     {
@@ -1846,8 +1526,6 @@ PROMPT;
 
         $created = [];
         $skipped = [];
-        // A rang mindig a frekvencia-lista UTÁN kezdődik, hogy a képzett alak a
-        // 7. szintre essen — akkor is, ha a tábla épp rövidebb (pl. tesztben).
         $nextRank = max((int) Word::max('rank'), Word::FREQUENCY_LIST_SIZE);
 
         foreach (WordFormVariants::split($derivedForms) as $form) {
@@ -1892,11 +1570,6 @@ PROMPT;
         return [$created, $skipped];
     }
 
-    /**
-     * Létezik-e már ez az alak a fő szólistában — magaként vagy bármely másik szó
-     * ragozott alakjaként. Ha igen, van saját jelentése és státusza, tehát nem
-     * duplikáljuk és nem is fedjük el.
-     */
     private function wordExistsInMainList(string $form): bool
     {
         $lower = mb_strtolower($form);
@@ -1910,17 +1583,11 @@ PROMPT;
             ->exists();
     }
 
-    /** Hány elmentett YouTube-felirata lehet a felhasználónak (csomagtól függően: 3 / 15 / 40). */
     private function youtubeLimitFor(User $user): int
     {
-        // A null korlátlant jelentene, de a youtube_transcripts limit minden csomagban numerikus.
         return $user->planLimit('youtube_transcripts') ?? PHP_INT_MAX;
     }
 
-    /**
-     * A felirat-darabszám kapu. A mentés elején gyors előszűrésként fut, majd
-     * az insert előtt user-szintű zár alatt újra (#R10).
-     */
     private function youtubeLimitError(User $user, int $limit): ?JsonResponse
     {
         if (YoutubeTranscript::where('user_id', $user->id)->count() >= $limit) {
@@ -1973,8 +1640,6 @@ PROMPT;
         $user = $request->user();
         $limit = $this->youtubeLimitFor($user);
 
-        // Gyors előszűrés a felirat-letöltés előtt; a tényleges kapu az insert
-        // körüli zár alatt fut újra (#R10).
         if ($error = $this->youtubeLimitError($user, $limit)) {
             return $error;
         }
@@ -1998,26 +1663,10 @@ PROMPT;
         $totalPages = max(1, (int) ceil(count($segments) / YoutubeTranscript::SEGMENTS_PER_PAGE));
         $compressed = gzencode($json, 6);
 
-        // A compressed_segments oszlop MEDIUMBLOB (16 MB): sapka nélkül egy
-        // rendkívül hosszú videó felirata kezeletlen „Data too long" QueryException-t
-        // (500-as fehér hibaoldal) okozna a felhasználónak (CAP-1). A könyv-ágon
-        // ugyanez az assertBookTextWithinCap() szerepe.
-        //
-        // A TÖMÖRÍTETT méretet mérjük, mert a DB is azt tárolja — a nyers JSON-on
-        // mért sapka a gzip arányától függően vagy túl korán tiltana, vagy átengedne
-        // egy 16 MB fölötti blobot. A gzencode() itt, a zár ELŐTT fut, hogy a
-        // (CPU-igényes) tömörítés és az ellenőrzés ne a lock alatt történjen.
-        //
-        // Hatókör: ez a guard a „Data too long" 500-ast zárja, NEM memória-védelem —
-        // a $json ekkor már felépült. A memória-oldali korlátot a letöltési sapka
-        // adja (YouTubeCaptionService::MAX_CAPTION_BYTES, CAP-2), ami a feliratot
-        // már a beolvasáskor 8 MB-ra vágja; ez a két sapka együtt zárja a láncot.
         if ($compressed === false || strlen($compressed) > self::MAX_TRANSCRIPT_BYTES) {
             return response()->json(['error' => 'Ez a videó túl hosszú a feldolgozáshoz.'], 422);
         }
 
-        // User-szintű zár alatt újraellenőrzött kapu + insert, hogy párhuzamos
-        // kérések ne mehessenek át ugyanazon az elavult darabszámon (#R10).
         $transcript = Cache::lock("plan-limit:youtube:{$user->id}", 15)->block(10, function () use ($user, $limit, $videoId, $title, $json, $compressed, $totalPages): YoutubeTranscript|JsonResponse {
             if ($error = $this->youtubeLimitError($user, $limit)) {
                 return $error;
@@ -2061,7 +1710,6 @@ PROMPT;
         ]);
     }
 
-    /** A TELJES videó megértési statisztikája (az összes szegmens szövegén). */
     public function youtubeOverview(Request $request, YoutubeTranscript $transcript): JsonResponse
     {
         abort_unless($transcript->user_id === $request->user()->id, 403);
@@ -2085,23 +1733,12 @@ PROMPT;
 
     public function uploadBook(Request $request): JsonResponse
     {
-        // Csak EPUB. A PDF-támogatás tudatosan ki lett vezetve: a PdfParser
-        // getText()-je szuperlineáris, mérve egy 3,8 KB-os fájl 163 s-ig futott
-        // (a memória közben végig ártalmatlan, 25 MB), vagyis egy apró feltöltés
-        // percekre lefogott volna egy PHP-workert. Méret-alapon nem szűrhető:
-        // egy valódi 400 oldalas könyv és a támadó fájl nyers tartalma egyaránt
-        // ~1,3 MB, tehát nincs olyan küszöb, ami az egyiket átengedi és a másikat
-        // megfogja. Az EPUB azért maradhat, mert a ZIP-fejléc előre elárulja a
-        // kicsomagolt méretet, így a safeReadZipEntry() a kibontás ELŐTT dönt
-        // (mérve: 34 MB-os bomba blokkolva 0,0000 s alatt, 2 MB memóriával).
         $request->validate([
             'file' => 'required|file|mimetypes:application/epub+zip,application/zip|extensions:epub|max:'.self::MAX_BOOK_UPLOAD_KB,
         ]);
 
         $user = $request->user();
 
-        // Gyors előszűrés a drága szövegkinyerés előtt; a tényleges kapu az
-        // insert körüli zár alatt fut újra (#R10).
         if ($error = $this->bookLimitError($user)) {
             return $error;
         }
@@ -2111,8 +1748,6 @@ PROMPT;
         $title = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
 
         try {
-            // A default ág megmarad második védvonalnak: ha a validáció valaha
-            // felenged egy új formátumot, itt hibát kapunk, nem néma átcsúszást.
             $text = match ($extension) {
                 'epub' => $this->extractEpubText($file->getRealPath()),
                 default => throw new \RuntimeException('Csak EPUB formátumú könyveket tudunk feldolgozni.'),
@@ -2123,13 +1758,6 @@ PROMPT;
             return response()->json(['error' => 'A fájl nem dolgozható fel. Lehet, hogy sérült vagy titkosított.'], 422);
         }
 
-        // A vízszintes whitespace egy szóközre húzódik, a SORTÖRÉS viszont marad:
-        // a bekezdés-határ a BookTextExtractor kimenetének a lényege, és a
-        // felület ezen rendereli a bekezdéseket (`text.split(/\n+/)`). A korábbi
-        // `/\s+/` minta a sortöréseket is szóközzé olvasztotta, ezért a tárolt
-        // szöveg EGYETLEN bekezdés lett (mérve, Ender's Game: 635 312 karakter,
-        // 0 sortörés) — a kinyerés bekezdés-határai így soha nem jutottak el a
-        // felhasználóig, akármit adott a kinyerés.
         $text = preg_replace('/[^\S\n]+/', ' ', $text) ?? $text;
         $text = trim(preg_replace('/ ?\n ?/', "\n", $text) ?? $text);
 
@@ -2140,9 +1768,6 @@ PROMPT;
         $totalPages = (int) ceil(mb_strlen($text) / UserBook::PAGE_SIZE);
         $compressed = gzencode($text, 6);
 
-        // User-szintű zár alatt újraellenőrzött kapu + insert, hogy párhuzamos
-        // feltöltések ne mehessenek át ugyanazon az elavult darabszámon/tárhely-
-        // összegen (#R10).
         $book = Cache::lock("plan-limit:books:{$user->id}", 15)->block(10, function () use ($user, $title, $extension, $compressed, $totalPages, $text): UserBook|JsonResponse {
             if ($error = $this->bookLimitError($user)) {
                 return $error;
@@ -2186,7 +1811,6 @@ PROMPT;
         ]);
     }
 
-    /** A TELJES könyv megértési statisztikája (az összes oldal szövegén). */
     public function bookOverview(Request $request, UserBook $book): JsonResponse
     {
         abort_unless($book->user_id === $request->user()->id, 403);
@@ -2200,28 +1824,11 @@ PROMPT;
         return $overview instanceof JsonResponse ? $overview : response()->json($overview);
     }
 
-    /**
-     * A teljes-szöveges elemzés bemeneti sapkája. A 2 M karakter fölötti rész
-     * a megértési %-on statisztikailag már nem változtat, a tokenize() több
-     * milliós token-tömbje viszont OOM-ig vinné a workert (a könyvszöveg-sapka
-     * 10 MB-ot enged be). A legtöbb valódi könyv bőven a sapka alatt marad.
-     */
     private const MAX_OVERVIEW_CHARS = 2_000_000;
 
-    /** Az overview-cache TTL-je — a szó-státusz változás legfeljebb ennyit késik az összesítőben. */
     private const OVERVIEW_CACHE_TTL_MINUTES = 10;
 
     /**
-     * A teljes könyv/felirat buildAnalysis-e a modul legdrágább művelete, ezért
-     * az eredmény rövid TTL-lel cache-elődik (a mögöttes szöveg immutábilis, csak
-     * a user szó-státuszai változhatnak). A szövegkinyerés closure-ként jön, hogy
-     * cache-találatnál a gzdecode/összefűzés se fusson le.
-     *
-     * A teljes-szöveg megértése ugyanúgy elemzési esemény, mint a beillesztett
-     * szöveg, ezért a napi keretbe számít (M1) — de csak cache-miss esetén, mert
-     * a cache-találat nem futtat új buildAnalysis-t. Betelt keretnél a limit-hiba
-     * JsonResponse-t adunk vissza az elemzés futtatása nélkül.
-     *
      * @param  \Closure(): string  $resolveText
      * @return array<string, mixed>|JsonResponse
      */
@@ -2246,8 +1853,6 @@ PROMPT;
             throw $e;
         }
 
-        // Az összesítőbe csak a számok kellenek, a (nagy szövegnél óriási)
-        // token- és kifejezés-státusz térképek nem.
         unset($analysis['tokenStatuses'], $analysis['phraseStatuses']);
 
         Cache::put($cacheKey, $analysis, now()->addMinutes(self::OVERVIEW_CACHE_TTL_MINUTES));
@@ -2271,11 +1876,9 @@ PROMPT;
             throw new \RuntimeException('Az EPUB fájl nem olvasható.');
         }
 
-        // Read spine order from OPF so chapters come in the right sequence
         $opfPath = $this->findEpubOpfPath($zip);
         $spineFiles = $opfPath ? $this->readEpubSpine($zip, $opfPath) : [];
 
-        // Fall back to alphabetical listing if spine couldn't be parsed
         if (empty($spineFiles)) {
             for ($i = 0; $i < $zip->numFiles; $i++) {
                 $name = $zip->getNameIndex($i);
@@ -2294,8 +1897,6 @@ PROMPT;
                 continue;
             }
 
-            // Stop once the cumulative uncompressed prose passes the cap, so a
-            // zip with many large entries can't exhaust memory across iterations.
             $totalBytes += strlen($content);
             if ($totalBytes > self::MAX_EPUB_TOTAL_BYTES) {
                 break;
@@ -2316,9 +1917,6 @@ PROMPT;
     }
 
     /**
-     * Parse the OPF spine to get HTML files in reading order,
-     * skipping navigation/TOC/cover items.
-     *
      * @return string[]
      */
     private function readEpubSpine(\ZipArchive $zip, string $opfPath): array
@@ -2333,7 +1931,6 @@ PROMPT;
             $opfDir = '';
         }
 
-        // Build id → [href, properties] map from manifest
         $manifest = [];
         preg_match_all('/<item\s([^>]+)>/si', $opfContent, $items, PREG_SET_ORDER);
         foreach ($items as $item) {
@@ -2354,7 +1951,6 @@ PROMPT;
             ];
         }
 
-        // Collect IDs that are non-prose by nature (nav, cover)
         $skipIds = [];
         foreach ($manifest as $id => $meta) {
             $props = strtolower($meta['properties']);
@@ -2363,7 +1959,6 @@ PROMPT;
             }
         }
 
-        // Also collect cover/toc hrefs from <guide> and <reference> elements
         $skipHrefs = [];
         preg_match_all('/<(?:guide\s*>.*?<\/guide|reference\s[^>]+>)/si', $opfContent, $guides);
         preg_match_all('/<reference\s[^>]*type="([^"]+)"[^>]*href="([^"]+)"/si', $opfContent, $refs2, PREG_SET_ORDER);
@@ -2374,7 +1969,6 @@ PROMPT;
             }
         }
 
-        // Read spine idrefs in order
         preg_match_all('/<itemref\s[^>]*idref="([^"]+)"/si', $opfContent, $refs, PREG_SET_ORDER);
 
         $files = [];
@@ -2401,10 +1995,6 @@ PROMPT;
             $fullPath = $opfDir !== '' ? $opfDir.'/'.$href : $href;
             $fullPath = $this->normalizePath($fullPath);
 
-            // Egy fájlt csak egyszer dolgozunk fel, és a feldolgozott spine-elemek
-            // számát is plafonozzuk — egy preparált OPF ismételt/tömeges idref-jei
-            // különben újra és újra kitömöríttetnék ugyanazt a bejegyzést (CPU-DoS,
-            // SEC_AUDIT #R11).
             if (isset($seenPaths[$fullPath])) {
                 continue;
             }
@@ -2414,8 +2004,6 @@ PROMPT;
                 break;
             }
 
-            // The manifest media-type is authoritative; some EPUBs (e.g. Calibre
-            // splits) name HTML documents without a .html/.xhtml extension.
             $isHtmlDoc = str_contains(strtolower($meta['media_type']), 'html')
                 || preg_match('/\.(html|htm|xhtml)$/i', $fullPath);
 
@@ -2423,13 +2011,11 @@ PROMPT;
                 continue;
             }
 
-            // Skip by filename patterns common for covers/TOC
             $basename = strtolower(basename($fullPath));
             if (preg_match('/^(cover|toc|contents|nav|navigation|title[\-_]?page)/i', $basename)) {
                 continue;
             }
 
-            // Content-based skip: read file and check if it's a TOC page
             $content = $this->safeReadZipEntry($zip, $fullPath);
             if ($content !== false && $this->looksLikeTocPage($content)) {
                 continue;
@@ -2438,17 +2024,11 @@ PROMPT;
             $files[] = $fullPath;
         }
 
-        // A $seenPaths dedup miatt a lista már egyedi.
         return $files;
     }
 
-    /**
-     * Returns true if the HTML content looks like a table of contents
-     * rather than readable prose (many links relative to text, or epub:type="toc").
-     */
     private function looksLikeTocPage(string $html): bool
     {
-        // EPUB3 nav document
         if (
             preg_match('/epub:type="[^"]*toc[^"]*"/i', $html) ||
             preg_match('/epub:type="[^"]*landmarks[^"]*"/i', $html)
@@ -2456,7 +2036,6 @@ PROMPT;
             return true;
         }
 
-        // Count <a> tags vs total text length — TOC pages are link-dense
         $linkCount = substr_count(strtolower($html), '<a ');
         $textLength = mb_strlen(strip_tags($html));
         if ($linkCount > 5 && $textLength > 0 && ($linkCount / ($textLength / 100)) > 1.5) {
@@ -2481,12 +2060,6 @@ PROMPT;
         return implode('/', $stack);
     }
 
-    /**
-     * Read a zip entry only if its uncompressed size is within the per-entry cap.
-     * Guards against zip bombs: ZipArchive::getFromName() decompresses the whole
-     * entry into memory, so an unchecked read of a maliciously compressed entry
-     * could exhaust memory. Returns false for missing or oversized entries.
-     */
     private function safeReadZipEntry(\ZipArchive $zip, string $name): string|false
     {
         $stat = $zip->statName($name);
@@ -2512,10 +2085,6 @@ PROMPT;
     }
 
     /**
-     * Egy feladat .env-ből feloldott modellpárja: [primary, fallback]. A fallback
-     * null, ha nincs beállítva (vagy megegyezik a primary-vel) — ilyenkor a
-     * callGemini() nem eszkalál, csak a primary-t hívja.
-     *
      * @return array{0: string, 1: ?string}
      */
     private function modelsFor(string $task): array
@@ -2524,93 +2093,38 @@ PROMPT;
         $primary = $config['primary'] ?? 'gemini-2.5-flash-lite';
         $fallback = $config['fallback'] ?? null;
 
-        // A "none" sentinellel (.env-ben GEMINI_FALLBACK_*=none) kapcsolható ki az
-        // eszkaláció; a primary-vel egyező fallbacknek sincs értelme.
         $hasFallback = $fallback && strtolower($fallback) !== 'none' && $fallback !== $primary;
 
         return [$primary, $hasFallback ? $fallback : null];
     }
 
     /**
-     * Gemini árazás modellenként, USD / 1M token (input és output külön).
-     * A költséget ebből számoljuk mikro-dollárban (lásd lentebb).
-     *
      * @var array<string, array{in: float, out: float}>
      */
     private const GEMINI_PRICING = [
         'gemini-2.5-flash-lite' => ['in' => 0.10, 'out' => 0.40],
         'gemini-2.5-flash' => ['in' => 0.30, 'out' => 2.50],
-        // Újabb generációk — ha a .env ezekre állít primary/fallback-et, a settle()
-        // a valós árukon számoljon, ne essen vissza a lite becslésre.
         'gemini-3.1-flash-lite' => ['in' => 0.25, 'out' => 1.50],
         'gemini-3.5-flash' => ['in' => 1.50, 'out' => 9.00],
     ];
 
-    /**
-     * Próbálkozások száma modellenként a callGemini() lánc minden lépcsőjén.
-     * Két modell (primary + fallback) esetén legfeljebb ennyi × 2 hívás — a
-     * szinkron kérés gateway-timeoutját nem feszítheti túl.
-     */
     private const GEMINI_ATTEMPTS_PER_MODEL = 2;
 
-    /**
-     * Egyetlen HTTP-próba felső timeout-ja, illetve a kapcsolódás (connect)
-     * timeout-ja másodpercben. A tényleges timeout sosem nagyobb a teljes lánc
-     * hátralévő kereténél (lásd a deadline-t a callGemini-ben).
-     */
     private const GEMINI_HTTP_TIMEOUT_SECONDS = 20.0;
 
     private const GEMINI_CONNECT_TIMEOUT_SECONDS = 10.0;
 
-    /**
-     * A Gemini circuit breaker cache-kulcsai. A „nyitva" flag megléte alatt a
-     * callGemini azonnali hibát ad HTTP-hívás nélkül; a számláló az egymást
-     * követő, átmeneti hibájú teljes lánc-kudarcokat gyűjti (sikeres válasz
-     * nullázza). Küszöb és cooldown a config/services.php-ból (env-ből hangolható).
-     *
-     * TUDATOSAN VÁLLALT LOW (AI-M1, `last_audit/fazis-3.md`): a breaker
-     * szándékosan „egymást követő kudarc" (consecutive-failure) szemantikájú, ezért
-     * részleges/flapping Gemini-kiesésnél — ahol siker és kudarc váltakozik — nem
-     * nyílik ki. Ez nem hiba, hanem a védett kockázat természete: a breaker célja
-     * kizárólag a PHP-worker-kimerülés megakadályozása TARTÓS kiesésnél, és
-     * flappingnél épp az a helyes viselkedés, hogy a sikerrel kiszolgálható
-     * kéréseket nem dobjuk el.
-     *
-     * Az elvetett alternatíva a csúszóablakos hibaarány-breaker (siker- és
-     * kudarc-számláló, arány-küszöb) volt. Azért nem építettük meg, mert TÖBB
-     * kockázatot hozna, mint amennyit megszüntet:
-     *  - Új, két-kulcsos, nem-atomi állapotot vezetne be (`CACHE_STORE=database`
-     *    mellett a siker- és kudarc-számláló külön sor) — a köztük lévő rés
-     *    pontosan az a fajta race, amit az audit később új leletként találna meg.
-     *  - Egy hibaarány-breaker RÉSZLEGES kiesésnél globálisan levágná a még
-     *    működő forgalmat is: a flapping ma degradációt okoz, a „javítás" után
-     *    teljes AI-kiesést okozna. A tünet enyhébb, mint a gyógymód.
-     *  - A maradvány-kockázatot már három meglévő mechanizmus korlátozza: a
-     *    per-kérés deadline (`request_deadline_seconds`, worker SOHA nem lóg
-     *    tovább), az `ai_word_cache` védőháló, és a végpont-throttle.
-     * Maradvány-kockázat: elhúzódó részleges Gemini-incidensben a kérések a
-     * deadline-ig futnak worker-időt égetve, breaker-védelem nélkül. Ez lassulás,
-     * nem kiesés — és a `Gemini full chain failure` error-log riasztja az admint.
-     * A viselkedést a „sikeres válasz nullázza a breaker kudarc-számlálóját"
-     * teszt (`tests/Feature/GeminiOutageTest.php`) SZÁNDÉKOSKÉNT rögzíti.
-     */
     private const GEMINI_BREAKER_OPEN_CACHE_KEY = 'gemini:breaker:open';
 
     private const GEMINI_BREAKER_FAILURES_CACHE_KEY = 'gemini:breaker:failures';
 
-    /** A kudarc-számláló ablaka másodpercben: ennyi idő után magától elévül. */
     private const GEMINI_BREAKER_WINDOW_SECONDS = 600;
 
     /**
-     * Call Gemini with retry logic and thinking disabled.
-     *
      * @return array{ok: bool, data: mixed, error: string, error_code?: string, cost_micros?: int, model?: string}
      */
     private function callGemini(string $apiKey, string $prompt, int $maxTokens, string $model = 'gemini-2.5-flash-lite', ?string $fallbackModel = null, float $temperature = 0.3, ?array $responseSchema = null, ?User $user = null): array
     {
-        // Nyitott circuit breaker: tartós Gemini-kiesés alatt azonnali hibát adunk
-        // HTTP-hívás és keret-foglalás nélkül, hogy a lógó upstream ne fogja a
-        // PHP-workereket kérésenként a teljes deadline-ig (lásd recordGeminiChainFailure).
         if (Cache::has(self::GEMINI_BREAKER_OPEN_CACHE_KEY)) {
             return ['ok' => false, 'data' => null, 'error' => 'Az AI-szolgáltatás átmenetileg nem elérhető. Próbáld újra pár perc múlva.', 'error_code' => 'ai_unavailable', 'cost_micros' => 0];
         }
@@ -2621,10 +2135,6 @@ PROMPT;
             'thinkingConfig' => ['thinkingBudget' => 0],
         ];
 
-        // Strukturált kimenet: a séma garantálja a JSON-alakot a modell oldalán,
-        // így nem törékeny szöveg-parsingra hagyatkozunk. A determinisztikus,
-        // cache-elt szófeladatoknál ez kulcsfontosságú — egy hibás alakú válasz
-        // különben mindenki számára bekerülne a gyorsítótárba.
         if ($responseSchema !== null) {
             $generationConfig['responseMimeType'] = 'application/json';
             $generationConfig['responseSchema'] = $responseSchema;
@@ -2635,31 +2145,6 @@ PROMPT;
             'generationConfig' => $generationConfig,
         ];
 
-        // A keretet a primary (általában olcsóbb) modell árán foglaljuk le; ha a
-        // ritka eszkaláció drágább fallback-en köt ki, a settle() rátölti a
-        // különbözetet. Pre-charge atomikusan, hogy párhuzamos hívások ne
-        // csússzanak át mind egy elavult „kereten belül" ellenőrzésen (TOCTOU).
-        //
-        // AI-L2 (tudatosan vállalt LOW): a lánc EGY foglalást tesz, és pontosan
-        // egy settle()-lel vagy refund()-dal zárul; a köztes, díjköteles próbák
-        // (429/5xx utáni újrapróba, MAX_TOKENS-bump) így nem kerülnek külön
-        // elszámolásra. Elvetett alternatíva: próbánkénti futó összeg — ehhez a
-        // lánc MIND a négy kilépési ágán (break 2 végleges 4xx-nél, deadline-
-        // megszakítás, blokk-ág, sikeres return) helyesen kellene rendezni a
-        // részösszeget, vagyis az „egy reserve ↔ egy zárás" invariáns helyébe egy
-        // többállapotú, sorrendfüggő könyvelés lépne. Egy elrontott ág itt nem
-        // pontatlan számlát, hanem hibás keret-kényszerítést (vagy negatívba futó
-        // számlálót) okozna — több kockázat, mint amennyit a mikro-dolláros
-        // pontosság ér. Maradvány-kockázat: Gemini-akadozás idején a valósnál
-        // kissé olcsóbb könyvelés; a havi keret mint felső korlát ép marad.
-        //
-        // Kivétel (F9E-L1): a sikeres HTTP-válaszú, de nem-JSON (pl. csonkolt)
-        // próbák költségét a $billedMicros gyűjti, és a lánc zárása — bármelyik
-        // ág — ezt is elszámolja. Ezeket a Gemini kiszámlázza, és a felhasználó
-        // bemenete váltja ki őket, ezért a korábbi teljes refund() mellett a havi
-        // keret kérésenként 4 ingyenes fizetős hívással megkerülhető volt. Az
-        // „egy reserve ↔ egy zárás" invariáns megmarad: az összeg csak a zárásba
-        // kerül bele, köztes könyvelés nincs.
         $primaryRate = self::GEMINI_PRICING[$model] ?? self::GEMINI_PRICING['gemini-2.5-flash-lite'];
         $estimatedMicros = (int) round(((int) ceil(mb_strlen($prompt) / 4)) * $primaryRate['in'] + $maxTokens * $primaryRate['out']);
 
@@ -2667,26 +2152,14 @@ PROMPT;
             return ['ok' => false, 'data' => null, 'error' => 'Elérted a havi AI-felhasználási kereted. A keret a következő hónap elején újraindul.', 'error_code' => 'ai_limit', 'cost_micros' => 0];
         }
 
-        // Modell-lánc: a primary-vel indulunk, és kapacitás-hibára (503/429/5xx,
-        // hálózati hiba) átesünk a fallback-re. Egy konkrét modell túlterheltsége
-        // (503) így nem fordul user-felé menő hibába, ha egy testvérmodell épp él.
         $models = array_values(array_unique(array_filter([$model, $fallbackModel])));
         $lastError = 'Ismeretlen hiba.';
         $bumpedForTruncation = false;
 
-        // A már kiszámlázott, de használhatatlan (nem-JSON) válaszok költsége.
         $billedMicros = 0;
 
-        // Volt-e a láncban átmeneti (timeout / 429 / 5xx / deadline) hiba. Csak az
-        // ilyen teljes kudarc számít bele a circuit breakerbe — a végleges 4xx vagy
-        // a rosszul formált JSON kérés-specifikus, nem szolgáltatás-kiesés.
         $sawTransientFailure = false;
 
-        // A teljes lánc (modellek + újrapróbák együtt) felső időkorlátja. A boldog
-        // út egyetlen gyors hívás, így ez csak kiesés/elakadás esetén vág közbe:
-        // garantálja, hogy egy elakadt Gemini SOSEM tart fogva egy PHP-workert a
-        // deadline-nál tovább (worker-kimerülés / kaszkád elleni védelem). Legalább
-        // egy próbát mindig teszünk; a keret csak a további próbákat/fallbacket vágja.
         $deadlineSeconds = (float) config('services.gemini.request_deadline_seconds', 30.0);
         $startedAt = microtime(true);
         $httpCallsMade = 0;
@@ -2698,8 +2171,6 @@ PROMPT;
             for ($attempt = 1; $attempt <= self::GEMINI_ATTEMPTS_PER_MODEL; $attempt++) {
                 $remaining = $deadlineSeconds - (microtime(true) - $startedAt);
 
-                // Az első próbát mindig elindítjuk; utána a deadline átlépése leállítja
-                // az egész láncot (a már lefoglalt keretet a foreach után felszabadítjuk).
                 if ($httpCallsMade > 0 && $remaining <= 0) {
                     $sawTransientFailure = true;
                     Log::warning('Gemini deadline reached, aborting retries', [
@@ -2711,8 +2182,6 @@ PROMPT;
                     break 2;
                 }
 
-                // A próba timeout-ja sosem nyúlhat a hátralévő kereten túl, így egy
-                // elakadt kapcsolat sem viheti a hívást a deadline fölé.
                 $attemptTimeout = $remaining > 0
                     ? min(self::GEMINI_HTTP_TIMEOUT_SECONDS, $remaining)
                     : self::GEMINI_HTTP_TIMEOUT_SECONDS;
@@ -2727,8 +2196,6 @@ PROMPT;
                         ])
                         ->post($url, $payload);
                 } catch (\Throwable $e) {
-                    // Hálózati hiba (timeout, DNS, kapcsolat) — átmeneti, újrapróbáljuk;
-                    // a próbák kifutása után a foreach a fallback modellre lép.
                     $sawTransientFailure = true;
                     $lastError = 'Kapcsolódási hiba.';
                     Log::warning('Gemini connection error', [
@@ -2751,14 +2218,10 @@ PROMPT;
                         'body' => mb_substr($response->body(), 0, 500),
                     ]);
 
-                    // 4xx (a 429 kivételével) végleges kérés-hiba: sem újrapróba, sem
-                    // fallback nem segít (rossz kérés), ezért az egész láncot elhagyjuk.
                     if ($status < 500 && $status !== 429) {
                         break 2;
                     }
 
-                    // 429 (kvóta) / 5xx (túlterhelt modell): visszalépéssel újrapróbáljuk
-                    // ezen a modellen, majd — ha elfogytak a próbák — a fallback jön.
                     $sawTransientFailure = true;
                     $this->backoff($attempt, $response->header('Retry-After'));
 
@@ -2768,9 +2231,6 @@ PROMPT;
                 $finishReason = $response->json('candidates.0.finishReason');
                 $blockReason = $response->json('promptFeedback.blockReason');
 
-                // Biztonsági/szabályzati blokk (prompt vagy válasz): sem az újrapróba,
-                // sem a fallback nem segít (ugyanaz a prompt ugyanúgy blokkolódna),
-                // ezért azonnal hibát adunk vissza.
                 if (
                     $blockReason !== null
                     || in_array($finishReason, ['SAFETY', 'RECITATION', 'PROHIBITED_CONTENT'], true)
@@ -2781,14 +2241,6 @@ PROMPT;
                         'blockReason' => $blockReason,
                     ]);
 
-                    // A blokk NEM ingyenes: a kérés eljutott a modellhez, a Gemini a
-                    // beküldött promptot (és a leblokkolt kimenetet) kiszámlázza. A
-                    // korábbi teljes refund() ezért a valóságnál olcsóbbnak könyvelte
-                    // a hívást, és blokkolt kérések ismételgetésével a havi keret
-                    // megkerülhető volt (AI-L1). A settle() ugyanazzal a
-                    // usageMetadata-alapú számítással rendezi a foglalást, mint a
-                    // sikeres ág — hiányzó usageMetadata esetén a prompt hosszából
-                    // becsülve; a kimenet a blokk miatt üres, ezért csak az input árazódik.
                     if ($user !== null) {
                         $blockedInputTokens = (int) ($response->json('usageMetadata.promptTokenCount')
                             ?? ceil(mb_strlen($prompt) / 4));
@@ -2814,15 +2266,11 @@ PROMPT;
                 if ($data === null) {
                     $lastError = 'Érvénytelen AI válasz (nem JSON).';
 
-                    // A válasz használhatatlan, de a Gemini kiszámlázta (F9E-L1): a
-                    // sikeres ággal azonos módon árazzuk, és a lánc zárása elszámolja.
                     $billedMicros += (int) round(
                         (int) ($response->json('usageMetadata.promptTokenCount') ?? ceil(mb_strlen($prompt) / 4)) * $rate['in']
                         + (int) ($response->json('usageMetadata.candidatesTokenCount') ?? ceil(mb_strlen($text) / 4)) * $rate['out']
                     );
 
-                    // A megemelt kerettel is csonkolt: a további próbák és a
-                    // (drágább) fallback ugyanígy csonkolódnának, ezért itt megállunk.
                     if ($finishReason === 'MAX_TOKENS' && $bumpedForTruncation) {
                         Log::warning('Gemini truncated again after token bump, aborting chain', [
                             'model' => $currentModel,
@@ -2832,10 +2280,6 @@ PROMPT;
                         break 2;
                     }
 
-                    // Csonkolás (MAX_TOKENS): a séma mezőnevei és a hosszú szóalakok
-                    // elérték a kimeneti keretet, ezért tört a JSON. Egyszer megemeljük
-                    // a keretet (a megemelt érték a fallback-re is átöröklődik) — a vak,
-                    // azonos keretű ismétlés ugyanígy csonkolódna. A költséget a settle() rendezi.
                     if ($finishReason === 'MAX_TOKENS') {
                         $bumpedForTruncation = true;
                         $payload['generationConfig']['maxOutputTokens'] = (int) ceil($maxTokens * 1.5);
@@ -2849,9 +2293,6 @@ PROMPT;
                     continue;
                 }
 
-                // Tényleges költség a Gemini válasz token-bontásából (input/output külön
-                // árazva), mikro-dollárban (1e6 = $1). Hiányzó usageMetadata esetén durva
-                // becslés a prompt + válasz hosszából (~4 karakter / token).
                 $inputTokens = (int) ($response->json('usageMetadata.promptTokenCount')
                     ?? ceil(mb_strlen($prompt) / 4));
                 $outputTokens = (int) ($response->json('usageMetadata.candidatesTokenCount')
@@ -2863,15 +2304,12 @@ PROMPT;
                     $this->aiUsage->settle($user, $estimatedMicros, $costMicros);
                 }
 
-                // Sikeres válasz: a breaker „egymást követő kudarc" számlálója nullázódik.
                 Cache::forget(self::GEMINI_BREAKER_FAILURES_CACHE_KEY);
 
                 return ['ok' => true, 'data' => $data, 'error' => '', 'cost_micros' => $costMicros, 'model' => $currentModel];
             }
         }
 
-        // A kiszámlázott nem-JSON próbák akkor is terhelik a keretet, ha a lánc
-        // végül elbukott; teljes refund csak akkor jár, ha egyik sem volt díjköteles.
         if ($user !== null) {
             if ($billedMicros > 0) {
                 $this->aiUsage->settle($user, $estimatedMicros, $billedMicros);
@@ -2880,10 +2318,6 @@ PROMPT;
             }
         }
 
-        // Teljes lánc-kudarc (minden modell minden próbája elbukott): error szint,
-        // mert az AlertAdminOfLoggedError csak error+ szintre riaszt — warningnál egy
-        // órákig tartó Gemini-kiesés (rossz kulcs, kvóta, Google-leállás) alatt a
-        // felhasználók tömegesen kapnának hibát admin-email nélkül.
         Log::error('Gemini full chain failure', [
             'models' => $models,
             'http_calls' => $httpCallsMade,
@@ -2898,13 +2332,6 @@ PROMPT;
         return ['ok' => false, 'data' => null, 'error' => $lastError, 'cost_micros' => 0];
     }
 
-    /**
-     * Átmeneti hibájú teljes lánc-kudarc rögzítése a circuit breakerhez. A küszöb
-     * elérésekor a breaker kinyílik: a cooldown alatt a callGemini azonnali hibát
-     * ad Gemini-hívás és keret-foglalás nélkül. Így tartós kiesés (lógó kapcsolat)
-     * alatt a beérkező AI-kérések nem égetik végig fejenként a teljes deadline-t,
-     * ami a PHP-FPM worker-poolt merítené ki — a nem-AI oldalak rovására is.
-     */
     private function recordGeminiChainFailure(): void
     {
         Cache::add(self::GEMINI_BREAKER_FAILURES_CACHE_KEY, 0, self::GEMINI_BREAKER_WINDOW_SECONDS);
@@ -2925,12 +2352,6 @@ PROMPT;
         ]);
     }
 
-    /**
-     * Rövid, exponenciálisan növekvő várakozás újrapróbálás előtt. A felhasználó
-     * szinkron kérésében fut, ezért szándékosan rövid (max ~2 mp), hogy a webszerver
-     * gateway-timeoutját (502/504) ne lépje túl. Tesztek alatt nem alszik.
-     * A Gemini 429-nél küldött Retry-After fejlécet tiszteletben tartja, de korlátozza.
-     */
     private function backoff(int $attempt, ?string $retryAfter = null): void
     {
         if (app()->runningUnitTests()) {
@@ -2945,10 +2366,6 @@ PROMPT;
     }
 
     /** @return string[] */
-    /**
-     * Gyakori angol összevonások kibontása valódi szavakra (a szóelemzéshez).
-     * Így az „I'm" nem két törött token lesz, hanem „am", az „I'd" → „would" stb.
-     */
     private const CONTRACTIONS = [
         "i'm" => 'i am',
         "you're" => 'you are',
@@ -3016,11 +2433,8 @@ PROMPT;
      */
     private function tokenize(string $text): array
     {
-        // Aposztrófok egységesítése, kisbetűsítés
         $cleaned = mb_strtolower(str_replace(["\u{2018}", "\u{2019}", "\u{2032}"], "'", $text));
 
-        // Összevonások szóalakokra bontása; az ismeretlen aposztrófos szavaknál (pl. birtokos "dog's")
-        // levágjuk az aposztróf utáni részt → "dog".
         $cleaned = preg_replace_callback(
             "/\b[a-z]+(?:'[a-z]+)+\b/",
             fn ($m) => self::CONTRACTIONS[$m[0]] ?? preg_replace("/'.*/", '', $m[0]),
@@ -3030,7 +2444,6 @@ PROMPT;
         $cleaned = preg_replace('/[^a-z ]+/', ' ', $cleaned) ?? '';
         $words = preg_split('/\s+/', trim($cleaned)) ?: [];
 
-        // 1 betűs szavak közül csak a két valódi angol szót tartjuk meg ("a", "i") — a többi zaj.
         return array_values(array_filter($words, fn ($w) => strlen($w) >= 2 || $w === 'a' || $w === 'i'));
     }
 }

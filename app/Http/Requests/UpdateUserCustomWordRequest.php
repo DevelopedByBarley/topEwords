@@ -31,8 +31,6 @@ class UpdateUserCustomWordRequest extends FormRequest
                     /** @var UserCustomWord $customWord */
                     $customWord = $this->route('customWord');
 
-                    // Változatlan szó nem átnevezés — akkor is átengedjük, ha a
-                    // felvétele óta bekerült ugyanez a szó a fő listába.
                     if (mb_strtolower(trim($value)) === mb_strtolower($customWord->word)) {
                         return;
                     }

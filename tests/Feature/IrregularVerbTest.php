@@ -3,22 +3,6 @@
 use App\Models\User;
 use App\Models\Word;
 
-/*
-|--------------------------------------------------------------------------
-| ÁTMENETILEG KIVEZETVE — a rendhagyó igék nem részei az induló feature-körnek
-|--------------------------------------------------------------------------
-|
-| Az oldal route-ja induláskor ki lett vezetve (routes/words.php, kikommentezett
-| IrregularVerbController-import), ezért az itteni tesztek RouteNotFoundException-nel
-| buknának. A tesztek SZÁNDÉKOSAN megmaradnak: a funkció visszakapcsolásakor azonnal
-| újra őrizetbe veszik a viselkedést — ezért nem töröljük őket.
-|
-| A csoport az alapfutásból ki van zárva (phpunit.xml → defaultTestSuite), hogy a
-| suite zöld maradjon, és egy VALÓDI regresszió ne vesszen el a piros sorok között.
-|
-| Visszakapcsoláskor: a route bekötése után ezt a group() hívást kell törölni.
-| Külön futtatás: php artisan test --group=kivezetett
-*/
 pest()->group('kivezetett');
 
 test('guests are redirected to the login page', function () {
@@ -30,7 +14,6 @@ test('irregular verbs page lists only verbs with both past forms', function () {
 
     Word::insert([
         ['word' => 'go', 'meaning_hu' => 'megy', 'rank' => 1, 'is_irregular' => true, 'verb_past' => 'went', 'verb_past_participle' => 'gone', 'created_at' => now(), 'updated_at' => now()],
-        // Modális ige participle nélkül — nem jelenhet meg a listában
         ['word' => 'can', 'meaning_hu' => 'tud, képes', 'rank' => 2, 'is_irregular' => true, 'verb_past' => 'could', 'verb_past_participle' => null, 'created_at' => now(), 'updated_at' => now()],
         ['word' => 'apple', 'meaning_hu' => 'alma', 'rank' => 3, 'is_irregular' => false, 'verb_past' => null, 'verb_past_participle' => null, 'created_at' => now(), 'updated_at' => now()],
     ]);

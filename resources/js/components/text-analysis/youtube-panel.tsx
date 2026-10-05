@@ -3,7 +3,6 @@ import LyricsView from '@/components/text-analysis/lyrics-view';
 import { ReaderActions, useReaderScrollReset } from '@/components/text-analysis/reader-controls';
 import type { LyricSegment, PageDirection, VideoOverview, YoutubeTranscript } from '@/components/text-analysis/types';
 
-/** „A teljes videóból/könyvből X%-át ismered" sáv. `'failed'`-nél nem jelenik meg. */
 export function WholeVideoBanner({
     overview,
     heading = 'A teljes videóból ismered',
@@ -149,9 +148,6 @@ export function YoutubeReader({ transcript, page, segments, overview, isLoadingP
 
             <WholeVideoBanner overview={overview} />
 
-            {/* Lapozás közben a régi felirat halványan látszik — nem ugrik a layout.
-                Mobilon nincs belső görgetés: a felirat a lappal együtt görög, a
-                kis dobozban görgetni kényelmetlen volt. */}
             <div
                 ref={readerRef}
                 className={`scroll-mt-4 rounded-3xl bg-card px-4 py-3 text-sm leading-7 shadow-sm transition-opacity md:max-h-104 md:overflow-y-auto md:px-5 md:py-4 ${

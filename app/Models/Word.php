@@ -31,18 +31,8 @@ class Word extends Model
         });
     }
 
-    /**
-     * A frekvencia-lista mérete. Az ennél nagyobb rang már nem gyakorisági hely:
-     * ide az admin alak-kitöltő által beszúrt képzett alakok kerülnek.
-     */
     public const FREQUENCY_LIST_SIZE = 10000;
 
-    /**
-     * A rang-sávhoz tartozó szint. A 7. szint nem frekvencia-sáv: ide az admin
-     * alak-kitöltő által beszúrt képzett alakok kerülnek, amelyek a 10 000-es
-     * frekvencia-lista UTÁN kapnak rangot — így nem hazudjuk azt, hogy a
-     * „8 001 – 10 000" sávba tartoznának.
-     */
     public static function levelForRank(int $rank): int
     {
         return match (true) {

@@ -8,9 +8,6 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class DownloadController extends Controller
 {
     /**
-     * Filename per public slug, kept off the private disk's own naming so the
-     * URL cannot be used to probe arbitrary paths on the disk.
-     *
      * @var array<string, string>
      */
     private const FILES = [

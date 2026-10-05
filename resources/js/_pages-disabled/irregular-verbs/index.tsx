@@ -35,7 +35,6 @@ function normalize(value: string): string {
     return value.trim().toLowerCase();
 }
 
-/** Egyenletes (Fisher–Yates) keverés — új tömböt ad, az eredetit nem módosítja. */
 function shuffle<T>(items: readonly T[]): T[] {
     const result = [...items];
 
@@ -57,16 +56,12 @@ function isCorrectAnswer(input: string, correct: string): boolean {
     const inputForms = splitForms(input);
     const correctForms = splitForms(correct);
 
-    // Exact match after normalizing whitespace around the "/" separator.
     if (inputForms.join('/') === correctForms.join('/')) {
         return true;
     }
 
-    // Any single accepted form is also correct.
     return inputForms.length === 1 && correctForms.includes(inputForms[0]);
 }
-
-// ── Setup screen ──────────────────────────────────────────────────────────────
 
 function SetupScreen({
     verbs,
@@ -142,7 +137,6 @@ function SetupScreen({
             <Head title="Rendhagyó igék" />
 
             <div className="space-y-6 px-4 py-6">
-                {/* Hero */}
                 <div
                     className="relative overflow-hidden rounded-3xl p-6 md:p-8"
                     style={{ background: 'linear-gradient(135deg,#4338CA,#4F8EEC)' }}
@@ -169,7 +163,6 @@ function SetupScreen({
                             </p>
                         ) : (
                             <>
-                                {/* Mode tabs */}
                                 <div className="mb-5 flex gap-2 rounded-xl bg-muted/60 p-1">
                                     <button
                                         onClick={() => setMode('random')}
@@ -200,7 +193,6 @@ function SetupScreen({
                                     </button>
                                 </div>
 
-                                {/* Random mode */}
                                 {mode === 'random' && (
                                     <div className="flex flex-col gap-3">
                                         <p className="text-sm font-semibold">
@@ -224,7 +216,6 @@ function SetupScreen({
                                     </div>
                                 )}
 
-                                {/* Select mode */}
                                 {mode === 'select' && (
                                     <div className="flex flex-col gap-3">
                                         <div className="flex items-center gap-2">
@@ -330,8 +321,6 @@ function SetupScreen({
     );
 }
 
-// ── Main component ────────────────────────────────────────────────────────────
-
 export default function IrregularVerbsIndex({ verbs }: Props) {
     const [quizVerbs, setQuizVerbs] = useState<IrregularVerb[] | null>(null);
     const [current, setCurrent] = useState(0);
@@ -345,9 +334,6 @@ export default function IrregularVerbsIndex({ verbs }: Props) {
     const pastRef = useRef<HTMLInputElement>(null);
     const participleRef = useRef<HTMLInputElement>(null);
 
-    // Friss látogatáskor (új verbs prop) visszaállunk a beállítás-képernyőre —
-    // különben az Inertia újrahasználja a komponenst, és a befejezett/félbehagyott
-    // kvíz állapota (a szó) beragadna újranyitáskor.
     useEffect(() => {
         setQuizVerbs(null);
         setCurrent(0);
@@ -445,12 +431,10 @@ export default function IrregularVerbsIndex({ verbs }: Props) {
         }
     }
 
-    // ── Setup ─────────────────────────────────────────────────────────────────
     if (!quizVerbs) {
         return <SetupScreen verbs={verbs} onStart={startQuiz} />;
     }
 
-    // ── Finished ──────────────────────────────────────────────────────────────
     if (finished) {
         const percent = Math.round((score / quizVerbs.length) * 100);
 
@@ -548,9 +532,6 @@ export default function IrregularVerbsIndex({ verbs }: Props) {
         );
     }
 
-    // ── Quiz ──────────────────────────────────────────────────────────────────
-    // Üres kvízlista vagy tartományon kívüli index esetén nincs kártya —
-    // vissza a beállítás-képernyőre a fehér képernyő helyett.
     if (!card) {
         return <SetupScreen verbs={verbs} onStart={startQuiz} />;
     }
@@ -578,11 +559,9 @@ export default function IrregularVerbsIndex({ verbs }: Props) {
             />
 
             <div className="flex min-h-dvh flex-col">
-                {/* Rose header */}
                 <div className="relative overflow-hidden bg-rose-500 px-4 pt-5 pb-10">
                     <div className="pointer-events-none absolute -top-12 -right-12 size-48 rounded-full bg-white/10" />
 
-                    {/* Header row */}
                     <div className="relative mx-auto flex max-w-xl items-center justify-between">
                         <button
                             onClick={backToSetup}
@@ -599,7 +578,6 @@ export default function IrregularVerbsIndex({ verbs }: Props) {
                         </span>
                     </div>
 
-                    {/* Progress bar */}
                     <div className="relative mx-auto mt-4 max-w-xl">
                         <div className="h-2 w-full overflow-hidden rounded-full bg-white/25">
                             <div
@@ -609,7 +587,6 @@ export default function IrregularVerbsIndex({ verbs }: Props) {
                         </div>
                     </div>
 
-                    {/* Verb */}
                     <div className="relative mx-auto mt-8 max-w-xl pb-4 text-center">
                         <h2 className="text-4xl font-bold tracking-tight text-white sm:text-5xl">
                             to {card.infinitive}
@@ -621,9 +598,7 @@ export default function IrregularVerbsIndex({ verbs }: Props) {
                     </div>
                 </div>
 
-                {/* Content area */}
                 <div className="mx-auto flex w-full max-w-xl flex-1 flex-col gap-4 px-4 py-6">
-                    {/* Inputs */}
                     <div className="flex flex-col gap-4 rounded-3xl bg-card p-5 shadow-sm md:p-6">
                         <div className="flex flex-col gap-1.5">
                             <label
@@ -708,14 +683,12 @@ export default function IrregularVerbsIndex({ verbs }: Props) {
                         </div>
                     </div>
 
-                    {/* Example sentence after answer */}
                     {answerState !== 'unanswered' && card.example_en && (
                         <div className="animate-in rounded-2xl bg-accent/60 px-4 py-3 text-sm text-muted-foreground italic duration-200 fade-in slide-in-from-bottom-2">
                             "{card.example_en}"
                         </div>
                     )}
 
-                    {/* Action */}
                     <div className="sticky bottom-4 mt-auto pt-2">
                         {answerState === 'unanswered' ? (
                             <Button

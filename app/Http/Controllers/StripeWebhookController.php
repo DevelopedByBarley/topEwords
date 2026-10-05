@@ -17,27 +17,8 @@ use Stripe\Subscription as StripeSubscription;
 
 class StripeWebhookController extends WebhookController
 {
-    /**
-     * Meddig várjon a duplikátum-takarítás a user-szintű lockra, mielőtt feladja (ilyenkor
-     * critical logot ír — automatikus újrafuttatás nincs). Tesztben 0-ra állítható.
-     */
     protected int $duplicateCleanupLockWaitSeconds = 10;
 
-    /**
-     * Központi event-id idempotencia a Cashier feldolgozása köré. A Stripe legalább-egyszer
-     * kézbesít: lassú/hibázó válasznál UGYANAZT az `evt_…` eseményt újraküldi, így egy kezelő
-     * kétszer is lefuthatna. A két valós mutáló ág (Billingo-számla, előfizetés-swap) ma
-     * egyenként idempotens, de egy jövőbeli, magától nem idempotens kezelő (pl. kredit-jóváírás)
-     * duplán hatna. Ezért minden eseményt feldolgozás ELŐTT egyszer „lefoglalunk" az event_id-ra:
-     *
-     *  - Ha az insertOrIgnore 0 sort ír, az eseményt már feldolgoztuk → érdemi munka nélkül 200.
-     *  - Ha most szúrtuk be, lefuttatjuk a szülő kezelőt. Kivételkor TÖRÖLJÜK a sort, hogy a
-     *    Stripe-újraküldés valóban újrapróbálhassa (különben egy soha le nem futott eseményt
-     *    „feldolgozottnak" néznénk, és tartósan elveszne).
-     *
-     * Aláírás-ellenőrzés nélküli id (üres cashier.webhook.secret, csak teszt) vagy hiányzó id
-     * esetén nem dedupolunk — a viselkedés a Cashier alapértelmezettje marad.
-     */
     public function handleWebhook(Request $request)
     {
         $payload = json_decode($request->getContent(), true);
@@ -72,35 +53,14 @@ class StripeWebhookController extends WebhookController
         }
     }
 
-    /**
-     * A sikeres fizetés után NAV-kompatibilis Billingo számlát állítunk ki. A számlázás
-     * külön kapcsolóval ki is hagyható, hogy a fizetés a Billingo nélkül is működjön.
-     *
-     * A számlázás ASZINKRON, queue worker dolgozza fel (Ploi/VPS) — a webhook azonnal
-     * 200-at ad, a job a jobs táblába kerül. Így egy lassú vagy hibázó Billingo nem tartja
-     * fogva a webhook kérést, és a beépített újrapróba (backoff [60,300,900], 4 próbálkozás)
-     * intézi az átmeneti hibákat. Az InvoiceGenerator idempotenciája (unique stripe_invoice_id)
-     * miatt az újrapróba nem hoz létre második számlát; végleges bukáskor a job failed()
-     * handlere naplóz (NAV-kötelezettség, nem maradhat észrevétlen).
-     */
     protected function handleInvoicePaymentSucceeded(array $payload)
     {
         $invoice = $payload['data']['object'] ?? [];
         $user = $this->getUserByStripeId($invoice['customer'] ?? null);
 
         if ($user instanceof User && config('services.billingo.enabled')) {
-            // Csak a generator által olvasott mezőket adjuk át — a teljes payload ügyfél-PII-ja
-            // ne szerializálódjon a jobs/failed_jobs táblába (W-L3). A vevőt sem modellként,
-            // hanem a fizetés pillanatában rögzített számlázási pillanatképként: így a számla a
-            // feldolgozásig törölt felhasználóra is kiállul, és a job failed()-je is lefut (F2-L3).
             GenerateBillingoInvoice::dispatch(BillingProfile::fromUser($user), GenerateBillingoInvoice::onlyNeededFields($invoice));
         } elseif (config('services.billingo.enabled') && $this->grossMinorPaid($invoice) > 0) {
-            // Pénz beszedve (pozitív terhelés), de nincs helyi user a customerhez — pl. egy
-            // out-of-order customer.deleted már kinullázta a stripe_id-t, vagy a customert a
-            // Stripe dashboardban kézzel hozták létre. NAV-számla így soha nem készülne, és a
-            // 200-as ACK némán elnyelné a kötelezettséget. A retry nem segít (a user attól nem
-            // lesz meg), ezért nem buktatjuk a webhookot — de hangosan riasztunk, hogy emberi
-            // beavatkozással pótolható legyen. Ez a fájl minden más pénz-ága is hangos.
             Log::critical('Sikeres Stripe-terhelés ismeretlen customerhez — NAV-számla NEM készül, kézi kiállítás kell!', [
                 'stripe_customer' => $invoice['customer'] ?? null,
                 'stripe_invoice_id' => $invoice['id'] ?? null,
@@ -112,9 +72,6 @@ class StripeWebhookController extends WebhookController
     }
 
     /**
-     * A ténylegesen kifizetett bruttó összeg a legkisebb pénznemegységben (pl. cent) —
-     * a riasztás csak valódi terhelésre szólal meg, a 0 összegű (trial-induló) számlára nem.
-     *
      * @param  array<string, mixed>  $invoice
      */
     private function grossMinorPaid(array $invoice): int
@@ -122,15 +79,6 @@ class StripeWebhookController extends WebhookController
         return (int) ($invoice['amount_paid'] ?? $invoice['total'] ?? 0);
     }
 
-    /**
-     * Visszatérítéskor (jellemzően a Stripe dashboardról adott refund) jogszabály szerint
-     * NAV-sztornó (jóváíró) számla is jár. A Cashier a charge.refunded eseményre alapból
-     * néma 200-at ad, így a kötelező sztornó észrevétlenül elmaradhat. Automatikus
-     * sztornózás kockázatos (részleges refund, több számla, valuta), ezért itt NEM
-     * sztornózunk — csak hangosan riasztunk (mint a dupla-terhelés/ismeretlen-customer
-     * ágakban), hogy a Billingo-sztornó kézzel, kereshető nyom alapján pótolható legyen.
-     * Csak Billingo-számlázás mellett és tényleges (pozitív) visszatérített összegre szól.
-     */
     protected function handleChargeRefunded(array $payload)
     {
         $charge = $payload['data']['object'] ?? [];
@@ -149,17 +97,6 @@ class StripeWebhookController extends WebhookController
         return $this->successMethod();
     }
 
-    /**
-     * A Stripe-customer törlésekor a Cashier alapból nullázza a users.trial_ends_at
-     * mezőt is — ez viszont NEM Stripe-eredetű: az app előfizetéseinek próbaideje
-     * magán az előfizetésen van (lásd User::isOnAnyTrial), a users.trial_ends_at
-     * kizárólag az admin által kézzel adott „ajándék-hónap" tárolója
-     * (AdminController::grantFreeMonth). Ezt a customer törlése nem érintheti, ezért
-     * a Cashier-lépés után visszaállítjuk, ha még a jövőben jár le.
-     *
-     * (A lifetime_access és plan_override mezőket a Cashier eleve nem bántja, azok
-     * magától túlélik a customer törlését.)
-     */
     protected function handleCustomerDeleted(array $payload)
     {
         $user = $this->getUserByStripeId($payload['data']['object']['id'] ?? null);
@@ -167,9 +104,6 @@ class StripeWebhookController extends WebhookController
 
         $response = parent::handleCustomerDeleted($payload);
 
-        // A Cashier a saját, külön betöltött modellpéldányán nullázta a DB-t; a mi
-        // $user példányunk még a régi értéket tartja, ezért egy célzott UPDATE-tel
-        // írjuk vissza az ajándék-hónapot (a forceFill+save nem lenne „dirty").
         if ($user instanceof User && $giftTrialEndsAt !== null && $giftTrialEndsAt->isFuture()) {
             $user->newQuery()->whereKey($user->getKey())->update(['trial_ends_at' => $giftTrialEndsAt]);
             $user->trial_ends_at = $giftTrialEndsAt;
@@ -178,18 +112,6 @@ class StripeWebhookController extends WebhookController
         return $response;
     }
 
-    /**
-     * Sorrenden kívüli `customer.subscription.updated` nem támaszthat fel egy már
-     * törölt előfizetést. A Stripe nem garantál esemény-sorrendet: a
-     * `customer.subscription.deleted` feldolgozása UTÁN is befuthat egy korábbi
-     * (késleltetett vagy újraküldött) `updated` esemény `status=active`
-     * pillanatképpel, amit a Cashier ellenőrzés nélkül írna rá a helyi sorra
-     * (`stripe_status=active`, `ends_at=null`) → tartós ingyen prémium, mert a
-     * Stripe-oldalon az előfizetés halott, több korrekciós esemény nem jön.
-     *
-     * Egy ténylegesen törölt Stripe-előfizetés soha nem éled újra, ezért a helyben
-     * `canceled` sorra érkező nem-canceled update biztosan elavult: naplózva eldobjuk.
-     */
     protected function handleCustomerSubscriptionUpdated(array $payload)
     {
         $data = $payload['data']['object'] ?? [];
@@ -217,18 +139,6 @@ class StripeWebhookController extends WebhookController
         return parent::handleCustomerSubscriptionUpdated($payload);
     }
 
-    /**
-     * Subscription events are handled automatically by Cashier; we only add a
-     * de-duplication safety net on top of the default behaviour.
-     *
-     * A felhasználó a Stripe Checkoutot véletlenül kétszer is befejezheti (pl. két
-     * böngészőfül), mire bármelyik webhook létrehozná a helyi előfizetést — így két
-     * párhuzamos Stripe-előfizetés keletkezhet, és a trial végén mindkettő számláz.
-     * Ebben az appban egy felhasználónak mindig pontosan egy aktív előfizetése van
-     * (a csomagváltás helyben swap-el), ezért bármely további aktív előfizetés
-     * duplikátum: a keepert megtartjuk (lásd duplicateSubscriptionsFor — a legrégebbi
-     * érvényes sor), a többit azonnal lemondjuk. A takarítás KIZÁRÓLAG innen fut.
-     */
     protected function handleCustomerSubscriptionCreated(array $payload)
     {
         $response = parent::handleCustomerSubscriptionCreated($payload);
@@ -242,25 +152,8 @@ class StripeWebhookController extends WebhookController
         return $response;
     }
 
-    /**
-     * Cancels the user's duplicate subscriptions with a loud alert. Trial nélküli
-     * (visszatérő) felhasználónál mindkét Checkout AZONNAL terhelt, és mindkét
-     * fizetésről Billingo (NAV) számla is készült — a cancelNow() viszont NEM
-     * refundál, a visszatérítés és a számla-sztornó kézi feladat. Ezért critical
-     * szinten riasztunk, még a lemondás előtt, hogy annak hibája esetén se
-     * maradjon észrevétlen a dupla terhelés.
-     */
     public function cancelDuplicateSubscriptions(User $user): void
     {
-        // User-szintű lock: két igazán párhuzamos customer.subscription.created (pl. két
-        // böngészőfülből indított Checkout) egymás commitja ELŐTT futtathatná ezt, így
-        // egyik sem látná a másik előfizetését, és a duplikátum takarítatlanul maradna
-        // (W-L5). A lock szerializálja a takarítást userenként: a vesztes megvárja a
-        // győztest, és annak commitolt előfizetését már látja. Ha a lockot nem sikerül
-        // megszerezni a várakozási ablakon belül (ritka torlódás), NEM buktatjuk a
-        // webhookot (a Stripe újraküldése sem segítene megbízhatóan), de a takarítást más
-        // webhook NEM futtatja újra — ezért critical logot írunk: egy esetleg megmaradt
-        // duplikátum kézzel ellenőrizendő. Más felhasználók webhookjai nem érintettek.
         $lock = Cache::lock("stripe:dup-subs:{$user->id}", 30);
 
         try {
@@ -281,9 +174,6 @@ class StripeWebhookController extends WebhookController
         }
     }
 
-    /**
-     * A tényleges takarítás — mindig lock alatt fut (lásd cancelDuplicateSubscriptions).
-     */
     private function cancelDuplicateSubscriptionsLocked(User $user): void
     {
         foreach ($this->duplicateSubscriptionsFor($user) as $subscription) {
@@ -295,26 +185,12 @@ class StripeWebhookController extends WebhookController
             try {
                 $subscription->cancelNow();
             } catch (\Throwable $e) {
-                // A takarítás soha ne buktassa meg a webhookot (a Stripe újraküldené).
                 report($e);
             }
         }
     }
 
     /**
-     * The user's redundant active subscriptions — every non-canceled subscription
-     * except the keeper.
-     *
-     * A keeper NEM feltétlenül a legrégebbi: először egy egészséges (valid: active /
-     * trialing / grace-period) előfizetést tartunk meg, mert egy pusztán created_at
-     * szerinti választás megtarthatna egy incomplete/past_due/unpaid sort, és épp az
-     * élő, fizető előfizetést mondaná le (#L3). Az egészséges (majd az összes) halmazon
-     * belül a legrégebbi a keeper (created_at, azonos időbélyegnél id szerint), hogy a
-     * választás stabil és determinisztikus maradjon, és egyezzen a User::activeSubscription()
-     * sorrendjével. A reorder() kötelező: a Cashier subscriptions() relációja beépítetten
-     * created_at DESC-re rendez, ami különben elsődleges maradna, és a legújabb sor lenne a
-     * keeper (F9A-L5).
-     *
      * @return Collection<int, Subscription>
      */
     public function duplicateSubscriptionsFor(User $user): Collection

@@ -33,7 +33,6 @@ type Props = {
     playerDevices?: PlayerDevice[];
 };
 
-/** Egy ISO-időpontot rövid magyar dátum-idő alakra formáz (vagy „—", ha nincs). */
 function formatDateTime(iso: string | null): string {
     if (!iso) {
         return '—';

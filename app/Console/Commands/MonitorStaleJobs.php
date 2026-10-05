@@ -15,15 +15,8 @@ use Illuminate\Support\Facades\Notification;
 #[Description('E-mail riasztást küld az adminnak, ha a jobs táblában régóta esedékes, fel nem dolgozott job vár — tipikusan leállt worker, ami kiállítatlan Billingo (NAV) számlát jelent.')]
 class MonitorStaleJobs extends Command
 {
-    /**
-     * A queue:monitor csak a queue MÉRETÉT nézi (--max=25), így egyetlen beragadt számlázó
-     * job láthatatlan neki; a queue:alert-failed pedig csak az elbukottakat, a várakozó job
-     * viszont nem bukik el. Ez a parancs a legrégebben esedékes job KORÁT figyeli (F4-L1).
-     * A riasztást óránként egyre fogjuk, hogy egy tartós leállás ne árassza el a postafiókot.
-     */
     private const THROTTLE_CACHE_KEY = 'queue-monitoring:stale-alerted';
 
-    /** Legfeljebb ennyi jobot sorolunk fel név szerint az e-mailben. */
     private const MAX_LISTED_JOBS = 10;
 
     public function handle(): int
@@ -34,8 +27,6 @@ class MonitorStaleJobs extends Command
             return self::SUCCESS;
         }
 
-        // Az available_at az esedékesség ideje (dispatchkor most, backoff utáni release-kor a
-        // jövő), így a még backoffra váró újrapróbálkozás nem számít beragadtnak.
         $threshold = now()->subMinutes((int) $this->option('minutes'))->getTimestamp();
 
         $staleJobs = DB::connection(config('queue.connections.database.connection'))
@@ -64,8 +55,6 @@ class MonitorStaleJobs extends Command
             return self::SUCCESS;
         }
 
-        // Szándékosan szinkron küldés (notifyNow): ha a worker áll, a queue-ba tett riasztás
-        // sosem érne célba.
         Notification::route('mail', $adminEmail)
             ->notifyNow(new StaleJobsDetected($staleJobs->count(), $this->summarize($staleJobs->take(self::MAX_LISTED_JOBS))));
 

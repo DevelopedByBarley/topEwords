@@ -66,8 +66,6 @@ test('words can be searched', function () {
 });
 
 test('main word list search matches substrings, not just prefixes', function () {
-    // "rat" a "modeRATe" és "elaboRATe" belsejében van — prefix-kereséssel egyik
-    // sem jönne, substring-kereséssel mindkettő (mint a saját szavaknál).
     $this->get(route('words.index', ['search' => 'rat']))
         ->assertInertia(fn ($page) => $page
             ->where('words.total', 2)
@@ -133,9 +131,6 @@ test('empty status removes the word (extension un-toggle)', function () {
 });
 
 test('empty status removes a word regardless of its current status (no practice re-toggle)', function () {
-    // A gyakorlás-oldal "eltávolítás" gombja explicit üres státuszt küld, nem a 'practice'
-    // toggle-t. Így ha a szó időközben máshol (másik fül) más státuszra váltott, az
-    // eltávolítás akkor is levesz — sosem állítja vissza tévedésből practice-re.
     $word = Word::where('word', 'the')->first();
     $this->user->knownWords()->attach($word->id, ['status' => 'known']);
 
@@ -147,8 +142,6 @@ test('empty status removes a word regardless of its current status (no practice 
 });
 
 test('extension status response returns all inflected forms for cache patching', function () {
-    // A bővítmény ezekkel az alakokkal foltozza helyben a státusz-cache-t, így a
-    // teljes térkép újraletöltése elmarad. Minden ragozott alaknak szerepelnie kell.
     $word = Word::create([
         'word' => 'run',
         'rank' => 5000,
@@ -195,7 +188,6 @@ test('extension-origin status write is blocked once the free daily quota is exha
 });
 
 test('extension-origin status removal stays free even over the exhausted quota', function () {
-    // A levétel nem fogyaszt keretet, hogy a betelt keret ne akadályozza a visszavonást.
     $word = Word::where('word', 'the')->first();
     $this->user->knownWords()->attach($word->id, ['status' => 'known']);
     $limit = $this->user->planLimit('extension_writes_per_day');
@@ -209,8 +201,6 @@ test('extension-origin status removal stays free even over the exhausted quota',
 });
 
 test('web status writes do not consume the extension quota', function () {
-    // A gyakorlás-oldal fetch-e is a JSON-ágat használja, de app-originnel érkezik
-    // — nem számíthat extension-írásnak, betelt extension-keretnél is működnie kell.
     $word = Word::where('word', 'the')->first();
     $limit = $this->user->planLimit('extension_writes_per_day');
     Cache::put("extension_writes_daily_{$this->user->id}_".today()->format('Y-m-d'), $limit, now()->endOfDay());
@@ -237,12 +227,8 @@ test('a premium user status-writes from the extension without quota', function (
 });
 
 test('extension-origin status write refunds the quota when the pivot write throws', function () {
-    // M3: ha az írás a keret-foglalás UTÁN dob, a slot nem ragadhat benn — különben
-    // a Free user hamis „elfogyott a napi kereted" hibát kapna a következő íráskor.
     $word = Word::where('word', 'the')->first();
 
-    // A bejelentkezett usert úgy mockoljuk, hogy a pivot-írás dobjon; a keret-
-    // számláló a valódi cache-en fut, így ellenőrizhető, hogy visszaáll.
     $user = $this->user;
     $mock = Mockery::mock($user)->makePartial();
     $mock->shouldReceive('knownWords')->andThrow(new RuntimeException('DB down'));
@@ -255,10 +241,8 @@ test('extension-origin status write refunds the quota when the pivot write throw
     try {
         $this->postJson(route('words.status', $word), ['status' => 'known'], ['Origin' => 'chrome-extension://abcdefghijklmnop']);
     } catch (RuntimeException $e) {
-        // várt
     }
 
-    // A foglalás lefutott (increment), majd a hiba után a refund visszaadta.
     expect($user->extensionWritesToday())->toBe(0);
 });
 
@@ -355,11 +339,9 @@ test('status filter returns no words when user has none with that status', funct
 });
 
 test('marked pages are returned correctly', function () {
-    // Insert 101 words so there are 2 pages (100 per page)
     $rows = array_map(fn ($i) => ['word' => 'word'.$i, 'rank' => $i, 'created_at' => now(), 'updated_at' => now()], range(1, 101));
     Word::insert($rows);
 
-    // Mark the first word (page 1) and the last word by rank (last page)
     $firstWord = Word::orderBy('rank')->first();
     $lastWord = Word::orderByDesc('rank')->first();
     $this->user->knownWords()->attach($firstWord->id, ['status' => 'known']);
@@ -376,9 +358,6 @@ test('marked pages are returned correctly', function () {
 });
 
 test('partial reload returns fresh page and letter annotations with stats', function () {
-    // A szólista státusz-váltás után only:[words,stats,markedPages,completedPages,
-    // markedLetters,flash] partial reloadot kér; ez a teszt garantálja, hogy ezek
-    // a propok partial válaszban is frissen visszajönnek (nem optional/deferred).
     $this->user->knownWords()->attach(Word::where('word', 'the')->first()->id, ['status' => 'known']);
     $this->user->knownWords()->attach(Word::where('word', 'apple')->first()->id, ['status' => 'practice']);
 
@@ -392,8 +371,6 @@ test('partial reload returns fresh page and letter annotations with stats', func
     ])
         ->assertOk();
 
-    // Partial (JSON) Inertia-válasznál nincs view, ezért assertInertia helyett
-    // közvetlenül a props-okat ellenőrizzük.
     $response->assertJsonPath('props.markedPages', [1])
         ->assertJsonPath('props.stats.known', 1)
         ->assertJsonPath('props.stats.practice', 1)
@@ -417,8 +394,6 @@ test('search endpoint returns matching words', function () {
 });
 
 test('search endpoint escapes LIKE wildcards', function () {
-    // A `_` joker jelöletlenül minden (legalább 2 karakteres) szóra illeszkedne;
-    // escape-elve viszont szó szerinti aláhúzásra keres, amiből egy sincs.
     $this->getJson(route('words.search', ['q' => '__']))
         ->assertOk()
         ->assertExactJson([]);
@@ -450,7 +425,6 @@ test('clearing importance on an unmarked word does not create a pivot', function
 });
 
 test('status marking is free and unlimited', function () {
-    // Korábban 50 mentett szónál elakadt; a státuszozás most ingyenes és korlátlan.
     $filler = collect(range(1, 50))->map(fn ($i) => [
         'word' => 'fill'.$i, 'rank' => 10000 + $i, 'created_at' => now(), 'updated_at' => now(),
     ]);
@@ -480,9 +454,6 @@ test('importance updates an already saved word', function () {
 });
 
 test('importance returns JSON for extension/JSON callers instead of a redirect', function () {
-    // A bővítmény fetch-e Accept: application/json-t küld; korábban a végpont
-    // back()-et adott, a fetch a 302-t HTML-oldalra követte, r.json() elhasalt,
-    // és a kliens hibát látva visszaállította a csillagokat — noha a mentés ment.
     $word = Word::where('word', 'the')->first();
 
     $this->postJson(route('words.importance', $word), ['importance' => 3])
@@ -513,8 +484,6 @@ test('inertia importance request still receives a redirect, not JSON', function 
 });
 
 test('extension-origin importance write on an unmarked word consumes the daily extension quota', function () {
-    // EXT-M1: ez az ág új 'known' sort hoz létre, ezért ugyanúgy a keretbe számít,
-    // mint a státusz-felvétel — különben a csillagozás keret nélküli felvételi út.
     $word = Word::where('word', 'the')->first();
 
     $this->postJson(route('words.importance', $word), ['importance' => 3], ['Origin' => 'chrome-extension://abcdefghijklmnop'])
@@ -537,7 +506,6 @@ test('extension-origin importance write on an unmarked word is blocked once the 
 });
 
 test('extension-origin importance change on an already saved word stays free over the exhausted quota', function () {
-    // Meglévő jelölés módosítása nem vesz fel új szót, ezért nem fogyaszt keretet.
     $word = Word::where('word', 'the')->first();
     $this->user->knownWords()->attach($word->id, ['status' => 'learning']);
     $limit = $this->user->planLimit('extension_writes_per_day');
@@ -567,9 +535,6 @@ test('web importance writes do not consume the extension quota', function () {
 test('extension-origin importance write refunds the quota when the pivot write throws', function () {
     $word = Word::where('word', 'the')->first();
 
-    // Az első knownWords()-hívás a meglévő jelölés lekérdezése (ez még a foglalás
-    // ELŐTT fut) — csak a második, a tényleges pivot-írás dobjon, különben a teszt
-    // a foglalásig sem jutna el, és a refundot nem is vizsgálná.
     $user = $this->user;
     $calls = 0;
     $mock = Mockery::mock($user)->makePartial();
@@ -589,10 +554,8 @@ test('extension-origin importance write refunds the quota when the pivot write t
     try {
         $this->postJson(route('words.importance', $word), ['importance' => 3], ['Origin' => 'chrome-extension://abcdefghijklmnop']);
     } catch (RuntimeException $e) {
-        // várt
     }
 
-    // A foglalás lefutott (increment), majd a hiba után a refund visszaadta.
     expect($calls)->toBeGreaterThan(1)
         ->and($user->extensionWritesToday())->toBe(0);
 });
@@ -632,28 +595,24 @@ test('custom words follow the active search, letter, status and importance filte
         ['word' => 'apricot', 'meaning_hu' => 'sárgabarack', 'status' => 'known'],
     ]);
 
-    // Keresés: substring-egyezés, kis/nagybetű-független
     $this->get(route('words.index', ['search' => 'PHEM']))
         ->assertInertia(fn ($page) => $page
             ->count('customWords', 1)
             ->where('customWords.0.word', 'ephemeral')
         );
 
-    // Kezdőbetű
     $this->get(route('words.index', ['letter' => 'A']))
         ->assertInertia(fn ($page) => $page
             ->count('customWords', 1)
             ->where('customWords.0.word', 'apricot')
         );
 
-    // Státusz
     $this->get(route('words.index', ['status' => 'known']))
         ->assertInertia(fn ($page) => $page
             ->count('customWords', 1)
             ->where('customWords.0.word', 'apricot')
         );
 
-    // Fontosság
     $this->get(route('words.index', ['importance' => 3]))
         ->assertInertia(fn ($page) => $page
             ->count('customWords', 1)
@@ -673,8 +632,6 @@ test('folder filter hides custom words because they cannot be foldered', functio
 });
 
 test('upserted words get their level computed from rank without needing a fix pass', function () {
-    // Mirrors ImportWords::handle, which bypasses the saving event via upsert()
-    // and must therefore write the level explicitly to avoid drift.
     Word::upsert([
         ['word' => 'common', 'rank' => 500, 'level' => Word::levelForRank(500), 'created_at' => now(), 'updated_at' => now()],
         ['word' => 'rare', 'rank' => 9000, 'level' => Word::levelForRank(9000), 'created_at' => now(), 'updated_at' => now()],
@@ -684,12 +641,6 @@ test('upserted words get their level computed from rank without needing a fix pa
     expect(Word::where('word', 'rare')->value('level'))->toBe(6);
 });
 
-// --- extra_forms a fő szólistán: a képzett alakok admin-oldali karbantartása ---
-// A „happily" korábban sehogy nem volt felvihető: a fő listában lévő „happy"
-// miatt saját szóként elutasult, adminból pedig a mező sem az AI-válaszban, sem
-// az űrlapon nem létezett. A szerkesztés most írja, az index visszaadja.
-
-/** @return User A `words.update` route-hoz szükséges, admin jogú felhasználó. */
 function wordListAdmin(): User
 {
     config(['app.admin_email' => 'admin@example.com']);
@@ -727,8 +678,6 @@ test('a mentett extra_forms a szó-felismerésbe is bekerül', function () {
 });
 
 test('a szólista válasza tartalmazza az extra_forms-ot (a szerkesztés ne törölje)', function () {
-    // Az admin szerkesztő a teljes űrlapot visszaküldi: ha az index nem adná
-    // vissza a mezőt, a mentés üresre írná a meglévő képzett alakokat.
     Word::where('word', 'apple')->update(['extra_forms' => 'apples']);
 
     $this->get(route('words.index', ['letter' => 'A']))
@@ -760,9 +709,6 @@ test('a túl hosszú extra_forms elutasul (oszlop-korlát)', function () {
 });
 
 test('a nem szóalakú extra_forms bejegyzések némán kiesnek', function () {
-    // A mezőt több út is írja (űrlap, admin, bővítmény, AI-kitöltés), ezért a
-    // szűrés a modell határán van: HTML-t, számsort, jelsort nem engedünk a
-    // felismerő térképbe, de ettől a szó mentése még sikerül.
     $this->actingAs(wordListAdmin());
     $word = Word::where('word', 'apple')->firstOrFail();
 

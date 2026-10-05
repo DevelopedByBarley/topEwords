@@ -8,10 +8,6 @@ use Laravel\Fortify\Features;
 
 abstract class TestCase extends BaseTestCase
 {
-    /**
-     * T-7 / F2-L1: egyetlen teszt se hívhasson valódi külső szolgáltatást (Billingo,
-     * Gemini, Stripe-on kívüli HTTP). A nem fake-elt HTTP-kérés hangosan elbukik.
-     */
     protected function setUp(): void
     {
         parent::setUp();

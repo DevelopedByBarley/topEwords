@@ -5,11 +5,6 @@ namespace App\Notifications;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
-/**
- * Admin-riasztás új elbukott queue jobokról. Szándékosan NEM ShouldQueue: a queue
- * hibájáról szóló riasztás nem mehet queue-n keresztül, a küldő parancs (queue:alert-failed)
- * pedig ütemezetten, HTTP kérésen kívül fut, így a szinkron küldés nem blokkol senkit.
- */
 class FailedJobsDetected extends Notification
 {
     /**
