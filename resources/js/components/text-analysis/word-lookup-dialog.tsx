@@ -1,13 +1,10 @@
-import { Link } from '@inertiajs/react';
 import {
     CheckCheck,
     Flag,
-    Layers,
     Loader2,
     Plus,
     Sparkles,
     Volume2,
-    X,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type {
@@ -22,14 +19,8 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import FlashcardDeckSection from '@/components/words/flashcard-deck-section';
 import ImportanceStars from '@/components/words/importance-stars';
 import StatusButtons from '@/components/words/status-buttons';
 import {
@@ -40,30 +31,19 @@ import {
 import WordDetailSections from '@/components/words/word-detail-sections';
 import WordFormFields from '@/components/words/word-form-fields';
 import WordInsightPanel from '@/components/words/word-insight-panel';
-import { absorbAiBudget } from '@/lib/ai-budget';
-import { csrfHeaders } from '@/lib/csrf';
-import type { GeminiWordData } from '@/lib/gemini-word';
 import {
     fetchGeminiWord,
-    geminiErrorMessage,
     lemmaNotice,
     mergeGeminiData,
 } from '@/lib/gemini-word';
 import { httpErrorMessage, postJson } from '@/lib/http';
-import { withMinDuration } from '@/lib/min-duration';
-import { sanitizeHtml } from '@/lib/sanitize-html';
 import {
     importance as customWordImportance,
     status as customWordStatus,
     store as customWordsStore,
 } from '@/routes/custom-words';
-import { index as flashcardsIndex } from '@/routes/flashcards';
-import {
-    importMethod as importFromWord,
-    store as storeCard,
-} from '@/routes/flashcards/cards';
 import { store as storeReport } from '@/routes/report';
-import { geminiFlashcard, wordLookup } from '@/routes/text-analysis';
+import { wordLookup } from '@/routes/text-analysis';
 import {
     importance as wordImportance,
     status as wordStatus,
@@ -116,18 +96,6 @@ export default function WordLookupDialog({
     const [selectedDeckId, setSelectedDeckId] = useState<string>(() =>
         flashcardDecks.length === 1 ? String(flashcardDecks[0].id) : '',
     );
-    const [importingCard, setImportingCard] = useState(false);
-    const [importedCard, setImportedCard] = useState(false);
-    const [importError, setImportError] = useState<string | null>(null);
-    const [aiCard, setAiCard] = useState<{
-        front: string;
-        back: string;
-    } | null>(null);
-    const [aiCardLoading, setAiCardLoading] = useState(false);
-    const [aiCardSaving, setAiCardSaving] = useState(false);
-    const [aiCardSaved, setAiCardSaved] = useState(false);
-    const [aiCardError, setAiCardError] = useState<string | null>(null);
-
     const activeWordRef = useRef(word);
 
     useEffect(() => {
@@ -153,11 +121,6 @@ export default function WordLookupDialog({
         setFormErrors({});
         setAddedCustom(false);
         setReportOpen(false);
-        setImportedCard(false);
-        setImportError(null);
-        setAiCard(null);
-        setAiCardSaved(false);
-        setAiCardError(null);
 
         fetch(wordLookup.url({ query: { word } }), {
             headers: {
@@ -314,175 +277,6 @@ export default function WordLookupDialog({
             announceAchievements(data.achievements);
         } catch {
             rollback();
-        }
-    };
-
-    const handleImportToDeck = async () => {
-        if (
-            !word ||
-            !selectedDeckId ||
-            !lookupResult ||
-            lookupResult.type === 'not_found'
-        ) {
-            return;
-        }
-
-        setImportingCard(true);
-        setImportedCard(false);
-        setImportError(null);
-
-        try {
-            const { ok, status, data } = await postJson(
-                importFromWord.url(Number(selectedDeckId)),
-                lookupResult.type === 'word'
-                    ? { word_id: lookupResult.id }
-                    : { custom_word_id: lookupResult.id },
-            );
-
-            if (activeWordRef.current !== word) {
-                return;
-            }
-
-            if (ok) {
-                setImportedCard(true);
-
-                return;
-            }
-
-            setImportError(
-                (status === 403 || status === 409) &&
-                    typeof data.message === 'string'
-                    ? data.message
-                    : httpErrorMessage(
-                          status,
-                          'A kártya felvétele nem sikerült — próbáld újra.',
-                      ),
-            );
-        } catch {
-            if (activeWordRef.current === word) {
-                setImportError(httpErrorMessage());
-            }
-        } finally {
-            setImportingCard(false);
-        }
-    };
-
-    const handleGenerateAiCard = async () => {
-        if (!lookupResult || lookupResult.type === 'not_found') {
-            return;
-        }
-
-        const forWord = word;
-
-        setAiCardLoading(true);
-        setAiCardSaved(false);
-        setAiCardError(null);
-
-        try {
-            const res = await withMinDuration(
-                fetch(
-                    geminiFlashcard.url({ query: { word: lookupResult.word } }),
-                    {
-                        headers: {
-                            Accept: 'application/json',
-                            ...csrfHeaders(),
-                        },
-                    },
-                ),
-            );
-            const data = (await res
-                .json()
-                .catch(() => ({}))) as GeminiWordData & {
-                front?: string;
-                back?: string;
-            };
-
-            absorbAiBudget(data);
-
-            if (activeWordRef.current !== forWord) {
-                return;
-            }
-
-            if (!res.ok || data.error) {
-                setAiCardError(geminiErrorMessage(res.status, data));
-
-                return;
-            }
-
-            if (data.is_real_word === false) {
-                setAiCardError(
-                    data.message ?? 'Ez nem tűnik valódi angol szónak.',
-                );
-
-                return;
-            }
-
-            if (!data.front || !data.back) {
-                setAiCardError(
-                    'Az AI nem tudott kártyát készíteni — próbáld újra.',
-                );
-
-                return;
-            }
-
-            setAiCard({ front: data.front, back: data.back });
-        } catch {
-            if (activeWordRef.current === forWord) {
-                setAiCardError(
-                    'Nincs hálózati kapcsolat — az AI-generálás nem sikerült.',
-                );
-            }
-        } finally {
-            setAiCardLoading(false);
-        }
-    };
-
-    const handleSaveAiCard = async () => {
-        if (!word || !aiCard || !selectedDeckId || !lookupResult) {
-            return;
-        }
-
-        setAiCardSaving(true);
-        setAiCardError(null);
-
-        try {
-            const { ok, status, data } = await postJson(
-                storeCard.url(Number(selectedDeckId)),
-                {
-                    front: aiCard.front,
-                    back: aiCard.back,
-                    direction: 'both',
-                    ...(lookupResult.type === 'word'
-                        ? { word_id: lookupResult.id }
-                        : {}),
-                },
-            );
-
-            if (activeWordRef.current !== word) {
-                return;
-            }
-
-            if (ok) {
-                setAiCardSaved(true);
-
-                return;
-            }
-
-            setAiCardError(
-                (status === 403 || status === 409) &&
-                    typeof data.message === 'string'
-                    ? data.message
-                    : httpErrorMessage(
-                          status,
-                          'A kártya mentése nem sikerült — próbáld újra.',
-                      ),
-            );
-        } catch {
-            if (activeWordRef.current === word) {
-                setAiCardError(httpErrorMessage());
-            }
-        } finally {
-            setAiCardSaving(false);
         }
     };
 
@@ -706,170 +500,22 @@ export default function WordLookupDialog({
                                     </p>
                                 )}
 
-                                {flashcardDecks.length > 0 ? (
-                                    <div>
-                                        <p className="mb-2 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
-                                            Flashcard deckhez adás
-                                        </p>
-                                        <div className="flex gap-2">
-                                            <Select
-                                                value={selectedDeckId}
-                                                onValueChange={(value) => {
-                                                    setSelectedDeckId(value);
-                                                    setImportedCard(false);
-                                                    setImportError(null);
-                                                    setAiCardSaved(false);
-                                                    setAiCardError(null);
-                                                }}
-                                            >
-                                                <SelectTrigger className="h-9 min-w-0 flex-1 text-sm">
-                                                    <SelectValue placeholder="Válassz decket..." />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {flashcardDecks.map(
-                                                        (deck) => (
-                                                            <SelectItem
-                                                                key={deck.id}
-                                                                value={String(
-                                                                    deck.id,
-                                                                )}
-                                                            >
-                                                                {deck.name}
-                                                            </SelectItem>
-                                                        ),
-                                                    )}
-                                                </SelectContent>
-                                            </Select>
-                                            <Button
-                                                size="sm"
-                                                variant={
-                                                    importedCard
-                                                        ? 'default'
-                                                        : 'outline'
-                                                }
-                                                disabled={
-                                                    !selectedDeckId ||
-                                                    importingCard ||
-                                                    importedCard
-                                                }
-                                                onClick={handleImportToDeck}
-                                            >
-                                                {importingCard ? (
-                                                    <Loader2 className="mr-1.5 size-4 animate-spin" />
-                                                ) : importedCard ? (
-                                                    <CheckCheck className="mr-1.5 size-4" />
-                                                ) : (
-                                                    <Layers className="mr-1.5 size-4" />
-                                                )}
-                                                {importedCard
-                                                    ? 'Hozzáadva!'
-                                                    : 'Hozzáadás'}
-                                            </Button>
-                                        </div>
-                                        {importError && (
-                                            <p className="mt-2 text-sm text-red-600 dark:text-red-400">
-                                                {importError}
-                                            </p>
-                                        )}
-                                        {hasAiAccess && !aiCard && (
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={handleGenerateAiCard}
-                                                disabled={aiCardLoading}
-                                                className="mt-2 w-full border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-400 dark:hover:bg-indigo-950/30"
-                                            >
-                                                {aiCardLoading ? (
-                                                    <Loader2 className="size-4 animate-spin" />
-                                                ) : (
-                                                    <Sparkles className="size-4" />
-                                                )}
-                                                {aiCardLoading
-                                                    ? 'Generálás...'
-                                                    : 'AI flashcard generálása'}
-                                            </Button>
-                                        )}
-                                        {aiCard && (
-                                            <div className="mt-3 space-y-2 rounded-lg border border-indigo-200 bg-indigo-50/50 p-3 dark:border-indigo-800 dark:bg-indigo-950/20">
-                                                <div className="flex items-center justify-between gap-2">
-                                                    <p className="flex items-center gap-1.5 text-xs font-semibold text-indigo-700 dark:text-indigo-300">
-                                                        <Sparkles className="size-3.5" />
-                                                        AI flashcard
-                                                    </p>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => {
-                                                            setAiCard(null);
-                                                            setAiCardSaved(
-                                                                false,
-                                                            );
-                                                            setAiCardError(
-                                                                null,
-                                                            );
-                                                        }}
-                                                        title="Elvetés"
-                                                        className="rounded p-1 text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
-                                                    >
-                                                        <X className="size-3.5" />
-                                                    </button>
-                                                </div>
-                                                <AiCardSide
-                                                    label="Előlap"
-                                                    html={aiCard.front}
-                                                />
-                                                <AiCardSide
-                                                    label="Hátlap"
-                                                    html={aiCard.back}
-                                                />
-                                                <Button
-                                                    size="sm"
-                                                    className="w-full"
-                                                    variant={
-                                                        aiCardSaved
-                                                            ? 'default'
-                                                            : 'outline'
-                                                    }
-                                                    disabled={
-                                                        !selectedDeckId ||
-                                                        aiCardSaving ||
-                                                        aiCardSaved
-                                                    }
-                                                    onClick={handleSaveAiCard}
-                                                >
-                                                    {aiCardSaving ? (
-                                                        <Loader2 className="size-4 animate-spin" />
-                                                    ) : aiCardSaved ? (
-                                                        <CheckCheck className="size-4" />
-                                                    ) : (
-                                                        <Layers className="size-4" />
-                                                    )}
-                                                    {aiCardSaved
-                                                        ? 'Hozzáadva!'
-                                                        : selectedDeckId
-                                                          ? 'AI kártya mentése a pakliba'
-                                                          : 'Válassz paklit a mentéshez'}
-                                                </Button>
-                                            </div>
-                                        )}
-                                        {aiCardError && (
-                                            <p className="mt-2 text-sm text-red-600 dark:text-red-400">
-                                                {aiCardError}
-                                            </p>
-                                        )}
-                                    </div>
-                                ) : (
-                                    <p className="text-xs text-muted-foreground">
-                                        Flashcardként mentéshez előbb{' '}
-                                        <Link
-                                            href={flashcardsIndex().url}
-                                            className="text-primary underline underline-offset-2"
-                                        >
-                                            hozz létre egy csomagot
-                                        </Link>
-                                        .
-                                    </p>
-                                )}
+                                <FlashcardDeckSection
+                                    key={`${lookupResult.type}-${lookupResult.id}`}
+                                    word={lookupResult.word}
+                                    source={
+                                        lookupResult.type === 'word'
+                                            ? { word_id: lookupResult.id }
+                                            : {
+                                                  custom_word_id:
+                                                      lookupResult.id,
+                                              }
+                                    }
+                                    hasAiAccess={hasAiAccess}
+                                    flashcardDecks={flashcardDecks}
+                                    deckId={selectedDeckId}
+                                    onDeckChange={setSelectedDeckId}
+                                />
 
                                 {hasAiAccess && (
                                     <div className="flex flex-col gap-3 border-t pt-4">
@@ -1058,20 +704,6 @@ export default function WordLookupDialog({
                 )}
             </DialogContent>
         </Dialog>
-    );
-}
-
-function AiCardSide({ label, html }: { label: string; html: string }) {
-    return (
-        <div>
-            <p className="mb-1 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
-                {label}
-            </p>
-            <div
-                className="max-h-56 space-y-1 overflow-y-auto rounded-md border bg-background px-3 py-2 text-sm"
-                dangerouslySetInnerHTML={{ __html: sanitizeHtml(html) }}
-            />
-        </div>
     );
 }
 

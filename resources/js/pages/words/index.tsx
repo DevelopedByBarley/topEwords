@@ -1,11 +1,10 @@
-import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
+import { Head, router, useForm, usePage } from '@inertiajs/react';
 import {
     ArrowLeftRight,
     Flag,
     FolderOpen,
     FolderPlus,
     Info,
-    Layers,
     Loader2,
     Pencil,
     Plus,
@@ -26,14 +25,8 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import FlashcardDeckSection from '@/components/words/flashcard-deck-section';
 import ImportanceStars from '@/components/words/importance-stars';
 import PracticeModal from '@/components/words/practice-modal';
 import type { PracticeWord } from '@/components/words/practice-modal';
@@ -65,8 +58,6 @@ import {
     store as storeCustomWord,
     update as updateCustomWord,
 } from '@/routes/custom-words';
-import { index as flashcardsIndex } from '@/routes/flashcards';
-import { importMethod as importFromWord } from '@/routes/flashcards/cards';
 import { destroy, store, update } from '@/routes/folders';
 import { update as folderWordUpdate } from '@/routes/folders/words';
 import { store as storeReport } from '@/routes/report';
@@ -138,9 +129,6 @@ export default function WordsIndex({
         Record<string, string>
     >({});
     const [selectedDeckId, setSelectedDeckId] = useState<string>('');
-    const [importingFlashcard, setImportingFlashcard] = useState(false);
-    const [customImportSuccess, setCustomImportSuccess] = useState(false);
-    const [wordImportSuccess, setWordImportSuccess] = useState(false);
     const [savingCustomWord, setSavingCustomWord] = useState(false);
     const [confirmDeleteCustom, setConfirmDeleteCustom] = useState(false);
     const [hintDismissed, setHintDismissed] = useState(
@@ -420,29 +408,6 @@ export default function WordsIndex({
                         setSelectedWordId(null);
                     }
                 },
-            },
-        );
-    }
-
-    function handleImportToFlashcard(wordId: number) {
-        if (!selectedDeckId) {
-            return;
-        }
-
-        setImportingFlashcard(true);
-        setWordImportSuccess(false);
-        router.post(
-            importFromWord(Number(selectedDeckId)).url,
-            { word_id: wordId },
-            {
-                preserveScroll: true,
-                preserveState: true,
-                only: ['flashcardDecks'],
-                onSuccess: () => {
-                    setWordImportSuccess(true);
-                    setTimeout(() => setWordImportSuccess(false), 2500);
-                },
-                onFinish: () => setImportingFlashcard(false),
             },
         );
     }
@@ -1420,113 +1385,15 @@ export default function WordsIndex({
                                             handleCustomWordImportance(cw.id, v)
                                         }
                                     />
-                                    {flashcardDecks.length > 0 && (
-                                        <div>
-                                            <p className="mb-2 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
-                                                Flashcard deckhez adás
-                                            </p>
-                                            <div className="flex gap-2">
-                                                <Select
-                                                    value={selectedDeckId}
-                                                    onValueChange={
-                                                        setSelectedDeckId
-                                                    }
-                                                >
-                                                    <SelectTrigger className="h-9 flex-1 text-sm">
-                                                        <SelectValue placeholder="Válassz decket..." />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        {flashcardDecks.map(
-                                                            (deck) => (
-                                                                <SelectItem
-                                                                    key={
-                                                                        deck.id
-                                                                    }
-                                                                    value={String(
-                                                                        deck.id,
-                                                                    )}
-                                                                >
-                                                                    {deck.name}
-                                                                </SelectItem>
-                                                            ),
-                                                        )}
-                                                    </SelectContent>
-                                                </Select>
-                                                <Button
-                                                    size="sm"
-                                                    variant={
-                                                        customImportSuccess
-                                                            ? 'default'
-                                                            : 'outline'
-                                                    }
-                                                    disabled={
-                                                        !selectedDeckId ||
-                                                        importingFlashcard
-                                                    }
-                                                    onClick={() => {
-                                                        if (!selectedDeckId) {
-                                                            return;
-                                                        }
-
-                                                        setImportingFlashcard(
-                                                            true,
-                                                        );
-                                                        setCustomImportSuccess(
-                                                            false,
-                                                        );
-                                                        router.post(
-                                                            importFromWord(
-                                                                Number(
-                                                                    selectedDeckId,
-                                                                ),
-                                                            ).url,
-                                                            {
-                                                                custom_word_id:
-                                                                    cw.id,
-                                                            },
-                                                            {
-                                                                preserveScroll: true,
-                                                                onSuccess:
-                                                                    () => {
-                                                                        setCustomImportSuccess(
-                                                                            true,
-                                                                        );
-                                                                        setTimeout(
-                                                                            () =>
-                                                                                setCustomImportSuccess(
-                                                                                    false,
-                                                                                ),
-                                                                            2500,
-                                                                        );
-                                                                    },
-                                                                onFinish: () =>
-                                                                    setImportingFlashcard(
-                                                                        false,
-                                                                    ),
-                                                            },
-                                                        );
-                                                    }}
-                                                >
-                                                    <Layers className="mr-1.5 size-4" />
-                                                    {customImportSuccess
-                                                        ? 'Hozzáadva!'
-                                                        : 'Hozzáadás'}
-                                                </Button>
-                                            </div>
-                                        </div>
-                                    )}
-                                    {flashcardDecks.length === 0 && (
-                                        <p className="text-xs text-muted-foreground">
-                                            Flashcardként mentéshez előbb{' '}
-                                            <Link
-                                                href={flashcardsIndex().url}
-                                                className="text-primary underline underline-offset-2"
-                                            >
-                                                hozz létre egy csomagot
-                                            </Link>
-                                            .
-                                        </p>
-                                    )}
+                                    <FlashcardDeckSection
+                                        key={`custom-${cw.id}`}
+                                        word={cw.word}
+                                        source={{ custom_word_id: cw.id }}
+                                        hasAiAccess={hasAiAccess}
+                                        flashcardDecks={flashcardDecks}
+                                        deckId={selectedDeckId}
+                                        onDeckChange={setSelectedDeckId}
+                                    />
 
                                     {hasAiAccess && (
                                         <div className="flex flex-col gap-3 border-t pt-4">
@@ -1806,74 +1673,15 @@ export default function WordsIndex({
                                     </div>
                                 )}
 
-                                {flashcardDecks.length > 0 && (
-                                    <div>
-                                        <p className="mb-2 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
-                                            Flashcard deckhez adás
-                                        </p>
-                                        <div className="flex gap-2">
-                                            <Select
-                                                value={selectedDeckId}
-                                                onValueChange={
-                                                    setSelectedDeckId
-                                                }
-                                            >
-                                                <SelectTrigger className="h-9 flex-1 text-sm">
-                                                    <SelectValue placeholder="Válassz decket..." />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {flashcardDecks.map(
-                                                        (deck) => (
-                                                            <SelectItem
-                                                                key={deck.id}
-                                                                value={String(
-                                                                    deck.id,
-                                                                )}
-                                                            >
-                                                                {deck.name}
-                                                            </SelectItem>
-                                                        ),
-                                                    )}
-                                                </SelectContent>
-                                            </Select>
-                                            <Button
-                                                size="sm"
-                                                variant={
-                                                    wordImportSuccess
-                                                        ? 'default'
-                                                        : 'outline'
-                                                }
-                                                disabled={
-                                                    !selectedDeckId ||
-                                                    importingFlashcard
-                                                }
-                                                onClick={() =>
-                                                    handleImportToFlashcard(
-                                                        selectedWord.id,
-                                                    )
-                                                }
-                                            >
-                                                <Layers className="mr-1.5 size-4" />
-                                                {wordImportSuccess
-                                                    ? 'Hozzáadva!'
-                                                    : 'Hozzáadás'}
-                                            </Button>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {flashcardDecks.length === 0 && (
-                                    <p className="text-xs text-muted-foreground">
-                                        Flashcardként mentéshez előbb{' '}
-                                        <Link
-                                            href={flashcardsIndex().url}
-                                            className="text-primary underline underline-offset-2"
-                                        >
-                                            hozz létre egy csomagot
-                                        </Link>
-                                        .
-                                    </p>
-                                )}
+                                <FlashcardDeckSection
+                                    key={`word-${selectedWord.id}`}
+                                    word={selectedWord.word}
+                                    source={{ word_id: selectedWord.id }}
+                                    hasAiAccess={hasAiAccess}
+                                    flashcardDecks={flashcardDecks}
+                                    deckId={selectedDeckId}
+                                    onDeckChange={setSelectedDeckId}
+                                />
 
                                 {hasAiAccess && (
                                     <div className="flex flex-col gap-3 border-t pt-4">
