@@ -42,20 +42,31 @@ class FlashcardCardController extends Controller
         return 'A kártyáidon épp egy másik művelet fut (pl. import). Próbáld újra pár másodperc múlva.';
     }
 
-    public function store(StoreFlashcardRequest $request, FlashcardDeck $deck): RedirectResponse
+    public function store(StoreFlashcardRequest $request, FlashcardDeck $deck): RedirectResponse|JsonResponse
     {
         abort_unless($deck->user_id === $request->user()->id, 403);
 
+        /** @var Flashcard|null $flashcard */
+        $flashcard = null;
+
         try {
-            $reserved = $request->user()->reserveFlashcardSlots(1, function () use ($deck, $request) {
-                $deck->flashcards()->create($request->validated());
+            $reserved = $request->user()->reserveFlashcardSlots(1, function () use ($deck, $request, &$flashcard) {
+                $flashcard = $deck->flashcards()->create($request->validated());
             });
         } catch (LockTimeoutException) {
-            return back()->with('error', $this->busyMessage());
+            return $request->wantsJson()
+                ? response()->json(['message' => $this->busyMessage()], 409)
+                : back()->with('error', $this->busyMessage());
         }
 
-        if (! $reserved) {
-            return back()->with('error', $this->limitMessage($request));
+        if (! $reserved || $flashcard === null) {
+            return $request->wantsJson()
+                ? response()->json(['message' => $this->limitMessage($request)], 403)
+                : back()->with('error', $this->limitMessage($request));
+        }
+
+        if ($request->wantsJson()) {
+            return response()->json(['card_id' => $flashcard->id], 201);
         }
 
         return to_route('flashcards.show', $deck);

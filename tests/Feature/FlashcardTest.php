@@ -1131,6 +1131,45 @@ test('import from custom word answers a json request with the new card', functio
     expect($deck->flashcards()->sole()->front)->toBe('gizmo');
 });
 
+test('store answers a json request with the new card instead of redirecting', function () {
+    $user = User::factory()->create();
+    $deck = FlashcardDeck::create(['user_id' => $user->id, 'name' => 'Deck']);
+    $word = Word::create(['word' => 'apple', 'meaning_hu' => 'alma', 'rank' => 1]);
+
+    $response = $this->actingAs($user)
+        ->postJson(route('flashcards.cards.store', $deck), [
+            'word_id' => $word->id,
+            'front' => '<p>An _______ a day.</p>',
+            'back' => '<p>alma</p>',
+            'direction' => 'both',
+        ])
+        ->assertCreated();
+
+    $card = $deck->flashcards()->sole();
+
+    expect($response->json('card_id'))->toBe($card->id)
+        ->and($card->word_id)->toBe($word->id)
+        ->and($card->back)->toBe('<p>alma</p>');
+});
+
+test('json store reports the card limit as a json error', function () {
+    config(['plans.limits.free.flashcards' => 0]);
+
+    $user = User::factory()->create();
+    $deck = FlashcardDeck::create(['user_id' => $user->id, 'name' => 'Deck']);
+
+    $this->actingAs($user)
+        ->postJson(route('flashcards.cards.store', $deck), [
+            'front' => 'apple',
+            'back' => 'alma',
+            'direction' => 'both',
+        ])
+        ->assertForbidden()
+        ->assertJsonPath('message', fn (string $message) => str_contains($message, 'kártyakeret'));
+
+    expect($deck->flashcards()->count())->toBe(0);
+});
+
 test('json import from word reports the card limit as a json error', function () {
     config(['plans.limits.free.flashcards' => 0]);
 

@@ -16,7 +16,7 @@
 .env.production
 .phpactor.json
 .phpunit.result.cache
-.claude
+.claude/settings.local.json
 claude
 SEC_AUDIT.md
 todo
@@ -47,3 +47,6 @@ claude-memory
 # szerverre kerül — dump SOHA nem kerülhet be a verziókövetésbe.
 *.sql
 *.sql.gz
+
+# Biztonsági audit-jelentések: sebezhetőségi részleteket tartalmaznak, csak lokálisan.
+audit-2026-09/
